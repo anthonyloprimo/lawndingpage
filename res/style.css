@@ -127,9 +127,7 @@ header {
                     width: 100%;
                     text-decoration: none;
                 }
-        .link {
-            /* visual styles moved to anchors above */
-        }
+
             .link:hover {
                 background-color: #77777733;
                 border: 1px solid #FFFFFFBB;

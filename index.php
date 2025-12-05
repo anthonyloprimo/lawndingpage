@@ -5,6 +5,23 @@ $rulesMdPath = __DIR__ . '/res/data/rules.md';
 $rulesMarkdown = is_readable($rulesMdPath) ? file_get_contents($rulesMdPath) : '';
 $Parsedown = new Parsedown();
 $rules = $Parsedown->text($rulesMarkdown);
+
+$aboutMdPath = __DIR__ . '/res/data/about.md';
+$aboutMarkdown = is_readable($aboutMdPath) ? file_get_contents($aboutMdPath) : '';
+$about = $Parsedown->text($aboutMarkdown);
+
+$faqMdPath = __DIR__ . '/res/data/faq.md';
+$faqMarkdown = is_readable($faqMdPath) ? file_get_contents($faqMdPath) : '';
+$faq = $Parsedown->text($faqMarkdown);
+
+$linksJsonPath = __DIR__ . '/res/data/links.json';
+$linksData = [];
+if (is_readable($linksJsonPath)) {
+    $decoded = json_decode(file_get_contents($linksJsonPath), true);
+    if (is_array($decoded)) {
+        $linksData = $decoded;
+    }
+}
 ?>
 
 <!DOCTYPE html>
@@ -15,8 +32,11 @@ $rules = $Parsedown->text($rulesMarkdown);
     <title>Lawnding Page</title>
     <link rel="icon" type="image/jpg" href="res/img/logo.jpg"/>
     <link rel="stylesheet" href="res/style.css">
+
+    <script src="res/scr/jquery-3.7.1.min.js"></script>
 </head>
 <body>
+    <div id="noJsWarning"><noscript>This site requires JavaScript to function properly. Please enable JavaScript in your browser.</noscript></div>
     <header class="header" id="header">
         <div class="logo" id="logo"></div>
         <div class="headline">
@@ -28,30 +48,51 @@ $rules = $Parsedown->text($rulesMarkdown);
         <div class="pane glassConvex alwaysShow" id="links">
             <h3>LINKS</h3>
             <ul class="linkList" id="linkList">
-                <a class="fullWidth" href="https://t.me/+WQneCwkE_0L9j14u" title="Welcome Lobby for the LI Furs Telegram Main Chats"><li class="cta link linkTelegram" id="linkWelcomeLobby">New to LI Furs?  Start Here! (Telegram Welcome Lobby)</li></a>
-                <a class="fullWidth" href="https://t.me/+gkC_JjJCd4AxYTk5" title="Telegram group chat for the yearly OMGWTFBBQ, a weekend-long get-together with cool vibes and awesome food!"><li class="link linkTelegram" id="linkBbq">OMGWTFBBQ Group</li></a>
-                <hr>
-                <a href="https://t.me/+7xLxW6RIz-gwYzEx" title="Telegram group chat for the gamers in the LI Furs!  Video games, tabletop games, and more!"><li class="link linkTelegram" id="linkGaming">LI Furs Gaming Telegram Group</li></a>
-                <a href="https://t.me/+7xLxW6RIz-gwYzEx" title="Also the tg gaming group chat."><li class="link linkTelegram" id="linkGaming">LI Furs Gaming Telegram Group</li></a>
+                <?php foreach ($linksData as $link): ?>
+                    <?php if (($link['type'] ?? '') === 'separator'): ?>
+                        <li class="separator" aria-hidden="true"><hr></li>
+                    <?php elseif (($link['type'] ?? '') === 'link'): ?>
+                        <?php
+                            $href = $link['href'] ?? '#';
+                            $title = $link['title'] ?? '';
+                            $text = $link['text'] ?? '';
+                            $id = $link['id'] ?? '';
+                            $isFullWidth = !empty($link['fullWidth']);
+                            $isCta = !empty($link['cta']);
+                            $liClasses = trim(($isFullWidth ? 'fullWidth ' : '') . 'linkItem');
+                            $aClasses = trim('link linkTelegram ' . ($isCta ? 'cta ' : ''));
+                        ?>
+                        <li class="<?php echo $liClasses; ?>" id="<?php echo htmlspecialchars($id); ?>">
+                            <a class="<?php echo $aClasses; ?>" href="<?php echo htmlspecialchars($href); ?>" title="<?php echo htmlspecialchars($title); ?>">
+                                <?php echo htmlspecialchars($text); ?>
+                            </a>
+                        </li>
+                    <?php endif; ?>
+                <?php endforeach; ?>
             </ul>
+        </div>
+        <div class="pane glassConvex" id="about">
+            <?php echo $about; ?>
         </div>
         <div class="pane glassConvex" id="rules">
             <?php echo $rules ?>
         </div>
-        <!-- <div class="pane glassConvex" id="faq">FAQs go here</div>
-        <div class="pane glassConvex" id="about">About info goes here</div>
+        <div class="pane glassConvex" id="faq">
+            <?php echo $faq; ?>
+        </div>
         <div class="pane glassConvex" id="events">Public events go here</div>
-        <div class="pane glassConvex" id="donate">donate pane here maybe</div> -->
+        <div class="pane glassConvex" id="donate">donate pane here maybe</div>
     </div>
     <nav>
         <ul class="navBar glassConcave" id="navBar">
-            <a href="#"><li>HOME</li></a>
-            <a href="#"><li>RULES</li></a>
-            <a href="#"><li>FAQ</li></a>
-            <a href="#"><li>ABOUT</li></a>
-            <a href="#"><li>EVENTS</li></a>
-            <a href="#"><li>DONATE</li></a>
+            <li><a class="navLink" href="#" data-pane="links">LINKS</a></li>
+            <li><a class="navLink" href="#" data-pane="about">ABOUT</a></li>
+            <li><a class="navLink" href="#" data-pane="rules">RULES</a></li>
+            <li><a class="navLink" href="#" data-pane="faq">FAQ</a></li>
+            <li><a class="navLink" href="#" data-pane="events">EVENTS</a></li>
+            <li><a class="navLink" href="#" data-pane="donate">DONATE</a></li>
         </ul>
     </nav>
+    <script src="res/scr/app.js"></script>
 </body>
 </html>

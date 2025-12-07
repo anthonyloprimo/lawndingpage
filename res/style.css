@@ -155,7 +155,9 @@ header {
 nav {
     flex-shrink: 0;
     display: flex;
-    justify-content: center;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
 }
     .navBar {
         display: inline-flex;
@@ -191,10 +193,15 @@ nav {
                     background-color: #77777733;
                     border: 1px solid #FFFFFFBB;
                 }
-                .navBar li a:active {
-                    background-color: #00000055;
-                    border: 1px solid #FFFFFF55;
-                }
+            .navBar li a:active {
+                background-color: #00000055;
+                border: 1px solid #FFFFFF55;
+            }
+
+.footer {
+    font-size: 0.8rem;
+    color: #FFFFFFAA;
+}
 
 
 .glassConvex {
@@ -216,7 +223,8 @@ nav {
         flex-direction: column;
     }
         #links {
-            flex: 0 0 auto;
+            flex: 1 1 auto;
+            min-height: 0;
             width: 100%;
             max-width: none;
             min-width: 0;

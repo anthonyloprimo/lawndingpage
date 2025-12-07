@@ -3,19 +3,19 @@
         "type": "link",
         "id": "linkWelcomeLobby",
         "href": "https://t.me/+WQneCwkE_0L9j14u",
-        "title": "Welcome Lobby for the LI Furs Telegram Main Chats",
         "text": "New to LI Furs?  Start Here! (Telegram Welcome Lobby)",
-        "cta": true,
-        "fullWidth": true
+        "title": "Welcome Lobby for the LI Furs Telegram Main Chats",
+        "fullWidth": true,
+        "cta": true
     },
     {
         "type": "link",
         "id": "linkBbq",
         "href": "https://t.me/+gkC_JjJCd4AxYTk5",
-        "title": "Telegram group chat for the yearly OMGWTFBBQ, a weekend-long get-together with cool vibes and awesome food!",
         "text": "OMGWTFBBQ Group",
-        "cta": false,
-        "fullWidth": true
+        "title": "Telegram group chat for the yearly OMGWTFBBQ, a weekend-long get-together with cool vibes and awesome food!",
+        "fullWidth": true,
+        "cta": false
     },
     {
         "type": "separator"
@@ -24,18 +24,18 @@
         "type": "link",
         "id": "linkGaming",
         "href": "https://t.me/+7xLxW6RIz-gwYzEx",
-        "title": "Telegram group chat for the gamers in the LI Furs!  Video games, tabletop games, and more!",
         "text": "LI Furs Gaming Telegram Group",
-        "cta": false,
-        "fullWidth": false
+        "title": "Telegram group chat for the gamers in the LI Furs!  Video games, tabletop games, and more!",
+        "fullWidth": false,
+        "cta": false
     },
     {
         "type": "link",
         "id": "linkGaming",
         "href": "https://t.me/+7xLxW6RIz-gwYzEx",
-        "title": "Also the tg gaming group chat.",
         "text": "LI Furs Gaming Telegram Group",
-        "cta": false,
-        "fullWidth": true
+        "title": "Also the tg gaming group chat.",
+        "fullWidth": true,
+        "cta": false
     }
 ]

@@ -22,7 +22,21 @@ if (is_readable($linksJsonPath)) {
         $linksData = $decoded;
     }
 }
-?>
+
+$headerJsonPath = __DIR__ . '/res/data/header.json';
+$headerData = [
+    'logo' => 'res/img/logo.jpg',
+    'title' => 'Long Island Furs',
+    'subtitle' => 'A Long Island furry community encompassing Queens, Nassau County, and Suffolk County.  And Staten Island, but we do not talk about that.',
+    'backgrounds' => ['res/img/bg.jpg']
+];
+if (is_readable($headerJsonPath)) {
+    $decoded = json_decode(file_get_contents($headerJsonPath), true);
+    if (is_array($decoded)) {
+        $headerData = array_merge($headerData, $decoded);
+    }
+}
+?> 
 
 <!DOCTYPE html>
 <html lang="en">
@@ -40,8 +54,8 @@ if (is_readable($linksJsonPath)) {
     <header class="header" id="header">
         <div class="logo" id="logo"></div>
         <div class="headline">
-            <h1>Long Island Furs</h1>
-            <h2>A Long Island furry community encompassing Queens, Nassau County, and Suffolk County.  And Staten Island, but we don't talk about that.</h2>
+            <h1><?php echo htmlspecialchars($headerData['title'] ?? ''); ?></h1>
+            <h2><?php echo htmlspecialchars($headerData['subtitle'] ?? ''); ?></h2>
         </div>
     </header>
     <div class="container" id="container">
@@ -92,7 +106,14 @@ if (is_readable($linksJsonPath)) {
             <li><a class="navLink" href="#" data-pane="events">EVENTS</a></li>
             <li><a class="navLink" href="#" data-pane="donate">DONATE</a></li>
         </ul>
+        <div class="footer">
+            Powered by LawndingPage.  Background image by <span class="authorName"></span>.
+        </div>
     </nav>
+    <script>
+        // Expose header data to JS for assets like the logo background.
+        window.headerData = <?php echo json_encode($headerData, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+    </script>
     <script src="res/scr/app.js"></script>
 </body>
 </html>

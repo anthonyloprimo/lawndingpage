@@ -1,0 +1,375 @@
+/* Config-mode overrides and utilities */
+
+header.header {
+    align-items: flex-start;
+    position: relative;
+}
+
+.logo {
+    position: relative;
+    flex: 0 0 auto;
+}
+
+.logo .logoChange {
+    position: absolute;
+    bottom: 8px;
+    right: 8px;
+    padding: 4px 8px;
+    font-size: 0.75rem;
+    border-radius: 4px;
+}
+
+.logo.dragOver {
+    outline: 2px dashed #FFFFFFAA;
+    outline-offset: -6px;
+    background-color: #00000066;
+}
+
+.fileInputHidden {
+    display: none;
+}
+
+.headline {
+    padding-top: 0;
+    flex: 1 1 auto;
+    margin-right: 160px; /* leave room for the save button */
+}
+
+.headerActions {
+    position: absolute;
+    right: 16px;
+    bottom: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    align-items: flex-end;
+}
+
+.headlineInput {
+    display: block;
+    width: 100%;
+    max-width: none;
+    margin: 6px 0;
+    padding: 10px 12px;
+    border-radius: 4px;
+    border: 1px solid #FFFFFF33;
+    background: #00000044;
+    color: inherit;
+}
+.headlineInput[name="siteTitle"] {
+    font-size: 1.6rem;
+    font-weight: 700;
+}
+.headlineInput[name="siteSubtitle"] {
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+.helpTutorial,
+.saveChanges {
+    padding: 8px 12px;
+    border-radius: 6px;
+    border: 1px solid #FFFFFF55;
+    background: #FFFFFF22;
+    color: inherit;
+}
+
+.linksConfig {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    flex: 1 1 auto;
+    overflow: hidden;
+}
+
+.linksConfigList {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    flex: 1 1 auto;
+    overflow: auto;
+    padding-right: 4px;
+}
+
+.linksConfigRow {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.linksConfigHeader {
+    font-weight: 700;
+    border-bottom: 1px solid #FFFFFF33;
+    padding-bottom: 4px;
+}
+
+.linksConfigCard {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 8px;
+    border: 1px solid #FFFFFF22;
+    border-radius: 6px;
+    background: #00000033;
+}
+.linksConfigCard:nth-child(even) {
+    background: #00000044;
+}
+.linksConfigCard:hover {
+    border-color: #FFFFFF55;
+    background: #00000055;
+}
+
+.linksConfigLabel {
+    font-weight: 600;
+}
+
+.linksConfigField {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-weight: 600;
+    font-size: 0.9rem;
+    flex: 1 1 0;
+}
+
+.linksConfigInput {
+    width: 100%;
+    padding: 6px 8px;
+    border-radius: 4px;
+    border: 1px solid #FFFFFF33;
+    background: #00000055;
+    color: inherit;
+    font-weight: 500;
+}
+
+.linksConfigCheckbox {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 500;
+    font-size: 0.95rem;
+}
+
+.linksConfigToggles {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.linksConfigSpacer {
+    flex: 1 1 auto;
+}
+
+.linksConfigSeparator .linksConfigName {
+    padding-left: 8px;
+}
+
+.linksConfigSeparator .linksConfigName {
+    padding-left: 8px;
+}
+
+.linksConfigActions {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+    justify-content: flex-end;
+    padding-top: 4px;
+}
+
+.bgConfig {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    flex: 1 1 auto;
+    overflow: auto;
+}
+
+.bgConfigRow {
+    display: grid;
+    grid-template-columns: 1fr 3fr 1fr;
+    gap: 8px;
+    align-items: center;
+}
+.bgConfigRow:not(.bgConfigHeader):nth-child(even) {
+    background: #FFFFFF15;
+}
+
+.bgConfigHeader {
+    font-weight: 700;
+    border-bottom: 1px solid #FFFFFF33;
+    padding-bottom: 4px;
+}
+
+.bgThumbWrap {
+    width: 100%;
+    max-width: 120px;
+    height: 72px;
+    overflow: hidden;
+    border: 1px solid #FFFFFF33;
+    border-radius: 4px;
+    background: #00000033;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+}
+.bgThumbWrap.empty {
+    border: 1px dashed #FFFFFF55;
+    background: #00000055;
+}
+.bgThumbWrap.dragOver {
+    outline: 2px dashed #FFFFFFAA;
+    outline-offset: -4px;
+    background-color: #00000066;
+}
+
+.bgThumb {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.bgChange {
+    position: absolute;
+    bottom: 4px;
+    right: 4px;
+    padding: 3px 6px;
+    font-size: 0.7rem;
+    border: 1px solid #FFFFFF99;
+    border-radius: 4px;
+    background: #000000AA;
+    color: inherit;
+}
+
+.bgAuthorInput {
+    width: 100%;
+    padding: 6px 8px;
+    border-radius: 4px;
+    border: 1px solid #FFFFFF33;
+    background: #00000033;
+    color: inherit;
+}
+
+.deleteBackground,
+.addBackground {
+    padding: 6px 8px;
+    border-radius: 4px;
+    border: 1px solid #FFFFFF44;
+    background: #00000055;
+    color: inherit;
+}
+
+.bgConfigActions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: auto;
+}
+
+.paneEditor {
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    padding: 8px;
+    border-radius: 4px;
+    border: 1px solid #FFFFFF33;
+    background: #00000033;
+    color: inherit;
+    font-family: monospace;
+    resize: none;
+    flex: 1 1 auto;
+}
+
+.pane {
+    display: flex;
+    flex-direction: column;
+}
+
+/* Tutorial overlay */
+#tutorialOverlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 9999;
+}
+
+.tutorialMask {
+    position: absolute;
+    background: rgba(0, 0, 0, 0.6);
+    pointer-events: auto;
+}
+
+.tutorialPopover {
+    position: absolute;
+    max-width: 420px;
+    padding: 12px;
+    background: #FFFFFFBB;
+    color: #111;
+    border-radius: 8px;
+    border: 1px solid #00000033;
+    pointer-events: auto;
+}
+
+.tutorialControls {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.hidden {
+    display: none !important;
+}
+
+/* Shared button styling */
+.configButton,
+.logoChange,
+.bgChange,
+.deleteLink,
+.addLink,
+.addSeparator,
+.deleteBackground,
+.addBackground,
+.helpTutorial,
+.saveChanges,
+.tutorialControls button {
+    padding: 6px 10px;
+    border-radius: 6px;
+    border: 1px solid #FFFFFF44;
+    background: #00000055;
+    color: inherit;
+    text-decoration: none;
+}
+.configButton:hover,
+.logoChange:hover,
+.bgChange:hover,
+.deleteLink:hover,
+.addLink:hover,
+.addSeparator:hover,
+.deleteBackground:hover,
+.addBackground:hover,
+.helpTutorial:hover,
+.saveChanges:hover,
+.tutorialControls button:hover {
+    background: #77777733;
+    border: 1px solid #FFFFFFBB;
+}
+.configButton:active,
+.logoChange:active,
+.bgChange:active,
+.deleteLink:active,
+.addLink:active,
+.addSeparator:active,
+.deleteBackground:active,
+.addBackground:active,
+.helpTutorial:active,
+.saveChanges:active,
+.tutorialControls button:active {
+    background: #00000077;
+    border: 1px solid #FFFFFF55;
+}

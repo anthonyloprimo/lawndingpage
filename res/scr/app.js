@@ -1,13 +1,14 @@
 // Lawnding Page JS scaffolding
 
 // Define the width in which we toggle mobile or desktop view modes. Initialize the mode and currentPane variables.
-const BREAKPOINT = 980;
+const BREAKPOINT = 979;
 let mode = null;
 let currentPane = null;
+let paneOrder = [];
 
 // Returns either 'desktop' or 'mobile' as the view mode.  Allows easy hooking into mode-based features on the page.
 function getMode() {
-    return window.innerWidth >= BREAKPOINT ? 'desktop' : 'mobile';
+    return window.innerWidth > BREAKPOINT ? 'desktop' : 'mobile';
 }
 
 // On first run, do all this.
@@ -19,14 +20,27 @@ function init() {
     // Hide the noscript warning if JS is enabled.  How can we hide it with this code if JS isn't running?  Well if JS WASN'T running, you wouldn't be trying to hide it now would you? :3
     $('#noJsWarning').hide();
 
-    // Set the mode based on the getmode function, determine the default view (pane) on the mode - desktop mode shows about, mobile shows links.  This is because in dekstop mode, links are always displayed on the left side.
+    // Capture the pane order from nav links for default selection logic.
+    paneOrder = navLinks.map(function() {
+        return $(this).data('pane');
+    }).get();
+
+    // Set the mode based on the getMode function and pick defaults:
+    // - mobile: first pane
+    // - desktop: second pane (first stays the "links" sidebar on main page, "bg" on config)
     mode = getMode();
-    currentPane = mode === 'desktop' ? 'about' : 'links';
+    currentPane = mode === 'desktop' ? getDefaultDesktopPane() : getDefaultMobilePane();
     console.log(`init(): mode=${mode}, panes=${panes.length}, navLinks=${navLinks.length}`);
 
     // Apply the layout based on the above.
     applyLayout();
     updateNavActiveState();
+
+    // Set the header logo background image from JSON-provided data.
+    setLogoBackground();
+
+    // Randomize the body background image from the JSON-provided list while preserving other background styles.
+    setRandomBackground();
 
     // Wire up nav clicks to drive pane switching in SPA style.
     navLinks.on('click', function(event) {
@@ -50,12 +64,15 @@ function init() {
             const previousPane = currentPane;
             mode = newMode;
 
-            // When moving to desktop, force the secondary pane to 'about' if we were on 'links' (links is always visible on desktop).
-            if (mode === 'desktop' && currentPane === 'links') {
-                currentPane = 'about';
-            }
-            // When moving to mobile, keep the current pane as-is (no reset to links).
-            if (mode === 'mobile') {
+            if (mode === 'desktop') {
+                // If we land on desktop while on the first pane, shift to the second pane.
+                const firstPane = paneOrder[0];
+                const secondPane = getDefaultDesktopPane();
+                if (currentPane === firstPane && secondPane) {
+                    currentPane = secondPane;
+                }
+            } else {
+                // On mobile, keep current pane as-is.
                 currentPane = previousPane;
             }
 
@@ -73,9 +90,11 @@ function applyLayout() {
 
     // check the mode and apply layout based on that.
     if (mode === 'desktop') {
-        // If we change from mobile to desktop mode, and we're viewing links, we force the current pane to be about since links are always shown.
-        if (currentPane === 'links') {
-            currentPane = 'about';
+        // If we change from mobile to desktop mode, and we're viewing the first nav pane, force to the second since the first is always visible.
+        const firstPane = paneOrder[0];
+        const secondPane = getDefaultDesktopPane();
+        if (currentPane === firstPane && secondPane) {
+            currentPane = secondPane;
         }
 
         // See which pane is current and show them (remove the hidden class), otherwise hide them.
@@ -110,6 +129,52 @@ function applyLayout() {
     console.log(`applyLayout(): mode=${mode}, currentPane=${currentPane}`);
 }
 
+// Applies the logo background image using data from PHP-injected global.
+function setLogoBackground() {
+    // The PHP template injects window.headerData; bail if missing.
+    if (!window.headerData || !window.headerData.logo) {
+        return;
+    }
+
+    $('#logo').css('background-image', `url('${window.headerData.logo}')`);
+}
+
+// Picks a random body background image from headerData.backgrounds while keeping other background properties intact.
+function setRandomBackground() {
+    if (!window.headerData) {
+        return;
+    }
+
+    const rawBackgrounds = Array.isArray(window.headerData.backgrounds)
+        ? window.headerData.backgrounds
+        : [];
+
+    // Normalize entries to objects with url + author.
+    const backgrounds = rawBackgrounds
+        .map((bg) => {
+            if (typeof bg === 'string') {
+                return { url: bg, author: '' };
+            }
+            if (bg && typeof bg === 'object' && typeof bg.url === 'string') {
+                return { url: bg.url, author: typeof bg.author === 'string' ? bg.author : '' };
+            }
+            return null;
+        })
+        .filter((bg) => bg && bg.url.length > 0);
+
+    const chosen = backgrounds.length > 0 ? backgrounds[Math.floor(Math.random() * backgrounds.length)] : null;
+    if (!chosen) {
+        return;
+    }
+
+    // Preserve existing gradient by setting the layered background-image only.
+    $('body').css('background-image', `linear-gradient(#00000055), url('${chosen.url}')`);
+
+    // Update the footer with the background author (fallback to 'anonymous' if missing).
+    const author = chosen.author && chosen.author.trim().length > 0 ? chosen.author.trim() : 'anonymous';
+    $('.authorName').text(author);
+}
+
 // Highlight the nav link corresponding to the current pane.
 function updateNavActiveState() {
     // Remove any active state first.
@@ -117,6 +182,16 @@ function updateNavActiveState() {
 
     // Add active state to the link that matches the current pane.
     $(`.navLink[data-pane=\"${currentPane}\"]`).addClass('navActive');
+}
+
+// Helper: default pane for mobile (first nav entry).
+function getDefaultMobilePane() {
+    return paneOrder[0] || 'links';
+}
+
+// Helper: default pane for desktop (second nav entry if present, else first).
+function getDefaultDesktopPane() {
+    return paneOrder[1] || paneOrder[0] || 'about';
 }
 
 // Ensures we update the layout as soon as the page loads.

@@ -1,0 +1,11 @@
+{
+    "logo": "res/img/logo.jpg",
+    "title": "Long Island Furs",
+    "subtitle": "A Long Island furry community encompassing Queens, Nassau County, and Suffolk County.  And Staten Island, but we don't talk about that.",
+    "backgrounds": [
+        {
+            "url": "res/img/bg.jpg",
+            "author": "Ponyboy"
+        }
+    ]
+}

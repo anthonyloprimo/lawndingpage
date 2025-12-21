@@ -1,4 +1,5 @@
 <?php
+ini_set('display_errors', '0');
 require __DIR__ . '/res/scr/Parsedown.php';
 
 $rulesMdPath = __DIR__ . '/res/data/rules.md';

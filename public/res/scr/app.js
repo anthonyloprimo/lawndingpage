@@ -191,6 +191,9 @@ function getDefaultMobilePane() {
 
 // Helper: default pane for desktop (second nav entry if present, else first).
 function getDefaultDesktopPane() {
+    if (paneOrder.includes('bg')) {
+        return 'bg';
+    }
     return paneOrder[1] || paneOrder[0] || 'about';
 }
 

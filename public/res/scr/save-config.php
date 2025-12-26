@@ -1,11 +1,48 @@
 <?php
 // Handles saving config changes (links, header, backgrounds, markdown, and uploads).
+session_start();
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
     header('Content-Type: application/json');
     echo json_encode(['error' => 'Method not allowed']);
     exit;
+}
+
+if (empty($_SESSION['auth_user'])) {
+    respond(['error' => 'Unauthorized'], 401);
+}
+
+$allowedPermissions = ['full_admin', 'add_users', 'edit_users', 'remove_users', 'edit_site'];
+$usersPath = dirname(__DIR__, 3) . '/admin/users.json';
+$users = [];
+if (is_readable($usersPath)) {
+    $decoded = json_decode(file_get_contents($usersPath), true);
+    if (is_array($decoded)) {
+        $users = $decoded;
+    }
+}
+$authUser = $_SESSION['auth_user'];
+$authRecord = null;
+foreach ($users as $user) {
+    if (is_array($user) && ($user['username'] ?? '') === $authUser) {
+        $authRecord = $user;
+        break;
+    }
+}
+if (!$authRecord) {
+    respond(['error' => 'Unauthorized'], 401);
+}
+
+$permissions = $authRecord['permissions'] ?? [];
+if (!is_array($permissions)) {
+    $permissions = [];
+}
+$permissions = array_values(array_intersect($permissions, $allowedPermissions));
+$isFullAdmin = !empty($authRecord['master']) || in_array('full_admin', $permissions, true);
+$canEditSite = $isFullAdmin || in_array('edit_site', $permissions, true);
+if (!$canEditSite) {
+    respond(['error' => 'Forbidden'], 403);
 }
 
 $baseDir = dirname(__DIR__, 1); // res/scr -> res
@@ -37,6 +74,23 @@ function respond($payload, $code = 200) {
     header('Content-Type: application/json');
     echo json_encode($payload);
     exit;
+}
+
+function normalize_asset_path($path) {
+    if (!is_string($path) || $path === '') {
+        return $path;
+    }
+    if (preg_match('#^https?://#i', $path)) {
+        return $path;
+    }
+    $trimmed = ltrim($path, '/');
+    if (str_starts_with($trimmed, 'public/res/')) {
+        return substr($trimmed, strlen('public/'));
+    }
+    if (str_starts_with($trimmed, 'res/')) {
+        return $trimmed;
+    }
+    return $path;
 }
 
 // Validate and save an uploaded image; returns relative path.
@@ -107,7 +161,7 @@ foreach ($backgroundsData as $bg) {
         }
     } elseif ($existingUrl) {
         $newBackgrounds[] = [
-            'url' => $existingUrl,
+            'url' => normalize_asset_path($existingUrl),
             'author' => $author,
         ];
     }
@@ -136,16 +190,29 @@ foreach ($linksData as $link) {
 }
 
 // Write markdown files
-file_put_contents($aboutPath, $aboutMarkdown);
-file_put_contents($rulesPath, $rulesMarkdown);
-file_put_contents($faqPath, $faqMarkdown);
+if (file_put_contents($aboutPath, $aboutMarkdown) === false) {
+    respond(['error' => 'Failed to write about content'], 500);
+}
+if (file_put_contents($rulesPath, $rulesMarkdown) === false) {
+    respond(['error' => 'Failed to write rules content'], 500);
+}
+if (file_put_contents($faqPath, $faqMarkdown) === false) {
+    respond(['error' => 'Failed to write FAQ content'], 500);
+}
 
 // Update header data
 $headerData['title'] = $siteTitle;
 $headerData['subtitle'] = $siteSubtitle;
+$headerData['logo'] = normalize_asset_path($headerData['logo'] ?? '');
 $headerData['backgrounds'] = $newBackgrounds;
 
-file_put_contents($headerPath, json_encode($headerData, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
-file_put_contents($linksPath, json_encode($linksOut, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+$headerJson = json_encode($headerData, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+if ($headerJson === false || file_put_contents($headerPath, $headerJson) === false) {
+    respond(['error' => 'Failed to write header data'], 500);
+}
+$linksJsonOut = json_encode($linksOut, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+if ($linksJsonOut === false || file_put_contents($linksPath, $linksJsonOut) === false) {
+    respond(['error' => 'Failed to write links data'], 500);
+}
 
 respond(['status' => 'ok']);

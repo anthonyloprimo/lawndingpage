@@ -1,0 +1,23 @@
+[
+    {
+        "type": "link",
+        "id": "linkGoog",
+        "href": "https://www.google.com/",
+        "text": "Google Homepage",
+        "title": "Link to Google's webpage.",
+        "fullWidth": true,
+        "cta": true
+    },
+    {
+        "type": "separator"
+    },
+    {
+        "type": "link",
+        "id": "linkRoll",
+        "href": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+        "text": "Never Gonna Give You Up",
+        "title": "Link to rickroll video.",
+        "fullWidth": true,
+        "cta": false
+    }
+]

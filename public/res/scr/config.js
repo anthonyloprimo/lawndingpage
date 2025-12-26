@@ -17,6 +17,9 @@ $(document).ready(function() {
     bindLinksControls();
     bindBackgroundControls();
     bindSaveHandler();
+    bindUserActions();
+    applySiteEditPermissions();
+    bindAdminNotices();
 
     // Bind tutorial controls
     $('.tutorialNext').on('click', function() {
@@ -413,6 +416,11 @@ $(document).ready(function() {
 
     // Save handler: gather data and POST to save endpoint.
     function bindSaveHandler() {
+        const basePath = window.appConfig && typeof window.appConfig.basePath === 'string'
+            ? window.appConfig.basePath.replace(/\/$/, '')
+            : '';
+        const saveUrl = basePath ? `${basePath}/res/scr/save-config.php` : '/res/scr/save-config.php';
+
         $('.saveChanges').on('click', function() {
             const formData = new FormData();
 
@@ -477,7 +485,7 @@ $(document).ready(function() {
             formData.append('faqMarkdown', $('textarea[name="faqMarkdown"]').val() || '');
 
             $.ajax({
-                url: 'res/scr/save-config.php',
+                url: saveUrl,
                 method: 'POST',
                 data: formData,
                 processData: false,
@@ -487,11 +495,240 @@ $(document).ready(function() {
                     alert('Changes saved.');
                 },
                 error: function(xhr) {
-                    console.error('Save failed', xhr.responseText);
+                    const responseText = xhr && xhr.responseText ? xhr.responseText : '';
+                    if (xhr && xhr.status === 403) {
+                        addAdminNotice('danger', 'You do not have permission to edit site content.');
+                        return;
+                    }
+                    console.error('Save failed', responseText);
                     alert('Save failed. Please try again.');
                 }
             });
         });
+    }
+
+    function bindUserActions() {
+        let pendingResetForm = null;
+
+        function openModal($modal) {
+            $modal.addClass('isOpen').attr('aria-hidden', 'false');
+        }
+
+        function closeModal($modal) {
+            $modal.removeClass('isOpen').attr('aria-hidden', 'true');
+        }
+
+        $(document).on('click', '.usersPermissionsButton', function() {
+            const $row = $(this).closest('.usersRow');
+            const username = $row.data('username') || '';
+            const permissionsRaw = $row.data('permissions') || '';
+            const permissions = permissionsRaw ? permissionsRaw.split(',') : [];
+
+            const $permissionsModal = $('#permissionsModal');
+            $('#permissionsUsername').val(username);
+            $permissionsModal.find('input[type="checkbox"]').prop('checked', false);
+            permissions.forEach(function(permission) {
+                $permissionsModal.find(`input[type="checkbox"][value="${permission}"]`).prop('checked', true);
+            });
+            applyFullAdminState($permissionsModal);
+
+            openModal($permissionsModal);
+        });
+
+        $(document).on('click', '.usersRemoveButton', function() {
+            const $row = $(this).closest('.usersRow');
+            const username = $row.data('username') || '';
+            $('#removeUsername').val(username);
+            const $removeModal = $('#removeUserModal');
+            const currentUser = window.appConfig && window.appConfig.currentUser ? window.appConfig.currentUser : '';
+            const warningBase = 'WARNING: Clicking Delete will permanently remove this account. This cannot be reversed!';
+            const warningSuffix = username && currentUser && username === currentUser
+                ? ' You will be logged out.'
+                : '';
+            $('#removeUserWarning').text(warningBase + warningSuffix);
+            openModal($removeModal);
+        });
+
+        $(document).on('click', '.userModalClose', function() {
+            closeModal($(this).closest('.userModalOverlay'));
+        });
+
+        $(document).on('change', '#permissionsModal input[type="checkbox"][value="full_admin"]', function() {
+            applyFullAdminState($('#permissionsModal'));
+        });
+
+        $(document).on('submit', '.usersCreateForm, #permissionsForm, #removeUserForm', function(event) {
+            event.preventDefault();
+            submitUsersForm(this);
+        });
+
+        $(document).on('submit', '.usersResetForm', function(event) {
+            const $form = $(this);
+            const targetUser = $form.data('username') || '';
+            const currentUser = window.appConfig && window.appConfig.currentUser ? window.appConfig.currentUser : '';
+            event.preventDefault();
+            pendingResetForm = this;
+            const baseMessage = targetUser
+                ? `Are you sure you want to reset the password for ${targetUser}?`
+                : 'Are you sure you want to reset this password?';
+            const logoutMessage = targetUser && currentUser && targetUser === currentUser
+                ? ' This will log you out.'
+                : '';
+            $('#resetConfirmMessage').text(baseMessage + logoutMessage);
+            openModal($('#resetConfirmModal'));
+        });
+
+        $(document).on('click', '#resetConfirmYes', function() {
+            if (pendingResetForm) {
+                submitUsersForm(pendingResetForm);
+                pendingResetForm = null;
+            }
+            closeModal($('#resetConfirmModal'));
+        });
+
+        $(document).on('click', '#resetConfirmModal .userModalClose', function() {
+            pendingResetForm = null;
+            closeModal($('#resetConfirmModal'));
+        });
+    }
+
+    function applyFullAdminState($permissionsModal) {
+        const $fullAdmin = $permissionsModal.find('input[type="checkbox"][value="full_admin"]');
+        if ($fullAdmin.prop('disabled')) {
+            return;
+        }
+        const isFullAdmin = $fullAdmin.is(':checked');
+        const $otherItems = $permissionsModal.find('.permissionsItem').filter(function() {
+            return $(this).find('input[type="checkbox"]').val() !== 'full_admin';
+        });
+        const $otherCheckboxes = $otherItems.find('input[type="checkbox"]');
+
+        if (isFullAdmin) {
+            $otherCheckboxes.prop('checked', true).prop('disabled', true);
+            $otherItems.addClass('isDisabled');
+        } else {
+            $otherCheckboxes.prop('disabled', false);
+            $otherItems.removeClass('isDisabled');
+        }
+    }
+
+    function submitUsersForm(form) {
+        const formData = new FormData(form);
+        fetch(window.location.href, {
+            method: 'POST',
+            body: formData,
+            credentials: 'same-origin'
+        })
+            .then((response) => response.text().then((text) => ({ text, url: response.url, status: response.status })))
+            .then(({ text, url, status }) => {
+                const doc = new DOMParser().parseFromString(text, 'text/html');
+                const usersPane = doc.querySelector('#users');
+                const resetModal = doc.querySelector('#resetPasswordModal');
+                const permissionsModal = doc.querySelector('#permissionsModal');
+                const removeModal = doc.querySelector('#removeUserModal');
+                const resetConfirmModal = doc.querySelector('#resetConfirmModal');
+                const notices = doc.querySelector('#adminNotices');
+
+                if (!usersPane) {
+                    window.location.href = url;
+                    return;
+                }
+
+                const currentUsersPane = document.querySelector('#users');
+                if (currentUsersPane) {
+                    currentUsersPane.replaceWith(usersPane);
+                }
+                if (notices) {
+                    const currentNotices = document.querySelector('#adminNotices');
+                    if (currentNotices) {
+                        currentNotices.replaceWith(notices);
+                    }
+                }
+                if (resetModal) {
+                    $('#resetPasswordModal').replaceWith(resetModal);
+                }
+                if (permissionsModal) {
+                    $('#permissionsModal').replaceWith(permissionsModal);
+                }
+                if (removeModal) {
+                    $('#removeUserModal').replaceWith(removeModal);
+                }
+                if (resetConfirmModal) {
+                    $('#resetConfirmModal').replaceWith(resetConfirmModal);
+                }
+
+                const $newPermissionsModal = $('#permissionsModal');
+                applyFullAdminState($newPermissionsModal);
+                updateEditSitePermissionFromUsers();
+                applySiteEditPermissions();
+                $('#permissionsModal').removeClass('isOpen').attr('aria-hidden', 'true');
+                $('#removeUserModal').removeClass('isOpen').attr('aria-hidden', 'true');
+                $('#resetConfirmModal').removeClass('isOpen').attr('aria-hidden', 'true');
+
+                if (status === 401 || status === 403) {
+                    if (!document.querySelector('#adminNotices .adminNotice--danger')) {
+                        addAdminNotice('danger', 'You do not have permission to perform this action.');
+                    }
+                }
+            })
+            .catch((error) => {
+                console.error('User action failed', error);
+                alert('Action failed. Please try again.');
+            });
+    }
+
+    function applySiteEditPermissions() {
+        const canEditSite = window.appConfig && window.appConfig.canEditSite === false ? false : true;
+        const $targets = $('#container')
+            .find('.pane')
+            .not('#users')
+            .find('input, textarea, button, select')
+            .add($('#header').find('.headlineInput, .logoChange, #logoFileInput'))
+            .add($('.saveChanges'));
+
+        if (canEditSite) {
+            $targets.prop('disabled', false);
+            return;
+        }
+
+        $targets.prop('disabled', true);
+    }
+
+    function addAdminNotice(type, text) {
+        const $notices = $('#adminNotices');
+        if (!$notices.length) {
+            return;
+        }
+        const safeType = type || 'ok';
+        const $notice = $(`
+            <div class="adminNotice adminNotice--${safeType}">
+                <span class="adminNoticeText"></span>
+                <button type="button" class="adminNoticeClose" aria-label="Dismiss notification">×</button>
+            </div>
+        `);
+        $notice.find('.adminNoticeText').text(text);
+        $notices.append($notice);
+    }
+
+    function bindAdminNotices() {
+        $(document).on('click', '.adminNoticeClose', function() {
+            $(this).closest('.adminNotice').remove();
+        });
+    }
+
+    function updateEditSitePermissionFromUsers() {
+        const currentUser = window.appConfig && window.appConfig.currentUser ? window.appConfig.currentUser : '';
+        if (!currentUser) {
+            return;
+        }
+        const row = document.querySelector(`.usersRow[data-username="${currentUser}"]`);
+        if (!row) {
+            return;
+        }
+        const raw = row.getAttribute('data-permissions') || '';
+        const perms = raw ? raw.split(',') : [];
+        const isFullAdmin = perms.includes('full_admin');
+        window.appConfig.canEditSite = isFullAdmin || perms.includes('edit_site');
     }
 
     function buildTutorialSteps() {
@@ -530,8 +767,15 @@ $(document).ready(function() {
                 }
             },
             {
-                selector: '.headerActions',
-                text: 'Click Help to view this tutorial again. Click Save All Changes to commit your edits.',
+                selector: '#users',
+                text: 'Manage accounts here. Create a new user with a temporary password on the left. Use the list to reset passwords or remove users on the right.',
+                onBefore: function() {
+                    $('.navLink[data-pane=\"users\"]').trigger('click');
+                }
+            },
+            {
+                selector: '.headerActionStack',
+                text: 'Click Log Out to leave the admin panel. Click Help to view this tutorial again. Click Save All Changes to commit your edits.',
                 onBefore: function() {}
             }
         ];

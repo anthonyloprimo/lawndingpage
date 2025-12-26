@@ -35,10 +35,19 @@ header.header {
     margin-right: 160px; /* leave room for the save button */
 }
 
-.headerActions {
+.headerActionStack {
     position: absolute;
     right: 16px;
+    top: 8px;
     bottom: 8px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 8px;
+}
+
+.headerActions {
     display: flex;
     flex-direction: column;
     gap: 6px;
@@ -66,12 +75,105 @@ header.header {
 }
 
 .helpTutorial,
-.saveChanges {
+.saveChanges,
+.logoutButton {
     padding: 8px 12px;
     border-radius: 6px;
     border: 1px solid #FFFFFF55;
     background: #FFFFFF22;
     color: inherit;
+}
+
+.logoutButton {
+    border-color: #FF7A7A;
+    background: #661A1A;
+    font-size: 0.85rem;
+    padding: 6px 10px;
+}
+
+.logoutButton:hover {
+    background-color: #7A2222;
+    border-color: #FF9A9A;
+}
+
+.logoutButton:active {
+    background-color: #551515;
+    border-color: #FF6A6A;
+}
+
+.logoutButton:disabled,
+.logoutButton[disabled] {
+    opacity: 0.25;
+    cursor: not-allowed;
+}
+
+.logoutButton:disabled:hover,
+.logoutButton[disabled]:hover,
+.logoutButton:disabled:active,
+.logoutButton[disabled]:active {
+    background-color: inherit;
+    border-color: inherit;
+}
+
+.signedInAs {
+    font-size: 0.85rem;
+    color: #FFFFFFBB;
+    text-align: right;
+}
+
+.adminNotices {
+    position: fixed;
+    top: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(65vw, 720px);
+    z-index: 3000;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.adminNotice {
+    padding: 0.65rem 0.9rem;
+    border-radius: 8px;
+    border: 1px solid #FFFFFF22;
+    background: #FFFFFF11;
+    backdrop-filter: blur(8px);
+    box-shadow: 0 0 0 1px #FFFFFF22 inset, 0 1px 8px 2px #00000055;
+    font-size: 0.9rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.adminNoticeClose {
+    border: 1px solid #FFFFFF44;
+    border-radius: 999px;
+    padding: 2px 8px;
+    background: #FFFFFF22;
+    color: inherit;
+    font-weight: 700;
+}
+
+.adminNoticeClose:hover {
+    border-color: #FFFFFFAA;
+    background: #FFFFFF33;
+}
+
+.adminNotice--ok {
+    border-color: #5BB9FF88;
+    background: #1C355A88;
+}
+
+.adminNotice--warning {
+    border-color: #FFD97788;
+    background: #4A3B1488;
+}
+
+.adminNotice--danger {
+    border-color: #FF6B6B88;
+    background: #4A141488;
 }
 
 .linksConfig {
@@ -119,6 +221,236 @@ header.header {
 .linksConfigCard:hover {
     border-color: #FFFFFF55;
     background: #00000055;
+}
+
+#users {
+    container-type: inline-size;
+    container-name: users-pane;
+}
+
+.usersGrid {
+    display: flex;
+    gap: 12px;
+    flex-wrap: nowrap;
+}
+
+.usersColumn {
+    flex: 1 1 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.usersColumn:first-child {
+    flex: 0 0 32%;
+    min-width: 0;
+}
+
+.usersColumn:last-child {
+    flex: 1 1 68%;
+    min-width: 0;
+}
+
+.usersColumn h4 {
+    font-size: 1.1rem;
+    border-bottom: 1px solid #FFFFFF33;
+    padding-bottom: 4px;
+}
+
+.usersBlock {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    border: 1px solid #FFFFFF22;
+    border-radius: 6px;
+    padding: 10px;
+    background: #00000033;
+}
+
+.usersBlock.isDisabled {
+    opacity: 0.25;
+}
+
+.usersBlock.isDisabled input,
+.usersBlock.isDisabled button {
+    pointer-events: none;
+}
+
+input:disabled,
+textarea:disabled,
+select:disabled,
+button:disabled {
+    opacity: 0.25;
+    cursor: not-allowed;
+}
+
+.usersField {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 0.9rem;
+    color: #FFFFFFCC;
+}
+
+.usersInput {
+    border: 1px solid #FFFFFF33;
+    border-radius: 6px;
+    padding: 8px;
+    background: #00000044;
+    color: inherit;
+}
+
+.usersButton {
+    padding: 8px 12px;
+    border-radius: 6px;
+    border: 1px solid #FFFFFF55;
+    background: #FFFFFF22;
+    color: inherit;
+}
+
+.usersButton:hover {
+    background-color: #77777733;
+    border: 1px solid #FFFFFFBB;
+}
+
+.usersButton:active {
+    background-color: #00000055;
+    border: 1px solid #FFFFFF55;
+}
+
+.usersButton:disabled,
+.usersButton[disabled] {
+    opacity: 0.25;
+    cursor: not-allowed;
+}
+
+.usersButton:disabled:hover,
+.usersButton[disabled]:hover,
+.usersButton:disabled:active,
+.usersButton[disabled]:active {
+    background-color: inherit;
+    border-color: inherit;
+}
+
+.usersDanger {
+    border-color: #FF7A7A;
+    background: #661A1A;
+}
+
+.usersDanger:hover {
+    background-color: #7A2222;
+    border-color: #FF9A9A;
+}
+
+.usersDanger:active {
+    background-color: #551515;
+    border-color: #FF6A6A;
+}
+
+.usersRow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.usersHeader {
+    font-weight: 700;
+}
+
+.usersActions {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.usersActions form {
+    margin: 0;
+}
+
+.usersHint {
+    font-size: 0.8rem;
+    color: #FFFFFFAA;
+}
+
+.usersNotice {
+    text-align: center;
+    font-size: 0.9rem;
+    color: #FFFFFFBB;
+    margin-bottom: 12px;
+}
+
+.userModalOverlay {
+    position: fixed;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    background: #00000088;
+    z-index: 2000;
+    padding: 1.5rem;
+}
+
+.userModalOverlay.isOpen {
+    display: flex;
+}
+
+.userModal {
+    width: min(520px, 92vw);
+    padding: 1rem;
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.userModalActions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.permissionsList {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.permissionsItem {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.permissionsItem.isDisabled {
+    opacity: 0.25;
+}
+
+@media (max-width: 979px) {
+    .usersGrid {
+        flex-direction: column;
+        flex-wrap: nowrap;
+    }
+
+    .usersColumn:first-child,
+    .usersColumn:last-child {
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+}
+
+@container users-pane (max-width: 800px) {
+    .usersGrid {
+        flex-direction: column;
+        flex-wrap: nowrap;
+    }
+
+    .usersColumn:first-child,
+    .usersColumn:last-child {
+        flex: 1 1 auto;
+        min-width: 0;
+    }
 }
 
 .linksConfigLabel {

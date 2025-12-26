@@ -422,6 +422,16 @@ if (!empty($usersWarnings)) {
             </form>
         </div>
     </div>
+    <div class="userModalOverlay" id="permissionsSelfConfirmModal" role="dialog" aria-modal="true" aria-hidden="true">
+        <div class="userModal glassConcave">
+            <h4>Remove Your Permissions</h4>
+            <p class="usersHint">You are removing your own permissions. Another admin will need to re-enable them. Continue?</p>
+            <div class="userModalActions">
+                <button class="usersButton" type="button" id="permissionsSelfConfirmYes">Yes</button>
+                <button class="usersButton userModalClose" type="button">Cancel</button>
+            </div>
+        </div>
+    </div>
     <div class="userModalOverlay" id="resetConfirmModal" role="dialog" aria-modal="true" aria-hidden="true">
         <div class="userModal glassConcave">
             <h4>Reset Password</h4>

@@ -9,3 +9,5 @@ Welcome to the Long Island Furs community hub. This space is for sharing informa
 - A focus on respect, inclusivity, and fun.
 
 Stay tuned for more details and updates.
+
+This is new text in the About Page! :D

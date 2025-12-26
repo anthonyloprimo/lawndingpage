@@ -509,6 +509,7 @@ $(document).ready(function() {
 
     function bindUserActions() {
         let pendingResetForm = null;
+        let pendingPermissionsForm = null;
 
         function openModal($modal) {
             $modal.addClass('isOpen').attr('aria-hidden', 'false');
@@ -525,6 +526,7 @@ $(document).ready(function() {
             const permissions = permissionsRaw ? permissionsRaw.split(',') : [];
 
             const $permissionsModal = $('#permissionsModal');
+            $permissionsModal.data('current-permissions', permissions);
             $('#permissionsUsername').val(username);
             $permissionsModal.find('input[type="checkbox"]').prop('checked', false);
             permissions.forEach(function(permission) {
@@ -558,6 +560,34 @@ $(document).ready(function() {
         });
 
         $(document).on('submit', '.usersCreateForm, #permissionsForm, #removeUserForm', function(event) {
+            if (this.id === 'permissionsForm') {
+                const currentUser = window.appConfig && window.appConfig.currentUser ? window.appConfig.currentUser : '';
+                const targetUser = $('#permissionsUsername').val() || '';
+                if (currentUser && targetUser && currentUser === targetUser) {
+                    const currentPerms = $('#permissionsModal').data('current-permissions') || [];
+                    const selectedPerms = $('#permissionsModal').find('input[type="checkbox"]:checked').map(function() {
+                        return $(this).val();
+                    }).get();
+                    const added = selectedPerms.filter(function(permission) {
+                        return !currentPerms.includes(permission);
+                    });
+                    const removed = currentPerms.filter(function(permission) {
+                        return !selectedPerms.includes(permission);
+                    });
+                    const canEditUsers = $('.usersActions .usersPermissionsButton').is(':enabled');
+                    if (added.length > 0 && !canEditUsers) {
+                        event.preventDefault();
+                        addAdminNotice('danger', 'You cannot add your own permissions.');
+                        return;
+                    }
+                    if (removed.length > 0) {
+                        event.preventDefault();
+                        pendingPermissionsForm = this;
+                        openModal($('#permissionsSelfConfirmModal'));
+                        return;
+                    }
+                }
+            }
             event.preventDefault();
             submitUsersForm(this);
         });
@@ -589,6 +619,19 @@ $(document).ready(function() {
         $(document).on('click', '#resetConfirmModal .userModalClose', function() {
             pendingResetForm = null;
             closeModal($('#resetConfirmModal'));
+        });
+
+        $(document).on('click', '#permissionsSelfConfirmYes', function() {
+            if (pendingPermissionsForm) {
+                submitUsersForm(pendingPermissionsForm);
+                pendingPermissionsForm = null;
+            }
+            closeModal($('#permissionsSelfConfirmModal'));
+        });
+
+        $(document).on('click', '#permissionsSelfConfirmModal .userModalClose', function() {
+            pendingPermissionsForm = null;
+            closeModal($('#permissionsSelfConfirmModal'));
         });
     }
 
@@ -627,6 +670,7 @@ $(document).ready(function() {
                 const permissionsModal = doc.querySelector('#permissionsModal');
                 const removeModal = doc.querySelector('#removeUserModal');
                 const resetConfirmModal = doc.querySelector('#resetConfirmModal');
+                const permissionsSelfConfirmModal = doc.querySelector('#permissionsSelfConfirmModal');
                 const notices = doc.querySelector('#adminNotices');
 
                 if (!usersPane) {
@@ -656,6 +700,9 @@ $(document).ready(function() {
                 if (resetConfirmModal) {
                     $('#resetConfirmModal').replaceWith(resetConfirmModal);
                 }
+                if (permissionsSelfConfirmModal) {
+                    $('#permissionsSelfConfirmModal').replaceWith(permissionsSelfConfirmModal);
+                }
 
                 const $newPermissionsModal = $('#permissionsModal');
                 applyFullAdminState($newPermissionsModal);
@@ -664,6 +711,7 @@ $(document).ready(function() {
                 $('#permissionsModal').removeClass('isOpen').attr('aria-hidden', 'true');
                 $('#removeUserModal').removeClass('isOpen').attr('aria-hidden', 'true');
                 $('#resetConfirmModal').removeClass('isOpen').attr('aria-hidden', 'true');
+                $('#permissionsSelfConfirmModal').removeClass('isOpen').attr('aria-hidden', 'true');
 
                 if (status === 401 || status === 403) {
                     if (!document.querySelector('#adminNotices .adminNotice--danger')) {

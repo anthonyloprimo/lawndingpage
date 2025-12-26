@@ -313,6 +313,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
                 if (in_array('full_admin', $normalized, true)) {
                     $normalized = $allowedPermissions;
                 }
+                if (!$canEditUsers && $targetUsername === $authUser) {
+                    $currentPerms = normalize_permissions($authRecord['permissions'] ?? [], $allowedPermissions);
+                    $normalized = array_values(array_intersect($normalized, $currentPerms));
+                }
                 $updated = false;
                 foreach ($users as &$user) {
                     if (($user['username'] ?? '') === $targetUsername) {

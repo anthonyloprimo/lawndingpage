@@ -48,15 +48,21 @@ if (!$canEditSite) {
     respond(['error' => 'Forbidden'], 403);
 }
 
-$baseDir = dirname(__DIR__, 1); // res/scr -> res
-$rootDir = dirname($baseDir);    // project root
+$publicDir = function_exists('lawnding_config')
+    ? lawnding_config('public_dir', dirname(__DIR__, 2))
+    : dirname(__DIR__, 2);
+$dataDir = function_exists('lawnding_config')
+    ? lawnding_config('data_dir', $publicDir . '/res/data')
+    : $publicDir . '/res/data';
+$imgDir = function_exists('lawnding_config')
+    ? lawnding_config('img_dir', $publicDir . '/res/img')
+    : $publicDir . '/res/img';
 
-$headerPath = $rootDir . '/res/data/header.json';
-$linksPath = $rootDir . '/res/data/links.json';
-$aboutPath = $rootDir . '/res/data/about.md';
-$rulesPath = $rootDir . '/res/data/rules.md';
-$faqPath = $rootDir . '/res/data/faq.md';
-$imgDir = $rootDir . '/res/img/';
+$headerPath = $dataDir . '/header.json';
+$linksPath = $dataDir . '/links.json';
+$aboutPath = $dataDir . '/about.md';
+$rulesPath = $dataDir . '/rules.md';
+$faqPath = $dataDir . '/faq.md';
 
 // Load existing header data with defaults
 $headerData = [
@@ -87,6 +93,12 @@ function normalize_asset_path($path) {
         return $path;
     }
     $trimmed = ltrim($path, '/');
+    $baseUrl = function_exists('lawnding_config')
+        ? trim((string) lawnding_config('base_url', ''), '/')
+        : '';
+    if ($baseUrl !== '' && str_starts_with($trimmed, $baseUrl . '/res/')) {
+        return substr($trimmed, strlen($baseUrl) + 1);
+    }
     if (str_starts_with($trimmed, 'public/res/')) {
         return substr($trimmed, strlen('public/'));
     }

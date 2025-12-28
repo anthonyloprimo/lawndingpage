@@ -1,5 +1,9 @@
 <?php
-require_once __DIR__ . '/../../lp-bootstrap.php';
+$bootstrapPath = __DIR__ . '/../../lp-bootstrap.php';
+if (!is_readable($bootstrapPath)) {
+    $bootstrapPath = __DIR__ . '/../../../lp-bootstrap.php';
+}
+require_once $bootstrapPath;
 
 $requestPath = parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH);
 if ($requestPath !== null && $requestPath !== '') {
@@ -582,7 +586,10 @@ if ($logoutAfterAction) {
 }
 
 if ($authRecord && !$forcePasswordChange) {
-    require __DIR__ . '/../../admin/config.php';
+    $adminConfigPath = function_exists('lawnding_admin_path')
+        ? lawnding_admin_path('config.php')
+        : dirname(__DIR__, 2) . '/admin/config.php';
+    require $adminConfigPath;
     exit;
 }
 ?>
@@ -592,8 +599,9 @@ if ($authRecord && !$forcePasswordChange) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Panel</title>
-    <link rel="icon" type="image/jpg" href="../res/img/logo.jpg">
-    <link rel="stylesheet" href="../res/style.css">
+    <?php $assetBase = function_exists('lawnding_config') ? rtrim(lawnding_config('base_url', ''), '/') : ''; ?>
+    <link rel="icon" type="image/jpg" href="<?php echo htmlspecialchars($assetBase); ?>/res/img/logo.jpg">
+    <link rel="stylesheet" href="<?php echo htmlspecialchars($assetBase); ?>/res/style.css">
     <style>
         body {
             background: #111;

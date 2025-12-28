@@ -1,6 +1,9 @@
 <?php
 require_once __DIR__ . '/../lp-bootstrap.php';
-require __DIR__ . '/../public/res/scr/Parsedown.php';
+$parsedownPath = function_exists('lawnding_public_path')
+    ? lawnding_public_path('res/scr/Parsedown.php')
+    : __DIR__ . '/../public/res/scr/Parsedown.php';
+require $parsedownPath;
 
 $assetBase = '';
 if (function_exists('lawnding_config')) {
@@ -32,20 +35,28 @@ $makeAssetUrl = function ($path) use ($assetBase) {
     return $path;
 };
 
-$rulesMdPath = __DIR__ . '/../public/res/data/rules.md';
+$rulesMdPath = function_exists('lawnding_data_path')
+    ? lawnding_data_path('rules.md')
+    : __DIR__ . '/../public/res/data/rules.md';
 $rulesMarkdown = is_readable($rulesMdPath) ? file_get_contents($rulesMdPath) : '';
 $Parsedown = new Parsedown();
 $rules = $Parsedown->text($rulesMarkdown);
 
-$aboutMdPath = __DIR__ . '/../public/res/data/about.md';
+$aboutMdPath = function_exists('lawnding_data_path')
+    ? lawnding_data_path('about.md')
+    : __DIR__ . '/../public/res/data/about.md';
 $aboutMarkdown = is_readable($aboutMdPath) ? file_get_contents($aboutMdPath) : '';
 $about = $Parsedown->text($aboutMarkdown);
 
-$faqMdPath = __DIR__ . '/../public/res/data/faq.md';
+$faqMdPath = function_exists('lawnding_data_path')
+    ? lawnding_data_path('faq.md')
+    : __DIR__ . '/../public/res/data/faq.md';
 $faqMarkdown = is_readable($faqMdPath) ? file_get_contents($faqMdPath) : '';
 $faq = $Parsedown->text($faqMarkdown);
 
-$linksJsonPath = __DIR__ . '/../public/res/data/links.json';
+$linksJsonPath = function_exists('lawnding_data_path')
+    ? lawnding_data_path('links.json')
+    : __DIR__ . '/../public/res/data/links.json';
 $linksData = [];
 if (is_readable($linksJsonPath)) {
     $decoded = json_decode(file_get_contents($linksJsonPath), true);
@@ -54,7 +65,9 @@ if (is_readable($linksJsonPath)) {
     }
 }
 
-$headerJsonPath = __DIR__ . '/../public/res/data/header.json';
+$headerJsonPath = function_exists('lawnding_data_path')
+    ? lawnding_data_path('header.json')
+    : __DIR__ . '/../public/res/data/header.json';
 $headerDefaults = [
     'logo' => 'res/img/logo.jpg',
     'title' => 'Long Island Furs',

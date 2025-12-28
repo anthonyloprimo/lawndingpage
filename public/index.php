@@ -1,22 +1,37 @@
 <?php
-require_once __DIR__ . '/../lp-bootstrap.php';
+$bootstrapPath = __DIR__ . '/../lp-bootstrap.php';
+if (!is_readable($bootstrapPath)) {
+    $bootstrapPath = __DIR__ . '/../../lp-bootstrap.php';
+}
+require_once $bootstrapPath;
 ini_set('display_errors', '0');
-require __DIR__ . '/res/scr/Parsedown.php';
+$parsedownPath = function_exists('lawnding_public_path')
+    ? lawnding_public_path('res/scr/Parsedown.php')
+    : __DIR__ . '/res/scr/Parsedown.php';
+require $parsedownPath;
 
-$rulesMdPath = __DIR__ . '/res/data/rules.md';
+$rulesMdPath = function_exists('lawnding_data_path')
+    ? lawnding_data_path('rules.md')
+    : __DIR__ . '/res/data/rules.md';
 $rulesMarkdown = is_readable($rulesMdPath) ? file_get_contents($rulesMdPath) : '';
 $Parsedown = new Parsedown();
 $rules = $Parsedown->text($rulesMarkdown);
 
-$aboutMdPath = __DIR__ . '/res/data/about.md';
+$aboutMdPath = function_exists('lawnding_data_path')
+    ? lawnding_data_path('about.md')
+    : __DIR__ . '/res/data/about.md';
 $aboutMarkdown = is_readable($aboutMdPath) ? file_get_contents($aboutMdPath) : '';
 $about = $Parsedown->text($aboutMarkdown);
 
-$faqMdPath = __DIR__ . '/res/data/faq.md';
+$faqMdPath = function_exists('lawnding_data_path')
+    ? lawnding_data_path('faq.md')
+    : __DIR__ . '/res/data/faq.md';
 $faqMarkdown = is_readable($faqMdPath) ? file_get_contents($faqMdPath) : '';
 $faq = $Parsedown->text($faqMarkdown);
 
-$linksJsonPath = __DIR__ . '/res/data/links.json';
+$linksJsonPath = function_exists('lawnding_data_path')
+    ? lawnding_data_path('links.json')
+    : __DIR__ . '/res/data/links.json';
 $linksData = [];
 if (is_readable($linksJsonPath)) {
     $decoded = json_decode(file_get_contents($linksJsonPath), true);
@@ -25,7 +40,9 @@ if (is_readable($linksJsonPath)) {
     }
 }
 
-$headerJsonPath = __DIR__ . '/res/data/header.json';
+$headerJsonPath = function_exists('lawnding_data_path')
+    ? lawnding_data_path('header.json')
+    : __DIR__ . '/res/data/header.json';
 $headerData = [
     'logo' => 'res/img/logo.jpg',
     'title' => 'Long Island Furs',

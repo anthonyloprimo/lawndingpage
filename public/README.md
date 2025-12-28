@@ -287,3 +287,11 @@ The core design of `config.php` is directly based on `index.php`.  Literally, I 
 I *swear* the former is most likely happening.  Totally.  Please believe me.  ....Okay don't believe me because I probably will forget.
 
 Sarcasm aside, enjoy! :3
+
+## Changelog
+### v1.1
+- Fixed a bug where certain file paths were not correctly being respected due to being hardcoded.
+
+### v1.0
+- Initial Version
+

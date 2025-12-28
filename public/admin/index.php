@@ -21,7 +21,10 @@ ini_set('error_log', $errorLogPath);
 
 session_start(); // Initialize PHP session storage and load existing session data.
 
-$usersPath = __DIR__ . '/../../admin/users.json'; // Admin accounts live outside the public webroot.
+$usersPath = function_exists('lawnding_config')
+    ? lawnding_config('users_path', dirname(__DIR__, 2) . '/admin/users.json')
+    : dirname(__DIR__, 2) . '/admin/users.json';
+// Admin accounts live outside the public webroot.
 $users = [];
 $usersFileIssue = null;
 $allowedPermissions = ['full_admin', 'add_users', 'edit_users', 'remove_users', 'edit_site'];

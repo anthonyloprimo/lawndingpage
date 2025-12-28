@@ -15,7 +15,9 @@ if (empty($_SESSION['auth_user'])) {
 }
 
 $allowedPermissions = ['full_admin', 'add_users', 'edit_users', 'remove_users', 'edit_site'];
-$usersPath = dirname(__DIR__, 3) . '/admin/users.json';
+$usersPath = function_exists('lawnding_config')
+    ? lawnding_config('users_path', dirname(__DIR__, 3) . '/admin/users.json')
+    : dirname(__DIR__, 3) . '/admin/users.json';
 $users = [];
 if (is_readable($usersPath)) {
     $decoded = json_decode(file_get_contents($usersPath), true);

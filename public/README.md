@@ -6,7 +6,63 @@ The project is intended to be a bit more robust than a simple carrd site, but ea
 It's created with HTML wrapped in PHP, as well as CSS and JS.
 
 ## Getting Started
-After cloning the repo, drop everything in your site's root.  As long as PHP is installed, running index.php should do the trick!
+~~After cloning the repo, drop everything in your site's root.  As long as PHP is installed, running index.php should do the trick!~~
+### File Structure
+To set up LawndingPage, understand the structure of the files.
+
+```
+- admin/
+    - users.json
+    - auth.php
+    - config.php
+- public/
+    - admin/
+        - index.php
+    - res/
+        - data/
+            - header.json
+            - links.json
+            - about.md
+            - faq.md
+            - rules.md
+        - img/
+            - logo.jpg
+            - (other images)
+        - scr/
+            - app.js
+            - config.js
+            - jquery-#.#.#.min.js
+            - Parsedown.php
+            - save-config.php
+        - config.css
+        - style.css
+    - index.php
+    - LICENSE.md
+    - README.md
+    - THIRD-PARTY-LICENSES.md
+- lp-bootstrap.php
+- lp-overrides.php (optional)
+```
+
+- `public/` is the main site.  If you don't have a pre-configured web server, this should be your website root.
+- `admin/` contains the important files for user authentication.
+- `lp-bootstrap.php` provides runtime path defaults.  `lp-overrides.php` is optional and can override defaults (i.e. if your website root is in `public_html/` instead of just `public/`).
+
+### Quick Start
+For this walkthrough, we'll assume your website is `http://www.awesomelandingpage.com/` because clearly your landing page is going to be the most awesome page ever.
+
+For purposes of this walkthrough, it's assumed you've got a web host situated, and you own a domain name.  It's also assumed you've downloaded/cloned this repo.
+
+If you don't have an existing web site, then drop everything into your server's root directory, make sure `public/` is set as the website's root.  The `admin/` folder that is OUTSIDE of `public/` should stay outside of the public folder, in your server's root.  This should ensure it cannot be accessed from the internet and only internal scripts cna touch it.  Now if you go to the website, it'll display the default page.  Note, for some shared hosting, they already have a public folder.  I use Hostinger, and their website root is named `public_html/`, so you can copy everything in this project's `public/` folder into that one.  The website should display with a logo placeholder, a title, subtitle, along with one or two panes, depending on if you're on mobile or desktop.  Navigation bar should be on the bottom.  If that's good, we can move on.
+
+At the end of the url, enter `/admin` at the end of the website.  A login page should appear.  As this is the first time you're using it, you will be prompted to create a master admin account.  This allows full access to the site, including any future functions pertaining to the very back-end of the site.  Then, you'll be prompted to log-in to the admin panel.
+
+The admin panel will appear similar to the site, with a few extra buttons in the header.  Ideally you'll want a normal full-admin account.  To create one - and any future accounts, go to the user management page (leftmost button), and under "Create user", enter a username and temporary password.  Click the "Create User" button, and the new user should appear underneath the master account with the temporary password displayed so you can copy/paste it to give to the new user,  Click the "Permissions" button next to the new user and set it to "Full admin".  Log out of the master account, sign in as the new user, create a new password, and you're good to go!
+
+From there, you can add links, edit the title and subtitle of the page, the logo, add other users, remove them, add and remove background images, and modify the text contents of each page.  Once you're done editing the pages, click the "Save All Changes" button.  Once you see the confirmation message at the top of the screen, go back to your web page and the changes should be instant.
+
+TODO: Add a proper write-up for the admin health check warnings and what they mean.
+TODO: Add guidance on checking `admin/errors.txt` for troubleshooting.
 
 ## Overview
 Lawnding page uses a straightforward system to display content, known as "panes" or "panels".
@@ -21,13 +77,13 @@ Next, the About pane is visible.  This is a simple page that lets a community gi
 
 The third pane is Rules.  Just like About, this uses markdown to populate the pane and describe a list of rules, code of conduct, etc...
 
-The fourth pane is for FAQ, and allows the community to host series of questions they're commonly asked and it's stored in - you guessed it - markdown.
+The fourth pane is for FAQ, and allows the community to host series of questions they're commonly asked, stored in markdown.
 
-The fifth and sixth panes are for Events and Donate buttons, respectively.  It's currently unfinished, and will either import data from a calendar, or will simply link to a calendar or external events page.  The Donate button will either show a page for donations, or simply link to a donate page i.e. PayPal or somethinng.
+The fifth and sixth panes are for Events and Donate buttons, respectively.  It's currently unfinished, and will either import data from a calendar, or will simply link to a calendar or external events page.  The Donate button will either show a page for donations, or simply link to a donate page i.e. PayPal or something.
 
 Everything public-facing is contained within `index.php` as it's handled as a single page website, instead of storing a bunch of separate pages.  Styling is handled within `style.css` and takes care of both the main page and the config page.  All interactivity is contained in `app.js`.
 
-To keep things visually consistent, `config.php` is derived off the main page, and allows users to configure every part of what currently exists.  They can set background images, the logo, the title, subtitle, add and remove links/separators, and modify the contentds of each page (except for EVENTS and DONATE).
+To keep things visually consistent, `config.php` is derived off the main page, and allows users to configure every part of what currently exists.  They can set background images, the logo, the title, subtitle, add and remove links/separators, and modify the contents of each page (except for EVENTS and DONATE).
 
 ## Page Breakdown
 Currently, pages are hardcoded into index.php, and simply use some php code nested inside of HTML code to pull content from the dedicated markdown files.  For example, the server will populate the contents of `about.md` and place it inside of the content for the About Pane.  Eventually, this will be turned into a fully modular system, not unlike say, Wordpress sites, where the end user has full control from within the configuration page to add and remove panes from the site.  That means, if someone wanted to modify this into their personal website, they will soon be able to simply configure the site through config.php, including adding or removing panes, changing styles, and so-on.
@@ -35,10 +91,11 @@ Currently, pages are hardcoded into index.php, and simply use some php code nest
 Until then, it's still possible, but they will need to edit the page manually and potentially account for it in the config file as well.
 
 ### `index.php`
-Before we even get to the HTML part of this page, there's a ton of envornment variables that we set, ensuring everything runs smoothly:
+Before we even get to the HTML part of this page, there's a ton of environment variables that we set, ensuring everything runs smoothly:
 
 ```php
 <?php
+require_once __DIR__ . '/../lp-bootstrap.php';
 require __DIR__ . '/res/scr/Parsedown.php';
 
 $rulesMdPath = __DIR__ . '/res/data/rules.md';
@@ -216,7 +273,7 @@ After that is just some javascript stuff that makes the page do fun things.  By 
 
 
 
-### `config.php`
+### Admin Panel
 Okay, so you've managed to get through the slog of `index.php` and now you want to know about the config side of things?
 
 Well aren't you a good little nerd, trying to learn everything.  Well guess what?  I'm gonna be one of those devs that stops adding information making you HAVE to FAFO like a *real* nerd.  Ain't I a stinker?

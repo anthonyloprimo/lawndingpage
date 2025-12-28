@@ -1,22 +1,40 @@
 [
     {
         "type": "link",
-        "id": "linkGoog",
-        "href": "https://www.google.com/",
-        "text": "Google Homepage",
-        "title": "Link to Google's webpage.",
+        "id": "linkMain",
+        "href": "https://www.wildcardcreations.net",
+        "text": "Wildcard Creations",
+        "title": "The creator of LawndingPage.",
         "fullWidth": true,
         "cta": true
     },
     {
-        "type": "separator"
+        "type": "link",
+        "id": "linkSecondary",
+        "href": "https://www.google.com/",
+        "text": "Google",
+        "title": "The google.com homepage.",
+        "fullWidth": false,
+        "cta": false
     },
     {
         "type": "link",
         "id": "linkRoll",
         "href": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
         "text": "Never Gonna Give You Up",
-        "title": "Link to rickroll video.",
+        "title": "This is literally a rickroll.",
+        "fullWidth": false,
+        "cta": false
+    },
+    {
+        "type": "separator"
+    },
+    {
+        "type": "link",
+        "id": "linkFour",
+        "href": "https://www.example.com",
+        "text": "Example Page",
+        "title": "Another link",
         "fullWidth": true,
         "cta": false
     }

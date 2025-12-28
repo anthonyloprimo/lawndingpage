@@ -1,13 +1,48 @@
-# About Long Island Furs
+### About Page
 
-Welcome to the Long Island Furs community hub. This space is for sharing information about who we are and what we do.
+This is an about page for your organization!  Using Markdown, you can effectively create compelling blurbs about your organization, insert images, and use all sorts of formatting afforded by markdown!  Markdown is a simple text-only way to format plain text to make it all pretty!
 
-## What to expect
+-----
 
-- Friendly community across Queens, Nassau, Suffolk, and beyond.
-- Occasional meetups and online events.
-- A focus on respect, inclusivity, and fun.
+#### Things like the `#` symbol denotes headers! 
+Similar to the `<h1>` tag in HTML.  For every lower header (h2, h3, h4), you can use that many hash symbols.
 
-Stay tuned for more details and updates.
+For example, an h5 header would be `##### Level 5 Header`.
 
-This is new text in the About Page! :D
+```
+#### Things like the `#` symbol denotes headers! 
+Similar to the `<h1>` tag in HTML.  For every lower header (h2, h3, h4), you can use that many hash symbols.
+
+For example, an h5 header would be `##### Level 5 Header`.
+```
+
+-----
+#### There's many more things!
+You can do cool things!  With a simple dash (`-`) you can create:
+- Really
+    - awesome
+        - nested
+            - Lists!
+
+```
+You can do cool things!  With a simple dash (`-`) you can create:
+- Really
+    - awesome
+        - nested
+            - Lists!
+```
+
+-----
+
+#### Even more!!
+You can also declare *italic* and **bold** text with one or two asterisks surrounding a word respectively!
+
+```
+You can also declare *italic* and **bold** text with one or two asterisks surrounding a word respectively!
+```
+
+-----
+
+For more information, you can either check out https://www.commonmark.org/help/ for more information on markdown or check out stackedit.io, which is a cool editor that shows what your text might look like in real time!
+
+**COMING SOON:**: A more user-friendly editor for these types of pages!

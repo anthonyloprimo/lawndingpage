@@ -1,4 +1,24 @@
 <?php
+require_once __DIR__ . '/../../lp-bootstrap.php';
+
+$requestPath = parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH);
+if ($requestPath !== null && $requestPath !== '') {
+    $trimmedPath = rtrim($requestPath, '/');
+    if ($trimmedPath !== '' && $trimmedPath === $requestPath && str_ends_with($trimmedPath, '/admin')) {
+        $query = $_SERVER['QUERY_STRING'] ?? '';
+        $location = $requestPath . '/' . ($query !== '' ? '?' . $query : '');
+        header('Location: ' . $location, true, 301);
+        exit;
+    }
+}
+
+$adminRoot = function_exists('lawnding_config')
+    ? lawnding_config('admin_dir', dirname(__DIR__, 2) . '/admin')
+    : dirname(__DIR__, 2) . '/admin';
+$errorLogPath = $adminRoot . '/errors.txt';
+ini_set('log_errors', '1');
+ini_set('error_log', $errorLogPath);
+
 session_start(); // Initialize PHP session storage and load existing session data.
 
 $usersPath = __DIR__ . '/../../admin/users.json'; // Admin accounts live outside the public webroot.
@@ -33,6 +53,8 @@ $success = '';
 $usersErrors = [];
 $usersSuccess = '';
 $usersWarnings = [];
+$usersPermissionsNeedsFix = false;
+$usersPermissionsFixResult = null;
 $passwordChangeSuccess = '';
 $resetPassword = null;
 $resetUsername = null;
@@ -40,7 +62,6 @@ $resetLogoutAfterReset = false;
 $logoutAfterAction = false;
 $blockUserActions = false;
 
-add_users_permissions_warning($usersPath, $usersWarnings);
 if ($usersFileIssue === 'invalid') {
     $errors[] = 'WARNING: `users.json` is missing or damaged. If this is not a new setup, stop and verify the file.';
     $blockUserActions = true;
@@ -69,18 +90,20 @@ function normalize_permissions($permissions, $allowedPermissions) {
     return array_values(array_intersect($permissions, $allowedPermissions));
 }
 
-function add_users_permissions_warning($usersPath, &$warnings) {
+function users_permissions_needs_fix($usersPath) {
     if (!is_readable($usersPath)) {
-        return;
+        return false;
     }
     $perms = fileperms($usersPath);
     if ($perms === false) {
-        return;
+        return false;
     }
     $mode = $perms & 0777;
-    if (($mode & 0037) !== 0 || (($mode & 0070) === 0)) {
-        $warnings[] = 'WARNING: `users.json` permissions appear too open. Recommended 0640.';
-    }
+    return ($mode & 0037) !== 0 || (($mode & 0070) === 0);
+}
+
+function add_health_warning(&$warnings, $message) {
+    $warnings[] = $message . ' Check errors.txt for more information.';
 }
 
 function enforce_users_permissions($usersPath, &$warnings) {
@@ -194,6 +217,68 @@ $canAddUsers = $permissionContext['canAddUsers'];
 $canEditUsers = $permissionContext['canEditUsers'];
 $canRemoveUsers = $permissionContext['canRemoveUsers'];
 $canEditSite = $permissionContext['canEditSite'];
+
+if (!file_exists($errorLogPath)) {
+    if (is_dir($adminRoot) && is_writable($adminRoot)) {
+        @touch($errorLogPath);
+    }
+    if (!file_exists($errorLogPath)) {
+        add_health_warning($usersWarnings, 'Health check: Unable to create errors.txt in the admin directory.');
+    }
+}
+if (file_exists($errorLogPath) && !is_writable($errorLogPath)) {
+    add_health_warning($usersWarnings, 'Health check: errors.txt is not writable.');
+}
+
+if (PHP_VERSION_ID < 80000) {
+    add_health_warning($usersWarnings, 'Health check: PHP 8.0+ is required.');
+}
+if (!extension_loaded('json')) {
+    add_health_warning($usersWarnings, 'Health check: PHP json extension is missing.');
+}
+if (!extension_loaded('fileinfo')) {
+    add_health_warning($usersWarnings, 'Health check: PHP fileinfo extension is missing.');
+}
+
+$dataDir = function_exists('lawnding_config')
+    ? lawnding_config('data_dir', dirname(__DIR__) . '/res/data')
+    : dirname(__DIR__) . '/res/data';
+$imgDir = function_exists('lawnding_config')
+    ? lawnding_config('img_dir', dirname(__DIR__) . '/res/img')
+    : dirname(__DIR__) . '/res/img';
+
+if (is_dir($dataDir) && !is_writable($dataDir)) {
+    add_health_warning($usersWarnings, 'Health check: res/data is not writable.');
+}
+if (is_dir($imgDir) && !is_writable($imgDir)) {
+    add_health_warning($usersWarnings, 'Health check: res/img is not writable.');
+}
+if (file_exists($usersPath)) {
+    if (!is_writable($usersPath)) {
+        add_health_warning($usersWarnings, 'Health check: users.json is not writable.');
+    }
+} elseif (!is_writable(dirname($usersPath))) {
+    add_health_warning($usersWarnings, 'Health check: admin directory is not writable for users.json.');
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'fix_users_permissions') {
+    if (!$authRecord) {
+        $usersErrors[] = 'Login required to update file permissions.';
+    } elseif (!$isFullAdmin) {
+        $usersErrors[] = 'Permission update requires full admin access.';
+    } else {
+        $csrfToken = $_POST['csrf_token'] ?? '';
+        if (!hash_equals($_SESSION['csrf_token'], $csrfToken)) {
+            $usersErrors[] = 'Security token invalid. Refresh and try again.';
+        } elseif (!file_exists($usersPath)) {
+            $usersErrors[] = 'Unable to find `users.json`.';
+        } elseif (@chmod($usersPath, 0640)) {
+            $usersPermissionsFixResult = 'ok';
+        } else {
+            $usersPermissionsFixResult = 'fail';
+        }
+    }
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'change_password') {
     if ($blockUserActions) {
@@ -480,6 +565,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'logou
     exit;
     }
 }
+
+$usersPermissionsNeedsFix = users_permissions_needs_fix($usersPath);
 
 // If a valid session user exists and no forced password change, load the admin UI.
 if ($logoutAfterAction) {

@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/../../../lp-bootstrap.php';
 // Handles saving config changes (links, header, backgrounds, markdown, and uploads).
 session_start();
 

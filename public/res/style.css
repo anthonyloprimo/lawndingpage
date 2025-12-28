@@ -184,6 +184,14 @@ nav {
                 text-decoration: none;
                 user-select: none;
             }
+            .navBar li a svg {
+                width: 24px;
+                height: 24px;
+                max-height: 24px;
+                max-width: 24px;
+                margin: 0 auto;
+                fill: currentColor;
+            }
             .navBar li a.navActive {
                 border-color: #FFFFFFAA;
                 background: #FFFFFF22;

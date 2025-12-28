@@ -111,6 +111,7 @@ header {
                 list-style: none;
                 padding: 0;
                 margin: 0;
+                min-width: 0;
             }
             .linkList > li.fullWidth {
                 flex: 0 0 100%;
@@ -124,9 +125,13 @@ header {
                     border-radius: 32px;
                     background-color: #00000033;
                     text-align: center;
-                    padding: 8px;
+                    padding: 8px 8px;
                     width: 100%;
                     text-decoration: none;
+                    white-space: nowrap;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    min-width: 0;
                 }
 
             .link:hover {
@@ -137,6 +142,13 @@ header {
                 background-color: #00000055;
                 border: 1px solid #FFFFFF55;
             }
+        .pane a:not(.link) {
+            font-weight: 600;
+        }
+        .pane a:not(.link):hover {
+            text-decoration: underline;
+            text-underline-offset: 3px;
+        }
         .fullWidth {
             flex-basis: 100%;
         }

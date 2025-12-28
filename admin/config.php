@@ -165,6 +165,12 @@ if (!empty($usersWarnings)) {
             </div>
         <?php endif; ?>
     </div>
+    <div class="savingOverlay" id="savingOverlay" aria-hidden="true">
+        <div class="savingOverlayContent">
+            <div class="savingSpinner" aria-hidden="true"></div>
+            <div class="savingText">Saving...</div>
+        </div>
+    </div>
     <header class="header" id="header">
         <div class="logo" id="logo">
             <button class="logoChange" type="button">Change</button>
@@ -182,8 +188,12 @@ if (!empty($usersWarnings)) {
                 <button class="logoutButton" type="submit">Log Out</button>
             </form>
             <div class="headerActions">
-                <button class="helpTutorial" type="button">Help</button>
-                <button class="saveChanges" type="button">Save All Changes</button>
+                <button class="helpTutorial iconButton" type="button" aria-label="Help" title="Need help?">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M15.07,11.25L14.17,12.17C13.45,12.89 13,13.5 13,15H11V14.5C11,13.39 11.45,12.39 12.17,11.67L13.41,10.41C13.78,10.05 14,9.55 14,9C14,7.89 13.1,7 12,7A2,2 0 0,0 10,9H8A4,4 0 0,1 12,5A4,4 0 0,1 16,9C16,9.88 15.64,10.67 15.07,11.25M13,19H11V17H13M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12C22,6.47 17.5,2 12,2Z" /></svg>
+                </button>
+                <button class="saveChanges iconButton" type="button" aria-label="Save All Changes" title="Save all changes to the page.">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M15,9H5V5H15M12,19A3,3 0 0,1 9,16A3,3 0 0,1 12,13A3,3 0 0,1 15,16A3,3 0 0,1 12,19M17,3H5C3.89,3 3,3.9 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V7L17,3Z" /></svg>
+                </button>
             </div>
         </div>
     </header>
@@ -198,9 +208,15 @@ if (!empty($usersWarnings)) {
                                 <div class="linksConfigRow">
                                     <span class="linksConfigLabel">Separator</span>
                                     <span class="linksConfigSpacer"></span>
-                                    <button class="moveUpLink" type="button" title="Move this entry up in the list.">↑</button>
-                                    <button class="moveDownLink" type="button" title="Move this entry down in the list.">↓</button>
-                                    <button class="deleteLink" type="button" title="Removes this entry from the list.">Delete</button>
+                                    <button class="moveUpLink iconButton" type="button" title="Move this entry up in the list." aria-label="Move this entry up in the list.">
+                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13,20H11V8L5.5,13.5L4.08,12.08L12,4.16L19.92,12.08L18.5,13.5L13,8V20Z" /></svg>
+                                    </button>
+                                    <button class="moveDownLink iconButton" type="button" title="Move this entry down in the list." aria-label="Move this entry down in the list.">
+                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M11,4H13V16L18.5,10.5L19.92,11.92L12,19.84L4.08,11.92L5.5,10.5L11,16V4Z" /></svg>
+                                    </button>
+                                    <button class="deleteLink usersDanger iconButton" type="button" title="Removes this entry from the list." aria-label="Remove this entry from the list.">
+                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z" /></svg>
+                                    </button>
                                 </div>
                             </div>
                         <?php elseif (($link['type'] ?? '') === 'link'): ?>
@@ -214,18 +230,18 @@ if (!empty($usersWarnings)) {
                         ?>
                         <div class="linksConfigCard">
                             <div class="linksConfigRow">
-                                <label class="linksConfigField" title="The internal HTML ID of the link.  Make it unique.">ID
+                                <label class="linksConfigField" title="The internal HTML ID of the link.  Make it unique."><span class="linksConfigLabelText">ID</span>
                                     <input class="linksConfigInput" type="text" name="linkId[]" value="<?php echo htmlspecialchars($id); ?>" placeholder="Link ID" title="The internal HTML ID of the link.  Make it unique.">
                                 </label>
-                                <label class="linksConfigField" title="The full URL (https: and all) to link to.">URL
+                                <label class="linksConfigField" title="The full URL (https: and all) to link to."><span class="linksConfigLabelText">URL</span>
                                         <input class="linksConfigInput" type="text" name="linkUrl[]" value="<?php echo htmlspecialchars($href); ?>" placeholder="Link URL" title="The full URL (https: and all) to link to.">
                                     </label>
                                 </div>
                                 <div class="linksConfigRow">
-                                    <label class="linksConfigField" title="The label that is displayed for each link.">Text
+                                    <label class="linksConfigField" title="The label that is displayed for each link."><span class="linksConfigLabelText">Text</span>
                                         <input class="linksConfigInput" type="text" name="linkText[]" value="<?php echo htmlspecialchars($text); ?>" placeholder="Display text" title="The label that is displayed for each link.">
                                     </label>
-                                    <label class="linksConfigField" title="The text that appears when the user hovers over a link.">Title
+                                    <label class="linksConfigField" title="The text that appears when the user hovers over a link."><span class="linksConfigLabelText">Title</span>
                                         <input class="linksConfigInput" type="text" name="linkTitle[]" value="<?php echo htmlspecialchars($title); ?>" placeholder="Title attribute" title="The text that appears when the user hovers over a link.">
                                     </label>
                                 </div>
@@ -239,9 +255,15 @@ if (!empty($usersWarnings)) {
                                     CTA
                                 </label>
                                 <span class="linksConfigSpacer"></span>
-                                <button class="moveUpLink" type="button" title="Move this entry up in the list.">↑</button>
-                                <button class="moveDownLink" type="button" title="Move this entry down in the list.">↓</button>
-                                <button class="deleteLink" type="button" title="Removes this entry from the list.">Delete</button>
+                    <button class="moveUpLink iconButton" type="button" title="Move this entry up in the list." aria-label="Move this entry up in the list.">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13,20H11V8L5.5,13.5L4.08,12.08L12,4.16L19.92,12.08L18.5,13.5L13,8V20Z" /></svg>
+                    </button>
+                    <button class="moveDownLink iconButton" type="button" title="Move this entry down in the list." aria-label="Move this entry down in the list.">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M11,4H13V16L18.5,10.5L19.92,11.92L12,19.84L4.08,11.92L5.5,10.5L11,16V4Z" /></svg>
+                    </button>
+                    <button class="deleteLink usersDanger iconButton" type="button" title="Removes this entry from the list." aria-label="Remove this entry from the list.">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z" /></svg>
+                    </button>
                             </div>
                         </div>
                     <?php endif; ?>
@@ -318,7 +340,9 @@ if (!empty($usersWarnings)) {
                                             <input type="hidden" name="target_username" value="<?php echo htmlspecialchars($username); ?>">
                                             <button class="usersButton" type="submit" <?php echo $resetDisabled ? 'disabled' : ''; ?>>Reset Password</button>
                                         </form>
-                                        <button class="usersButton usersDanger usersRemoveButton" type="button" <?php echo $removeDisabled ? 'disabled' : ''; ?>>Remove</button>
+                                        <button class="usersButton usersDanger usersRemoveButton iconButton" type="button" aria-label="Remove user" title="Remove this user" <?php echo $removeDisabled ? 'disabled' : ''; ?>>
+                                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z" /></svg>
+                                        </button>
                                     </div>
                                 </div>
                             <?php endforeach; ?>
@@ -334,11 +358,12 @@ if (!empty($usersWarnings)) {
         </div>
         <div class="pane glassConvex" id="bg">
             <h3>BACKGROUND IMAGES</h3>
+            <div class="paneHint">Images are saved immediately on upload. Adding or deleting a background saves immediately. To save Author, click 'Save All Changes' afterwards.</div>
             <div class="bgConfig" id="bgConfig">
                 <div class="bgConfigRow bgConfigHeader">
                     <span>Preview</span>
                     <span>Author</span>
-                    <span>Actions</span>
+                    <span aria-hidden="true"></span>
                 </div>
                 <?php foreach ($backgrounds as $bg): ?>
                     <?php
@@ -359,7 +384,9 @@ if (!empty($usersWarnings)) {
                             <button class="bgChange" type="button">Change</button>
                         </div>
                         <input class="bgAuthorInput" type="text" name="bgAuthor[]" value="<?php echo htmlspecialchars($bgAuthor); ?>" placeholder="Author">
-                        <button class="deleteBackground" type="button">Delete</button>
+                        <button class="deleteBackground usersDanger iconButton" type="button" aria-label="Delete background" title="Remove this background">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z" /></svg>
+                        </button>
                     </div>
                 <?php endforeach; ?>
                 <div class="bgConfigActions">
@@ -418,6 +445,18 @@ if (!empty($usersWarnings)) {
             </div>
         </div>
     </div>
+    <div class="userModalOverlay" id="bgDeleteModal" role="dialog" aria-modal="true" aria-hidden="true">
+        <div class="userModal glassConcave">
+            <h4>Delete background image?</h4>
+            <p class="usersHint">This will remove the image from the list and delete the file from disk.</p>
+            <div class="userModalActions">
+                <button class="usersButton userModalClose" type="button">Cancel</button>
+                <button class="usersButton usersDanger iconButton" id="bgDeleteConfirm" type="button" aria-label="Delete background" title="Remove this background">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z" /></svg>
+                </button>
+            </div>
+        </div>
+    </div>
     <div class="userModalOverlay" id="permissionsModal" role="dialog" aria-modal="true" aria-hidden="true">
         <div class="userModal glassConcave">
             <h4>User Permissions</h4>
@@ -459,7 +498,9 @@ if (!empty($usersWarnings)) {
                 <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token'] ?? ''); ?>">
                 <input type="hidden" name="target_username" id="removeUsername" value="">
                 <div class="userModalActions">
-                    <button class="usersButton usersDanger" type="submit">Delete</button>
+                    <button class="usersButton usersDanger iconButton" type="submit" aria-label="Delete user" title="Remove this user">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z" /></svg>
+                    </button>
                     <button class="usersButton userModalClose" type="button">Cancel</button>
                 </div>
             </form>

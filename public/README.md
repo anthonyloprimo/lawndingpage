@@ -289,9 +289,20 @@ I *swear* the former is most likely happening.  Totally.  Please believe me.  ..
 Sarcasm aside, enjoy! :3
 
 ## Changelog
-### v1.0.1
+### v1.1.0
+**Changes:**
 - Fixed a bug where certain file paths were not correctly being respected due to being hardcoded, causing the site to break, primarily with the admin panel.
 - Fixed a bug where on mobile devices, when the navbar exceeded the view width, it would cause unexpected display issues, with parts of the UI clipping and being inaccessible.
+- Fixed a major bug where sending too much data to save would drop the POST request, and the server would update all files with empty data, effectively wiping the site contents.
+- Saving changes now gives an overlay and indicator that changes are being saved to the server.
+- Fixed a bug where buttons stretched to contain their text instead of fitting inside and truncating if too long.
+- Inline link styling improved for readability
+- Updated button appearances in the admin panel.
+- POST payload is cleared on successful upload, reloading after will not ask to resubmit.
+- Cleaned up link list display in the admin panel.
+
+**Known Issues:**
+- Changing the order of links sometimes jumps more than one slot when doing so too quickly.  Workaround: Just move the link that jumped too far back up/down to where it should be.
 
 ### v1.0.0
 - Initial Version

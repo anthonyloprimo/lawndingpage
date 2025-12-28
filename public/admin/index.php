@@ -68,6 +68,11 @@ $resetUsername = null;
 $resetLogoutAfterReset = false;
 $logoutAfterAction = false;
 $blockUserActions = false;
+$flash = null;
+if ($_SERVER['REQUEST_METHOD'] !== 'POST' && !empty($_SESSION['flash_admin'])) {
+    $flash = $_SESSION['flash_admin'];
+    unset($_SESSION['flash_admin']);
+}
 
 if ($usersFileIssue === 'invalid') {
     $errors[] = 'WARNING: `users.json` is missing or damaged. If this is not a new setup, stop and verify the file.';
@@ -575,6 +580,42 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'logou
 
 $usersPermissionsNeedsFix = users_permissions_needs_fix($usersPath);
 
+if ($flash) {
+    if (!empty($flash['errors']) && is_array($flash['errors'])) {
+        $errors = $flash['errors'];
+    }
+    if (!empty($flash['success']) && is_string($flash['success'])) {
+        $success = $flash['success'];
+    }
+    if (!empty($flash['passwordChangeSuccess']) && is_string($flash['passwordChangeSuccess'])) {
+        $passwordChangeSuccess = $flash['passwordChangeSuccess'];
+    }
+    if (!empty($flash['usersErrors']) && is_array($flash['usersErrors'])) {
+        $usersErrors = $flash['usersErrors'];
+    }
+    if (!empty($flash['usersSuccess']) && is_string($flash['usersSuccess'])) {
+        $usersSuccess = $flash['usersSuccess'];
+    }
+    if (!empty($flash['usersWarnings']) && is_array($flash['usersWarnings'])) {
+        $usersWarnings = array_merge($usersWarnings, $flash['usersWarnings']);
+    }
+    if (array_key_exists('usersPermissionsNeedsFix', $flash)) {
+        $usersPermissionsNeedsFix = (bool) $flash['usersPermissionsNeedsFix'];
+    }
+    if (!empty($flash['usersPermissionsFixResult']) && is_string($flash['usersPermissionsFixResult'])) {
+        $usersPermissionsFixResult = $flash['usersPermissionsFixResult'];
+    }
+    if (!empty($flash['resetPassword']) && is_string($flash['resetPassword'])) {
+        $resetPassword = $flash['resetPassword'];
+    }
+    if (!empty($flash['resetUsername']) && is_string($flash['resetUsername'])) {
+        $resetUsername = $flash['resetUsername'];
+    }
+    if (!empty($flash['resetLogoutAfterReset'])) {
+        $resetLogoutAfterReset = (bool) $flash['resetLogoutAfterReset'];
+    }
+}
+
 // If a valid session user exists and no forced password change, load the admin UI.
 if ($logoutAfterAction) {
     $redirectPath = rtrim(dirname($_SERVER['PHP_SELF']), '/');
@@ -582,6 +623,28 @@ if ($logoutAfterAction) {
         $redirectPath = '/';
     }
     header('Location: ' . $redirectPath . '/');
+    exit;
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') !== 'logout') {
+    $_SESSION['flash_admin'] = [
+        'errors' => $errors,
+        'success' => $success,
+        'passwordChangeSuccess' => $passwordChangeSuccess,
+        'usersErrors' => $usersErrors,
+        'usersSuccess' => $usersSuccess,
+        'usersWarnings' => $usersWarnings,
+        'usersPermissionsNeedsFix' => $usersPermissionsNeedsFix,
+        'usersPermissionsFixResult' => $usersPermissionsFixResult,
+        'resetPassword' => $resetPassword,
+        'resetUsername' => $resetUsername,
+        'resetLogoutAfterReset' => $resetLogoutAfterReset,
+    ];
+    $redirectPath = $_SERVER['REQUEST_URI'] ?? '';
+    if ($redirectPath === '') {
+        $redirectPath = '/';
+    }
+    header('Location: ' . $redirectPath);
     exit;
 }
 

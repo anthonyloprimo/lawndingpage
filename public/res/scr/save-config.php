@@ -10,6 +10,37 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
+function ini_size_to_bytes($value) {
+    $value = trim((string) $value);
+    if ($value === '') {
+        return 0;
+    }
+    $last = strtolower($value[strlen($value) - 1]);
+    $number = (float) $value;
+    switch ($last) {
+        case 'g':
+            $number *= 1024;
+            // no break
+        case 'm':
+            $number *= 1024;
+            // no break
+        case 'k':
+            $number *= 1024;
+            break;
+    }
+    return (int) $number;
+}
+
+$postMaxBytes = ini_size_to_bytes(ini_get('post_max_size'));
+$contentLength = isset($_SERVER['CONTENT_LENGTH']) ? (int) $_SERVER['CONTENT_LENGTH'] : 0;
+if ($postMaxBytes > 0 && $contentLength > $postMaxBytes) {
+    error_log('save-config.php: payload too large (' . $contentLength . ' bytes, limit ' . $postMaxBytes . ' bytes).');
+    http_response_code(413);
+    header('Content-Type: application/json');
+    echo json_encode(['error' => 'Payload too large. Please reduce image sizes and try again.']);
+    exit;
+}
+
 if (empty($_SESSION['auth_user'])) {
     respond(['error' => 'Unauthorized'], 401);
 }
@@ -48,6 +79,19 @@ if (!$canEditSite) {
     respond(['error' => 'Forbidden'], 403);
 }
 
+foreach ($_FILES as $upload) {
+    if (!is_array($upload)) {
+        continue;
+    }
+    $error = $upload['error'] ?? UPLOAD_ERR_OK;
+    if ($error === UPLOAD_ERR_INI_SIZE || $error === UPLOAD_ERR_FORM_SIZE) {
+        respond(['error' => 'Upload too large. Images must be under 2MB.'], 413);
+    }
+    if ($error !== UPLOAD_ERR_OK) {
+        respond(['error' => 'Upload failed. Please try again.'], 400);
+    }
+}
+
 $publicDir = function_exists('lawnding_config')
     ? lawnding_config('public_dir', dirname(__DIR__, 2))
     : dirname(__DIR__, 2);
@@ -57,6 +101,7 @@ $dataDir = function_exists('lawnding_config')
 $imgDir = function_exists('lawnding_config')
     ? lawnding_config('img_dir', $publicDir . '/res/img')
     : $publicDir . '/res/img';
+$imgDir = rtrim($imgDir, '/\\') . '/';
 
 $headerPath = $dataDir . '/header.json';
 $linksPath = $dataDir . '/links.json';
@@ -130,22 +175,37 @@ function save_image($fileArray, $destName) {
 }
 
 // Gather POST data
-$siteTitle = $_POST['siteTitle'] ?? '';
-$siteSubtitle = $_POST['siteSubtitle'] ?? '';
-$linksJson = $_POST['links'] ?? '[]';
-$backgroundsJson = $_POST['backgrounds'] ?? '[]';
-$aboutMarkdown = $_POST['aboutMarkdown'] ?? '';
-$rulesMarkdown = $_POST['rulesMarkdown'] ?? '';
-$faqMarkdown = $_POST['faqMarkdown'] ?? '';
+$siteTitle = $_POST['siteTitle'] ?? null;
+$siteSubtitle = $_POST['siteSubtitle'] ?? null;
+$linksJson = $_POST['links'] ?? null;
+$backgroundsJson = $_POST['backgrounds'] ?? null;
+$backgroundAuthorsJson = $_POST['backgroundAuthors'] ?? null;
+$aboutMarkdown = $_POST['aboutMarkdown'] ?? null;
+$rulesMarkdown = $_POST['rulesMarkdown'] ?? null;
+$faqMarkdown = $_POST['faqMarkdown'] ?? null;
 
-$linksData = json_decode($linksJson, true);
-$backgroundsData = json_decode($backgroundsJson, true);
-
-if (!is_array($linksData)) {
-    respond(['error' => 'Invalid links payload'], 400);
+$linksData = null;
+if ($linksJson !== null) {
+    $linksData = json_decode($linksJson, true);
+    if (!is_array($linksData)) {
+        respond(['error' => 'Invalid links payload'], 400);
+    }
 }
-if (!is_array($backgroundsData)) {
-    respond(['error' => 'Invalid backgrounds payload'], 400);
+
+$backgroundsData = null;
+if ($backgroundsJson !== null) {
+    $backgroundsData = json_decode($backgroundsJson, true);
+    if (!is_array($backgroundsData)) {
+        respond(['error' => 'Invalid backgrounds payload'], 400);
+    }
+}
+
+$backgroundAuthors = null;
+if ($backgroundAuthorsJson !== null) {
+    $backgroundAuthors = json_decode($backgroundAuthorsJson, true);
+    if (!is_array($backgroundAuthors)) {
+        respond(['error' => 'Invalid background authors payload'], 400);
+    }
 }
 
 // Handle logo upload
@@ -157,77 +217,147 @@ if (isset($_FILES['logoFile'])) {
 }
 
 // Handle backgrounds
-$newBackgrounds = [];
-foreach ($backgroundsData as $bg) {
-    if (!is_array($bg)) {
-        continue;
-    }
-    $author = $bg['author'] ?? '';
-    $existingUrl = $bg['url'] ?? '';
-    $fileKey = $bg['fileKey'] ?? null;
+$newBackgrounds = null;
+if (is_array($backgroundsData)) {
+    $newBackgrounds = [];
+    foreach ($backgroundsData as $bg) {
+        if (!is_array($bg)) {
+            continue;
+        }
+        $author = $bg['author'] ?? '';
+        $existingUrl = $bg['url'] ?? '';
+        $fileKey = $bg['fileKey'] ?? null;
 
-    if ($fileKey && isset($_FILES[$fileKey])) {
-        $saved = save_image($_FILES[$fileKey], null);
-        if ($saved) {
+        if ($fileKey && isset($_FILES[$fileKey])) {
+            $saved = save_image($_FILES[$fileKey], null);
+            if ($saved) {
+                $newBackgrounds[] = [
+                    'url' => $saved,
+                    'author' => $author,
+                ];
+            }
+        } elseif ($existingUrl) {
             $newBackgrounds[] = [
-                'url' => $saved,
+                'url' => normalize_asset_path($existingUrl),
                 'author' => $author,
             ];
         }
-    } elseif ($existingUrl) {
-        $newBackgrounds[] = [
-            'url' => normalize_asset_path($existingUrl),
-            'author' => $author,
-        ];
+    }
+}
+
+$backgroundAuthorsChanged = false;
+if (is_array($backgroundAuthors)) {
+    $existingBackgrounds = $headerData['backgrounds'] ?? [];
+    foreach ($backgroundAuthors as $entry) {
+        if (!is_array($entry)) {
+            continue;
+        }
+        $index = isset($entry['index']) ? (int) $entry['index'] : null;
+        $url = normalize_asset_path($entry['url'] ?? '');
+        $author = $entry['author'] ?? '';
+        if ($index === null || $url === '' || !isset($existingBackgrounds[$index])) {
+            continue;
+        }
+        $current = $existingBackgrounds[$index];
+        if (is_string($current)) {
+            if ($current !== $url) {
+                continue;
+            }
+            $existingBackgrounds[$index] = [
+                'url' => $url,
+                'author' => $author,
+            ];
+            $backgroundAuthorsChanged = true;
+            continue;
+        }
+        if (is_array($current)) {
+            if (($current['url'] ?? '') !== $url) {
+                continue;
+            }
+            $existingBackgrounds[$index]['author'] = $author;
+            $backgroundAuthorsChanged = true;
+        }
+    }
+    if ($backgroundAuthorsChanged) {
+        $headerData['backgrounds'] = $existingBackgrounds;
     }
 }
 
 // Handle links
-$linksOut = [];
-foreach ($linksData as $link) {
-    if (!is_array($link)) {
-        continue;
-    }
-    $type = $link['type'] ?? '';
-    if ($type === 'separator') {
-        $linksOut[] = ['type' => 'separator'];
-    } elseif ($type === 'link') {
-        $linksOut[] = [
-            'type' => 'link',
-            'id' => $link['id'] ?? '',
-            'href' => $link['href'] ?? '',
-            'text' => $link['text'] ?? '',
-            'title' => $link['title'] ?? '',
-            'fullWidth' => !empty($link['fullWidth']),
-            'cta' => !empty($link['cta']),
-        ];
+$linksOut = null;
+if (is_array($linksData)) {
+    $linksOut = [];
+    foreach ($linksData as $link) {
+        if (!is_array($link)) {
+            continue;
+        }
+        $type = $link['type'] ?? '';
+        if ($type === 'separator') {
+            $linksOut[] = ['type' => 'separator'];
+        } elseif ($type === 'link') {
+            $linksOut[] = [
+                'type' => 'link',
+                'id' => $link['id'] ?? '',
+                'href' => $link['href'] ?? '',
+                'text' => $link['text'] ?? '',
+                'title' => $link['title'] ?? '',
+                'fullWidth' => !empty($link['fullWidth']),
+                'cta' => !empty($link['cta']),
+            ];
+        }
     }
 }
 
 // Write markdown files
-if (file_put_contents($aboutPath, $aboutMarkdown) === false) {
-    respond(['error' => 'Failed to write about content'], 500);
+if ($aboutMarkdown !== null) {
+    if (file_put_contents($aboutPath, $aboutMarkdown) === false) {
+        respond(['error' => 'Failed to write about content'], 500);
+    }
 }
-if (file_put_contents($rulesPath, $rulesMarkdown) === false) {
-    respond(['error' => 'Failed to write rules content'], 500);
+if ($rulesMarkdown !== null) {
+    if (file_put_contents($rulesPath, $rulesMarkdown) === false) {
+        respond(['error' => 'Failed to write rules content'], 500);
+    }
 }
-if (file_put_contents($faqPath, $faqMarkdown) === false) {
-    respond(['error' => 'Failed to write FAQ content'], 500);
+if ($faqMarkdown !== null) {
+    if (file_put_contents($faqPath, $faqMarkdown) === false) {
+        respond(['error' => 'Failed to write FAQ content'], 500);
+    }
 }
 
 // Update header data
-$headerData['title'] = $siteTitle;
-$headerData['subtitle'] = $siteSubtitle;
-$headerData['logo'] = normalize_asset_path($headerData['logo'] ?? '');
-$headerData['backgrounds'] = $newBackgrounds;
-
-$headerJson = json_encode($headerData, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
-if ($headerJson === false || file_put_contents($headerPath, $headerJson) === false) {
-    respond(['error' => 'Failed to write header data'], 500);
+$headerChanged = false;
+if ($siteTitle !== null) {
+    $headerData['title'] = $siteTitle;
+    $headerChanged = true;
 }
-$linksJsonOut = json_encode($linksOut, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
-if ($linksJsonOut === false || file_put_contents($linksPath, $linksJsonOut) === false) {
-    respond(['error' => 'Failed to write links data'], 500);
+if ($siteSubtitle !== null) {
+    $headerData['subtitle'] = $siteSubtitle;
+    $headerChanged = true;
+}
+if (isset($_FILES['logoFile']) && !empty($headerData['logo'])) {
+    $headerChanged = true;
+}
+if (is_array($newBackgrounds)) {
+    $headerData['backgrounds'] = $newBackgrounds;
+    $headerChanged = true;
+}
+if ($backgroundAuthorsChanged) {
+    $headerChanged = true;
+}
+
+if ($headerChanged) {
+    $headerData['logo'] = normalize_asset_path($headerData['logo'] ?? '');
+    $headerJson = json_encode($headerData, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+    if ($headerJson === false || file_put_contents($headerPath, $headerJson) === false) {
+        respond(['error' => 'Failed to write header data'], 500);
+    }
+}
+if (is_array($linksOut)) {
+    $linksJsonOut = json_encode($linksOut, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+    if ($linksJsonOut === false || file_put_contents($linksPath, $linksJsonOut) === false) {
+        respond(['error' => 'Failed to write links data'], 500);
+    }
 }
 
 respond(['status' => 'ok']);

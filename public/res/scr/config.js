@@ -5,9 +5,8 @@ $(document).ready(function() {
     let currentStep = 0;
     let pendingLogoFile = null;
     let linkCounter = $('.linksConfigCard').length;
-    let pendingBackgroundFiles = new WeakMap();
-    let bgCounter = $('.bgConfigRow').not('.bgConfigHeader').length;
-    let currentBgTarget = null;
+    let initialSnapshot = null;
+    let pendingBgDelete = null;
 
     // Bind Help button
     $('.helpTutorial').on('click', function() {
@@ -33,6 +32,8 @@ $(document).ready(function() {
     });
 
     bindLogoUploader();
+    initialSnapshot = captureSnapshot();
+    refreshBackgrounds(true);
 
     function startTutorial() {
         currentStep = 0;
@@ -215,18 +216,18 @@ $(document).ready(function() {
         return `
             <div class="linksConfigCard">
                 <div class="linksConfigRow">
-                    <label class="linksConfigField" title="The internal HTML ID of the link.  Make it unique.">ID
+                    <label class="linksConfigField" title="The internal HTML ID of the link.  Make it unique."><span class="linksConfigLabelText">ID</span>
                         <input class="linksConfigInput" type="text" name="linkId[]" value="${uniqueId}" placeholder="Link ID" title="The internal HTML ID of the link.  Make it unique.">
                     </label>
-                    <label class="linksConfigField" title="The full URL (https: and all) to link to.">URL
+                    <label class="linksConfigField" title="The full URL (https: and all) to link to."><span class="linksConfigLabelText">URL</span>
                         <input class="linksConfigInput" type="text" name="linkUrl[]" value="" placeholder="Link URL" title="The full URL (https: and all) to link to.">
                     </label>
                 </div>
                 <div class="linksConfigRow">
-                    <label class="linksConfigField" title="The label that is displayed for each link.">Text
+                    <label class="linksConfigField" title="The label that is displayed for each link."><span class="linksConfigLabelText">Text</span>
                         <input class="linksConfigInput" type="text" name="linkText[]" value="" placeholder="Display text" title="The label that is displayed for each link.">
                     </label>
-                    <label class="linksConfigField" title="The text that appears when the user hovers over a link.">Title
+                    <label class="linksConfigField" title="The text that appears when the user hovers over a link."><span class="linksConfigLabelText">Title</span>
                         <input class="linksConfigInput" type="text" name="linkTitle[]" value="" placeholder="Title attribute" title="The text that appears when the user hovers over a link.">
                     </label>
                 </div>
@@ -240,9 +241,15 @@ $(document).ready(function() {
                         CTA
                     </label>
                     <span class="linksConfigSpacer"></span>
-                    <button class="moveUpLink" type="button" title="Move this entry up in the list.">↑</button>
-                    <button class="moveDownLink" type="button" title="Move this entry down in the list.">↓</button>
-                    <button class="deleteLink" type="button" title="Removes this entry from the list.">Delete</button>
+                    <button class="moveUpLink iconButton" type="button" title="Move this entry up in the list." aria-label="Move this entry up in the list.">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13,20H11V8L5.5,13.5L4.08,12.08L12,4.16L19.92,12.08L18.5,13.5L13,8V20Z" /></svg>
+                    </button>
+                    <button class="moveDownLink iconButton" type="button" title="Move this entry down in the list." aria-label="Move this entry down in the list.">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M11,4H13V16L18.5,10.5L19.92,11.92L12,19.84L4.08,11.92L5.5,10.5L11,16V4Z" /></svg>
+                    </button>
+                    <button class="deleteLink usersDanger iconButton" type="button" title="Removes this entry from the list." aria-label="Remove this entry from the list.">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z" /></svg>
+                    </button>
                 </div>
             </div>
         `;
@@ -254,9 +261,15 @@ $(document).ready(function() {
                 <div class="linksConfigRow">
                     <span class="linksConfigLabel">Separator</span>
                     <span class="linksConfigSpacer"></span>
-                    <button class="moveUpLink" type="button" title="Move this entry up in the list.">↑</button>
-                    <button class="moveDownLink" type="button" title="Move this entry down in the list.">↓</button>
-                    <button class="deleteLink" type="button" title="Removes this entry from the list.">Delete</button>
+                    <button class="moveUpLink iconButton" type="button" title="Move this entry up in the list." aria-label="Move this entry up in the list.">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13,20H11V8L5.5,13.5L4.08,12.08L12,4.16L19.92,12.08L18.5,13.5L13,8V20Z" /></svg>
+                    </button>
+                    <button class="moveDownLink iconButton" type="button" title="Move this entry down in the list." aria-label="Move this entry down in the list.">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M11,4H13V16L18.5,10.5L19.92,11.92L12,19.84L4.08,11.92L5.5,10.5L11,16V4Z" /></svg>
+                    </button>
+                    <button class="deleteLink usersDanger iconButton" type="button" title="Removes this entry from the list." aria-label="Remove this entry from the list.">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z" /></svg>
+                    </button>
                 </div>
             </div>
         `;
@@ -329,15 +342,14 @@ $(document).ready(function() {
 
         // Change button
         $bgList.on('click', '.bgChange', function() {
-            currentBgTarget = $(this).closest('.bgConfigRow');
             $bgFileInput.trigger('click');
         });
 
         // File input change
         $bgFileInput.on('change', function() {
             const file = this.files && this.files[0] ? this.files[0] : null;
-            if (file && currentBgTarget) {
-                previewBackgroundFile(currentBgTarget, file);
+            if (file) {
+                uploadBackgroundFile(file);
             }
             $(this).val('');
         });
@@ -361,52 +373,76 @@ $(document).ready(function() {
                 ? e.originalEvent.dataTransfer.files[0]
                 : null;
             if (file) {
-                const $row = $(this).closest('.bgConfigRow');
-                previewBackgroundFile($row, file);
+                uploadBackgroundFile(file);
             }
         });
 
         // Delete
         $bgList.on('click', '.deleteBackground', function() {
-            $(this).closest('.bgConfigRow').remove();
+            const $row = $(this).closest('.bgConfigRow');
+            const url = $row.data('current-url') || '';
+            const index = Number($row.data('index'));
+            if (!url) {
+                return;
+            }
+            pendingBgDelete = {
+                url,
+                index: Number.isFinite(index) ? index : null
+            };
+            openBgDeleteModal();
         });
 
         // Add new background
         $('.addBackground').on('click', function() {
-            const $newRow = $(createBackgroundRow());
-            // Insert before the actions row
-            $('.bgConfigActions').before($newRow);
-            scrollBgListToBottom();
+            $bgFileInput.trigger('click');
+        });
+
+        $(document).on('click', '#bgDeleteConfirm', function() {
+            if (pendingBgDelete) {
+                deleteBackground(pendingBgDelete.url, pendingBgDelete.index);
+            }
+            pendingBgDelete = null;
+            closeBgDeleteModal();
+        });
+
+        $(document).on('click', '#bgDeleteModal .userModalClose', function() {
+            pendingBgDelete = null;
+            closeBgDeleteModal();
         });
     }
 
-    function previewBackgroundFile($row, file) {
+    function uploadBackgroundFile(file) {
         if (!file || !(file.type || '').startsWith('image/')) {
             return;
         }
-        pendingBackgroundFiles.set($row[0], file);
+        const uploadUrl = buildUrl('backgrounds-upload.php');
+        const formData = new FormData();
+        formData.append('bgFile', file);
 
-        const reader = new FileReader();
-        reader.onload = function(ev) {
-            const $wrap = $row.find('.bgThumbWrap');
-            $wrap.removeClass('empty');
-            $row.find('.bgThumb').attr('src', ev.target.result);
-        };
-        reader.readAsDataURL(file);
-    }
-
-    function createBackgroundRow() {
-        bgCounter += 1;
-        return `
-            <div class="bgConfigRow" data-current-url="">
-                <div class="bgThumbWrap empty">
-                    <img class="bgThumb" src="" alt="Background preview">
-                    <button class="bgChange" type="button">Change</button>
-                </div>
-                <input class="bgAuthorInput" type="text" name="bgAuthor[]" value="" placeholder="Author">
-                <button class="deleteBackground" type="button">Delete</button>
-            </div>
-        `;
+        showSavingOverlay();
+        fetch(uploadUrl, {
+            method: 'POST',
+            body: formData,
+            credentials: 'same-origin'
+        })
+            .then((response) => response.json().then((data) => ({ ok: response.ok, status: response.status, data })))
+            .then(({ ok, data }) => {
+                if (!ok) {
+                    const message = data && data.error ? data.error : 'Background upload failed.';
+                    addAdminNotice('danger', message);
+                    hideSavingOverlay();
+                    return;
+                }
+                renderBackgrounds(data.backgrounds || []);
+                initialSnapshot.backgrounds = getBackgroundsData();
+                addAdminNotice('ok', 'Background uploaded.');
+                hideSavingOverlay();
+            })
+            .catch((error) => {
+                console.error('Background upload failed', error);
+                addAdminNotice('danger', 'Background upload failed. Please try again.');
+                hideSavingOverlay();
+            });
     }
 
     function scrollBgListToBottom() {
@@ -423,67 +459,55 @@ $(document).ready(function() {
 
         $('.saveChanges').on('click', function() {
             const formData = new FormData();
+            const currentSnapshot = captureSnapshot();
+            let hasChanges = false;
 
             // Header text
-            formData.append('siteTitle', $('.headlineInput[name="siteTitle"]').val() || '');
-            formData.append('siteSubtitle', $('.headlineInput[name="siteSubtitle"]').val() || '');
+            if (!isEqualSnapshot(currentSnapshot.header, initialSnapshot.header)) {
+                formData.append('siteTitle', currentSnapshot.header.title || '');
+                formData.append('siteSubtitle', currentSnapshot.header.subtitle || '');
+                hasChanges = true;
+            }
 
             // Logo file (optional)
             if (pendingLogoFile) {
                 formData.append('logoFile', pendingLogoFile);
+                hasChanges = true;
             }
 
             // Links
-            const links = [];
-            $('.linksConfigCard').each(function() {
-                const $card = $(this);
-                if ($card.hasClass('linksConfigSeparator')) {
-                    links.push({ type: 'separator' });
-                    return;
-                }
-                const id = $card.find('input[name="linkId[]"]').val() || '';
-                const href = $card.find('input[name="linkUrl[]"]').val() || '';
-                const text = $card.find('input[name="linkText[]"]').val() || '';
-                const title = $card.find('input[name="linkTitle[]"]').val() || '';
-                const fullWidth = $card.find('input[name="linkFullWidth[]"]').is(':checked');
-                const cta = $card.find('input[name="linkCta[]"]').is(':checked');
-                links.push({
-                    type: 'link',
-                    id,
-                    href,
-                    text,
-                    title,
-                    fullWidth,
-                    cta
-                });
-            });
-            formData.append('links', JSON.stringify(links));
+            if (!isEqualSnapshot(currentSnapshot.links, initialSnapshot.links)) {
+                formData.append('links', JSON.stringify(currentSnapshot.links));
+                hasChanges = true;
+            }
 
             // Backgrounds
-            const backgrounds = [];
-            $('.bgConfigRow').not('.bgConfigHeader').each(function(index) {
-                const rowEl = this;
-                const $row = $(rowEl);
-                const author = $row.find('.bgAuthorInput').val() || '';
-                const file = pendingBackgroundFiles.get(rowEl);
-                const currentUrl = $row.data('current-url') || $row.find('.bgThumb').attr('src') || '';
-
-                if (file) {
-                    const fileKey = `bgFile_${index}`;
-                    formData.append(fileKey, file);
-                    backgrounds.push({ url: currentUrl, author, fileKey });
-                } else if (currentUrl) {
-                    backgrounds.push({ url: currentUrl, author });
-                }
-                // If no file and no url, skip this entry.
-            });
-            formData.append('backgrounds', JSON.stringify(backgrounds));
+            const authorChanges = getBackgroundAuthorChanges(currentSnapshot.backgrounds, initialSnapshot.backgrounds);
+            if (authorChanges.length > 0) {
+                formData.append('backgroundAuthors', JSON.stringify(authorChanges));
+                hasChanges = true;
+            }
 
             // Markdown
-            formData.append('aboutMarkdown', $('textarea[name="aboutMarkdown"]').val() || '');
-            formData.append('rulesMarkdown', $('textarea[name="rulesMarkdown"]').val() || '');
-            formData.append('faqMarkdown', $('textarea[name="faqMarkdown"]').val() || '');
+            if (currentSnapshot.markdown.about !== initialSnapshot.markdown.about) {
+                formData.append('aboutMarkdown', currentSnapshot.markdown.about || '');
+                hasChanges = true;
+            }
+            if (currentSnapshot.markdown.rules !== initialSnapshot.markdown.rules) {
+                formData.append('rulesMarkdown', currentSnapshot.markdown.rules || '');
+                hasChanges = true;
+            }
+            if (currentSnapshot.markdown.faq !== initialSnapshot.markdown.faq) {
+                formData.append('faqMarkdown', currentSnapshot.markdown.faq || '');
+                hasChanges = true;
+            }
 
+            if (!hasChanges) {
+                addAdminNotice('warning', 'No changes to save.');
+                return;
+            }
+
+            showSavingOverlay();
             $.ajax({
                 url: saveUrl,
                 method: 'POST',
@@ -492,19 +516,225 @@ $(document).ready(function() {
                 contentType: false,
                 success: function(resp) {
                     console.log('Save successful', resp);
-                    alert('Changes saved.');
+                    addAdminNotice('ok', 'Changes saved.');
+                    initialSnapshot = captureSnapshot();
+                    pendingLogoFile = null;
+                    hideSavingOverlay();
                 },
                 error: function(xhr) {
                     const responseText = xhr && xhr.responseText ? xhr.responseText : '';
                     if (xhr && xhr.status === 403) {
                         addAdminNotice('danger', 'You do not have permission to edit site content.');
+                        hideSavingOverlay();
                         return;
                     }
+                    let message = 'Save failed. Please try again.';
+                    if (responseText) {
+                        try {
+                            const parsed = JSON.parse(responseText);
+                            if (parsed && parsed.error) {
+                                message = parsed.error;
+                            }
+                        } catch (err) {
+                            message = responseText;
+                        }
+                    }
                     console.error('Save failed', responseText);
-                    alert('Save failed. Please try again.');
+                    addAdminNotice('danger', message);
+                    hideSavingOverlay();
                 }
             });
         });
+    }
+
+    function getHeaderData() {
+        return {
+            title: $('.headlineInput[name="siteTitle"]').val() || '',
+            subtitle: $('.headlineInput[name="siteSubtitle"]').val() || ''
+        };
+    }
+
+    function getLinksData() {
+        const links = [];
+        $('.linksConfigCard').each(function() {
+            const $card = $(this);
+            if ($card.hasClass('linksConfigSeparator')) {
+                links.push({ type: 'separator' });
+                return;
+            }
+            const id = $card.find('input[name="linkId[]"]').val() || '';
+            const href = $card.find('input[name="linkUrl[]"]').val() || '';
+            const text = $card.find('input[name="linkText[]"]').val() || '';
+            const title = $card.find('input[name="linkTitle[]"]').val() || '';
+            const fullWidth = $card.find('input[name="linkFullWidth[]"]').is(':checked');
+            const cta = $card.find('input[name="linkCta[]"]').is(':checked');
+            links.push({
+                type: 'link',
+                id,
+                href,
+                text,
+                title,
+                fullWidth,
+                cta
+            });
+        });
+        return links;
+    }
+
+    function getBackgroundsData() {
+        const backgrounds = [];
+        $('.bgConfigRow').not('.bgConfigHeader').each(function() {
+            const $row = $(this);
+            const author = $row.find('.bgAuthorInput').val() || '';
+            const currentUrl = $row.data('current-url') || $row.find('.bgThumb').attr('src') || '';
+            const index = Number($row.data('index'));
+            if (currentUrl) {
+                backgrounds.push({ url: currentUrl, author, index: Number.isFinite(index) ? index : backgrounds.length });
+            }
+        });
+        return backgrounds;
+    }
+
+    function getMarkdownData() {
+        return {
+            about: $('textarea[name="aboutMarkdown"]').val() || '',
+            rules: $('textarea[name="rulesMarkdown"]').val() || '',
+            faq: $('textarea[name="faqMarkdown"]').val() || ''
+        };
+    }
+
+    function captureSnapshot() {
+        return {
+            header: getHeaderData(),
+            links: getLinksData(),
+            backgrounds: getBackgroundsData(),
+            markdown: getMarkdownData()
+        };
+    }
+
+    function isEqualSnapshot(a, b) {
+        return JSON.stringify(a) === JSON.stringify(b);
+    }
+
+    function getBackgroundAuthorChanges(current, initial) {
+        const changes = [];
+        if (!Array.isArray(current) || !Array.isArray(initial)) {
+            return changes;
+        }
+        current.forEach((bg, idx) => {
+            const initialBg = initial[idx];
+            if (!initialBg) {
+                return;
+            }
+            const url = bg.url || '';
+            const author = bg.author || '';
+            if (!url || url !== initialBg.url) {
+                return;
+            }
+            if (author !== (initialBg.author || '')) {
+                changes.push({ url, author, index: idx });
+            }
+        });
+        return changes;
+    }
+
+    function buildUrl(fileName) {
+        const basePath = window.appConfig && typeof window.appConfig.basePath === 'string'
+            ? window.appConfig.basePath.replace(/\/$/, '')
+            : '';
+        return basePath ? `${basePath}/res/scr/${fileName}` : `/res/scr/${fileName}`;
+    }
+
+    function refreshBackgrounds(updateSnapshot) {
+        const listUrl = buildUrl('backgrounds-list.php');
+        fetch(listUrl, {
+            method: 'GET',
+            credentials: 'same-origin'
+        })
+            .then((response) => response.json().then((data) => ({ ok: response.ok, data })))
+            .then(({ ok, data }) => {
+                if (!ok) {
+                    return;
+                }
+                renderBackgrounds(data.backgrounds || []);
+                if (updateSnapshot) {
+                    initialSnapshot.backgrounds = getBackgroundsData();
+                }
+            })
+            .catch((error) => {
+                console.error('Failed to load backgrounds', error);
+            });
+    }
+
+    function renderBackgrounds(backgrounds) {
+        const $bgList = $('#bgConfig');
+        const $actions = $bgList.find('.bgConfigActions');
+        $bgList.find('.bgConfigRow').not('.bgConfigHeader').remove();
+
+        if (!Array.isArray(backgrounds)) {
+            return;
+        }
+
+        backgrounds.forEach((bg, index) => {
+            const url = bg && typeof bg.url === 'string' ? bg.url : '';
+            const displayUrl = bg && typeof bg.displayUrl === 'string' ? bg.displayUrl : url;
+            const author = bg && typeof bg.author === 'string' ? bg.author : '';
+            const isEmpty = !displayUrl;
+            const row = `
+                <div class="bgConfigRow" data-current-url="${escapeHtml(url)}" data-index="${index}">
+                    <div class="bgThumbWrap ${isEmpty ? 'empty' : ''}">
+                        <img class="bgThumb" src="${escapeHtml(displayUrl)}" alt="Background preview">
+                        <button class="bgChange" type="button">Change</button>
+                    </div>
+                    <input class="bgAuthorInput" type="text" name="bgAuthor[]" value="${escapeHtml(author)}" placeholder="Author">
+                    <button class="deleteBackground usersDanger iconButton" type="button" aria-label="Delete background" title="Remove this background">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z" /></svg>
+                    </button>
+                </div>
+            `;
+            $(row).insertBefore($actions);
+        });
+    }
+
+    function deleteBackground(url, index) {
+        const deleteUrl = buildUrl('backgrounds-delete.php');
+        const formData = new FormData();
+        formData.append('url', url);
+        if (index !== null) {
+            formData.append('index', String(index));
+        }
+        showSavingOverlay();
+        fetch(deleteUrl, {
+            method: 'POST',
+            body: formData,
+            credentials: 'same-origin'
+        })
+            .then((response) => response.json().then((data) => ({ ok: response.ok, data })))
+            .then(({ ok, data }) => {
+                if (!ok) {
+                    const message = data && data.error ? data.error : 'Background delete failed.';
+                    addAdminNotice('danger', message);
+                    hideSavingOverlay();
+                    return;
+                }
+                renderBackgrounds(data.backgrounds || []);
+                initialSnapshot.backgrounds = getBackgroundsData();
+                addAdminNotice('ok', 'Background deleted.');
+                hideSavingOverlay();
+            })
+            .catch((error) => {
+                console.error('Background delete failed', error);
+                addAdminNotice('danger', 'Background delete failed. Please try again.');
+                hideSavingOverlay();
+            });
+    }
+
+    function openBgDeleteModal() {
+        $('#bgDeleteModal').addClass('isOpen').attr('aria-hidden', 'false');
+    }
+
+    function closeBgDeleteModal() {
+        $('#bgDeleteModal').removeClass('isOpen').attr('aria-hidden', 'true');
     }
 
     function bindUserActions() {
@@ -721,7 +951,7 @@ $(document).ready(function() {
             })
             .catch((error) => {
                 console.error('User action failed', error);
-                alert('Action failed. Please try again.');
+                addAdminNotice('danger', 'Action failed. Please try again.');
             });
     }
 
@@ -756,6 +986,23 @@ $(document).ready(function() {
         `);
         $notice.find('.adminNoticeText').text(text);
         $notices.append($notice);
+    }
+
+    function escapeHtml(value) {
+        return String(value)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    function showSavingOverlay() {
+        $('#savingOverlay').addClass('isActive').attr('aria-hidden', 'false');
+    }
+
+    function hideSavingOverlay() {
+        $('#savingOverlay').removeClass('isActive').attr('aria-hidden', 'true');
     }
 
     function bindAdminNotices() {

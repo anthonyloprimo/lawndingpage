@@ -35,6 +35,7 @@ function init() {
     // Apply the layout based on the above.
     applyLayout();
     updateNavActiveState();
+    updateNavBarLayout();
 
     // Set the header logo background image from JSON-provided data.
     setLogoBackground();
@@ -80,6 +81,8 @@ function init() {
             applyLayout();
             updateNavActiveState();
         }
+
+        updateNavBarLayout();
     });
 }
 
@@ -182,6 +185,26 @@ function updateNavActiveState() {
 
     // Add active state to the link that matches the current pane.
     $(`.navLink[data-pane=\"${currentPane}\"]`).addClass('navActive');
+}
+
+// Toggle navbar layout based on whether its content exceeds the viewport width.
+function updateNavBarLayout() {
+    const navBar = $('#navBar');
+    if (!navBar.length) {
+        return;
+    }
+
+    navBar.removeClass('navBarFull');
+
+    const barEl = navBar.get(0);
+    if (!barEl) {
+        return;
+    }
+
+    const viewWidth = document.documentElement.clientWidth;
+    if (barEl.scrollWidth >= viewWidth) {
+        navBar.addClass('navBarFull');
+    }
 }
 
 // Helper: default pane for mobile (first nav entry).

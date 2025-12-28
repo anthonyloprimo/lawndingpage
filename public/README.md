@@ -289,9 +289,10 @@ I *swear* the former is most likely happening.  Totally.  Please believe me.  ..
 Sarcasm aside, enjoy! :3
 
 ## Changelog
-### v1.1
+### v1.0.1
 - Fixed a bug where certain file paths were not correctly being respected due to being hardcoded, causing the site to break, primarily with the admin panel.
+- Fixed a bug where on mobile devices, when the navbar exceeded the view width, it would cause unexpected display issues, with parts of the UI clipping and being inaccessible.
 
-### v1.0
+### v1.0.0
 - Initial Version
 

@@ -290,7 +290,7 @@ Sarcasm aside, enjoy! :3
 
 ## Changelog
 ### v1.1
-- Fixed a bug where certain file paths were not correctly being respected due to being hardcoded.
+- Fixed a bug where certain file paths were not correctly being respected due to being hardcoded, causing the site to break, primarily with the admin panel.
 
 ### v1.0
 - Initial Version

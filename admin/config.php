@@ -123,7 +123,7 @@ if (!empty($usersWarnings)) {
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     
     <link rel="icon" type="image/jpg" href="<?php echo htmlspecialchars($assetBase); ?>/res/img/logo.jpg">
     <link rel="stylesheet" href="<?php echo htmlspecialchars($assetBase); ?>/res/style.css">
@@ -141,18 +141,18 @@ if (!empty($usersWarnings)) {
             </div>
         <?php endforeach; ?>
         <?php if (($usersPermissionsFixResult ?? '') === 'ok'): ?>
-            <div class="adminNotice adminNotice--ok">
+            <div class="adminNotice adminNotice--ok" data-persist="true">
                 <span class="adminNoticeText">Updated `users.json` permissions to 0640.</span>
                 <button type="button" class="adminNoticeClose" aria-label="Dismiss notification">×</button>
             </div>
         <?php elseif (($usersPermissionsFixResult ?? '') === 'fail'): ?>
-            <div class="adminNotice adminNotice--danger">
+            <div class="adminNotice adminNotice--danger" data-persist="true">
                 <span class="adminNoticeText">Unable to update `users.json` permissions. Please set 0640 manually.</span>
                 <button type="button" class="adminNoticeClose" aria-label="Dismiss notification">×</button>
             </div>
         <?php endif; ?>
         <?php if (!empty($usersPermissionsNeedsFix)): ?>
-            <div class="adminNotice adminNotice--danger">
+            <div class="adminNotice adminNotice--danger" data-persist="true">
                 <span class="adminNoticeText">WARNING: `users.json` permissions appear too open. Recommended 0640.</span>
                 <?php if (!empty($isFullAdmin)): ?>
                     <form method="post" action="">
@@ -363,27 +363,31 @@ if (!empty($usersWarnings)) {
                 <div class="bgConfigRow bgConfigHeader">
                     <span>Preview</span>
                     <span>Author</span>
+                    <span>URL</span>
                     <span aria-hidden="true"></span>
                 </div>
                 <?php foreach ($backgrounds as $bg): ?>
                     <?php
                         $bgUrl = '';
                         $bgAuthor = '';
+                        $bgAuthorUrl = '';
                         if (is_string($bg)) {
                             $bgUrl = $bg;
                         } elseif (is_array($bg)) {
                             $bgUrl = $bg['url'] ?? '';
                             $bgAuthor = $bg['author'] ?? '';
+                            $bgAuthorUrl = $bg['authorUrl'] ?? '';
                         }
                         $bgDisplayUrl = $makeAssetUrl($bgUrl);
                         $isEmptyBg = empty($bgUrl);
                     ?>
-                    <div class="bgConfigRow" data-current-url="<?php echo htmlspecialchars($bgUrl); ?>">
+                    <div class="bgConfigRow" data-current-url="<?php echo htmlspecialchars($bgUrl); ?>" data-author-url="<?php echo htmlspecialchars($bgAuthorUrl); ?>">
                         <div class="bgThumbWrap <?php echo $isEmptyBg ? 'empty' : ''; ?>">
                             <img class="bgThumb" src="<?php echo htmlspecialchars($bgDisplayUrl); ?>" alt="Background preview">
                             <button class="bgChange" type="button">Change</button>
                         </div>
                         <input class="bgAuthorInput" type="text" name="bgAuthor[]" value="<?php echo htmlspecialchars($bgAuthor); ?>" placeholder="Author">
+                        <input class="bgAuthorUrlInput" type="text" name="bgAuthorUrl[]" value="<?php echo htmlspecialchars($bgAuthorUrl); ?>" placeholder="URL">
                         <button class="deleteBackground usersDanger iconButton" type="button" aria-label="Delete background" title="Remove this background">
                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z" /></svg>
                         </button>

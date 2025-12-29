@@ -1,11 +1,12 @@
 {
+    "logo": "res/img/logo.jpg",
+    "title": "LawndingPage Title",
+    "subtitle": "Snazzy community subtitle goes here",
     "backgrounds": [
         {
             "url": "res/img/bg.jpg",
-            "author": "Doug S"
+            "author": "Doug S",
+            "authorUrl": "google.com"
         }
-    ],
-    "logo": "res/img/logo.jpg",
-    "title": "LawndingPage Title",
-    "subtitle": "Snazzy community subtitle goes here"
+    ]
 }

@@ -153,6 +153,59 @@ function normalize_asset_path($path) {
     return $path;
 }
 
+function is_reserved_link_id($value) {
+    if (!is_string($value)) {
+        return false;
+    }
+    $value = strtolower(trim($value));
+    if ($value === '') {
+        return false;
+    }
+    $reserved = [
+        'about',
+        'adminnotices',
+        'bg',
+        'bgconfig',
+        'bgdeleteconfirm',
+        'bgdeletemodal',
+        'bgfileinput',
+        'container',
+        'donate',
+        'events',
+        'faq',
+        'header',
+        'links',
+        'linksconfig',
+        'linklist',
+        'logo',
+        'logofileinput',
+        'mask-bottom',
+        'mask-left',
+        'mask-right',
+        'mask-top',
+        'nojswarning',
+        'navbar',
+        'permissionsmodal',
+        'permissionsform',
+        'permissionsselfconfirmmodal',
+        'permissionsselfconfirmyes',
+        'permissionsusername',
+        'removeusermodal',
+        'removeuserwarning',
+        'removeusername',
+        'resetconfirmmodal',
+        'resetconfirmmessage',
+        'resetconfirmyes',
+        'resetpasswordmodal',
+        'rules',
+        'savingoverlay',
+        'tutorialoverlay',
+        'tutorialpopover',
+        'users',
+    ];
+    return in_array($value, $reserved, true);
+}
+
 // Validate and save an uploaded image; returns relative path.
 function save_image($fileArray, $destName) {
     global $imgDir;
@@ -225,8 +278,10 @@ if (is_array($backgroundsData)) {
             continue;
         }
         $author = $bg['author'] ?? '';
+        $authorUrl = $bg['authorUrl'] ?? '';
         $existingUrl = $bg['url'] ?? '';
         $fileKey = $bg['fileKey'] ?? null;
+        $authorUrl = is_string($authorUrl) ? trim($authorUrl) : '';
 
         if ($fileKey && isset($_FILES[$fileKey])) {
             $saved = save_image($_FILES[$fileKey], null);
@@ -234,12 +289,14 @@ if (is_array($backgroundsData)) {
                 $newBackgrounds[] = [
                     'url' => $saved,
                     'author' => $author,
+                    'authorUrl' => $authorUrl,
                 ];
             }
         } elseif ($existingUrl) {
             $newBackgrounds[] = [
                 'url' => normalize_asset_path($existingUrl),
                 'author' => $author,
+                'authorUrl' => $authorUrl,
             ];
         }
     }
@@ -255,6 +312,8 @@ if (is_array($backgroundAuthors)) {
         $index = isset($entry['index']) ? (int) $entry['index'] : null;
         $url = normalize_asset_path($entry['url'] ?? '');
         $author = $entry['author'] ?? '';
+        $authorUrl = $entry['authorUrl'] ?? '';
+        $authorUrl = is_string($authorUrl) ? trim($authorUrl) : '';
         if ($index === null || $url === '' || !isset($existingBackgrounds[$index])) {
             continue;
         }
@@ -266,6 +325,7 @@ if (is_array($backgroundAuthors)) {
             $existingBackgrounds[$index] = [
                 'url' => $url,
                 'author' => $author,
+                'authorUrl' => $authorUrl,
             ];
             $backgroundAuthorsChanged = true;
             continue;
@@ -275,6 +335,7 @@ if (is_array($backgroundAuthors)) {
                 continue;
             }
             $existingBackgrounds[$index]['author'] = $author;
+            $existingBackgrounds[$index]['authorUrl'] = $authorUrl;
             $backgroundAuthorsChanged = true;
         }
     }
@@ -287,6 +348,7 @@ if (is_array($backgroundAuthors)) {
 $linksOut = null;
 if (is_array($linksData)) {
     $linksOut = [];
+    $reservedIds = [];
     foreach ($linksData as $link) {
         if (!is_array($link)) {
             continue;
@@ -295,9 +357,14 @@ if (is_array($linksData)) {
         if ($type === 'separator') {
             $linksOut[] = ['type' => 'separator'];
         } elseif ($type === 'link') {
+            $id = $link['id'] ?? '';
+            if (is_reserved_link_id($id)) {
+                $reservedIds[] = $id;
+                continue;
+            }
             $linksOut[] = [
                 'type' => 'link',
-                'id' => $link['id'] ?? '',
+                'id' => $id,
                 'href' => $link['href'] ?? '',
                 'text' => $link['text'] ?? '',
                 'title' => $link['title'] ?? '',
@@ -305,6 +372,10 @@ if (is_array($linksData)) {
                 'cta' => !empty($link['cta']),
             ];
         }
+    }
+    if (!empty($reservedIds)) {
+        $unique = array_values(array_unique($reservedIds));
+        respond(['error' => 'Error: ID cannot be ' . implode(', ', $unique) . '. Please change them to different IDs.'], 400);
     }
 }
 

@@ -152,6 +152,8 @@ header.header {
     align-items: center;
     justify-content: space-between;
     gap: 12px;
+    position: relative;
+    overflow: hidden;
 }
 
 .adminNoticeClose {
@@ -171,16 +173,29 @@ header.header {
 .adminNotice--ok {
     border-color: #5BB9FF88;
     background: #1C355A88;
+    --notice-accent: #5BB9FF88;
 }
 
 .adminNotice--warning {
     border-color: #FFD97788;
     background: #4A3B1488;
+    --notice-accent: #FFD97788;
 }
 
 .adminNotice--danger {
     border-color: #FF6B6B88;
     background: #4A141488;
+    --notice-accent: #FF6B6B88;
+}
+
+.adminNoticeProgress {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    height: 3px;
+    width: 100%;
+    background: var(--notice-accent, #FFFFFF55);
+    opacity: 0.9;
 }
 
 .savingOverlay {
@@ -557,6 +572,12 @@ button:disabled {
     font-weight: 500;
 }
 
+.linksConfigInput.isReserved {
+    border-color: #FFD977AA;
+    background: #4A3B1488;
+    color: #FFF3C2;
+}
+
 .linksConfigCheckbox {
     display: flex;
     align-items: center;
@@ -602,7 +623,7 @@ button:disabled {
 
 .bgConfigRow {
     display: grid;
-    grid-template-columns: 120px 1fr auto;
+    grid-template-columns: 120px 1fr 1fr auto;
     gap: 8px;
     align-items: center;
 }
@@ -657,6 +678,14 @@ button:disabled {
 }
 
 .bgAuthorInput {
+    width: 100%;
+    padding: 6px 8px;
+    border-radius: 4px;
+    border: 1px solid #FFFFFF33;
+    background: #00000033;
+    color: inherit;
+}
+.bgAuthorUrlInput {
     width: 100%;
     padding: 6px 8px;
     border-radius: 4px;

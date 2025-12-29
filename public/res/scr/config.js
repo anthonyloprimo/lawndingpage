@@ -195,6 +195,14 @@ $(document).ready(function() {
 
         // Initial state
         refreshLinkControls();
+
+        $list.on('blur', 'input[name="linkId[]"]', function() {
+            updateReservedIdState($(this));
+        });
+
+        $list.find('input[name="linkId[]"]').each(function() {
+            updateReservedIdState($(this));
+        });
     }
 
     function refreshLinkControls() {
@@ -461,6 +469,11 @@ $(document).ready(function() {
             const formData = new FormData();
             const currentSnapshot = captureSnapshot();
             let hasChanges = false;
+            const reservedIds = findReservedLinkIds();
+            if (reservedIds.length > 0) {
+                addAdminNotice('danger', `Error: ID cannot be ${reservedIds.join(', ')}. Please change them to different IDs.`);
+                return;
+            }
 
             // Header text
             if (!isEqualSnapshot(currentSnapshot.header, initialSnapshot.header)) {
@@ -586,10 +599,16 @@ $(document).ready(function() {
         $('.bgConfigRow').not('.bgConfigHeader').each(function() {
             const $row = $(this);
             const author = $row.find('.bgAuthorInput').val() || '';
+            const authorUrl = $row.find('.bgAuthorUrlInput').val() || '';
             const currentUrl = $row.data('current-url') || $row.find('.bgThumb').attr('src') || '';
             const index = Number($row.data('index'));
             if (currentUrl) {
-                backgrounds.push({ url: currentUrl, author, index: Number.isFinite(index) ? index : backgrounds.length });
+                backgrounds.push({
+                    url: currentUrl,
+                    author,
+                    authorUrl: authorUrl || '',
+                    index: Number.isFinite(index) ? index : backgrounds.length
+                });
             }
         });
         return backgrounds;
@@ -616,6 +635,88 @@ $(document).ready(function() {
         return JSON.stringify(a) === JSON.stringify(b);
     }
 
+    function findReservedLinkIds() {
+        const reservedIds = getReservedIdSet();
+        const ids = [];
+        $('.linksConfigCard').not('.linksConfigSeparator').each(function() {
+            const value = $(this).find('input[name="linkId[]"]').val() || '';
+            const trimmed = value.trim();
+            if (trimmed) {
+                ids.push(trimmed);
+            }
+        });
+
+        const offenders = [];
+        const seen = new Set();
+        for (const id of ids) {
+            const lowered = id.toLowerCase();
+            if (reservedIds.has(lowered) && !seen.has(lowered)) {
+                offenders.push(id);
+                seen.add(lowered);
+            }
+        }
+        return offenders;
+    }
+
+    function updateReservedIdState($input) {
+        const value = ($input.val() || '').trim().toLowerCase();
+        if (!value) {
+            $input.removeClass('isReserved');
+            return;
+        }
+        const reservedIds = getReservedIdSet();
+        if (reservedIds.has(value)) {
+            $input.addClass('isReserved');
+            return;
+        }
+        $input.removeClass('isReserved');
+    }
+
+    function getReservedIdSet() {
+        return new Set([
+            'about',
+            'adminnotices',
+            'bg',
+            'bgconfig',
+            'bgdeleteconfirm',
+            'bgdeletemodal',
+            'bgfileinput',
+            'container',
+            'donate',
+            'events',
+            'faq',
+            'header',
+            'links',
+            'linksconfig',
+            'linklist',
+            'logo',
+            'logofileinput',
+            'mask-bottom',
+            'mask-left',
+            'mask-right',
+            'mask-top',
+            'nojswarning',
+            'navbar',
+            'permissionsmodal',
+            'permissionsform',
+            'permissionsselfconfirmmodal',
+            'permissionsselfconfirmyes',
+            'permissionsusername',
+            'removeusermodal',
+            'removeuserwarning',
+            'removeusername',
+            'resetconfirmmodal',
+            'resetconfirmmessage',
+            'resetconfirmyes',
+            'resetpasswordmodal',
+            'rules',
+            'savingoverlay',
+            'tutorialoverlay',
+            'tutorialpopover',
+            'users'
+        ]);
+    }
+
     function getBackgroundAuthorChanges(current, initial) {
         const changes = [];
         if (!Array.isArray(current) || !Array.isArray(initial)) {
@@ -628,11 +729,12 @@ $(document).ready(function() {
             }
             const url = bg.url || '';
             const author = bg.author || '';
+            const authorUrl = bg.authorUrl || '';
             if (!url || url !== initialBg.url) {
                 return;
             }
-            if (author !== (initialBg.author || '')) {
-                changes.push({ url, author, index: idx });
+            if (author !== (initialBg.author || '') || authorUrl !== (initialBg.authorUrl || '')) {
+                changes.push({ url, author, authorUrl, index: idx });
             }
         });
         return changes;
@@ -679,14 +781,16 @@ $(document).ready(function() {
             const url = bg && typeof bg.url === 'string' ? bg.url : '';
             const displayUrl = bg && typeof bg.displayUrl === 'string' ? bg.displayUrl : url;
             const author = bg && typeof bg.author === 'string' ? bg.author : '';
+            const authorUrl = bg && typeof bg.authorUrl === 'string' ? bg.authorUrl : '';
             const isEmpty = !displayUrl;
             const row = `
-                <div class="bgConfigRow" data-current-url="${escapeHtml(url)}" data-index="${index}">
+                <div class="bgConfigRow" data-current-url="${escapeHtml(url)}" data-author-url="${escapeHtml(authorUrl)}" data-index="${index}">
                     <div class="bgThumbWrap ${isEmpty ? 'empty' : ''}">
                         <img class="bgThumb" src="${escapeHtml(displayUrl)}" alt="Background preview">
                         <button class="bgChange" type="button">Change</button>
                     </div>
                     <input class="bgAuthorInput" type="text" name="bgAuthor[]" value="${escapeHtml(author)}" placeholder="Author">
+                    <input class="bgAuthorUrlInput" type="text" name="bgAuthorUrl[]" value="${escapeHtml(authorUrl)}" placeholder="URL">
                     <button class="deleteBackground usersDanger iconButton" type="button" aria-label="Delete background" title="Remove this background">
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z" /></svg>
                     </button>
@@ -972,7 +1076,7 @@ $(document).ready(function() {
         $targets.prop('disabled', true);
     }
 
-    function addAdminNotice(type, text) {
+    function addAdminNotice(type, text, options) {
         const $notices = $('#adminNotices');
         if (!$notices.length) {
             return;
@@ -986,6 +1090,12 @@ $(document).ready(function() {
         `);
         $notice.find('.adminNoticeText').text(text);
         $notices.append($notice);
+
+        const persist = options && options.persist;
+        if (safeType !== 'danger' && !persist) {
+            const timeoutMs = safeType === 'warning' ? 15000 : 5000;
+            scheduleNoticeTimeout($notice, timeoutMs);
+        }
     }
 
     function escapeHtml(value) {
@@ -1007,8 +1117,109 @@ $(document).ready(function() {
 
     function bindAdminNotices() {
         $(document).on('click', '.adminNoticeClose', function() {
-            $(this).closest('.adminNotice').remove();
+            const $notice = $(this).closest('.adminNotice');
+            clearNoticeTimer($notice);
+            $notice.remove();
         });
+        $('#adminNotices .adminNotice').each(function() {
+            const $notice = $(this);
+            if ($notice.data('persist')) {
+                return;
+            }
+            if ($notice.hasClass('adminNotice--danger')) {
+                return;
+            }
+            const timeoutMs = $notice.hasClass('adminNotice--warning') ? 15000 : 5000;
+            scheduleNoticeTimeout($notice, timeoutMs);
+        });
+    }
+
+    function scheduleNoticeTimeout($notice, durationMs) {
+        if (!$notice.length || durationMs <= 0) {
+            return;
+        }
+        if ($notice.data('noticeTimerActive')) {
+            return;
+        }
+        $notice.data('noticeTimerActive', true);
+
+        let remainingMs = durationMs;
+        let startTime = Date.now();
+        let rafId = null;
+        let paused = false;
+
+        let $progress = $notice.find('.adminNoticeProgress');
+        if (!$progress.length) {
+            $progress = $('<div class="adminNoticeProgress"></div>');
+            $notice.append($progress);
+        }
+
+        function updateProgress() {
+            if (paused) {
+                return;
+            }
+            const elapsed = Date.now() - startTime;
+            const left = Math.max(remainingMs - elapsed, 0);
+            const percent = (left / durationMs) * 100;
+            $progress.css('width', `${percent}%`);
+
+            if (left <= 0) {
+                $notice.addClass('isClosing');
+                $notice.fadeOut(200, function() {
+                    clearNoticeTimer($notice);
+                    $notice.remove();
+                });
+                return;
+            }
+            rafId = requestAnimationFrame(updateProgress);
+            $notice.data('noticeRafId', rafId);
+        }
+
+        function pauseTimer() {
+            if (paused) {
+                return;
+            }
+            paused = true;
+            remainingMs = Math.max(remainingMs - (Date.now() - startTime), 0);
+            if (rafId) {
+                cancelAnimationFrame(rafId);
+                rafId = null;
+            }
+        }
+
+        function resumeTimer() {
+            if (!paused) {
+                return;
+            }
+            paused = false;
+            startTime = Date.now();
+            rafId = requestAnimationFrame(updateProgress);
+            $notice.data('noticeRafId', rafId);
+        }
+
+        $notice.on('mouseenter.noticeTimer', pauseTimer);
+        $notice.on('mouseleave.noticeTimer', resumeTimer);
+
+        rafId = requestAnimationFrame(updateProgress);
+        $notice.data('noticeRafId', rafId);
+        $notice.data('noticePause', pauseTimer);
+        $notice.data('noticeResume', resumeTimer);
+    }
+
+    function clearNoticeTimer($notice) {
+        if (!$notice || !$notice.length) {
+            return;
+        }
+        const rafId = $notice.data('noticeRafId');
+        if (rafId) {
+            cancelAnimationFrame(rafId);
+        }
+        $notice.off('mouseenter.noticeTimer');
+        $notice.off('mouseleave.noticeTimer');
+        $notice.removeData('noticeRafId');
+        $notice.removeData('noticeTimerActive');
+        $notice.removeData('noticePause');
+        $notice.removeData('noticeResume');
     }
 
     function updateEditSitePermissionFromUsers() {

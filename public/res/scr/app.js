@@ -5,6 +5,7 @@ const BREAKPOINT = 979;
 let mode = null;
 let currentPane = null;
 let paneOrder = [];
+const faviconCache = new Map();
 
 // Returns either 'desktop' or 'mobile' as the view mode.  Allows easy hooking into mode-based features on the page.
 function getMode() {
@@ -42,6 +43,18 @@ function init() {
 
     // Randomize the body background image from the JSON-provided list while preserving other background styles.
     setRandomBackground();
+
+    // Set favicon-style icons on link buttons.
+    setLinkFavicons();
+
+    // Lock layout height to the visible viewport on iOS Safari.
+    setAppHeight();
+    window.addEventListener('resize', setAppHeight);
+    window.addEventListener('orientationchange', setAppHeight);
+    if (window.visualViewport) {
+        window.visualViewport.addEventListener('resize', setAppHeight);
+        window.visualViewport.addEventListener('scroll', setAppHeight);
+    }
 
     // Wire up nav clicks to drive pane switching in SPA style.
     navLinks.on('click', function(event) {
@@ -156,10 +169,14 @@ function setRandomBackground() {
     const backgrounds = rawBackgrounds
         .map((bg) => {
             if (typeof bg === 'string') {
-                return { url: bg, author: '' };
+                return { url: bg, author: '', authorUrl: '' };
             }
             if (bg && typeof bg === 'object' && typeof bg.url === 'string') {
-                return { url: bg.url, author: typeof bg.author === 'string' ? bg.author : '' };
+                return {
+                    url: bg.url,
+                    author: typeof bg.author === 'string' ? bg.author : '',
+                    authorUrl: typeof bg.authorUrl === 'string' ? bg.authorUrl : ''
+                };
             }
             return null;
         })
@@ -175,7 +192,35 @@ function setRandomBackground() {
 
     // Update the footer with the background author (fallback to 'anonymous' if missing).
     const author = chosen.author && chosen.author.trim().length > 0 ? chosen.author.trim() : 'anonymous';
-    $('.authorName').text(author);
+    const authorUrl = normalizeExternalUrl(chosen.authorUrl);
+    const $authorLink = $('.authorLink');
+    const $authorPlain = $('.authorPlain');
+
+    if (authorUrl) {
+        $authorLink.attr('href', authorUrl).removeClass('hidden');
+        $authorLink.find('.authorName').text(author);
+        $authorPlain.addClass('hidden').text('');
+    } else {
+        $authorLink.addClass('hidden').attr('href', '');
+        $authorPlain.text(author).removeClass('hidden');
+    }
+}
+
+function normalizeExternalUrl(value) {
+    if (typeof value !== 'string') {
+        return '';
+    }
+
+    const trimmed = value.trim();
+    if (!trimmed) {
+        return '';
+    }
+
+    if (/^[a-z][a-z0-9+.-]*:/i.test(trimmed)) {
+        return trimmed;
+    }
+
+    return `https://${trimmed}`;
 }
 
 // Highlight the nav link corresponding to the current pane.
@@ -218,6 +263,118 @@ function getDefaultDesktopPane() {
         return 'bg';
     }
     return paneOrder[1] || paneOrder[0] || 'about';
+}
+
+function setAppHeight() {
+    const vv = window.visualViewport;
+    const height = vv ? vv.height : window.innerHeight;
+    document.documentElement.style.setProperty('--app-height', `${height}px`);
+}
+
+function setLinkFavicons() {
+    const links = Array.from(document.querySelectorAll('.linkList > li > a[href]'));
+    if (!links.length) {
+        return;
+    }
+
+    const domains = collectDomainsFromLinks(links);
+    if (!domains.length) {
+        return;
+    }
+
+    fetch('res/scr/favicon.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ domains }),
+    })
+        .then((response) => (response.ok ? response.json() : null))
+        .then((data) => {
+            if (!data || !data.icons) {
+                return;
+            }
+
+            Object.keys(data.icons).forEach((domain) => {
+                const icon = data.icons[domain] && data.icons[domain].icon;
+                if (icon) {
+                    faviconCache.set(domain, icon);
+                }
+            });
+
+            applyFaviconsToLinks(links, data.icons);
+        })
+        .catch(() => {});
+}
+
+function normalizeHttpUrl(href) {
+    if (!href || href.startsWith('#') || href.startsWith('mailto:') || href.startsWith('tel:')) {
+        return null;
+    }
+
+    try {
+        const trimmed = href.trim();
+        const needsScheme = !/^https?:\/\//i.test(trimmed) && !trimmed.startsWith('//');
+        const candidate = needsScheme && !trimmed.startsWith('/') ? `https://${trimmed}` : trimmed;
+        const url = new URL(candidate, window.location.href);
+        if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+            return null;
+        }
+        return url.href;
+    } catch (error) {
+        return null;
+    }
+}
+
+function getHostKey(url) {
+    try {
+        return new URL(url).host;
+    } catch (error) {
+        return null;
+    }
+}
+
+function collectDomainsFromLinks(links) {
+    const domains = new Set();
+    links.forEach((link) => {
+        const href = link.getAttribute('href') || '';
+        const normalized = normalizeHttpUrl(href);
+        if (!normalized) {
+            return;
+        }
+
+        const hostKey = getHostKey(normalized);
+        if (!hostKey) {
+            return;
+        }
+
+        const baseDomain = hostKey.replace(/^www\./i, '');
+        if (baseDomain) {
+            domains.add(baseDomain);
+        }
+    });
+
+    return Array.from(domains);
+}
+
+function applyFaviconsToLinks(links, iconMap) {
+    links.forEach((link) => {
+        const href = link.getAttribute('href') || '';
+        const normalized = normalizeHttpUrl(href);
+        if (!normalized) {
+            return;
+        }
+
+        const hostKey = getHostKey(normalized);
+        if (!hostKey) {
+            return;
+        }
+
+        const baseDomain = hostKey.replace(/^www\./i, '');
+        const entry = iconMap[baseDomain];
+        const iconUrl = entry && entry.icon ? entry.icon : faviconCache.get(baseDomain);
+        if (iconUrl) {
+            link.style.setProperty('--link-icon', `url('${iconUrl}')`);
+        }
+    });
 }
 
 // Ensures we update the layout as soon as the page loads.

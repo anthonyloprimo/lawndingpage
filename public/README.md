@@ -289,6 +289,17 @@ I *swear* the former is most likely happening.  Totally.  Please believe me.  ..
 Sarcasm aside, enjoy! :3
 
 ## Changelog
+### v1.2.0
+**Changes:**
+- Fixed a bug where users could accidentally enter reserved, hardcoded IDs from the site as the link ID, causing style conflicts.
+- The client and server now validate entered IDs and fails to update with a warning so the user can correct them.
+- Response notifications (success, failures, general notifications) will now auto-dismiss after a set time.  "Danger" class notifications (red bars) will NOT auto-dismiss.
+- Display icons for links in the link list.
+- Added a field for a URL for background image attribution.
+
+**Known Issues:**
+- Changing the order of links sometimes jumps more than one slot when doing so too quickly.  Workaround: Just move the link that jumped too far back up/down to where it should be.
+
 ### v1.1.0
 **Changes:**
 - Fixed a bug where certain file paths were not correctly being respected due to being hardcoded, causing the site to break, primarily with the admin panel.
@@ -300,6 +311,7 @@ Sarcasm aside, enjoy! :3
 - Updated button appearances in the admin panel.
 - POST payload is cleared on successful upload, reloading after will not ask to resubmit.
 - Cleaned up link list display in the admin panel.
+- Added styling for call-to-action buttons.
 
 **Known Issues:**
 - Changing the order of links sometimes jumps more than one slot when doing so too quickly.  Workaround: Just move the link that jumped too far back up/down to where it should be.

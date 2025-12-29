@@ -133,16 +133,19 @@ $backgrounds = [];
 foreach ($backgroundsRaw as $index => $bg) {
     $url = '';
     $author = '';
+    $authorUrl = '';
     if (is_string($bg)) {
         $url = $bg;
     } elseif (is_array($bg)) {
         $url = $bg['url'] ?? '';
         $author = $bg['author'] ?? '';
+        $authorUrl = $bg['authorUrl'] ?? '';
     }
     $url = normalize_asset_path($url);
     $backgrounds[] = [
         'url' => $url,
         'author' => $author,
+        'authorUrl' => $authorUrl ?: '',
         'displayUrl' => make_asset_url($url),
         'index' => $index,
     ];

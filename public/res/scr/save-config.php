@@ -1,15 +1,17 @@
 <?php
-require_once __DIR__ . '/../../../lp-bootstrap.php';
 // Handles saving config changes (links, header, backgrounds, markdown, and uploads).
+require_once __DIR__ . '/../../../lp-bootstrap.php';
 session_start();
 
-if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    http_response_code(405);
+// Unified JSON response helper.
+function respond($payload, $code = 200) {
+    http_response_code($code);
     header('Content-Type: application/json');
-    echo json_encode(['error' => 'Method not allowed']);
+    echo json_encode($payload);
     exit;
 }
 
+// Convert ini size strings like "2M" into bytes for comparisons.
 function ini_size_to_bytes($value) {
     $value = trim((string) $value);
     if ($value === '') {
@@ -31,43 +33,125 @@ function ini_size_to_bytes($value) {
     return (int) $number;
 }
 
+// Read users.json into an array (empty on failure).
+function load_users($usersPath) {
+    if (!is_readable($usersPath)) {
+        return [];
+    }
+    $decoded = json_decode(file_get_contents($usersPath), true);
+    return is_array($decoded) ? $decoded : [];
+}
+
+// Find a user record by username.
+function find_user($users, $username) {
+    foreach ($users as $user) {
+        if (is_array($user) && ($user['username'] ?? '') === $username) {
+            return $user;
+        }
+    }
+    return null;
+}
+
+// Resolve filesystem paths for data, images, and config files.
+function resolve_paths() {
+    $publicDir = function_exists('lawnding_config')
+        ? lawnding_config('public_dir', dirname(__DIR__, 2))
+        : dirname(__DIR__, 2);
+    $dataDir = function_exists('lawnding_config')
+        ? lawnding_config('data_dir', $publicDir . '/res/data')
+        : $publicDir . '/res/data';
+    $imgDir = function_exists('lawnding_config')
+        ? lawnding_config('img_dir', $publicDir . '/res/img')
+        : $publicDir . '/res/img';
+    $imgDir = rtrim($imgDir, '/\\') . '/';
+
+    return [
+        'public_dir' => $publicDir,
+        'data_dir' => $dataDir,
+        'img_dir' => $imgDir,
+        'header_path' => $dataDir . '/header.json',
+        'links_path' => $dataDir . '/links.json',
+        'about_path' => $dataDir . '/about.md',
+        'rules_path' => $dataDir . '/rules.md',
+        'faq_path' => $dataDir . '/faq.md',
+    ];
+}
+
+// Load existing header data with defaults.
+function load_header_data($headerPath) {
+    $headerData = [
+        'logo' => 'res/img/logo.jpg',
+        'title' => 'Long Island Furs',
+        'subtitle' => 'A Long Island furry community encompassing Queens, Nassau County, and Suffolk County.  And Staten Island, but we do not talk about that.',
+        'backgrounds' => ['res/img/bg.jpg']
+    ];
+    if (is_readable($headerPath)) {
+        $decoded = json_decode(file_get_contents($headerPath), true);
+        if (is_array($decoded)) {
+            $headerData = array_merge($headerData, $decoded);
+        }
+    }
+    return $headerData;
+}
+
+// Parse a JSON payload if present; otherwise return null.
+function parse_json_payload($payload, $errorMessage) {
+    if ($payload === null) {
+        return null;
+    }
+    $decoded = json_decode($payload, true);
+    if (!is_array($decoded)) {
+        respond(['error' => $errorMessage], 400);
+    }
+    return $decoded;
+}
+
+// Persist a JSON file with a standard encoding strategy.
+function write_json_file($path, $data, $errorMessage) {
+    $encoded = json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+    if ($encoded === false || file_put_contents($path, $encoded) === false) {
+        respond(['error' => $errorMessage], 500);
+    }
+}
+
+// Persist plain text content to disk.
+function write_text_file($path, $content, $errorMessage) {
+    if (file_put_contents($path, $content) === false) {
+        respond(['error' => $errorMessage], 500);
+    }
+}
+
+// Endpoint accepts POST only.
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    respond(['error' => 'Method not allowed'], 405);
+}
+
+// Fail fast when the overall POST payload exceeds the PHP limit.
 $postMaxBytes = ini_size_to_bytes(ini_get('post_max_size'));
 $contentLength = isset($_SERVER['CONTENT_LENGTH']) ? (int) $_SERVER['CONTENT_LENGTH'] : 0;
 if ($postMaxBytes > 0 && $contentLength > $postMaxBytes) {
     error_log('save-config.php: payload too large (' . $contentLength . ' bytes, limit ' . $postMaxBytes . ' bytes).');
-    http_response_code(413);
-    header('Content-Type: application/json');
-    echo json_encode(['error' => 'Payload too large. Please reduce image sizes and try again.']);
-    exit;
+    respond(['error' => 'Payload too large. Please reduce image sizes and try again.'], 413);
 }
 
+// Ensure the user is authenticated before processing updates.
 if (empty($_SESSION['auth_user'])) {
     respond(['error' => 'Unauthorized'], 401);
 }
 
+// Load users.json and resolve the current user's permissions.
 $allowedPermissions = ['full_admin', 'add_users', 'edit_users', 'remove_users', 'edit_site'];
 $usersPath = function_exists('lawnding_config')
     ? lawnding_config('users_path', dirname(__DIR__, 3) . '/admin/users.json')
     : dirname(__DIR__, 3) . '/admin/users.json';
-$users = [];
-if (is_readable($usersPath)) {
-    $decoded = json_decode(file_get_contents($usersPath), true);
-    if (is_array($decoded)) {
-        $users = $decoded;
-    }
-}
+$users = load_users($usersPath);
 $authUser = $_SESSION['auth_user'];
-$authRecord = null;
-foreach ($users as $user) {
-    if (is_array($user) && ($user['username'] ?? '') === $authUser) {
-        $authRecord = $user;
-        break;
-    }
-}
+$authRecord = find_user($users, $authUser);
 if (!$authRecord) {
     respond(['error' => 'Unauthorized'], 401);
 }
 
+// Site edits require either full admin or edit_site permission.
 $permissions = $authRecord['permissions'] ?? [];
 if (!is_array($permissions)) {
     $permissions = [];
@@ -79,6 +163,7 @@ if (!$canEditSite) {
     respond(['error' => 'Forbidden'], 403);
 }
 
+// Validate file uploads (size and PHP error codes).
 foreach ($_FILES as $upload) {
     if (!is_array($upload)) {
         continue;
@@ -92,44 +177,19 @@ foreach ($_FILES as $upload) {
     }
 }
 
-$publicDir = function_exists('lawnding_config')
-    ? lawnding_config('public_dir', dirname(__DIR__, 2))
-    : dirname(__DIR__, 2);
-$dataDir = function_exists('lawnding_config')
-    ? lawnding_config('data_dir', $publicDir . '/res/data')
-    : $publicDir . '/res/data';
-$imgDir = function_exists('lawnding_config')
-    ? lawnding_config('img_dir', $publicDir . '/res/img')
-    : $publicDir . '/res/img';
-$imgDir = rtrim($imgDir, '/\\') . '/';
+// Resolve filesystem paths for data, images, and config files.
+$paths = resolve_paths();
+$imgDir = $paths['img_dir'];
+$headerPath = $paths['header_path'];
+$linksPath = $paths['links_path'];
+$aboutPath = $paths['about_path'];
+$rulesPath = $paths['rules_path'];
+$faqPath = $paths['faq_path'];
 
-$headerPath = $dataDir . '/header.json';
-$linksPath = $dataDir . '/links.json';
-$aboutPath = $dataDir . '/about.md';
-$rulesPath = $dataDir . '/rules.md';
-$faqPath = $dataDir . '/faq.md';
+// Load existing header data with defaults.
+$headerData = load_header_data($headerPath);
 
-// Load existing header data with defaults
-$headerData = [
-    'logo' => 'res/img/logo.jpg',
-    'title' => 'Long Island Furs',
-    'subtitle' => 'A Long Island furry community encompassing Queens, Nassau County, and Suffolk County.  And Staten Island, but we do not talk about that.',
-    'backgrounds' => ['res/img/bg.jpg']
-];
-if (is_readable($headerPath)) {
-    $decoded = json_decode(file_get_contents($headerPath), true);
-    if (is_array($decoded)) {
-        $headerData = array_merge($headerData, $decoded);
-    }
-}
-
-function respond($payload, $code = 200) {
-    http_response_code($code);
-    header('Content-Type: application/json');
-    echo json_encode($payload);
-    exit;
-}
-
+// Normalize stored asset paths into res/... form for consistent matching.
 function normalize_asset_path($path) {
     if (!is_string($path) || $path === '') {
         return $path;
@@ -153,6 +213,7 @@ function normalize_asset_path($path) {
     return $path;
 }
 
+// Block IDs that collide with existing admin DOM element IDs.
 function is_reserved_link_id($value) {
     if (!is_string($value)) {
         return false;
@@ -227,7 +288,7 @@ function save_image($fileArray, $destName) {
     return 'res/img/' . $safeName;
 }
 
-// Gather POST data
+// Gather POST data and JSON payloads.
 $siteTitle = $_POST['siteTitle'] ?? null;
 $siteSubtitle = $_POST['siteSubtitle'] ?? null;
 $linksJson = $_POST['links'] ?? null;
@@ -237,31 +298,12 @@ $aboutMarkdown = $_POST['aboutMarkdown'] ?? null;
 $rulesMarkdown = $_POST['rulesMarkdown'] ?? null;
 $faqMarkdown = $_POST['faqMarkdown'] ?? null;
 
-$linksData = null;
-if ($linksJson !== null) {
-    $linksData = json_decode($linksJson, true);
-    if (!is_array($linksData)) {
-        respond(['error' => 'Invalid links payload'], 400);
-    }
-}
+// Parse and validate JSON payloads.
+$linksData = parse_json_payload($linksJson, 'Invalid links payload');
+$backgroundsData = parse_json_payload($backgroundsJson, 'Invalid backgrounds payload');
+$backgroundAuthors = parse_json_payload($backgroundAuthorsJson, 'Invalid background authors payload');
 
-$backgroundsData = null;
-if ($backgroundsJson !== null) {
-    $backgroundsData = json_decode($backgroundsJson, true);
-    if (!is_array($backgroundsData)) {
-        respond(['error' => 'Invalid backgrounds payload'], 400);
-    }
-}
-
-$backgroundAuthors = null;
-if ($backgroundAuthorsJson !== null) {
-    $backgroundAuthors = json_decode($backgroundAuthorsJson, true);
-    if (!is_array($backgroundAuthors)) {
-        respond(['error' => 'Invalid background authors payload'], 400);
-    }
-}
-
-// Handle logo upload
+// Handle logo upload (optional).
 if (isset($_FILES['logoFile'])) {
     $savedLogo = save_image($_FILES['logoFile'], 'logo');
     if ($savedLogo) {
@@ -269,7 +311,7 @@ if (isset($_FILES['logoFile'])) {
     }
 }
 
-// Handle backgrounds
+// Handle background list updates and new uploads.
 $newBackgrounds = null;
 if (is_array($backgroundsData)) {
     $newBackgrounds = [];
@@ -302,6 +344,7 @@ if (is_array($backgroundsData)) {
     }
 }
 
+// Handle background author edits without replacing the image URLs.
 $backgroundAuthorsChanged = false;
 if (is_array($backgroundAuthors)) {
     $existingBackgrounds = $headerData['backgrounds'] ?? [];
@@ -344,7 +387,7 @@ if (is_array($backgroundAuthors)) {
     }
 }
 
-// Handle links
+// Handle link configuration updates.
 $linksOut = null;
 if (is_array($linksData)) {
     $linksOut = [];
@@ -379,24 +422,18 @@ if (is_array($linksData)) {
     }
 }
 
-// Write markdown files
+// Write markdown files (only when provided).
 if ($aboutMarkdown !== null) {
-    if (file_put_contents($aboutPath, $aboutMarkdown) === false) {
-        respond(['error' => 'Failed to write about content'], 500);
-    }
+    write_text_file($aboutPath, $aboutMarkdown, 'Failed to write about content');
 }
 if ($rulesMarkdown !== null) {
-    if (file_put_contents($rulesPath, $rulesMarkdown) === false) {
-        respond(['error' => 'Failed to write rules content'], 500);
-    }
+    write_text_file($rulesPath, $rulesMarkdown, 'Failed to write rules content');
 }
 if ($faqMarkdown !== null) {
-    if (file_put_contents($faqPath, $faqMarkdown) === false) {
-        respond(['error' => 'Failed to write FAQ content'], 500);
-    }
+    write_text_file($faqPath, $faqMarkdown, 'Failed to write FAQ content');
 }
 
-// Update header data
+// Update header data and persist if any relevant fields changed.
 $headerChanged = false;
 if ($siteTitle !== null) {
     $headerData['title'] = $siteTitle;
@@ -419,16 +456,11 @@ if ($backgroundAuthorsChanged) {
 
 if ($headerChanged) {
     $headerData['logo'] = normalize_asset_path($headerData['logo'] ?? '');
-    $headerJson = json_encode($headerData, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
-    if ($headerJson === false || file_put_contents($headerPath, $headerJson) === false) {
-        respond(['error' => 'Failed to write header data'], 500);
-    }
+    write_json_file($headerPath, $headerData, 'Failed to write header data');
 }
 if (is_array($linksOut)) {
-    $linksJsonOut = json_encode($linksOut, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
-    if ($linksJsonOut === false || file_put_contents($linksPath, $linksJsonOut) === false) {
-        respond(['error' => 'Failed to write links data'], 500);
-    }
+    write_json_file($linksPath, $linksOut, 'Failed to write links data');
 }
 
+// All operations succeeded.
 respond(['status' => 'ok']);

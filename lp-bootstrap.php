@@ -50,7 +50,7 @@ $config = [
     'base_url' => '',
 ];
 
-// Infer the base URL (subdirectory prefix) from the executing script path.
+// Infer the base URL (subdirectory prefix) from the executing script path.  Returns '' if being served from the web root.
 function lawnding_detect_base_url(string $publicDir): string {
     // Pull routing info from the server environment.
     $scriptName = $_SERVER['SCRIPT_NAME'] ?? '';

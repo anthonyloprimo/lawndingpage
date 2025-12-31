@@ -1,6 +1,7 @@
 /* css reset */
 :root{-webkit-text-size-adjust:100%}*,*::before,*::after{box-sizing:border-box}html,body,h1,h2,h3,h4,h5,h6,p,ul,ol,li,figure,figcaption,blockquote,dl,dd{margin:0;padding:0}body{text-rendering:optimizeLegibility;-webkit-font-smoothing:antialiased}ul,ol{list-style:none}a{color:inherit;text-decoration:none}img,picture,video,canvas,svg{display:block;max-width:100%}table{border-collapse:collapse;border-spacing:0}button,input,select,textarea{font:inherit;color:inherit;background:none;border:none;padding:0;margin:0}button{cursor:pointer}
 
+/* Base layout and typography */
 html {
     height: 100%;
     margin: 0;
@@ -9,6 +10,7 @@ html {
     color: #f5f5f5;
 }
 
+/* App shell */
 body {
     display: flex;
     flex-direction: column;
@@ -21,6 +23,7 @@ body {
     background-position: center;
 }
 
+/* Header */
 header {
     display: flex;
     align-items: center;
@@ -62,6 +65,7 @@ header {
             color: #FFFFFFBB;
         }
 
+/* Main container and panes */
 #container {
     flex: 1 1 auto;
     display: flex;
@@ -212,6 +216,7 @@ header {
             width: 100%;
         }
 
+/* Navigation */
 nav {
     flex-shrink: 0;
     display: flex;
@@ -280,6 +285,7 @@ nav {
                 border: 1px solid #FFFFFF55;
             }
 
+/* Footer */
 .footer {
     font-size: 0.8rem;
     color: #FFFFFFAA;
@@ -295,20 +301,21 @@ nav {
 }
 
 
-.glassConvex {
-    backdrop-filter: blur(8px);
-    background-color: #00000077;
-    background: linear-gradient(358deg, #00000099 0%, #00000055 100%), #00000011;
-    box-shadow: 0 0 0 1px #FFFFFF33 inset, 0 0 0 1px #00000077, 0 1px 8px 4px #00000077;
-}
+/* Shared glassmorphism surfaces */
+.glassConvex,
 .glassConcave {
     backdrop-filter: blur(8px);
     background-color: #00000077;
-    background: linear-gradient(178deg, #00000099 0%, #00000055 100%), #00000011;
     box-shadow: 0 0 0 1px #FFFFFF33 inset, 0 0 0 1px #00000077, 0 1px 8px 4px #00000077;
 }
+.glassConvex {
+    background: linear-gradient(358deg, #00000099 0%, #00000055 100%), #00000011;
+}
+.glassConcave {
+    background: linear-gradient(178deg, #00000099 0%, #00000055 100%), #00000011;
+}
 
-
+/* Responsive layout */
 @media (max-width: 979px) {
     #container {
         flex-direction: column;

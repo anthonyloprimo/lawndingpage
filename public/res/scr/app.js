@@ -7,18 +7,50 @@ let currentPane = null;
 let paneOrder = [];
 const faviconCache = new Map();
 
-// Returns either 'desktop' or 'mobile' as the view mode.  Allows easy hooking into mode-based features on the page.
+// Helper: ensure we aren't trying to show the always-visible pane on desktop.
+function ensureDesktopPaneSelection() {
+    const firstPane = paneOrder[0];
+    const secondPane = getDefaultDesktopPane();
+    if (currentPane === firstPane && secondPane) {
+        currentPane = secondPane;
+    }
+}
+
+// Helper: toggle pane visibility based on a set of visible pane IDs.
+function updatePaneVisibility(panes, visibleIds) {
+    panes.each(function() {
+        const pane = $(this);
+        const id = pane.attr('id');
+        if (visibleIds.has(id)) {
+            pane.removeClass('hidden');
+        } else {
+            pane.addClass('hidden');
+        }
+    });
+}
+
+// Helper: show/hide the Links nav item based on mode.
+function toggleLinksNav(show) {
+    const linkItem = $('.navLink[data-pane="links"]');
+    if (show) {
+        linkItem.removeClass('hidden');
+    } else {
+        linkItem.addClass('hidden');
+    }
+}
+
+// Returns either 'desktop' or 'mobile' as the view mode.
 function getMode() {
     return window.innerWidth > BREAKPOINT ? 'desktop' : 'mobile';
 }
 
-// On first run, do all this.
+// On first run, set up layout, background, favicon, and event listeners.
 function init() {
-    // store jquery references as constants
+    // Store jquery references as constants.
     const panes = $('.pane');
     const navLinks = $('.navLink');
 
-    // Hide the noscript warning if JS is enabled.  How can we hide it with this code if JS isn't running?  Well if JS WASN'T running, you wouldn't be trying to hide it now would you? :3
+    // Hide the noscript warning if JS is enabled.
     $('#noJsWarning').hide();
 
     // Capture the pane order from nav links for default selection logic.
@@ -80,11 +112,7 @@ function init() {
 
             if (mode === 'desktop') {
                 // If we land on desktop while on the first pane, shift to the second pane.
-                const firstPane = paneOrder[0];
-                const secondPane = getDefaultDesktopPane();
-                if (currentPane === firstPane && secondPane) {
-                    currentPane = secondPane;
-                }
+                ensureDesktopPaneSelection();
             } else {
                 // On mobile, keep current pane as-is.
                 currentPane = previousPane;
@@ -99,53 +127,33 @@ function init() {
     });
 }
 
-// Apply layout
+// Apply layout: show/hide panes depending on the active mode and pane.
 function applyLayout() {
-    // easily store jquery reference to a constant.
+    // Easily store jquery reference to a constant.
     const panes = $('.pane');
 
     // check the mode and apply layout based on that.
     if (mode === 'desktop') {
         // If we change from mobile to desktop mode, and we're viewing the first nav pane, force to the second since the first is always visible.
-        const firstPane = paneOrder[0];
-        const secondPane = getDefaultDesktopPane();
-        if (currentPane === firstPane && secondPane) {
-            currentPane = secondPane;
-        }
+        ensureDesktopPaneSelection();
 
-        // See which pane is current and show them (remove the hidden class), otherwise hide them.
-        panes.each(function() {
-            const pane = $(this);
-            const id = pane.attr('id');
-            if (id === 'links' || id === currentPane) {
-                pane.removeClass('hidden');
-            } else {
-                pane.addClass('hidden');
-            }
-        });
+        // Show the links pane plus the current content pane.
+        updatePaneVisibility(panes, new Set(['links', currentPane]));
 
         // Hide the Links nav item on desktop (links pane is always visible already).
-        $('.navLink[data-pane="links"]').addClass('hidden');
+        toggleLinksNav(false);
     } else {  // if we aren't in desktop mode, we're in mobile mode.
-        panes.each(function() {
-            // Get the ID of the current pane we're viewing and as long as it's the same as the actual current pane, show it.  Otherwise, hide it.
-            const pane = $(this);
-            const id = pane.attr('id');
-            if (id === currentPane) {
-                pane.removeClass('hidden');
-            } else {
-                pane.addClass('hidden');
-            }
-        });
+        // Show only the current pane.
+        updatePaneVisibility(panes, new Set([currentPane]));
 
         // Show the Links nav item on mobile so users can navigate to it.
-        $('.navLink[data-pane="links"]').removeClass('hidden');
+        toggleLinksNav(true);
     }
 
     console.log(`applyLayout(): mode=${mode}, currentPane=${currentPane}`);
 }
 
-// Applies the logo background image using data from PHP-injected global.
+// Apply the logo background image using data from PHP-injected global.
 function setLogoBackground() {
     // The PHP template injects window.headerData; bail if missing.
     if (!window.headerData || !window.headerData.logo) {
@@ -155,7 +163,7 @@ function setLogoBackground() {
     $('#logo').css('background-image', `url('${window.headerData.logo}')`);
 }
 
-// Picks a random body background image from headerData.backgrounds while keeping other background properties intact.
+// Pick a random body background image from headerData.backgrounds while keeping other background properties intact.
 function setRandomBackground() {
     if (!window.headerData) {
         return;
@@ -206,6 +214,7 @@ function setRandomBackground() {
     }
 }
 
+// Normalize a user-supplied URL; defaults to https:// when scheme is missing.
 function normalizeExternalUrl(value) {
     if (typeof value !== 'string') {
         return '';
@@ -265,12 +274,14 @@ function getDefaultDesktopPane() {
     return paneOrder[1] || paneOrder[0] || 'about';
 }
 
+// Lock layout height to the visual viewport (iOS Safari safe).
 function setAppHeight() {
     const vv = window.visualViewport;
     const height = vv ? vv.height : window.innerHeight;
     document.documentElement.style.setProperty('--app-height', `${height}px`);
 }
 
+// Fetch favicons for link targets and apply them as CSS background images.
 function setLinkFavicons() {
     const links = Array.from(document.querySelectorAll('.linkList > li > a[href]'));
     if (!links.length) {
@@ -305,6 +316,7 @@ function setLinkFavicons() {
         .catch(() => {});
 }
 
+// Normalize link hrefs into http/https URLs (ignoring mailto/tel/hash).
 function normalizeHttpUrl(href) {
     if (!href || href.startsWith('#') || href.startsWith('mailto:') || href.startsWith('tel:')) {
         return null;
@@ -324,6 +336,7 @@ function normalizeHttpUrl(href) {
     }
 }
 
+// Return the host portion of a URL, or null if parsing fails.
 function getHostKey(url) {
     try {
         return new URL(url).host;
@@ -332,6 +345,7 @@ function getHostKey(url) {
     }
 }
 
+// Collect unique base domains from link elements.
 function collectDomainsFromLinks(links) {
     const domains = new Set();
     links.forEach((link) => {
@@ -355,6 +369,7 @@ function collectDomainsFromLinks(links) {
     return Array.from(domains);
 }
 
+// Apply cached or fetched favicons to link elements.
 function applyFaviconsToLinks(links, iconMap) {
     links.forEach((link) => {
         const href = link.getAttribute('href') || '';
@@ -377,7 +392,7 @@ function applyFaviconsToLinks(links, iconMap) {
     });
 }
 
-// Ensures we update the layout as soon as the page loads.
+// Ensure we update the layout as soon as the page loads.
 $(document).ready(function() {
     init();
 });

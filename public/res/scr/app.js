@@ -9,9 +9,9 @@ const faviconCache = new Map();
 
 // Helper: ensure we aren't trying to show the always-visible pane on desktop.
 function ensureDesktopPaneSelection() {
-    const firstPane = paneOrder[0];
+    const alwaysVisiblePane = paneOrder.includes('links') ? 'links' : paneOrder[0];
     const secondPane = getDefaultDesktopPane();
-    if (currentPane === firstPane && secondPane) {
+    if (currentPane === alwaysVisiblePane && secondPane) {
         currentPane = secondPane;
     }
 }

@@ -123,13 +123,14 @@ header {
             margin: 0 0 8px;
         }
 
-        .linkList {
+        .pane .linkList {
             display: flex;
             flex-wrap: wrap;
             gap: 4px;
             padding: 0;
             margin: 0;
             justify-content: flex-start;
+            list-style: none;
         }
             .linkList > li {
                 flex: 0 0 calc(50% - 2px);
@@ -153,7 +154,9 @@ header {
                     isolation: isolate;
                     --link-icon: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2024%2024%22%3E%3Ctitle%3Elink-variant%3C/title%3E%3Cpath%20fill%3D%22white%22%20d%3D%22M10.59%2C13.41C11%2C13.8%2011%2C14.44%2010.59%2C14.83C10.2%2C15.22%209.56%2C15.22%209.17%2C14.83C7.22%2C12.88%207.22%2C9.71%209.17%2C7.76V7.76L12.71%2C4.22C14.66%2C2.27%2017.83%2C2.27%2019.78%2C4.22C21.73%2C6.17%2021.73%2C9.34%2019.78%2C11.29L18.29%2C12.78C18.3%2C11.96%2018.17%2C11.14%2017.89%2C10.36L18.36%2C9.88C19.54%2C8.71%2019.54%2C6.81%2018.36%2C5.64C17.19%2C4.46%2015.29%2C4.46%2014.12%2C5.64L10.59%2C9.17C9.41%2C10.34%209.41%2C12.24%2010.59%2C13.41M13.41%2C9.17C13.8%2C8.78%2014.44%2C8.78%2014.83%2C9.17C16.78%2C11.12%2016.78%2C14.29%2014.83%2C16.24V16.24L11.29%2C19.78C9.34%2C21.73%206.17%2C21.73%204.22%2C19.78C2.27%2C17.83%202.27%2C14.66%204.22%2C12.71L5.71%2C11.22C5.7%2C12.04%205.83%2C12.86%206.11%2C13.65L5.64%2C14.12C4.46%2C15.29%204.46%2C17.19%205.64%2C18.36C6.81%2C19.54%208.71%2C19.54%209.88%2C18.36L13.41%2C14.83C14.59%2C13.66%2014.59%2C11.76%2013.41%2C10.59C13%2C10.2%2013%2C9.56%2013.41%2C9.17Z%22%20/%3E%3C/svg%3E");
                     text-align: center;
-                    padding: 8px 8px;
+                    height: 36px;
+                    line-height: 36px;
+                    padding: 0 8px;
                     width: 100%;
                     text-decoration: none;
                     white-space: nowrap;
@@ -167,6 +170,8 @@ header {
                     font-size: 1.15rem;
                     background-color: #4A8BE055;
                     border-color: #8FC0FF99;
+                    height: 40px;
+                    line-height: 40px;
                 }
                 .linkList > li > a::before {
                     content: "";
@@ -266,6 +271,13 @@ nav {
         }
         .navBar li.isHidden {
             display: none;
+        }
+        .navBar .navSeparator {
+            width: 1px;
+            height: 28px;
+            background: #FFFFFF77;
+            border-radius: 1px;
+            align-self: center;
         }
             .navBar li a {
                 display: flex;

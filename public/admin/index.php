@@ -1,10 +1,14 @@
 <?php
+// Admin entrypoint: routing, auth, and dispatch to the full admin UI or login flow.
+
+// Locate the bootstrap file (supports alternate directory layouts).
 $bootstrapPath = __DIR__ . '/../../lp-bootstrap.php';
 if (!is_readable($bootstrapPath)) {
     $bootstrapPath = __DIR__ . '/../../../lp-bootstrap.php';
 }
 require_once $bootstrapPath;
 
+// Normalize /admin to /admin/ for clean relative URL behavior.
 $requestPath = parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH);
 if ($requestPath !== null && $requestPath !== '') {
     $trimmedPath = rtrim($requestPath, '/');
@@ -16,6 +20,7 @@ if ($requestPath !== null && $requestPath !== '') {
     }
 }
 
+// Resolve admin root and configure error logging to admin/errors.txt.
 $adminRoot = function_exists('lawnding_config')
     ? lawnding_config('admin_dir', dirname(__DIR__, 2) . '/admin')
     : dirname(__DIR__, 2) . '/admin';
@@ -25,10 +30,10 @@ ini_set('error_log', $errorLogPath);
 
 session_start(); // Initialize PHP session storage and load existing session data.
 
+// Users file location (stored outside public web root).
 $usersPath = function_exists('lawnding_config')
     ? lawnding_config('users_path', dirname(__DIR__, 2) . '/admin/users.json')
     : dirname(__DIR__, 2) . '/admin/users.json';
-// Admin accounts live outside the public webroot.
 $users = [];
 $usersFileIssue = null;
 $allowedPermissions = ['full_admin', 'add_users', 'edit_users', 'remove_users', 'edit_site'];
@@ -39,9 +44,11 @@ if (is_readable($usersPath)) {
     if (is_array($decoded)) {
         $users = $decoded;
     } else {
+        // File exists but doesn't decode cleanly as an array.
         $usersFileIssue = 'invalid';
     }
 } else {
+    // File missing (first run or broken install).
     $usersFileIssue = 'missing';
 }
 
@@ -55,6 +62,10 @@ if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
 
+// Normalize action once for all POST handlers.
+$action = $_SERVER['REQUEST_METHOD'] === 'POST' ? ($_POST['action'] ?? '') : '';
+
+// General response state for admin/login flows.
 $errors = [];
 $success = '';
 $usersErrors = [];
@@ -69,6 +80,7 @@ $resetLogoutAfterReset = false;
 $logoutAfterAction = false;
 $blockUserActions = false;
 $flash = null;
+// One-time messages are stored in session and replayed after redirects.
 if ($_SERVER['REQUEST_METHOD'] !== 'POST' && !empty($_SESSION['flash_admin'])) {
     $flash = $_SESSION['flash_admin'];
     unset($_SESSION['flash_admin']);
@@ -76,6 +88,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST' && !empty($_SESSION['flash_admin'])) {
 
 if ($usersFileIssue === 'invalid') {
     $errors[] = 'WARNING: `users.json` is missing or damaged. If this is not a new setup, stop and verify the file.';
+    // Prevent any mutation operations when user data is corrupted.
     $blockUserActions = true;
 }
 
@@ -95,6 +108,7 @@ function find_user($users, $username) {
     return null;
 }
 
+// Keep only known permissions and normalize array order.
 function normalize_permissions($permissions, $allowedPermissions) {
     if (!is_array($permissions)) {
         return [];
@@ -102,6 +116,7 @@ function normalize_permissions($permissions, $allowedPermissions) {
     return array_values(array_intersect($permissions, $allowedPermissions));
 }
 
+// Check if users.json permissions are too open or missing group read.
 function users_permissions_needs_fix($usersPath) {
     if (!is_readable($usersPath)) {
         return false;
@@ -114,10 +129,41 @@ function users_permissions_needs_fix($usersPath) {
     return ($mode & 0037) !== 0 || (($mode & 0070) === 0);
 }
 
+// Append a warning with a pointer to errors.txt for detail.
 function add_health_warning(&$warnings, $message) {
     $warnings[] = $message . ' Check errors.txt for more information.';
 }
 
+// Validate CSRF token and append to the provided errors array on failure.
+function require_csrf_token(&$errors) {
+    $csrfToken = $_POST['csrf_token'] ?? '';
+    if (!hash_equals($_SESSION['csrf_token'], $csrfToken)) {
+        $errors[] = 'Security token invalid. Refresh and try again.';
+        return false;
+    }
+    return true;
+}
+
+// Persist user data to disk with the standard JSON format.
+function write_users_file($usersPath, $users, &$errors, $message) {
+    $encoded = json_encode($users, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+    if ($encoded === false || file_put_contents($usersPath, $encoded, LOCK_EX) === false) {
+        $errors[] = $message;
+        return false;
+    }
+    return true;
+}
+
+// Build the admin base path used for redirects after logout.
+function admin_redirect_path() {
+    $redirectPath = rtrim(dirname($_SERVER['PHP_SELF']), '/');
+    if ($redirectPath === '') {
+        $redirectPath = '/';
+    }
+    return $redirectPath . '/';
+}
+
+// Attempt to lock down users.json permissions after writes.
 function enforce_users_permissions($usersPath, &$warnings) {
     if (!file_exists($usersPath)) {
         return;
@@ -127,6 +173,7 @@ function enforce_users_permissions($usersPath, &$warnings) {
     }
 }
 
+// Compute effective permissions for the current user.
 function build_permission_context($authRecord, $allowedPermissions) {
     $currentPermissions = $authRecord ? normalize_permissions($authRecord['permissions'] ?? [], $allowedPermissions) : [];
     $isMasterUser = $authRecord && !empty($authRecord['master']);
@@ -146,16 +193,13 @@ function build_permission_context($authRecord, $allowedPermissions) {
 }
 
 // First-run account creation flow.
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'create_admin') {
+if ($action === 'create_admin') {
     if ($usersFileIssue === 'invalid') {
         $errors[] = 'Cannot create admin while `users.json` is damaged. Fix or delete the file first.';
     } elseif ($hasUsers) {
         $errors[] = 'An admin account already exists.';
     } else {
-        $csrfToken = $_POST['csrf_token'] ?? '';
-        if (!hash_equals($_SESSION['csrf_token'], $csrfToken)) {
-            $errors[] = 'Security token invalid. Refresh and try again.';
-        }
+        require_csrf_token($errors);
 
         $username = trim($_POST['username'] ?? '');
         $password = $_POST['password'] ?? '';
@@ -172,6 +216,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'creat
         }
 
         if (count($errors) === 0) {
+            // Create the master admin record with full permissions.
             $record = [
                 'username' => $username,
                 'password_hash' => password_hash($password, PASSWORD_DEFAULT),
@@ -181,10 +226,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'creat
                 'updated_at' => gmdate('c'),
                 'permissions' => $allowedPermissions,
             ];
-            $encoded = json_encode([$record], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
-            if ($encoded === false || file_put_contents($usersPath, $encoded, LOCK_EX) === false) {
-                $errors[] = 'Unable to write users file.';
-            } else {
+            if (write_users_file($usersPath, [$record], $errors, 'Unable to write users file.')) {
+                // Reset CSRF token after new account creation.
                 $success = 'Admin account created. Please log in.';
                 $users = [$record];
                 $hasUsers = true;
@@ -197,27 +240,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'creat
 }
 
 // Login flow: validate CSRF, verify password hash, then establish session.
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'login') {
+if ($action === 'login') {
     if ($blockUserActions) {
         $errors[] = 'Login unavailable: `users.json` is damaged.';
     } else {
-    $csrfToken = $_POST['csrf_token'] ?? '';
-    if (!hash_equals($_SESSION['csrf_token'], $csrfToken)) {
-        $errors[] = 'Security token invalid. Refresh and try again.';
-    } else {
-        $username = trim($_POST['username'] ?? '');
-        $password = $_POST['password'] ?? '';
-        $user = find_user($users, $username);
-        if (!$user || !password_verify($password, $user['password_hash'] ?? '')) {
-            $errors[] = 'Username/password incorrect.';
-        } else {
-            session_regenerate_id(true); // Prevent session fixation by rotating the ID on login.
-            $_SESSION['auth_user'] = $user['username']; // Store the authenticated user in the session.
+        if (require_csrf_token($errors)) {
+            $username = trim($_POST['username'] ?? '');
+            $password = $_POST['password'] ?? '';
+            $user = find_user($users, $username);
+            if (!$user || !password_verify($password, $user['password_hash'] ?? '')) {
+                $errors[] = 'Username/password incorrect.';
+            } else {
+                session_regenerate_id(true); // Prevent session fixation by rotating the ID on login.
+                $_SESSION['auth_user'] = $user['username']; // Store the authenticated user in the session.
+            }
         }
-    }
     }
 }
 
+// Resolve the current authenticated user and permission flags.
 $authUser = $_SESSION['auth_user'] ?? '';
 $authRecord = $authUser !== '' ? find_user($users, $authUser) : null;
 $forcePasswordChange = $authRecord && !empty($authRecord['must_change_password']);
@@ -230,6 +271,7 @@ $canEditUsers = $permissionContext['canEditUsers'];
 $canRemoveUsers = $permissionContext['canRemoveUsers'];
 $canEditSite = $permissionContext['canEditSite'];
 
+// Health checks for files and directories needed by the admin app.
 if (!file_exists($errorLogPath)) {
     if (is_dir($adminRoot) && is_writable($adminRoot)) {
         @touch($errorLogPath);
@@ -252,6 +294,7 @@ if (!extension_loaded('fileinfo')) {
     add_health_warning($usersWarnings, 'Health check: PHP fileinfo extension is missing.');
 }
 
+// Resolve asset directories for write access checks.
 $dataDir = function_exists('lawnding_config')
     ? lawnding_config('data_dir', dirname(__DIR__) . '/res/data')
     : dirname(__DIR__) . '/res/data';
@@ -273,15 +316,14 @@ if (file_exists($usersPath)) {
     add_health_warning($usersWarnings, 'Health check: admin directory is not writable for users.json.');
 }
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'fix_users_permissions') {
+// Admin action: fix users.json permissions to 0640.
+if ($action === 'fix_users_permissions') {
     if (!$authRecord) {
         $usersErrors[] = 'Login required to update file permissions.';
     } elseif (!$isFullAdmin) {
         $usersErrors[] = 'Permission update requires full admin access.';
     } else {
-        $csrfToken = $_POST['csrf_token'] ?? '';
-        if (!hash_equals($_SESSION['csrf_token'], $csrfToken)) {
-            $usersErrors[] = 'Security token invalid. Refresh and try again.';
+        if (!require_csrf_token($usersErrors)) {
         } elseif (!file_exists($usersPath)) {
             $usersErrors[] = 'Unable to find `users.json`.';
         } elseif (@chmod($usersPath, 0640)) {
@@ -292,16 +334,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'fix_u
     }
 }
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'change_password') {
+// Admin action: change own password (forced or voluntary).
+if ($action === 'change_password') {
     if ($blockUserActions) {
         $errors[] = 'Password changes unavailable: `users.json` is damaged.';
     } elseif (!$authRecord) {
         $errors[] = 'You must be logged in to change your password.';
     } else {
-        $csrfToken = $_POST['csrf_token'] ?? '';
-        if (!hash_equals($_SESSION['csrf_token'], $csrfToken)) {
-            $errors[] = 'Security token invalid. Refresh and try again.';
-        } else {
+        if (require_csrf_token($errors)) {
             $newPassword = $_POST['new_password'] ?? '';
             $confirm = $_POST['confirm_password'] ?? '';
 
@@ -326,10 +366,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'chang
                     }
                 }
                 unset($user);
-                $encoded = json_encode($users, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
-                if ($encoded === false || file_put_contents($usersPath, $encoded, LOCK_EX) === false) {
-                    $errors[] = 'Unable to update password.';
-                } else {
+                if (write_users_file($usersPath, $users, $errors, 'Unable to update password.')) {
+                    // Clear the forced-change flag after success.
                     $passwordChangeSuccess = 'Password updated. You can now use the admin panel.';
                     $authRecord['must_change_password'] = false;
                     $forcePasswordChange = false;
@@ -339,7 +377,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'chang
     }
 }
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'create_user') {
+// Admin action: create a new user with a temporary password.
+if ($action === 'create_user') {
     if ($blockUserActions) {
         $usersErrors[] = 'User actions unavailable: `users.json` is damaged.';
     } elseif (!$authRecord || $forcePasswordChange) {
@@ -347,10 +386,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'creat
     } elseif (!$canAddUsers) {
         $usersErrors[] = 'You do not have permission to add users.';
     } else {
-        $csrfToken = $_POST['csrf_token'] ?? '';
-        if (!hash_equals($_SESSION['csrf_token'], $csrfToken)) {
-            $usersErrors[] = 'Security token invalid. Refresh and try again.';
-        } else {
+        if (require_csrf_token($usersErrors)) {
             $newUsername = trim($_POST['new_username'] ?? '');
             $tempPassword = $_POST['temp_password'] ?? '';
 
@@ -375,10 +411,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'creat
                     'updated_at' => gmdate('c'),
                     'permissions' => [],
                 ];
-                $encoded = json_encode($users, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
-                if ($encoded === false || file_put_contents($usersPath, $encoded, LOCK_EX) === false) {
-                    $usersErrors[] = 'Unable to write users file.';
-                } else {
+                if (write_users_file($usersPath, $users, $usersErrors, 'Unable to write users file.')) {
                     $usersSuccess = 'User created. Share the temporary password securely.';
                     enforce_users_permissions($usersPath, $usersWarnings);
                 }
@@ -387,16 +420,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'creat
     }
 }
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_permissions') {
+// Admin action: update user permissions.
+if ($action === 'save_permissions') {
     if ($blockUserActions) {
         $usersErrors[] = 'User actions unavailable: `users.json` is damaged.';
     } elseif (!$authRecord || $forcePasswordChange) {
         $usersErrors[] = 'You must be logged in to edit permissions.';
     } else {
-        $csrfToken = $_POST['csrf_token'] ?? '';
-        if (!hash_equals($_SESSION['csrf_token'], $csrfToken)) {
-            $usersErrors[] = 'Security token invalid. Refresh and try again.';
-        } else {
+        if (require_csrf_token($usersErrors)) {
             $targetUsername = trim($_POST['target_username'] ?? '');
             if (!$canEditUsers && $targetUsername !== $authUser) {
                 $usersErrors[] = 'You do not have permission to edit users.';
@@ -427,13 +458,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
                 if (!$updated) {
                     $usersErrors[] = 'User not found.';
                 } else {
-                    $encoded = json_encode($users, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
-                    if ($encoded === false || file_put_contents($usersPath, $encoded, LOCK_EX) === false) {
-                        $usersErrors[] = 'Unable to update permissions.';
-                    } else {
+                    if (write_users_file($usersPath, $users, $usersErrors, 'Unable to update permissions.')) {
                         $usersSuccess = 'Permissions updated.';
                         enforce_users_permissions($usersPath, $usersWarnings);
                         if ($targetUsername === $authUser) {
+                            // Refresh permission context for the current session user.
                             $authRecord = find_user($users, $authUser);
                             $permissionContext = build_permission_context($authRecord, $allowedPermissions);
                             $currentPermissions = $permissionContext['currentPermissions'];
@@ -451,16 +480,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
     }
 }
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'reset_password') {
+// Admin action: reset a user's password to a temporary value.
+if ($action === 'reset_password') {
     if ($blockUserActions) {
         $usersErrors[] = 'User actions unavailable: `users.json` is damaged.';
     } elseif (!$authRecord || $forcePasswordChange) {
         $usersErrors[] = 'You must be logged in to reset passwords.';
     } else {
-        $csrfToken = $_POST['csrf_token'] ?? '';
-        if (!hash_equals($_SESSION['csrf_token'], $csrfToken)) {
-            $usersErrors[] = 'Security token invalid. Refresh and try again.';
-        } else {
+        if (require_csrf_token($usersErrors)) {
             $targetUsername = trim($_POST['target_username'] ?? '');
             if (!$canEditUsers && $targetUsername !== $authUser) {
                 $usersErrors[] = 'You do not have permission to edit users.';
@@ -486,10 +513,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'reset
                 }
                 unset($user);
                 if ($updated) {
-                    $encoded = json_encode($users, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
-                    if ($encoded === false || file_put_contents($usersPath, $encoded, LOCK_EX) === false) {
-                        $usersErrors[] = 'Unable to reset password.';
-                    } else {
+                    if (write_users_file($usersPath, $users, $usersErrors, 'Unable to reset password.')) {
                         $resetPassword = $newTempPassword;
                         $resetUsername = $targetUsername;
                         $resetLogoutAfterReset = $resetLogoutAfter;
@@ -503,16 +527,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'reset
     }
 }
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'remove_user') {
+// Admin action: remove a user (cannot remove master).
+if ($action === 'remove_user') {
     if ($blockUserActions) {
         $usersErrors[] = 'User actions unavailable: `users.json` is damaged.';
     } elseif (!$authRecord || $forcePasswordChange) {
         $usersErrors[] = 'You must be logged in to remove users.';
     } else {
-        $csrfToken = $_POST['csrf_token'] ?? '';
-        if (!hash_equals($_SESSION['csrf_token'], $csrfToken)) {
-            $usersErrors[] = 'Security token invalid. Refresh and try again.';
-        } else {
+        if (require_csrf_token($usersErrors)) {
             $targetUsername = trim($_POST['target_username'] ?? '');
             if (!$canRemoveUsers && $targetUsername !== $authUser) {
                 $usersErrors[] = 'You do not have permission to remove users.';
@@ -533,14 +555,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'remov
                     }
                 }
                 if ($removed) {
-                    $encoded = json_encode($newUsers, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
-                    if ($encoded === false || file_put_contents($usersPath, $encoded, LOCK_EX) === false) {
-                        $usersErrors[] = 'Unable to remove user.';
-                    } else {
+                    if (write_users_file($usersPath, $newUsers, $usersErrors, 'Unable to remove user.')) {
                         $users = $newUsers;
                         $usersSuccess = 'User removed.';
                         enforce_users_permissions($usersPath, $usersWarnings);
                         if ($targetUsername === $authUser) {
+                            // If you removed yourself, force a logout.
                             $_SESSION = [];
                             if (ini_get('session.use_cookies')) {
                                 $params = session_get_cookie_params();
@@ -558,28 +578,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'remov
     }
 }
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'logout') {
-    $csrfToken = $_POST['csrf_token'] ?? '';
-    if (!hash_equals($_SESSION['csrf_token'], $csrfToken)) {
-        $errors[] = 'Security token invalid. Refresh and try again.';
+// Admin action: log out and clear session.
+if ($action === 'logout') {
+    if (!require_csrf_token($errors)) {
     } else {
-    $_SESSION = [];
-    if (ini_get('session.use_cookies')) {
-        $params = session_get_cookie_params();
-        setcookie(session_name(), '', time() - 42000, $params['path'], $params['domain'], $params['secure'], $params['httponly']);
-    }
-    session_destroy();
-    $redirectPath = rtrim(dirname($_SERVER['PHP_SELF']), '/');
-    if ($redirectPath === '') {
-        $redirectPath = '/';
-    }
-    header('Location: ' . $redirectPath . '/');
-    exit;
+        $_SESSION = [];
+        if (ini_get('session.use_cookies')) {
+            $params = session_get_cookie_params();
+            setcookie(session_name(), '', time() - 42000, $params['path'], $params['domain'], $params['secure'], $params['httponly']);
+        }
+        session_destroy();
+        header('Location: ' . admin_redirect_path());
+        exit;
     }
 }
 
+// Check if users.json permissions look unsafe for the admin UI.
 $usersPermissionsNeedsFix = users_permissions_needs_fix($usersPath);
 
+// Restore flash messages stored from the last POST redirect.
 if ($flash) {
     if (!empty($flash['errors']) && is_array($flash['errors'])) {
         $errors = $flash['errors'];
@@ -616,17 +633,14 @@ if ($flash) {
     }
 }
 
-// If a valid session user exists and no forced password change, load the admin UI.
+// If we just logged out or removed ourselves, redirect to the login screen.
 if ($logoutAfterAction) {
-    $redirectPath = rtrim(dirname($_SERVER['PHP_SELF']), '/');
-    if ($redirectPath === '') {
-        $redirectPath = '/';
-    }
-    header('Location: ' . $redirectPath . '/');
+    header('Location: ' . admin_redirect_path());
     exit;
 }
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') !== 'logout') {
+// Post/redirect/get: persist status messages and avoid resubmission on refresh.
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action !== 'logout') {
     $_SESSION['flash_admin'] = [
         'errors' => $errors,
         'success' => $success,
@@ -648,6 +662,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') !== 'logou
     exit;
 }
 
+// If authenticated and not forced to change password, render the admin app.
 if ($authRecord && !$forcePasswordChange) {
     $adminConfigPath = function_exists('lawnding_admin_path')
         ? lawnding_admin_path('config.php')
@@ -768,6 +783,7 @@ if ($authRecord && !$forcePasswordChange) {
     </style>
 </head>
 <body>
+    <!-- Login / first-run / password reset screen. -->
     <div class="loginWrap">
         <div class="loginPane">
             <?php if ($forcePasswordChange): ?>
@@ -785,6 +801,7 @@ if ($authRecord && !$forcePasswordChange) {
 
             <div class="pane glassConvex">
                 <h3>ADMIN PANEL</h3>
+            <!-- Status messages for the login screen. -->
             <?php if (count($errors) > 0): ?>
                 <div class="message error">
                     <?php echo htmlspecialchars(implode(' ', $errors)); ?>
@@ -803,6 +820,7 @@ if ($authRecord && !$forcePasswordChange) {
                 </div>
             <?php endif; ?>
 
+            <!-- The form changes based on first-run, forced reset, or normal login. -->
             <?php if ($forcePasswordChange): ?>
                 <form class="loginForm" method="post" action="">
                     <input type="hidden" name="action" value="change_password">
@@ -817,7 +835,7 @@ if ($authRecord && !$forcePasswordChange) {
                     </label>
                     <button class="loginButton" type="submit">Update Password</button>
                 </form>
-            <?php elseif (!$hasUsers): ?>
+                <?php elseif (!$hasUsers): ?>
                 <form class="loginForm" method="post" action="">
                     <input type="hidden" name="action" value="create_admin">
                         <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">

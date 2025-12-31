@@ -289,6 +289,14 @@ I *swear* the former is most likely happening.  Totally.  Please believe me.  ..
 Sarcasm aside, enjoy! :3
 
 ## Changelog
+### v1.2.2
+**Changes:**
+- Tweaked the appearance of the header information in the admin panel so the fields are a bit more usable.
+- Fixed an error in LICENSE.md
+
+**Known Issues:**
+- Changing the order of links sometimes jumps more than one slot when doing so too quickly.  Workaround: Just move the link that jumped too far back up/down to where it should be.
+
 ### v1.2.1
 **Changes:**
 - FINALLY fixed mobile page rendering!!

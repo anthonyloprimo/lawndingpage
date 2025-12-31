@@ -300,6 +300,7 @@ Sarcasm aside, enjoy! :3
 - Cleaned up `save-config.php` and worked in comments.
 - Cleaned up `index.php` and worked in comments.
 - Cleaned up the CSS and added comments.
+- Cleaned up `app.js` and added comments.
 
 **Known Issues:**
 - Changing the order of links sometimes jumps more than one slot when doing so too quickly.  Workaround: Just move the link that jumped too far back up/down to where it should be.

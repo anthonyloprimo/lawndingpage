@@ -293,6 +293,9 @@ Sarcasm aside, enjoy! :3
 **Changes:**
 - Tweaked the appearance of the header information in the admin panel so the fields are a bit more usable.
 - Fixed an error in LICENSE.md
+- Removed test versions of `errors.log` and `users.json` from the repo.
+- Cleaned up `lp-bootstrap.php` and worked in comments.
+- Cleaned up `public/admin/index.php` and worked in comments.
 
 **Known Issues:**
 - Changing the order of links sometimes jumps more than one slot when doing so too quickly.  Workaround: Just move the link that jumped too far back up/down to where it should be.

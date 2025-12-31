@@ -7,6 +7,25 @@ if (!is_readable($bootstrapPath)) {
     $bootstrapPath = __DIR__ . '/../../../lp-bootstrap.php';
 }
 require_once $bootstrapPath;
+// Prevent stale HTML/PHP responses from being cached.
+$cacheHeadersPath = function_exists('lawnding_public_path')
+    ? lawnding_public_path('res/scr/cache_headers.php')
+    : __DIR__ . '/../res/scr/cache_headers.php';
+require_once $cacheHeadersPath;
+// Load the authoritative site version and set client cookie if needed.
+$versionPath = function_exists('lawnding_public_path')
+    ? lawnding_public_path('res/version.php')
+    : __DIR__ . '/../res/version.php';
+require_once $versionPath;
+if (!isset($_COOKIE['site_version']) || $_COOKIE['site_version'] !== SITE_VERSION) {
+    setcookie('site_version', SITE_VERSION, [
+        'expires' => time() + 31536000,
+        'path' => '/',
+        'secure' => isset($_SERVER['HTTPS']),
+        'httponly' => false,
+        'samesite' => 'Lax'
+    ]);
+}
 
 // Normalize /admin to /admin/ for clean relative URL behavior.
 $requestPath = parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH);
@@ -677,9 +696,29 @@ if ($authRecord && !$forcePasswordChange) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <title>Admin Panel</title>
+    <script>
+        (function () {
+            var serverVersion = "<?php echo htmlspecialchars(SITE_VERSION, ENT_QUOTES, 'UTF-8'); ?>";
+            var match = document.cookie.match(/(?:^|;)\s*site_version=([^;]*)/);
+            var cookieVersion = match ? decodeURIComponent(match[1]) : "";
+            var encodedVersion = encodeURIComponent(serverVersion);
+            if (cookieVersion === serverVersion) {
+                return;
+            }
+            if (window.location.search.indexOf("__v=" + encodedVersion) !== -1) {
+                document.cookie = "site_version=" + encodedVersion + "; path=/; SameSite=Lax";
+                return;
+            }
+            document.cookie = "site_version=" + encodedVersion + "; path=/; SameSite=Lax";
+            var sep = window.location.search ? "&" : "?";
+            var target = window.location.pathname + window.location.search + sep
+                + "__v=" + encodedVersion + "&__t=" + Date.now() + window.location.hash;
+            window.location.replace(target);
+        })();
+    </script>
     <?php $assetBase = function_exists('lawnding_config') ? rtrim(lawnding_config('base_url', ''), '/') : ''; ?>
     <link rel="icon" type="image/jpg" href="<?php echo htmlspecialchars($assetBase); ?>/res/img/logo.jpg">
-    <link rel="stylesheet" href="<?php echo htmlspecialchars($assetBase); ?>/res/style.css">
+    <link rel="stylesheet" href="<?php echo htmlspecialchars(lawnding_versioned_url($assetBase . '/res/style.css'), ENT_QUOTES, 'UTF-8'); ?>">
     <style>
         body {
             background: #111;

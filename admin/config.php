@@ -1,6 +1,25 @@
 <?php
 // Bootstrap shared paths/helpers and ensure config is available.
 require_once __DIR__ . '/../lp-bootstrap.php';
+// Prevent stale HTML/PHP responses from being cached.
+$cacheHeadersPath = function_exists('lawnding_public_path')
+    ? lawnding_public_path('res/scr/cache_headers.php')
+    : __DIR__ . '/../public/res/scr/cache_headers.php';
+require_once $cacheHeadersPath;
+// Load the authoritative site version and set client cookie if needed.
+$versionPath = function_exists('lawnding_public_path')
+    ? lawnding_public_path('res/version.php')
+    : __DIR__ . '/../public/res/version.php';
+require_once $versionPath;
+if (!isset($_COOKIE['site_version']) || $_COOKIE['site_version'] !== SITE_VERSION) {
+    setcookie('site_version', SITE_VERSION, [
+        'expires' => time() + 31536000,
+        'path' => '/',
+        'secure' => isset($_SERVER['HTTPS']),
+        'httponly' => false,
+        'samesite' => 'Lax'
+    ]);
+}
 
 // Load Parsedown for Markdown rendering.
 $parsedownPath = function_exists('lawnding_public_path')
@@ -45,6 +64,7 @@ function lawnding_icon_svg(string $name): string {
         'faq' => 'M18,15H6L2,19V3A1,1 0 0,1 3,2H18A1,1 0 0,1 19,3V14A1,1 0 0,1 18,15M23,9V23L19,19H8A1,1 0 0,1 7,18V17H21V8H22A1,1 0 0,1 23,9M8.19,4C7.32,4 6.62,4.2 6.08,4.59C5.56,5 5.3,5.57 5.31,6.36L5.32,6.39H7.25C7.26,6.09 7.35,5.86 7.53,5.7C7.71,5.55 7.93,5.47 8.19,5.47C8.5,5.47 8.76,5.57 8.94,5.75C9.12,5.94 9.2,6.2 9.2,6.5C9.2,6.82 9.13,7.09 8.97,7.32C8.83,7.55 8.62,7.75 8.36,7.91C7.85,8.25 7.5,8.55 7.31,8.82C7.11,9.08 7,9.5 7,10H9C9,9.69 9.04,9.44 9.13,9.26C9.22,9.08 9.39,8.9 9.64,8.74C10.09,8.5 10.46,8.21 10.75,7.81C11.04,7.41 11.19,7 11.19,6.5C11.19,5.74 10.92,5.13 10.38,4.68C9.85,4.23 9.12,4 8.19,4M7,11V13H9V11H7M13,13H15V11H13V13M13,4V10H15V4H13Z',
         'events' => 'M19,19V8H5V19H19M16,1H18V3H19A2,2 0 0,1 21,5V19A2,2 0 0,1 19,21H5C3.89,21 3,20.1 3,19V5C3,3.89 3.89,3 5,3H6V1H8V3H16V1M7,10H9V12H7V10M15,10H17V12H15V10M11,14H13V16H11V14M15,14H17V16H15V14Z',
         'donate' => 'M7,15H9C9,16.08 10.37,17 12,17C13.63,17 15,16.08 15,15C15,13.9 13.96,13.5 11.76,12.97C9.64,12.44 7,11.78 7,9C7,7.21 8.47,5.69 10.5,5.18V3H13.5V5.18C15.53,5.69 17,7.21 17,9H15C15,7.92 13.63,7 12,7C10.37,7 9,7.92 9,9C9,10.1 10.04,10.5 12.24,11.03C14.36,11.56 17,12.22 17,15C17,16.79 15.53,18.31 13.5,18.82V21H10.5V18.82C8.47,18.31 7,16.79 7,15Z',
+        'changelog' => 'M13,9H18.5L13,3.5V9M6,2H14L20,8V20A2,2 0 0,1 18,22H6C4.89,22 4,21.1 4,20V4C4,2.89 4.89,2 6,2M6.12,15.5L9.86,19.24L11.28,17.83L8.95,15.5L11.28,13.17L9.86,11.76L6.12,15.5M17.28,15.5L13.54,11.76L12.12,13.17L14.45,15.5L12.12,17.83L13.54,19.24L17.28,15.5Z',
     ];
 
     if (!isset($paths[$name])) {
@@ -148,6 +168,14 @@ $rulesMarkdown = $readFile($rulesMdPath);
 $Parsedown = new Parsedown();
 $rules = $Parsedown->text($rulesMarkdown);
 
+// Load changelog markdown from the project root (read-only pane).
+$rootDir = function_exists('lawnding_config')
+    ? lawnding_config('root_dir', dirname(__DIR__))
+    : dirname(__DIR__);
+$changelogPath = rtrim($rootDir, '/') . '/CHANGELOG.md';
+$changelogMarkdown = $readFile($changelogPath);
+$changelog = $Parsedown->text($changelogMarkdown);
+
 $aboutMdPath = $dataPath('about.md');
 $aboutMarkdown = $readFile($aboutMdPath);
 $about = $Parsedown->text($aboutMarkdown);
@@ -216,12 +244,32 @@ if (!empty($usersWarnings)) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <script>
+        (function () {
+            var serverVersion = "<?php echo htmlspecialchars(SITE_VERSION, ENT_QUOTES, 'UTF-8'); ?>";
+            var match = document.cookie.match(/(?:^|;)\s*site_version=([^;]*)/);
+            var cookieVersion = match ? decodeURIComponent(match[1]) : "";
+            var encodedVersion = encodeURIComponent(serverVersion);
+            if (cookieVersion === serverVersion) {
+                return;
+            }
+            if (window.location.search.indexOf("__v=" + encodedVersion) !== -1) {
+                document.cookie = "site_version=" + encodedVersion + "; path=/; SameSite=Lax";
+                return;
+            }
+            document.cookie = "site_version=" + encodedVersion + "; path=/; SameSite=Lax";
+            var sep = window.location.search ? "&" : "?";
+            var target = window.location.pathname + window.location.search + sep
+                + "__v=" + encodedVersion + "&__t=" + Date.now() + window.location.hash;
+            window.location.replace(target);
+        })();
+    </script>
     
     <link rel="icon" type="image/jpg" href="<?php echo htmlspecialchars($assetBase); ?>/res/img/logo.jpg">
-    <link rel="stylesheet" href="<?php echo htmlspecialchars($assetBase); ?>/res/style.css">
-    <link rel="stylesheet" href="<?php echo htmlspecialchars($assetBase); ?>/res/config.css">
+    <link rel="stylesheet" href="<?php echo htmlspecialchars(lawnding_versioned_url($assetBase . '/res/style.css'), ENT_QUOTES, 'UTF-8'); ?>">
+    <link rel="stylesheet" href="<?php echo htmlspecialchars(lawnding_versioned_url($assetBase . '/res/config.css'), ENT_QUOTES, 'UTF-8'); ?>">
 
-    <script src="<?php echo htmlspecialchars($assetBase); ?>/res/scr/jquery-3.7.1.min.js"></script>
+    <script src="<?php echo htmlspecialchars(lawnding_versioned_url($assetBase . '/res/scr/jquery-3.7.1.min.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
 </head>
 <body>
     <!-- Runtime notices and admin alerts. -->
@@ -485,6 +533,9 @@ if (!empty($usersWarnings)) {
         </div>
         <div class="pane glassConvex" id="events">Public events go here</div>
         <div class="pane glassConvex" id="donate">donate pane here maybe</div>
+        <div class="pane glassConvex" id="changelog">
+            <?php echo $changelog; ?>
+        </div>
     </div>
     <!-- Bottom navigation for pane switching. -->
     <nav>
@@ -498,9 +549,10 @@ if (!empty($usersWarnings)) {
             <li><a class="navLink" href="#" data-pane="faq" aria-label="FAQ" title="Edit FAQ"><?php echo lawnding_icon_svg('faq'); ?></a></li>
             <li><a class="navLink" href="#" data-pane="events" aria-label="Events" title="Events"><?php echo lawnding_icon_svg('events'); ?></a></li>
             <li><a class="navLink" href="#" data-pane="donate" aria-label="Donate" title="Donate"><?php echo lawnding_icon_svg('donate'); ?></a></li>
+            <li><a class="navLink" href="#" data-pane="changelog" aria-label="Changelog" title="Changelog"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><title>Changelog</title><path d="M13,9H18.5L13,3.5V9M6,2H14L20,8V20A2,2 0 0,1 18,22H6C4.89,22 4,21.1 4,20V4C4,2.89 4.89,2 6,2M6.12,15.5L9.86,19.24L11.28,17.83L8.95,15.5L11.28,13.17L9.86,11.76L6.12,15.5M17.28,15.5L13.54,11.76L12.12,13.17L14.45,15.5L12.12,17.83L13.54,19.24L17.28,15.5Z" /></svg></a></li>
         </ul>
         <div class="footer">
-            Powered by LawndingPage
+            LawndingPage <?php echo htmlspecialchars(SITE_VERSION, ENT_QUOTES, 'UTF-8'); ?>.
         </div>
     </nav>
     <!-- Modal overlays for user actions and confirmations. -->
@@ -619,7 +671,7 @@ if (!empty($usersWarnings)) {
             canEditSite: <?php echo json_encode($canEditSite); ?>
         };
     </script>
-    <script src="<?php echo htmlspecialchars($assetBase); ?>/res/scr/app.js"></script>
-    <script src="<?php echo htmlspecialchars($assetBase); ?>/res/scr/config.js"></script>
+    <script src="<?php echo htmlspecialchars(lawnding_versioned_url($assetBase . '/res/scr/app.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
+    <script src="<?php echo htmlspecialchars(lawnding_versioned_url($assetBase . '/res/scr/config.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
 </body>
 </html>

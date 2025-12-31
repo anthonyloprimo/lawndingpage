@@ -7,6 +7,25 @@ if (!is_readable($bootstrapPath)) {
     $bootstrapPath = __DIR__ . '/../../lp-bootstrap.php';
 }
 require_once $bootstrapPath;
+// Prevent stale HTML/PHP responses from being cached.
+$cacheHeadersPath = function_exists('lawnding_public_path')
+    ? lawnding_public_path('res/scr/cache_headers.php')
+    : __DIR__ . '/res/scr/cache_headers.php';
+require_once $cacheHeadersPath;
+// Load the authoritative site version and set client cookie if needed.
+$versionPath = function_exists('lawnding_public_path')
+    ? lawnding_public_path('res/version.php')
+    : __DIR__ . '/res/version.php';
+require_once $versionPath;
+if (!isset($_COOKIE['site_version']) || $_COOKIE['site_version'] !== SITE_VERSION) {
+    setcookie('site_version', SITE_VERSION, [
+        'expires' => time() + 31536000,
+        'path' => '/',
+        'secure' => isset($_SERVER['HTTPS']),
+        'httponly' => false,
+        'samesite' => 'Lax'
+    ]);
+}
 // Suppress error output in production responses.
 ini_set('display_errors', '0');
 
@@ -122,11 +141,31 @@ $headerData = array_merge($headerData, lawnding_read_json($headerJsonPath, []));
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <script>
+        (function () {
+            var serverVersion = "<?php echo htmlspecialchars(SITE_VERSION, ENT_QUOTES, 'UTF-8'); ?>";
+            var match = document.cookie.match(/(?:^|;)\s*site_version=([^;]*)/);
+            var cookieVersion = match ? decodeURIComponent(match[1]) : "";
+            var encodedVersion = encodeURIComponent(serverVersion);
+            if (cookieVersion === serverVersion) {
+                return;
+            }
+            if (window.location.search.indexOf("__v=" + encodedVersion) !== -1) {
+                document.cookie = "site_version=" + encodedVersion + "; path=/; SameSite=Lax";
+                return;
+            }
+            document.cookie = "site_version=" + encodedVersion + "; path=/; SameSite=Lax";
+            var sep = window.location.search ? "&" : "?";
+            var target = window.location.pathname + window.location.search + sep
+                + "__v=" + encodedVersion + "&__t=" + Date.now() + window.location.hash;
+            window.location.replace(target);
+        })();
+    </script>
     
     <link rel="icon" type="image/jpg" href="res/img/logo.jpg"/>
-    <link rel="stylesheet" href="res/style.css">
+    <link rel="stylesheet" href="<?php echo htmlspecialchars(lawnding_versioned_url('res/style.css'), ENT_QUOTES, 'UTF-8'); ?>">
 
-    <script src="res/scr/jquery-3.7.1.min.js"></script>
+    <script src="<?php echo htmlspecialchars(lawnding_versioned_url('res/scr/jquery-3.7.1.min.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
 </head>
 <body>
     <!-- No-JS fallback for browsers with JavaScript disabled. -->
@@ -172,13 +211,13 @@ $headerData = array_merge($headerData, lawnding_read_json($headerJsonPath, []));
             <li><a class="navLink" href="#" data-pane="donate" aria-label="Donate" title="Donate"><?php echo lawnding_icon_svg('donate'); ?></a></li>
         </ul>
         <div class="footer">
-            Powered by LawndingPage.  Background image by <span class="authorPlain"></span><a class="authorLink hidden" href="" rel="noopener" target="_blank"><span class="authorName"></span></a>.
+            LawndingPage <?php echo htmlspecialchars(SITE_VERSION, ENT_QUOTES, 'UTF-8'); ?>.  Background image by <span class="authorPlain"></span><a class="authorLink hidden" href="" rel="noopener" target="_blank"><span class="authorName"></span></a>.
         </div>
     </nav>
     <script>
         // Expose header data to JS for assets like the logo background.
         window.headerData = <?php echo json_encode($headerData, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
     </script>
-    <script src="res/scr/app.js"></script>
+    <script src="<?php echo htmlspecialchars(lawnding_versioned_url('res/scr/app.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
 </body>
 </html>

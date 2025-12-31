@@ -296,6 +296,7 @@ Sarcasm aside, enjoy! :3
 - Removed test versions of `errors.log` and `users.json` from the repo.
 - Cleaned up `lp-bootstrap.php` and worked in comments.
 - Cleaned up `public/admin/index.php` and worked in comments.
+- Cleaned up background code (`backgrounds-upload.php`, `backgrounds-list.php`, `backgrounds-delete.php`) and added helper functions to improve readability.  Worked in comments for these files too.
 
 **Known Issues:**
 - Changing the order of links sometimes jumps more than one slot when doing so too quickly.  Workaround: Just move the link that jumped too far back up/down to where it should be.

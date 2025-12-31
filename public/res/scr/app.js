@@ -32,10 +32,13 @@ function updatePaneVisibility(panes, visibleIds) {
 // Helper: show/hide the Links nav item based on mode.
 function toggleLinksNav(show) {
     const linkItem = $('.navLink[data-pane="links"]');
+    const linkItems = linkItem.closest('li');
     if (show) {
         linkItem.removeClass('hidden');
+        linkItems.removeClass('isHidden');
     } else {
         linkItem.addClass('hidden');
+        linkItems.addClass('isHidden');
     }
 }
 

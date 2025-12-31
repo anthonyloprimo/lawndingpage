@@ -97,6 +97,22 @@ header {
         min-height: 0;
         -webkit-overflow-scrolling: touch;
     }
+        .pane ul,
+        .pane ol {
+            list-style-position: outside;
+            margin: 0.5rem 0 0.5rem 1.5rem;
+            padding: 0;
+        }
+        .pane ul {
+            list-style-type: disc;
+        }
+        .pane ol {
+            list-style-type: decimal;
+        }
+        .pane li {
+            margin: 0.35rem 0;
+            line-height: 1.35;
+        }
     .alwaysShow {
         display: block;
     }
@@ -247,6 +263,9 @@ nav {
         .navBar li {
             list-style: none;
             flex: 0 0 auto;
+        }
+        .navBar li.isHidden {
+            display: none;
         }
             .navBar li a {
                 display: flex;

@@ -32,7 +32,7 @@ header.header {
 .headline {
     padding-top: 0;
     flex: 1 1 auto;
-    margin-right: 160px; /* leave room for the save button */
+    margin-right: 80px; /* leave room for the save button */
 }
 
 .headerActionStack {
@@ -45,6 +45,13 @@ header.header {
     justify-content: space-between;
     align-items: flex-end;
     gap: 8px;
+}
+
+.headerUserStack {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
 }
 
 .headerActions {
@@ -88,7 +95,7 @@ header.header {
     border-color: #FF7A7A;
     background: #661A1A;
     font-size: 0.85rem;
-    padding: 6px 10px;
+    padding: 2px 6px;
 }
 
 .logoutButton:hover {

@@ -6,7 +6,7 @@ The free version of Lawnding Page utilizes The MIT License.
 ```
 The MIT License (MIT)
 
-Copyright (c) 2013-2018 Emanuil Rusev, erusev.com
+Copyright (c) 2025 Anthony LoPrimo, https://www.wildcardcreations.net/
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
 this software and associated documentation files (the "Software"), to deal in

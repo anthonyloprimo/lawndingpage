@@ -197,8 +197,8 @@ $headerData = array_merge($headerData, lawnding_read_json($headerJsonPath, []));
         <div class="pane glassConvex" id="faq">
             <?php echo $faq; ?>
         </div>
-        <div class="pane glassConvex" id="events">Public events go here</div>
-        <div class="pane glassConvex" id="donate">donate pane here maybe</div>
+        <div class="pane glassConvex" id="events">Coming soon...</div>
+        <!-- <div class="pane glassConvex" id="donate">Coming soon...</div> -->
     </div>
     <!-- Bottom navigation for pane switching and footer credits. -->
     <nav>
@@ -208,7 +208,7 @@ $headerData = array_merge($headerData, lawnding_read_json($headerJsonPath, []));
             <li><a class="navLink" href="#" data-pane="rules" aria-label="Rules" title="Rules"><?php echo lawnding_icon_svg('rules'); ?></a></li>
             <li><a class="navLink" href="#" data-pane="faq" aria-label="FAQ" title="FAQ"><?php echo lawnding_icon_svg('faq'); ?></a></li>
             <li><a class="navLink" href="#" data-pane="events" aria-label="Events" title="Events"><?php echo lawnding_icon_svg('events'); ?></a></li>
-            <li><a class="navLink" href="#" data-pane="donate" aria-label="Donate" title="Donate"><?php echo lawnding_icon_svg('donate'); ?></a></li>
+            <!-- <li><a class="navLink" href="#" data-pane="donate" aria-label="Donate" title="Donate"><?php echo lawnding_icon_svg('donate'); ?></a></li> -->
         </ul>
         <div class="footer">
             LawndingPage <?php echo htmlspecialchars(SITE_VERSION, ENT_QUOTES, 'UTF-8'); ?>.  Background image by <span class="authorPlain"></span><a class="authorLink hidden" href="" rel="noopener" target="_blank"><span class="authorName"></span></a>.

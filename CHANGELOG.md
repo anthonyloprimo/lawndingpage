@@ -1,4 +1,13 @@
 ### Changelog
+#### v1.3.1
+**Changes:**
+- Hid currently unused pages.
+
+**Known Issues:**
+- Changing the order of links sometimes jumps more than one slot when doing so too quickly.  Workaround: Just move the link that jumped too far back up/down to where it should be.
+
+-----
+
 #### v1.3.0
 **Changes:**
 - Tweaked the appearance of the header information in the admin panel so the fields are a bit more usable.

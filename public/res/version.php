@@ -1,6 +1,6 @@
 <?php
 if (!defined('SITE_VERSION')) {
-    define('SITE_VERSION', 'v1.3.0');
+    define('SITE_VERSION', 'v1.3.2');
 }
 
 if (!function_exists('lawnding_versioned_url')) {

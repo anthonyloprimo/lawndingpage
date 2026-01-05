@@ -1,4 +1,12 @@
 ### Changelog
+#### v1.3.2
+**Changes:**
+- Fixed error with forced re-caching.
+
+**Known Issues:**
+- Changing the order of links sometimes jumps more than one slot when doing so too quickly.  Workaround: Just move the link that jumped too far back up/down to where it should be.
+
+-----
 #### v1.3.1
 **Changes:**
 - Hid currently unused pages.

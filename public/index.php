@@ -100,27 +100,6 @@ function lawnding_render_link_item($link): string {
         . '</li>';
 }
 
-// Load Parsedown for Markdown rendering.
-// Load Parsedown for Markdown rendering.
-$parsedownPath = function_exists('lawnding_public_path')
-    ? lawnding_public_path('res/scr/Parsedown.php')
-    : __DIR__ . '/res/scr/Parsedown.php';
-require $parsedownPath;
-
-// Load markdown content from res/data.
-$rulesMdPath = lawnding_public_data_path('rules.md');
-$rulesMarkdown = lawnding_read_file($rulesMdPath);
-$Parsedown = new Parsedown();
-$rules = $Parsedown->text($rulesMarkdown);
-
-$aboutMdPath = lawnding_public_data_path('about.md');
-$aboutMarkdown = lawnding_read_file($aboutMdPath);
-$about = $Parsedown->text($aboutMarkdown);
-
-$faqMdPath = lawnding_public_data_path('faq.md');
-$faqMarkdown = lawnding_read_file($faqMdPath);
-$faq = $Parsedown->text($faqMarkdown);
-
 // Load links configuration used by the links pane.
 $linksJsonPath = lawnding_public_data_path('links.json');
 $linksData = lawnding_read_json($linksJsonPath, []);
@@ -158,6 +137,82 @@ if (!empty($headerDataResolved['backgrounds']) && is_array($headerDataResolved['
         return $bg;
     }, $headerDataResolved['backgrounds']);
 }
+
+// Load pane instances and module manifests for dynamic public rendering.
+function lawnding_load_panes(string $path): array {
+    if (!is_readable($path)) {
+        return [];
+    }
+    $decoded = json_decode(file_get_contents($path), true);
+    if (!is_array($decoded) || !isset($decoded['panes']) || !is_array($decoded['panes'])) {
+        return [];
+    }
+    return $decoded['panes'];
+}
+
+// Sort panes by explicit order while preserving original order as tie-breaker.
+function lawnding_sort_panes(array $panes): array {
+    $indexed = [];
+    foreach ($panes as $index => $pane) {
+        if (is_array($pane)) {
+            $pane['_index'] = $index;
+            $indexed[] = $pane;
+        }
+    }
+    usort($indexed, function ($a, $b) {
+        $orderA = isset($a['order']) ? (int) $a['order'] : PHP_INT_MAX;
+        $orderB = isset($b['order']) ? (int) $b['order'] : PHP_INT_MAX;
+        if ($orderA === $orderB) {
+            return ($a['_index'] ?? 0) <=> ($b['_index'] ?? 0);
+        }
+        return $orderA <=> $orderB;
+    });
+    foreach ($indexed as &$pane) {
+        unset($pane['_index']);
+    }
+    return $indexed;
+}
+
+// Minimal SVG sanitizer to block scripts and inline event handlers.
+function lawnding_is_safe_svg(?string $svg): bool {
+    if (!is_string($svg) || $svg === '') {
+        return false;
+    }
+    if (stripos($svg, '<script') !== false) {
+        return false;
+    }
+    if (preg_match('/\\son[a-z]+\\s*=\\s*["\']?/i', $svg)) {
+        return false;
+    }
+    return true;
+}
+
+// Render pane icon from panes.json (SVG string or uploaded file reference).
+function lawnding_render_pane_icon(array $pane): string {
+    $icon = $pane['icon'] ?? [];
+    if (!is_array($icon)) {
+        return '';
+    }
+    $type = $icon['type'] ?? '';
+    if ($type === 'svg') {
+        $svg = $icon['value'] ?? '';
+        return lawnding_is_safe_svg($svg) ? $svg : '';
+    }
+    if ($type === 'file') {
+        $value = $icon['value'] ?? '';
+        if (!is_string($value) || $value === '') {
+            return '';
+        }
+        $src = function_exists('lawnding_asset_url')
+            ? lawnding_asset_url('res/img/panes/' . ltrim($value, '/'))
+            : 'res/img/panes/' . ltrim($value, '/');
+        return '<img src="' . htmlspecialchars($src, ENT_QUOTES, 'UTF-8') . '" alt="">';
+    }
+    return '';
+}
+
+$panesPath = lawnding_public_data_path('panes.json');
+$panes = lawnding_sort_panes(lawnding_load_panes($panesPath));
 ?> 
 
 <!DOCTYPE html>
@@ -212,27 +267,39 @@ if (!empty($headerDataResolved['backgrounds']) && is_array($headerDataResolved['
                 <?php endforeach; ?>
             </ul>
         </div>
-        <div class="pane glassConvex" id="about">
-            <?php echo $about; ?>
-        </div>
-        <div class="pane glassConvex" id="rules">
-            <?php echo $rules ?>
-        </div>
-        <div class="pane glassConvex" id="faq">
-            <?php echo $faq; ?>
-        </div>
-        <div class="pane glassConvex" id="events">Coming soon...</div>
-        <!-- <div class="pane glassConvex" id="donate">Coming soon...</div> -->
+        <?php // Render each dynamic pane using its module template. ?>
+        <?php foreach ($panes as $pane): ?>
+            <?php
+            $moduleId = isset($pane['module']) ? (string) $pane['module'] : '';
+            $modulePath = function_exists('lawnding_admin_path')
+                ? lawnding_admin_path('modules/' . $moduleId . '/public.php')
+                : __DIR__ . '/../admin/modules/' . $moduleId . '/public.php';
+            if ($moduleId !== '' && is_readable($modulePath)) {
+                include $modulePath;
+            }
+            ?>
+        <?php endforeach; ?>
     </div>
     <!-- Bottom navigation for pane switching and footer credits. -->
     <nav>
         <ul class="navBar glassConcave" id="navBar">
             <li><a class="navLink" href="#" data-pane="links" aria-label="Links" title="Links"><?php echo lawnding_icon_svg('links'); ?></a></li>
-            <li><a class="navLink" href="#" data-pane="about" aria-label="About" title="About"><?php echo lawnding_icon_svg('about'); ?></a></li>
-            <li><a class="navLink" href="#" data-pane="rules" aria-label="Rules" title="Rules"><?php echo lawnding_icon_svg('rules'); ?></a></li>
-            <li><a class="navLink" href="#" data-pane="faq" aria-label="FAQ" title="FAQ"><?php echo lawnding_icon_svg('faq'); ?></a></li>
-            <li><a class="navLink" href="#" data-pane="events" aria-label="Events" title="Events"><?php echo lawnding_icon_svg('events'); ?></a></li>
-            <!-- <li><a class="navLink" href="#" data-pane="donate" aria-label="Donate" title="Donate"><?php echo lawnding_icon_svg('donate'); ?></a></li> -->
+            <?php // Render dynamic pane nav items from panes.json. ?>
+            <?php foreach ($panes as $pane): ?>
+                <?php
+                $paneId = isset($pane['id']) ? (string) $pane['id'] : '';
+                $paneName = isset($pane['name']) ? (string) $pane['name'] : '';
+                $icon = lawnding_render_pane_icon($pane);
+                if ($paneId === '') {
+                    continue;
+                }
+                ?>
+                <li>
+                    <a class="navLink" href="#" data-pane="<?php echo htmlspecialchars($paneId); ?>" aria-label="<?php echo htmlspecialchars($paneName); ?>" title="<?php echo htmlspecialchars($paneName); ?>">
+                        <?php echo $icon; ?>
+                    </a>
+                </li>
+            <?php endforeach; ?>
         </ul>
         <div class="footer">
             LawndingPage <?php echo htmlspecialchars(SITE_VERSION, ENT_QUOTES, 'UTF-8'); ?>.  Background image by <span class="authorPlain"></span><a class="authorLink hidden" href="" rel="noopener" target="_blank"><span class="authorName"></span></a>.

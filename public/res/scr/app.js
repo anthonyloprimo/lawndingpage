@@ -82,6 +82,9 @@ function init() {
     // Set favicon-style icons on link buttons.
     setLinkFavicons();
 
+    // Render event list panes (public view).
+    renderEventLists();
+
     // Lock layout height to the visible viewport on iOS Safari.
     setAppHeight();
     window.addEventListener('resize', setAppHeight);
@@ -233,6 +236,249 @@ function normalizeExternalUrl(value) {
     }
 
     return `https://${trimmed}`;
+}
+
+// Render event list panes in the public view from embedded JSON payloads.
+function renderEventLists() {
+    const $panes = $('.eventListPublic');
+    if (!$panes.length) {
+        return;
+    }
+
+    $panes.each(function() {
+        const $pane = $(this);
+        const $container = $pane.closest('[data-pane-type="eventList"]');
+        const raw = $container.find('.eventListData').text() || '{}';
+        let parsed = {};
+        try {
+            parsed = JSON.parse(raw);
+        } catch (err) {
+            parsed = {};
+        }
+        const showPast = !!parsed.showPast;
+        const events = Array.isArray(parsed.events) ? parsed.events : [];
+        const now = new Date();
+        const nowTime = now.getTime();
+        const next24h = nowTime + 24 * 60 * 60 * 1000;
+
+        function parseEventDate(event) {
+            const date = event.startDate || event.date || '';
+            const start = event.startTime || '';
+            if (!date || !start) {
+                return null;
+            }
+            const iso = `${date}T${start}`;
+            const parsedDate = new Date(iso);
+            return isNaN(parsedDate.getTime()) ? null : parsedDate;
+        }
+
+        function eventEnd(event) {
+            const startDate = parseEventDate(event);
+            if (!startDate) {
+                return null;
+            }
+            if (event.endTime) {
+                const endDateValue = event.endDate || event.startDate || event.date || '';
+                const iso = `${endDateValue}T${event.endTime}`;
+                const endDate = new Date(iso);
+                if (!isNaN(endDate.getTime())) {
+                    return endDate;
+                }
+            }
+            return new Date(startDate.getTime() + 60 * 60 * 1000);
+        }
+
+        function formatDateTime(dateObj) {
+            if (!dateObj || isNaN(dateObj.getTime())) {
+                return '';
+            }
+            const opts = { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' };
+            const dateText = dateObj.toLocaleDateString(undefined, opts);
+            const timeText = dateObj.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+            return `${dateText} @ ${timeText}`;
+        }
+
+        // Format event date/time range with same-day and overnight handling.
+        function formatEventRange(event) {
+            const startDateTime = parseEventDate(event);
+            if (!startDateTime) {
+                return '';
+            }
+            const startLabel = formatDateTime(startDateTime);
+            if (!event.endTime) {
+                return startLabel;
+            }
+            const endDateValue = event.endDate || event.startDate || event.date || '';
+            const endDateTime = new Date(`${endDateValue}T${event.endTime}`);
+            if (isNaN(endDateTime.getTime())) {
+                return startLabel;
+            }
+            const sameDay = startDateTime.toDateString() === endDateTime.toDateString();
+            if (sameDay) {
+                const endTimeText = endDateTime.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+                return `${startLabel} - ${endTimeText}`;
+            }
+            const endLabel = formatDateTime(endDateTime);
+            return `${startLabel} - ${endLabel}`;
+        }
+
+        function truncateDescription(value) {
+            const text = String(value || '').replace(/\s+/g, ' ').trim();
+            if (text.length <= 32) {
+                return text;
+            }
+            return text.slice(0, 32) + '...';
+        }
+
+        function renderEventItem(event, allowCalendar) {
+            const timeRange = formatEventRange(event);
+            const details = event.descriptionHtml ? event.descriptionHtml : '';
+            const address = event.address || '';
+            const calendarLabel = 'Save to Calendar';
+            const button = allowCalendar
+                ? `<button class=\"eventCalendarButton\" type=\"button\" disabled>${calendarLabel}</button>`
+                : '';
+            const rawDescription = event.description || '';
+            const truncated = truncateDescription(rawDescription);
+            return `
+                <div class=\"eventItem\" data-event-id=\"${escapeHtml(event.id || '')}\">
+                    <div class=\"eventItemTitle\">${escapeHtml(event.name || 'Untitled')}</div>
+                    <div class=\"eventItemMeta\">${escapeHtml(timeRange)}</div>
+                    ${address ? `<div class=\"eventItemMeta\">${escapeHtml(address)}</div>` : ''}
+                    ${details ? `<div class=\"eventItemMeta\">${escapeHtml(truncated)}</div>` : ''}
+                    ${button}
+                </div>
+            `;
+        }
+
+        function escapeHtml(value) {
+            return String(value)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/\"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        const happening = [];
+        const upcoming = [];
+        const past = [];
+
+        events.forEach((event) => {
+            const startDate = parseEventDate(event);
+            if (!startDate) {
+                return;
+            }
+            const endDate = eventEnd(event);
+            const startTime = startDate.getTime();
+            const endTime = endDate ? endDate.getTime() : startTime;
+
+            const isHappening = startTime <= next24h && endTime >= nowTime;
+            if (isHappening) {
+                happening.push(event);
+            } else if (startTime > nowTime) {
+                upcoming.push(event);
+            } else {
+                past.push(event);
+            }
+        });
+
+        const sortByStart = (a, b) => {
+            const aDate = parseEventDate(a);
+            const bDate = parseEventDate(b);
+            return (aDate ? aDate.getTime() : 0) - (bDate ? bDate.getTime() : 0);
+        };
+        const sortByStartDesc = (a, b) => -sortByStart(a, b);
+
+        happening.sort(sortByStart);
+        upcoming.sort(sortByStart);
+        past.sort(sortByStartDesc);
+
+        const $happening = $pane.find('.eventHappening');
+        const $upcomingBody = $pane.find('.eventUpcoming .eventSectionBody');
+        const $pastColumn = $pane.find('.eventPast');
+        const $pastBody = $pane.find('.eventPast .eventSectionBody');
+
+        $happening.empty();
+        $upcomingBody.empty();
+        $pastBody.empty();
+
+        if (happening.length) {
+            happening.forEach((event) => $happening.append(renderEventItem(event, true)));
+        } else {
+            $happening.append('<div class=\"eventItem\">No events happening now.</div>');
+        }
+
+        if (upcoming.length) {
+            upcoming.forEach((event) => $upcomingBody.append(renderEventItem(event, true)));
+        } else {
+            $upcomingBody.append('<div class=\"eventItem\">No upcoming events.</div>');
+        }
+
+        if (showPast && past.length) {
+            past.slice(0, 5).forEach((event) => $pastBody.append(renderEventItem(event, false)));
+            $pastColumn.removeClass('hidden');
+        } else {
+            $pastColumn.addClass('hidden');
+        }
+
+        if (!showPast) {
+            $pane.find('.eventSplit').addClass('eventSplitSingle');
+        } else {
+            $pane.find('.eventSplit').removeClass('eventSplitSingle');
+        }
+
+        // Wire modal open/close for event details.
+        const $overlay = $('#eventModalOverlay');
+        const $title = $('#eventModalTitle');
+        const $meta = $('#eventModalMeta');
+        const $address = $('#eventModalAddress');
+        const $description = $('#eventModalDescription');
+        const $calendar = $('#eventModalCalendar');
+        const $close = $('#eventModalClose');
+
+        function openModal(event, allowCalendar) {
+            if (!event) {
+                return;
+            }
+            const timeRange = formatEventRange(event);
+            $title.text(event.name || 'Untitled');
+            $meta.text(timeRange);
+            $address.text(event.address || '');
+            $description.html(event.descriptionHtml || '');
+            if (allowCalendar) {
+                $calendar.prop('disabled', false).removeClass('hidden');
+            } else {
+                $calendar.prop('disabled', true).addClass('hidden');
+            }
+            $overlay.removeClass('hidden');
+        }
+
+        function closeModal() {
+            $overlay.addClass('hidden');
+        }
+
+        $pane.off('click.eventModal').on('click.eventModal', '.eventItem', function() {
+            const eventId = $(this).data('event-id') || '';
+            if (!eventId) {
+                return;
+            }
+            const allEvents = [].concat(happening, upcoming, past);
+            const match = allEvents.find((item) => item && item.id === eventId);
+            const allowCalendar = happening.concat(upcoming).some((item) => item && item.id === eventId);
+            openModal(match, allowCalendar);
+        });
+
+        $overlay.off('click.eventModalClose').on('click.eventModalClose', function(event) {
+            if (event.target === this) {
+                closeModal();
+            }
+        });
+
+        $close.off('click.eventModalClose').on('click.eventModalClose', function() {
+            closeModal();
+        });
+    });
 }
 
 // Highlight the nav link corresponding to the current pane.

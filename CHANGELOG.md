@@ -1,4 +1,26 @@
 ### Changelog
+#### v1.4.0
+**Changes:**
+- Converted the panes to a modular system that load dynamically.
+- Added the ability to add and remove panes based on modules (pane templates).
+- Modules contain the code for the front-end and back-end views of a given pane.
+- Panes contain references to the data that gets saved when clicking the "Save all changes" button.
+- Panes can be re-ordered.
+- Updated the tutorial.
+- Added Event List module and associated files.
+- Added module schema veersion to `version.php`.
+- Added blank module template for developers.
+- Added modals for adding/removing/renaming/changing pane types, icons, etc.
+- Added module discovery code, ensuring first-party and third-party developers can create new modules over time.
+- Added a feature to automatically migrate code to newer versions when the module schema updates.  This will fully wipe all data already saved.
+- Selecting a module will allow for a preview to display next to them - if desired.
+- When saving events, verifies duplicate events cannot be created.
+
+**Known Issues:**
+- Changing the order of links sometimes jumps more than one slot when doing so too quickly.  Workaround: Just move the link that jumped too far back up/down to where it should be.
+
+-----
+
 #### v1.3.2
 **Changes:**
 - Fixed error with forced re-caching.
@@ -7,6 +29,7 @@
 - Changing the order of links sometimes jumps more than one slot when doing so too quickly.  Workaround: Just move the link that jumped too far back up/down to where it should be.
 
 -----
+
 #### v1.3.1
 **Changes:**
 - Hid currently unused pages.

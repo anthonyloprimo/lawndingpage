@@ -1,0 +1,13 @@
+{
+  "id": "_template",
+  "name": "Module Template",
+  "version": "0.0.0",
+  "description": "Starter template for new modules.",
+  "preview": "preview.png",
+  "data_files": [
+    { "type": "md", "pattern": "{paneId}.md" }
+  ],
+  "save_map": [
+    { "key": "content", "type": "md", "file": "{paneId}.md" }
+  ]
+}

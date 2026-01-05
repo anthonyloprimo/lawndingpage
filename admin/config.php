@@ -162,27 +162,14 @@ $makeAssetUrl = function ($path) use ($assetBase) {
     return $path;
 };
 
-// Load Markdown content for editable text sections.
-$rulesMdPath = $dataPath('rules.md');
-$rulesMarkdown = $readFile($rulesMdPath);
-$Parsedown = new Parsedown();
-$rules = $Parsedown->text($rulesMarkdown);
-
 // Load changelog markdown from the project root (read-only pane).
+$Parsedown = new Parsedown();
 $rootDir = function_exists('lawnding_config')
     ? lawnding_config('root_dir', dirname(__DIR__))
     : dirname(__DIR__);
 $changelogPath = rtrim($rootDir, '/') . '/CHANGELOG.md';
 $changelogMarkdown = $readFile($changelogPath);
 $changelog = $Parsedown->text($changelogMarkdown);
-
-$aboutMdPath = $dataPath('about.md');
-$aboutMarkdown = $readFile($aboutMdPath);
-$about = $Parsedown->text($aboutMarkdown);
-
-$faqMdPath = $dataPath('faq.md');
-$faqMarkdown = $readFile($faqMdPath);
-$faq = $Parsedown->text($faqMarkdown);
 
 // Load link list configuration (JSON structure used by the editor).
 $linksJsonPath = $dataPath('links.json');
@@ -216,6 +203,197 @@ if (!empty($headerDataDisplay['backgrounds']) && is_array($headerDataDisplay['ba
 $backgrounds = [];
 if (!empty($headerData['backgrounds']) && is_array($headerData['backgrounds'])) {
     $backgrounds = $headerData['backgrounds'];
+}
+
+// Load pane instances for dynamic module rendering.
+$loadPanes = function (string $path): array {
+    if (!is_readable($path)) {
+        return [];
+    }
+    $decoded = json_decode(file_get_contents($path), true);
+    if (!is_array($decoded) || !isset($decoded['panes']) || !is_array($decoded['panes'])) {
+        return [];
+    }
+    return $decoded['panes'];
+};
+
+$sortPanes = function (array $panes): array {
+    $indexed = [];
+    foreach ($panes as $index => $pane) {
+        if (is_array($pane)) {
+            $pane['_index'] = $index;
+            $indexed[] = $pane;
+        }
+    }
+    usort($indexed, function ($a, $b) {
+        $orderA = isset($a['order']) ? (int) $a['order'] : PHP_INT_MAX;
+        $orderB = isset($b['order']) ? (int) $b['order'] : PHP_INT_MAX;
+        if ($orderA === $orderB) {
+            return ($a['_index'] ?? 0) <=> ($b['_index'] ?? 0);
+        }
+        return $orderA <=> $orderB;
+    });
+    foreach ($indexed as &$pane) {
+        unset($pane['_index']);
+    }
+    return $indexed;
+};
+
+$isSafeSvg = function (?string $svg): bool {
+    if (!is_string($svg) || $svg === '') {
+        return false;
+    }
+    if (stripos($svg, '<script') !== false) {
+        return false;
+    }
+    if (preg_match('/\\son[a-z]+\\s*=\\s*["\']?/i', $svg)) {
+        return false;
+    }
+    return true;
+};
+
+$renderPaneIcon = function (array $pane) use ($makeAssetUrl, $isSafeSvg): string {
+    $icon = $pane['icon'] ?? [];
+    if (!is_array($icon)) {
+        return '';
+    }
+    $type = $icon['type'] ?? '';
+    if ($type === 'svg') {
+        $svg = $icon['value'] ?? '';
+        return $isSafeSvg($svg) ? $svg : '';
+    }
+    if ($type === 'file') {
+        $value = $icon['value'] ?? '';
+        if (!is_string($value) || $value === '') {
+            return '';
+        }
+        $src = $makeAssetUrl('res/img/panes/' . ltrim($value, '/'));
+        return '<img src="' . htmlspecialchars($src, ENT_QUOTES, 'UTF-8') . '" alt="">';
+    }
+    return '';
+};
+
+// Load panes.json schema metadata to determine if migration is required.
+$panesPath = $dataPath('panes.json');
+$panesSchemaValid = false;
+$panesSchemaVersion = null;
+$paneSchemaTarget = defined('PANE_SCHEMA_VERSION') ? PANE_SCHEMA_VERSION : 1;
+if (is_readable($panesPath)) {
+    $raw = json_decode(file_get_contents($panesPath), true);
+    if (is_array($raw) && isset($raw['schema_version']) && isset($raw['panes']) && is_array($raw['panes'])) {
+        $panesSchemaValid = true;
+        $panesSchemaVersion = (int) $raw['schema_version'];
+    }
+}
+$needsMigration = !$panesSchemaValid || $panesSchemaVersion !== $paneSchemaTarget;
+$migrationMode = 'missing';
+if ($panesSchemaValid) {
+    if ($panesSchemaVersion < $paneSchemaTarget) {
+        $migrationMode = 'upgrade';
+    } elseif ($panesSchemaVersion > $paneSchemaTarget) {
+        $migrationMode = 'downgrade';
+    } else {
+        $migrationMode = 'ok';
+    }
+}
+$panes = $sortPanes($loadPanes($panesPath));
+$paneIds = array_values(array_filter(array_map(function ($pane) {
+    return is_array($pane) ? ($pane['id'] ?? '') : '';
+}, $panes), function ($value) {
+    return is_string($value) && $value !== '';
+}));
+
+// Load module manifests to populate the pane management UI (type picker + previews).
+$modulesDir = function_exists('lawnding_admin_path')
+    ? lawnding_admin_path('modules')
+    : __DIR__ . '/modules';
+$modulesCatalog = [];
+if (is_dir($modulesDir)) {
+    foreach (scandir($modulesDir) as $entry) {
+        if ($entry === '.' || $entry === '..') {
+            continue;
+        }
+        $ignorePath = rtrim($modulesDir, '/\\') . '/' . $entry . '/IGNORE_ME.txt';
+        if (is_readable($ignorePath)) {
+            continue;
+        }
+        $manifestPath = rtrim($modulesDir, '/\\') . '/' . $entry . '/' . $entry . '.json';
+        if (!is_readable($manifestPath)) {
+            continue;
+        }
+        $manifest = json_decode(file_get_contents($manifestPath), true);
+        if (!is_array($manifest)) {
+            continue;
+        }
+        $id = $manifest['id'] ?? $entry;
+        if (!is_string($id) || $id === '') {
+            continue;
+        }
+        // Resolve preview image through an authenticated proxy endpoint.
+        $preview = $manifest['preview'] ?? '';
+        $previewUrl = '';
+        if (is_string($preview) && $preview !== '') {
+            $base = $assetBase !== '' ? $assetBase : '';
+            $previewUrl = $base . '/res/scr/module-preview.php?module=' . rawurlencode($id) . '&file=' . rawurlencode($preview);
+        }
+        $modulesCatalog[] = [
+            'id' => $id,
+            'name' => (string) ($manifest['name'] ?? $id),
+            'description' => (string) ($manifest['description'] ?? ''),
+            'preview' => $previewUrl,
+        ];
+    }
+}
+// Serialize pane data needed by the pane management UI.
+$panesForJs = array_map(function ($pane) {
+    if (!is_array($pane)) {
+        return null;
+    }
+    return [
+        'id' => (string) ($pane['id'] ?? ''),
+        'name' => (string) ($pane['name'] ?? ''),
+        'module' => (string) ($pane['module'] ?? ''),
+        'icon' => is_array($pane['icon'] ?? null) ? $pane['icon'] : ['type' => 'none', 'value' => ''],
+    ];
+}, $panes);
+$panesForJs = array_values(array_filter($panesForJs));
+
+// Identify panes that reference missing module manifests.
+$availableModules = array_map(function ($module) {
+    return $module['id'] ?? '';
+}, $modulesCatalog);
+$availableModules = array_values(array_filter($availableModules, function ($value) {
+    return is_string($value) && $value !== '';
+}));
+$missingModules = [];
+$missingModulePanes = [];
+foreach ($panes as $pane) {
+    if (!is_array($pane)) {
+        continue;
+    }
+    $moduleId = $pane['module'] ?? '';
+    if (is_string($moduleId) && $moduleId !== '' && !in_array($moduleId, $availableModules, true)) {
+        $missingModules[] = $moduleId;
+        $paneName = $pane['name'] ?? '';
+        $paneId = $pane['id'] ?? '';
+        $label = is_string($paneName) && $paneName !== '' ? $paneName : (is_string($paneId) ? $paneId : '');
+        if ($label !== '') {
+            if (!isset($missingModulePanes[$moduleId])) {
+                $missingModulePanes[$moduleId] = [];
+            }
+            $missingModulePanes[$moduleId][] = $label;
+        }
+    }
+}
+$missingModules = array_values(array_unique($missingModules));
+$missingModuleDetails = [];
+foreach ($missingModulePanes as $moduleId => $paneList) {
+    $uniquePanes = array_values(array_unique($paneList));
+    if (!empty($uniquePanes)) {
+        $missingModuleDetails[] = $moduleId . ' (' . implode(', ', $uniquePanes) . ')';
+    } else {
+        $missingModuleDetails[] = $moduleId;
+    }
 }
 
 // Permission gates and admin UI state (set by upstream controller).
@@ -281,6 +459,31 @@ if (!empty($usersWarnings)) {
                 <button type="button" class="adminNoticeClose" aria-label="Dismiss notification">×</button>
             </div>
         <?php endforeach; ?>
+        <?php if (!empty($missingModules)): ?>
+            <div class="adminNotice adminNotice--danger" data-persist="true">
+                <span class="adminNoticeText">Missing pane modules detected: <?php echo htmlspecialchars(implode(', ', $missingModuleDetails)); ?>.</span>
+                <button type="button" class="adminNoticeClose" aria-label="Dismiss notification">×</button>
+            </div>
+        <?php endif; ?>
+        <?php if (!empty($needsMigration)): ?>
+            <?php
+                $migrationText = 'Migration required: pane configuration is missing or out of date. Migration will reset pane fields; copy your data before proceeding.';
+                if ($migrationMode === 'downgrade') {
+                    $migrationText = 'Pane schema is newer than this install. Migration may lose data or features and will reset pane fields; copy your data first.';
+                } elseif ($migrationMode === 'upgrade') {
+                    $migrationText = 'Pane schema is older than the current version. Migration will reset pane fields; copy your data before proceeding.';
+                }
+            ?>
+            <div class="adminNotice adminNotice--danger" data-persist="true">
+                <span class="adminNoticeText"><?php echo htmlspecialchars($migrationText); ?></span>
+                <?php if (!empty($canEditSite) && empty($missingModules)): ?>
+                    <button type="button" class="usersButton" id="migrationReviewButton">Review Migration</button>
+                <?php elseif (!empty($canEditSite)): ?>
+                    <button type="button" class="usersButton" disabled>Review Migration</button>
+                <?php endif; ?>
+                <button type="button" class="adminNoticeClose" aria-label="Dismiss notification">×</button>
+            </div>
+        <?php endif; ?>
         <?php if (($usersPermissionsFixResult ?? '') === 'ok'): ?>
             <div class="adminNotice adminNotice--ok" data-persist="true">
                 <span class="adminNoticeText">Updated `users.json` permissions to 0640.</span>
@@ -519,20 +722,18 @@ if (!empty($usersWarnings)) {
                 </div>
             </div>
         </div>
-        <div class="pane glassConvex" id="about">
-            <h3>ABOUT</h3>
-            <textarea class="paneEditor" name="aboutMarkdown" aria-label="About markdown"><?php echo htmlspecialchars($aboutMarkdown); ?></textarea>
-        </div>
-        <div class="pane glassConvex" id="rules">
-            <h3>RULES</h3>
-            <textarea class="paneEditor" name="rulesMarkdown" aria-label="Rules markdown"><?php echo htmlspecialchars($rulesMarkdown); ?></textarea>
-        </div>
-        <div class="pane glassConvex" id="faq">
-            <h3>FAQ</h3>
-            <textarea class="paneEditor" name="faqMarkdown" aria-label="FAQ markdown"><?php echo htmlspecialchars($faqMarkdown); ?></textarea>
-        </div>
-        <div class="pane glassConvex" id="events">Coming soon...</div>
-        <!-- <div class="pane glassConvex" id="donate">donate pane here maybe</div> -->
+        <?php // Render each dynamic pane using its module admin template. ?>
+        <?php foreach ($panes as $pane): ?>
+            <?php
+            $moduleId = isset($pane['module']) ? (string) $pane['module'] : '';
+            $modulePath = function_exists('lawnding_admin_path')
+                ? lawnding_admin_path('modules/' . $moduleId . '/admin.php')
+                : __DIR__ . '/modules/' . $moduleId . '/admin.php';
+            if ($moduleId !== '' && is_readable($modulePath)) {
+                include $modulePath;
+            }
+            ?>
+        <?php endforeach; ?>
         <div class="pane glassConvex" id="changelog">
             <?php echo $changelog; ?>
         </div>
@@ -544,11 +745,31 @@ if (!empty($usersWarnings)) {
             <li><a class="navLink" href="#" data-pane="bg" aria-label="Backgrounds" title="Edit Random Background Images"><?php echo lawnding_icon_svg('backgrounds'); ?></a></li>
             <li class="navSeparator" aria-hidden="true"></li>
             <li><a class="navLink" href="#" data-pane="links" aria-label="Links" title="Links"><?php echo lawnding_icon_svg('links'); ?></a></li>
-            <li><a class="navLink" href="#" data-pane="about" aria-label="About" title="Edit About Page"><?php echo lawnding_icon_svg('about'); ?></a></li>
-            <li><a class="navLink" href="#" data-pane="rules" aria-label="Rules" title="Edit Rules"><?php echo lawnding_icon_svg('rules'); ?></a></li>
-            <li><a class="navLink" href="#" data-pane="faq" aria-label="FAQ" title="Edit FAQ"><?php echo lawnding_icon_svg('faq'); ?></a></li>
-            <li><a class="navLink" href="#" data-pane="events" aria-label="Events" title="Events"><?php echo lawnding_icon_svg('events'); ?></a></li>
-            <!-- <li><a class="navLink" href="#" data-pane="donate" aria-label="Donate" title="Donate"><?php echo lawnding_icon_svg('donate'); ?></a></li> -->
+            <?php // Render dynamic pane nav items from panes.json. ?>
+            <?php foreach ($panes as $pane): ?>
+                <?php
+                $paneId = isset($pane['id']) ? (string) $pane['id'] : '';
+                $paneName = isset($pane['name']) ? (string) $pane['name'] : '';
+                $icon = $renderPaneIcon($pane);
+                if ($paneId === '') {
+                    continue;
+                }
+                ?>
+                <li class="navPaneItem" data-pane-id="<?php echo htmlspecialchars($paneId); ?>">
+                    <a class="navLink" href="#" data-pane="<?php echo htmlspecialchars($paneId); ?>" aria-label="<?php echo htmlspecialchars($paneName); ?>" title="<?php echo htmlspecialchars($paneName); ?>">
+                        <?php echo $icon; ?>
+                    </a>
+                    <?php if (!empty($canEditSite)): ?>
+                        <button class="paneDeleteButton" type="button" data-pane-id="<?php echo htmlspecialchars($paneId); ?>" aria-label="Remove <?php echo htmlspecialchars($paneName); ?>" title="Remove <?php echo htmlspecialchars($paneName); ?>">×</button>
+                    <?php endif; ?>
+                </li>
+            <?php endforeach; ?>
+            <?php // Pane management button opens the modal (admin-only, edit permission required). ?>
+            <?php if (!empty($canEditSite)): ?>
+                <li class="navPaneManageItem">
+                    <button class="paneManageButton" type="button" aria-label="Pane Management" title="Pane Management">Pane Management</button>
+                </li>
+            <?php endif; ?>
             <li class="navSeparator" aria-hidden="true"></li>
             <li><a class="navLink" href="#" data-pane="changelog" aria-label="Changelog" title="Changelog"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><title>Changelog</title><path d="M13,9H18.5L13,3.5V9M6,2H14L20,8V20A2,2 0 0,1 18,22H6C4.89,22 4,21.1 4,20V4C4,2.89 4.89,2 6,2M6.12,15.5L9.86,19.24L11.28,17.83L8.95,15.5L11.28,13.17L9.86,11.76L6.12,15.5M17.28,15.5L13.54,11.76L12.12,13.17L14.45,15.5L12.12,17.83L13.54,19.24L17.28,15.5Z" /></svg></a></li>
         </ul>
@@ -648,6 +869,92 @@ if (!empty($usersWarnings)) {
             <button class="usersButton userModalClose" type="button">No</button>
         </div>
     <?php lawnding_modal_close(); ?>
+
+    <?php // Pane management modal: reorder, rename, add, and delete panes. ?>
+    <?php lawnding_modal_open('paneManagementModal', 'Pane Management'); ?>
+        <p class="usersHint">Manage panes, update their order, and change types.</p>
+        <p class="usersHint">Saving will reload this page and discard unsaved edits.</p>
+        <div class="paneManageList" id="paneManageList"></div>
+        <div class="paneManageActions">
+            <button class="usersButton" type="button" id="paneAddButton">Add Pane</button>
+            <button class="usersButton" type="button" id="paneManageSave">Save</button>
+            <button class="usersButton userModalClose" type="button">Cancel</button>
+        </div>
+    <?php lawnding_modal_close(); ?>
+
+    <?php // Pane type picker modal: select a module for add/change. ?>
+    <?php lawnding_modal_open('paneTypeModal', 'Choose Pane Type'); ?>
+        <div class="paneTypeList" id="paneTypeList">
+            <?php foreach ($modulesCatalog as $module): ?>
+                <button class="paneTypeOption" type="button"
+                        data-module-id="<?php echo htmlspecialchars($module['id']); ?>"
+                        data-module-name="<?php echo htmlspecialchars($module['name']); ?>"
+                        data-module-desc="<?php echo htmlspecialchars($module['description']); ?>"
+                        data-module-preview="<?php echo htmlspecialchars($module['preview']); ?>">
+                    <div class="paneTypePreview">
+                        <?php if (!empty($module['preview'])): ?>
+                            <img src="<?php echo htmlspecialchars($module['preview']); ?>" alt="<?php echo htmlspecialchars($module['name']); ?> preview">
+                        <?php else: ?>
+                            <span class="paneTypePreviewFallback">No preview</span>
+                        <?php endif; ?>
+                    </div>
+                    <div class="paneTypeMeta">
+                        <span class="paneTypeName"><?php echo htmlspecialchars($module['name']); ?></span>
+                        <?php if (!empty($module['description'])): ?>
+                            <span class="paneTypeDesc"><?php echo htmlspecialchars($module['description']); ?></span>
+                        <?php endif; ?>
+                    </div>
+                </button>
+            <?php endforeach; ?>
+        </div>
+        <div class="paneManageActions">
+            <button class="usersButton userModalClose" type="button">Close</button>
+        </div>
+    <?php lawnding_modal_close(); ?>
+
+    <?php // Pane icon editor modal: SVG or image upload. ?>
+    <?php lawnding_modal_open('paneIconModal', 'Edit Pane Icon'); ?>
+        <div class="paneIconTabs">
+            <button class="paneIconTab isActive" type="button" data-mode="svg">SVG</button>
+            <button class="paneIconTab" type="button" data-mode="file">Image</button>
+        </div>
+        <div class="paneIconPanel isActive" data-mode="svg">
+            <label class="paneIconLabel" for="paneIconSvgInput">SVG Markup</label>
+            <textarea id="paneIconSvgInput" class="paneIconTextarea" rows="6" placeholder="<svg ...>"></textarea>
+        </div>
+        <div class="paneIconPanel" data-mode="file">
+            <label class="paneIconLabel" for="paneIconFileInput">Icon File</label>
+            <input type="file" id="paneIconFileInput" accept="image/*">
+        </div>
+        <div class="paneManageActions">
+            <button class="usersButton usersDanger" type="button" id="paneIconRemove">Remove Icon</button>
+            <button class="usersButton" type="button" id="paneIconSave">Save</button>
+            <button class="usersButton userModalClose" type="button">Cancel</button>
+        </div>
+    <?php lawnding_modal_close(); ?>
+
+    <?php // Pane delete confirmation modal (warns about data deletion). ?>
+    <?php lawnding_modal_open('paneDeleteConfirmModal', 'Remove Pane'); ?>
+        <p class="usersHint" id="paneDeleteConfirmMessage">Are you sure you want to remove this pane? This will delete its data files.</p>
+        <div class="userModalActions">
+            <button class="usersButton usersDanger" type="button" id="paneDeleteConfirmYes">Delete</button>
+            <button class="usersButton userModalClose" type="button">Cancel</button>
+        </div>
+    <?php lawnding_modal_close(); ?>
+
+    <?php // Migration modal: preview and apply panes.json upgrade/downgrade. ?>
+    <?php lawnding_modal_open('migrationModal', 'Pane Migration'); ?>
+        <p class="usersHint">Review the proposed changes before applying migration. Migration will reset pane fields; copy your data first. This will reload the page.</p>
+        <div class="migrationSummary" id="migrationSummary"></div>
+        <div class="migrationDetails">
+            <h4>Pane Configuration</h4>
+            <pre class="migrationPre" id="migrationPanesPreview"></pre>
+        </div>
+        <div class="paneManageActions">
+            <button class="usersButton" type="button" id="migrationApply">Apply Migration</button>
+            <button class="usersButton userModalClose" type="button">Cancel</button>
+        </div>
+    <?php lawnding_modal_close(); ?>
     <!-- Onboarding/tutorial overlay controlled by config.js. -->
     <div id="tutorialOverlay" class="hidden">
         <div id="mask-top" class="tutorialMask"></div>
@@ -669,7 +976,10 @@ if (!empty($usersWarnings)) {
         window.appConfig = {
             basePath: <?php echo json_encode($assetBase); ?>,
             currentUser: <?php echo json_encode($currentUserName); ?>,
-            canEditSite: <?php echo json_encode($canEditSite); ?>
+            canEditSite: <?php echo json_encode($canEditSite); ?>,
+            paneIds: <?php echo json_encode(array_values($paneIds)); ?>,
+            panes: <?php echo json_encode($panesForJs); ?>,
+            modules: <?php echo json_encode($modulesCatalog); ?>
         };
     </script>
     <script src="<?php echo htmlspecialchars(lawnding_versioned_url($assetBase . '/res/scr/app.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>

@@ -1,0 +1,12 @@
+{
+  "id": "basicText",
+  "name": "Basic Text Pane",
+  "version": "1.0.0",
+  "description": "Markdown-backed text pane.",
+  "data_files": [
+    { "type": "md", "pattern": "{paneId}.md" }
+  ],
+  "save_map": [
+    { "key": "content", "type": "md", "file": "{paneId}.md" }
+  ]
+}

@@ -725,6 +725,305 @@ button:disabled {
     flex-direction: column;
 }
 
+.paneHeader {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.paneIconButton {
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    border: 1px solid #FFFFFF33;
+    background: #00000055;
+    color: inherit;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+
+.paneIconPreview img,
+.paneIconPreview svg {
+    width: 22px;
+    height: 22px;
+}
+
+.paneIconButton {
+    color: #FFFFFF;
+}
+
+.paneIconButton .paneIconPreview svg {
+    fill: currentColor;
+}
+
+.paneManageIconButton {
+    color: #FFFFFF;
+}
+
+.paneManageIconButton .paneIconPreview svg {
+    fill: currentColor;
+}
+
+.paneIconFallback {
+    font-size: 10px;
+    opacity: 0.8;
+}
+
+.paneHeaderTitle {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.paneTitle {
+    font-weight: 600;
+    letter-spacing: 0.02em;
+}
+
+.paneDataHint {
+    font-weight: 400;
+    opacity: 0.75;
+    font-size: 12px;
+}
+
+.navPaneItem {
+    position: relative;
+}
+
+.paneDeleteButton {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    width: 18px;
+    height: 18px;
+    border-radius: 999px;
+    border: 1px solid #FFFFFF44;
+    background: #000000AA;
+    color: inherit;
+    font-size: 12px;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+
+.navPaneManageItem .paneManageButton {
+    padding: 6px 10px;
+    border-radius: 999px;
+    border: 1px solid #FFFFFF33;
+    background: #00000055;
+    color: inherit;
+    cursor: pointer;
+}
+
+/* Pane management modal */
+.paneManageList {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin: 12px 0;
+    max-height: 50vh;
+    overflow: auto;
+    padding-right: 4px;
+}
+
+#paneManagementModal .userModal {
+    max-height: 90vh;
+    overflow: hidden;
+}
+
+#paneManagementModal .paneManageList {
+    flex: 1 1 auto;
+    max-height: none;
+    overflow: auto;
+}
+
+.paneManageRow {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 10px;
+    align-items: center;
+    padding: 10px;
+    border-radius: 8px;
+    border: 1px solid #FFFFFF22;
+    background: #00000033;
+}
+
+.paneManageMain {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.paneManageName {
+    padding: 6px 8px;
+    border-radius: 4px;
+    border: 1px solid #FFFFFF33;
+    background: #00000033;
+    color: inherit;
+}
+
+.paneManageName.isInvalid {
+    border-color: #ff6b6b;
+}
+
+.paneManageMeta {
+    font-size: 12px;
+    opacity: 0.85;
+}
+
+.paneManageActions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+    margin-top: 8px;
+}
+
+/* Migration preview modal */
+.migrationSummary {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 10px 0;
+    font-size: 12px;
+}
+
+.migrationSummary span {
+    opacity: 0.85;
+}
+
+.migrationPre {
+    padding: 10px;
+    border-radius: 6px;
+    border: 1px solid #FFFFFF22;
+    background: #00000033;
+    color: inherit;
+    max-height: 240px;
+    overflow: auto;
+}
+
+/* Event list module styles are defined inside the module templates. */
+
+.paneManageRowActions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.paneManageRowActions .iconButton {
+    padding: 6px 8px;
+}
+
+.paneManageTypeButton {
+    font-size: 8pt;
+}
+
+.paneTypeList {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.paneTypeOption {
+    display: grid;
+    grid-template-columns: 80px 1fr;
+    gap: 12px;
+    align-items: center;
+    padding: 10px;
+    border-radius: 8px;
+    border: 1px solid #FFFFFF22;
+    background: #00000033;
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.paneTypeMeta {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.paneTypeName {
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.paneTypeDesc {
+    font-size: 12px;
+    opacity: 0.75;
+}
+
+.paneTypePreview {
+    width: 80px;
+    height: 60px;
+    border-radius: 6px;
+    border: 1px solid #FFFFFF22;
+    background: #00000055;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+
+.paneTypePreview img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.paneTypePreviewFallback {
+    font-size: 11px;
+    opacity: 0.7;
+}
+
+.paneIconTabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.paneIconTab {
+    padding: 6px 10px;
+    border-radius: 6px;
+    border: 1px solid #FFFFFF33;
+    background: #00000044;
+    color: inherit;
+    cursor: pointer;
+}
+
+.paneIconTab.isActive {
+    border-color: #FFFFFF88;
+    background: #00000088;
+}
+
+.paneIconPanel {
+    display: none;
+}
+
+.paneIconPanel.isActive {
+    display: block;
+}
+
+.paneIconTextarea {
+    width: 100%;
+    padding: 8px;
+    border-radius: 6px;
+    border: 1px solid #FFFFFF33;
+    background: #00000033;
+    color: inherit;
+    font-family: monospace;
+}
+
+.paneIconLabel {
+    display: block;
+    margin-bottom: 6px;
+}
+
 /* Tutorial overlay */
 #tutorialOverlay {
     position: fixed;

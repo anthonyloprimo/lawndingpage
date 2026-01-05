@@ -1,0 +1,13 @@
+{
+  "id": "eventList",
+  "name": "Event List",
+  "version": "1.0.0",
+  "description": "Create and display events with calendar export.",
+  "preview": "",
+  "data_files": [
+    { "type": "json", "pattern": "{paneId}.json" }
+  ],
+  "save_map": [
+    { "key": "events", "type": "json", "file": "{paneId}.json" }
+  ]
+}

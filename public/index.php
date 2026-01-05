@@ -134,6 +134,30 @@ $headerData = [
     'backgrounds' => ['res/img/bg.jpg']
 ];
 $headerData = array_merge($headerData, lawnding_read_json($headerJsonPath, []));
+// Resolve asset URLs relative to the detected base URL.
+$resolveAssetUrl = function ($path) {
+    if (!is_string($path) || $path === '') {
+        return $path;
+    }
+    if (preg_match('#^[a-z][a-z0-9+.-]*:#i', $path) || str_starts_with($path, '//')) {
+        return $path;
+    }
+    return function_exists('lawnding_asset_url') ? lawnding_asset_url($path) : $path;
+};
+$headerDataResolved = $headerData;
+$headerDataResolved['logo'] = $resolveAssetUrl($headerDataResolved['logo'] ?? '');
+if (!empty($headerDataResolved['backgrounds']) && is_array($headerDataResolved['backgrounds'])) {
+    $headerDataResolved['backgrounds'] = array_map(function ($bg) use ($resolveAssetUrl) {
+        if (is_string($bg)) {
+            return $resolveAssetUrl($bg);
+        }
+        if (is_array($bg)) {
+            $bg['url'] = $resolveAssetUrl($bg['url'] ?? '');
+            return $bg;
+        }
+        return $bg;
+    }, $headerDataResolved['backgrounds']);
+}
 ?> 
 
 <!DOCTYPE html>
@@ -162,10 +186,10 @@ $headerData = array_merge($headerData, lawnding_read_json($headerJsonPath, []));
         })();
     </script>
     
-    <link rel="icon" type="image/jpg" href="res/img/logo.jpg"/>
-    <link rel="stylesheet" href="<?php echo htmlspecialchars(lawnding_versioned_url('res/style.css'), ENT_QUOTES, 'UTF-8'); ?>">
+    <link rel="icon" type="image/jpg" href="<?php echo htmlspecialchars(lawnding_asset_url('res/img/logo.jpg'), ENT_QUOTES, 'UTF-8'); ?>"/>
+    <link rel="stylesheet" href="<?php echo htmlspecialchars(lawnding_versioned_url(lawnding_asset_url('res/style.css')), ENT_QUOTES, 'UTF-8'); ?>">
 
-    <script src="<?php echo htmlspecialchars(lawnding_versioned_url('res/scr/jquery-3.7.1.min.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
+    <script src="<?php echo htmlspecialchars(lawnding_versioned_url(lawnding_asset_url('res/scr/jquery-3.7.1.min.js')), ENT_QUOTES, 'UTF-8'); ?>"></script>
 </head>
 <body>
     <!-- No-JS fallback for browsers with JavaScript disabled. -->
@@ -216,8 +240,8 @@ $headerData = array_merge($headerData, lawnding_read_json($headerJsonPath, []));
     </nav>
     <script>
         // Expose header data to JS for assets like the logo background.
-        window.headerData = <?php echo json_encode($headerData, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+        window.headerData = <?php echo json_encode($headerDataResolved, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
     </script>
-    <script src="<?php echo htmlspecialchars(lawnding_versioned_url('res/scr/app.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
+    <script src="<?php echo htmlspecialchars(lawnding_versioned_url(lawnding_asset_url('res/scr/app.js')), ENT_QUOTES, 'UTF-8'); ?>"></script>
 </body>
 </html>

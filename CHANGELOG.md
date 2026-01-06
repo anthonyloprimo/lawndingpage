@@ -1,4 +1,16 @@
 ### Changelog
+
+#### v1.4.1
+**Changes:**
+- Added the ability to save current and future events to a calendar by generating an `.ics` file.
+- Made addreesses on event cards and modals clickable links to google maps.
+
+**Known Issues:**
+- Changing the order of links sometimes jumps more than one slot when doing so too quickly.  Workaround: Just move the link that jumped too far back up/down to where it should be.
+- Event List pane does not correctly display in mobile devices on the back-end.
+
+-----
+
 #### v1.4.0
 **Changes:**
 - Converted the panes to a modular system that load dynamically.
@@ -18,6 +30,7 @@
 
 **Known Issues:**
 - Changing the order of links sometimes jumps more than one slot when doing so too quickly.  Workaround: Just move the link that jumped too far back up/down to where it should be.
+- Event List pane does not correctly display in mobile on the back-end.
 
 -----
 

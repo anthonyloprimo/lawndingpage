@@ -330,21 +330,116 @@ function renderEventLists() {
             return text.slice(0, 32) + '...';
         }
 
-        function renderEventItem(event, allowCalendar) {
+        function buildMapsUrl(address) {
+            return `http://maps.google.com/?q=${encodeURIComponent(address)}`;
+        }
+
+        function sanitizeId(value) {
+            return String(value || '').replace(/[^A-Za-z0-9]/g, '');
+        }
+
+        function icsEscape(value) {
+            return String(value || '')
+                .replace(/\\/g, '\\\\')
+                .replace(/\r\n|\r|\n/g, '\\n')
+                .replace(/,/g, '\\,')
+                .replace(/;/g, '\\;');
+        }
+
+        function icsFold(line) {
+            const limit = 75;
+            let out = '';
+            let remaining = line;
+            while (remaining.length > limit) {
+                out += `${remaining.slice(0, limit)}\r\n `;
+                remaining = remaining.slice(limit);
+            }
+            return out + remaining;
+        }
+
+        function buildIcsContent(event) {
+            const communityName = $('#header .headline h1').text().trim() || 'LawndingPage';
+            const orgName = sanitizeId(communityName) || 'LawndingPage';
+            const name = String(event.name || '').trim() || 'Event';
+            const startDate = event.startDate || event.date || '';
+            const startTime = event.startTime || '';
+            const endDate = event.endDate || startDate;
+            const endTime = event.endTime || '';
+            if (!startDate || !startTime) {
+                return '';
+            }
+            const tzName = (event.timeZone || Intl.DateTimeFormat().resolvedOptions().timeZone || '').trim();
+            const dtStart = new Date(`${startDate}T${startTime}`);
+            const dtEnd = endTime ? new Date(`${endDate}T${endTime}`) : new Date(dtStart.getTime() + 60 * 60 * 1000);
+            if (isNaN(dtStart.getTime()) || isNaN(dtEnd.getTime())) {
+                return '';
+            }
+            const formatLocal = (date) => {
+                const pad = (num) => String(num).padStart(2, '0');
+                return `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}T${pad(date.getHours())}${pad(date.getMinutes())}${pad(date.getSeconds())}`;
+            };
+            const dtStamp = (() => {
+                const now = new Date();
+                const pad = (num) => String(num).padStart(2, '0');
+                return `${now.getUTCFullYear()}${pad(now.getUTCMonth() + 1)}${pad(now.getUTCDate())}T${pad(now.getUTCHours())}${pad(now.getUTCMinutes())}${pad(now.getUTCSeconds())}Z`;
+            })();
+            const uidName = sanitizeId(name) || sanitizeId(event.id || '') || 'event';
+            const uidDate = `${dtStart.getFullYear()}${String(dtStart.getMonth() + 1).padStart(2, '0')}${String(dtStart.getDate()).padStart(2, '0')}`;
+            const uid = `${uidName}@${orgName}-${uidDate}.lawndingpage`;
+            const prodId = `-//${orgName}//LawndingPage//EN`;
+            const lines = [
+                'BEGIN:VCALENDAR',
+                'VERSION:2.0',
+                `PRODID:${prodId}`,
+                'CALSCALE:GREGORIAN',
+                'METHOD:PUBLISH',
+                'BEGIN:VEVENT',
+                icsFold(`UID:${icsEscape(uid)}`),
+                `DTSTAMP:${dtStamp}`,
+                tzName ? `DTSTART;TZID=${tzName}:${formatLocal(dtStart)}` : `DTSTART:${formatLocal(dtStart)}`,
+                tzName ? `DTEND;TZID=${tzName}:${formatLocal(dtEnd)}` : `DTEND:${formatLocal(dtEnd)}`,
+                icsFold(`SUMMARY:${icsEscape(name)}`),
+                event.address ? icsFold(`LOCATION:${icsEscape(event.address)}`) : null,
+                event.description ? icsFold(`DESCRIPTION:${icsEscape(event.description)}`) : null,
+                'END:VEVENT',
+                'END:VCALENDAR'
+            ].filter(Boolean);
+            return lines.join('\r\n') + '\r\n';
+        }
+
+        function downloadIcs(event) {
+            const icsContent = buildIcsContent(event);
+            if (!icsContent) {
+                return;
+            }
+            const fileBase = String(event.id || 'event').replace(/[^A-Za-z0-9_-]/g, '') || 'event';
+            const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `${fileBase}.ics`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        }
+
+        function renderEventItem(event, allowCalendar, paneId) {
             const timeRange = formatEventRange(event);
             const details = event.descriptionHtml ? event.descriptionHtml : '';
             const address = event.address || '';
+            const addressLink = address ? buildMapsUrl(address) : '';
             const calendarLabel = 'Save to Calendar';
             const button = allowCalendar
-                ? `<button class=\"eventCalendarButton\" type=\"button\" disabled>${calendarLabel}</button>`
+                ? `<button class=\"eventCalendarButton\" type=\"button\" data-pane-id=\"${escapeHtml(paneId)}\" data-event-id=\"${escapeHtml(event.id || '')}\">${calendarLabel}</button>`
                 : '';
             const rawDescription = event.description || '';
             const truncated = truncateDescription(rawDescription);
             return `
-                <div class=\"eventItem\" data-event-id=\"${escapeHtml(event.id || '')}\">
+                <div class=\"eventItem\" data-event-id=\"${escapeHtml(event.id || '')}\" data-pane-id=\"${escapeHtml(paneId)}\">
                     <div class=\"eventItemTitle\">${escapeHtml(event.name || 'Untitled')}</div>
                     <div class=\"eventItemMeta\">${escapeHtml(timeRange)}</div>
-                    ${address ? `<div class=\"eventItemMeta\">${escapeHtml(address)}</div>` : ''}
+                    ${address ? `<div class=\"eventItemMeta\"><a href=\"${escapeHtml(addressLink)}\" target=\"_blank\" rel=\"noopener\">${escapeHtml(address)}</a></div>` : ''}
                     ${details ? `<div class=\"eventItemMeta\">${escapeHtml(truncated)}</div>` : ''}
                     ${button}
                 </div>
@@ -403,20 +498,22 @@ function renderEventLists() {
         $upcomingBody.empty();
         $pastBody.empty();
 
+        const paneId = $pane.data('pane-id') || $container.attr('id') || '';
+
         if (happening.length) {
-            happening.forEach((event) => $happening.append(renderEventItem(event, true)));
+            happening.forEach((event) => $happening.append(renderEventItem(event, true, paneId)));
         } else {
             $happening.append('<div class=\"eventItem\">No events happening now.</div>');
         }
 
         if (upcoming.length) {
-            upcoming.forEach((event) => $upcomingBody.append(renderEventItem(event, true)));
+            upcoming.forEach((event) => $upcomingBody.append(renderEventItem(event, true, paneId)));
         } else {
             $upcomingBody.append('<div class=\"eventItem\">No upcoming events.</div>');
         }
 
         if (showPast && past.length) {
-            past.slice(0, 5).forEach((event) => $pastBody.append(renderEventItem(event, false)));
+            past.slice(0, 5).forEach((event) => $pastBody.append(renderEventItem(event, false, paneId)));
             $pastColumn.removeClass('hidden');
         } else {
             $pastColumn.addClass('hidden');
@@ -437,19 +534,28 @@ function renderEventLists() {
         const $calendar = $('#eventModalCalendar');
         const $close = $('#eventModalClose');
 
-        function openModal(event, allowCalendar) {
+        function openModal(event, allowCalendar, paneId) {
             if (!event) {
                 return;
             }
             const timeRange = formatEventRange(event);
             $title.text(event.name || 'Untitled');
             $meta.text(timeRange);
-            $address.text(event.address || '');
+            if (event.address) {
+                const link = buildMapsUrl(event.address);
+                $address.html(`<a href=\"${escapeHtml(link)}\" target=\"_blank\" rel=\"noopener\">${escapeHtml(event.address)}</a>`);
+            } else {
+                $address.text('');
+            }
             $description.html(event.descriptionHtml || '');
             if (allowCalendar) {
                 $calendar.prop('disabled', false).removeClass('hidden');
+                $calendar.data('pane-id', paneId || '');
+                $calendar.data('event-id', event.id || '');
             } else {
                 $calendar.prop('disabled', true).addClass('hidden');
+                $calendar.data('pane-id', '');
+                $calendar.data('event-id', '');
             }
             $overlay.removeClass('hidden');
         }
@@ -466,7 +572,24 @@ function renderEventLists() {
             const allEvents = [].concat(happening, upcoming, past);
             const match = allEvents.find((item) => item && item.id === eventId);
             const allowCalendar = happening.concat(upcoming).some((item) => item && item.id === eventId);
-            openModal(match, allowCalendar);
+            const itemPaneId = $(this).data('pane-id') || paneId;
+            openModal(match, allowCalendar, itemPaneId);
+        });
+
+        $pane.off('click.eventCalendar').on('click.eventCalendar', '.eventCalendarButton', function(event) {
+            event.stopPropagation();
+            const buttonEventId = $(this).data('event-id') || '';
+            if (!buttonEventId) {
+                return;
+            }
+            const match = [].concat(happening, upcoming).find((item) => item && item.id === buttonEventId);
+            if (match) {
+                downloadIcs(match);
+            }
+        });
+
+        $pane.off('click.eventAddress').on('click.eventAddress', '.eventItem a', function(event) {
+            event.stopPropagation();
         });
 
         $overlay.off('click.eventModalClose').on('click.eventModalClose', function(event) {
@@ -477,6 +600,17 @@ function renderEventLists() {
 
         $close.off('click.eventModalClose').on('click.eventModalClose', function() {
             closeModal();
+        });
+
+        $calendar.off('click.eventCalendar').on('click.eventCalendar', function() {
+            const modalEventId = $calendar.data('event-id') || '';
+            if (!modalEventId) {
+                return;
+            }
+            const match = [].concat(happening, upcoming).find((item) => item && item.id === modalEventId);
+            if (match) {
+                downloadIcs(match);
+            }
         });
     });
 }

@@ -1,0 +1,337 @@
+.eventListPane {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+.eventListScroll {
+    flex: 1 1 auto;
+    overflow: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding-right: 4px;
+}
+.eventListControls {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 12px;
+}
+.eventListToggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.eventList {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+.eventEmpty {
+    opacity: 0.75;
+    font-size: 14px;
+}
+.eventCard {
+    border-radius: 8px;
+    border: 1px solid #FFFFFF22;
+    background: #00000033;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.eventCardActions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.eventNameRow,
+.eventTimeRow,
+.eventAddressRow {
+    display: grid;
+    gap: 10px;
+    align-items: center;
+}
+.eventNameRow {
+    grid-template-columns: 1fr auto;
+}
+.eventTimeRow {
+    grid-template-columns: 60px minmax(0, 1fr) 50px minmax(0, 1fr) minmax(160px, 1fr);
+}
+.eventTimeGroup {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 8px;
+    align-items: center;
+}
+.eventFieldTitle {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    opacity: 0.8;
+}
+.eventNameLabel,
+.eventDescriptionLabel {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.eventTimeZone {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.eventCard input,
+.eventCard textarea {
+    padding: 6px 8px;
+    border-radius: 4px;
+    border: 1px solid #FFFFFF33;
+    background: #00000033;
+    color: inherit;
+    font-family: inherit;
+}
+
+.eventCard input[type="date"]::-webkit-calendar-picker-indicator,
+.eventCard input[type="time"]::-webkit-calendar-picker-indicator {
+    filter: invert(1);
+    opacity: 0.85;
+}
+.eventCard textarea {
+    resize: vertical;
+    min-height: 80px;
+}
+
+.markdownEditor {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+
+.markdownToolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 6px;
+    border: 1px solid #FFFFFF33;
+    border-bottom: 1px solid #FFFFFF22;
+    border-radius: 4px 4px 0 0;
+    background: #00000033;
+}
+
+.markdownToolbarGroup,
+.markdownToolbarPreview {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+}
+
+.markdownToolbarPreview {
+    margin-left: auto;
+}
+
+.mdToolbarButton {
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    min-width: 0;
+    font-size: 0.75rem;
+    line-height: 1;
+    border-radius: 6px;
+}
+
+.markdownHeadingSelect {
+    padding: 4px 6px;
+    border-radius: 4px;
+    border: 1px solid #FFFFFF33;
+    background: #00000044;
+    color: inherit;
+    font-size: 0.75rem;
+}
+
+.mdToolbarButton svg {
+    width: 18px;
+    height: 18px;
+    display: block;
+    fill: currentColor;
+}
+
+.mdToolbarButton.mdTextIcon {
+    font-size: 0.65rem;
+}
+
+.mdToolbarButton.isActive {
+    border-color: #FFFFFFAA;
+    background: #FFFFFF22;
+}
+
+.eventCard .markdownTextarea {
+    border-top: 0;
+    border-radius: 0 0 4px 4px;
+}
+
+.eventCard .markdownPreview {
+    display: none;
+    border: 1px solid #FFFFFF33;
+    border-top: 0;
+    border-radius: 0 0 4px 4px;
+    padding: 8px;
+    background: #00000033;
+    color: inherit;
+    font-family: inherit;
+    min-height: 80px;
+}
+
+.markdownEditor.isPreviewing .markdownTextarea {
+    display: none;
+}
+
+.markdownEditor.isPreviewing .markdownPreview {
+    display: block;
+}
+.eventValidation {
+    font-size: 12px;
+    color: #ffb3b3;
+    min-height: 16px;
+}
+.eventAddButton {
+    padding: 6px 10px;
+    border-radius: 6px;
+    border: 1px solid #FFFFFF44;
+    background: #00000055;
+    color: inherit;
+    cursor: pointer;
+    text-decoration: none;
+}
+.eventAddButton:hover {
+    background: #77777733;
+    border: 1px solid #FFFFFFBB;
+}
+.eventAddButton:active {
+    background: #00000077;
+    border: 1px solid #FFFFFF55;
+}
+
+.eventListPublic {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+.eventSection {
+    border-top: 1px solid #FFFFFF22;
+    padding-top: 12px;
+}
+.eventSplit {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+.eventSplit.eventSplitSingle {
+    grid-template-columns: 1fr;
+}
+.eventColumn.hidden {
+    display: none;
+}
+.eventSectionBody {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.eventItem {
+    padding: 10px;
+    border-radius: 6px;
+    border: 1px solid #FFFFFF22;
+    background: #00000033;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    cursor: pointer;
+}
+.eventItemTitle {
+    font-weight: 600;
+}
+.eventItemMeta {
+    font-size: 12px;
+    opacity: 0.8;
+}
+.eventCalendarButton {
+    align-self: flex-start;
+    padding: 6px 10px;
+    border-radius: 6px;
+    border: 1px solid #FFFFFF44;
+    background: #00000055;
+    color: inherit;
+    cursor: pointer;
+    text-decoration: none;
+}
+.eventCalendarButton[disabled] {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+@media (max-width: 860px) {
+    .eventSplit {
+        grid-template-columns: 1fr;
+    }
+}
+
+.eventModalOverlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+}
+
+.eventModal {
+    max-width: 640px;
+    width: 92%;
+    border-radius: 12px;
+    border: 1px solid #FFFFFF22;
+    background: #0f0f0f;
+    padding: 18px;
+    color: inherit;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.eventModalHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.eventModalTitle {
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.eventModalMeta {
+    font-size: 13px;
+    opacity: 0.8;
+}
+
+.eventModalDescription {
+    font-size: 14px;
+    line-height: 1.4;
+}
+
+.eventModalActions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    justify-content: flex-end;
+}
+
+.eventModalClose {
+    padding: 6px 10px;
+    border-radius: 6px;
+    border: 1px solid #FFFFFF44;
+    background: #00000055;
+    color: inherit;
+    cursor: pointer;
+}

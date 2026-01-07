@@ -3,7 +3,7 @@
 require_once __DIR__ . '/../../../lp-bootstrap.php';
 // Load versioned constants (schema version, site version) for consistency checks.
 require_once __DIR__ . '/../version.php';
-session_start();
+lawnding_init_session();
 
 // Unified JSON response helper.
 function respond($payload, $code = 200) {
@@ -129,6 +129,18 @@ function write_text_file($path, $content, $errorMessage) {
     }
 }
 
+// Require a valid CSRF token for state-changing requests.
+function require_csrf_token() {
+    $sessionToken = $_SESSION['csrf_token'] ?? '';
+    $postedToken = $_POST['csrf_token'] ?? '';
+    if (!is_string($sessionToken) || $sessionToken === '' || !is_string($postedToken) || $postedToken === '') {
+        respond(['error' => 'Forbidden'], 403);
+    }
+    if (!hash_equals($sessionToken, $postedToken)) {
+        respond(['error' => 'Forbidden'], 403);
+    }
+}
+
 // Endpoint accepts POST only.
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     respond(['error' => 'Method not allowed'], 405);
@@ -170,6 +182,8 @@ $canEditSite = $isFullAdmin || in_array('edit_site', $permissions, true);
 if (!$canEditSite) {
     respond(['error' => 'Forbidden'], 403);
 }
+
+require_csrf_token();
 
 // Validate file uploads (size and PHP error codes).
 foreach ($_FILES as $upload) {

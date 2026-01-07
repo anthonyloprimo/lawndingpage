@@ -2,7 +2,7 @@
 // Delete a background entry and optionally remove the underlying image file.
 require_once __DIR__ . '/../../../lp-bootstrap.php';
 require_once __DIR__ . '/backgrounds-helpers.php';
-session_start();
+lawnding_init_session();
 
 // JSON API response for the admin UI.
 header('Content-Type: application/json');
@@ -12,6 +12,7 @@ backgrounds_require_method('POST');
 
 // Require auth and edit_site permission.
 backgrounds_require_edit_site();
+backgrounds_require_csrf();
 
 // Expected request data.
 $url = isset($_POST['url']) ? (string) $_POST['url'] : '';

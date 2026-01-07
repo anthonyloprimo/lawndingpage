@@ -141,3 +141,21 @@ function lawnding_asset_url(?string $path = ''): string {
     }
     return $base === '' ? '/' . $path : $base . '/' . $path;
 }
+
+// Configure hardened session cookie params and start the session.
+function lawnding_init_session(): void {
+    if (session_status() !== PHP_SESSION_NONE) {
+        return;
+    }
+    $baseUrl = (string) lawnding_config('base_url', '');
+    $path = $baseUrl !== '' ? rtrim($baseUrl, '/') . '/' : '/';
+    $secure = !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off';
+    session_set_cookie_params([
+        'lifetime' => 0,
+        'path' => $path,
+        'secure' => $secure,
+        'httponly' => true,
+        'samesite' => 'Strict',
+    ]);
+    session_start();
+}

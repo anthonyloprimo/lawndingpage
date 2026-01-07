@@ -5,6 +5,8 @@ The project is intended to be a bit more robust than a simple carrd site, but ea
 
 It's created with HTML wrapped in PHP, as well as CSS and JS.
 
+Note: Inline JavaScript and inline `<style>` blocks are avoided for CSP compatibility. Runtime data is embedded in HTML data attributes and read by external JS files in `public/res/scr/`.
+
 ## Getting Started
 ~~After cloning the repo, drop everything in your site's root.  As long as PHP is installed, running index.php should do the trick!~~
 ### File Structure

@@ -1,5 +1,8 @@
 ### Welcome to LawndingPage!
 
+To access the admin panel, click [here](admin/).
+<br><br>
+
 **LawndingPage** is a simple community landing page platform that let's you easily create a central hub for your community!
 <br><br>
 
@@ -8,10 +11,9 @@ You can get LawndingPage from [GitHub](https://github.com/anthonyloprimo/lawndin
 
 
 #### This is a test page that you can view.  
-To access the admin panel, click [here](admin/).
 <br><br>
 
-This is a **Basic Text Pane**.  These allow you to enter all sorts of text, using a language called **Markdown** and is rendered using a library called [Parsedown](https://parsedown.org/).  It allows full HTML and JS support as well, allowing you to fully customize the contents of these panes, building entirely new web pages within the site, for maximum customizability!
+This is a **Basic Text Pane**.  These allow you to enter all sorts of text, using a language called **Markdown** and is rendered using a library called [Parsedown](https://parsedown.org/).  It allows full HTML and JS support as well, allowing you to fully customize the contents of these panes, building entirely new web pages within the site, for maximum customization!
 <br><br>
 
 For example, markdown only allows single line breaks.  To add an extra line, we can use traditional line break tags like `<br>`.

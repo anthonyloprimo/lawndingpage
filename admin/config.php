@@ -415,33 +415,25 @@ if (!empty($usersSuccess)) {
 if (!empty($usersWarnings)) {
     $adminNotices[] = ['type' => 'danger', 'text' => implode(' ', $usersWarnings)];
 }
+$headerDataJson = htmlspecialchars(json_encode($headerDataDisplay, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT), ENT_QUOTES, 'UTF-8');
+$appConfigPayload = [
+    'basePath' => $assetBase,
+    'currentUser' => $currentUserName,
+    'canEditSite' => $canEditSite,
+    'csrfToken' => $_SESSION['csrf_token'] ?? '',
+    'paneIds' => array_values($paneIds),
+    'panes' => $panesForJs,
+    'modules' => $modulesCatalog,
+];
+$appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT), ENT_QUOTES, 'UTF-8');
 ?>
 
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-site-version="<?php echo htmlspecialchars(SITE_VERSION, ENT_QUOTES, 'UTF-8'); ?>">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-    <script>
-        (function () {
-            var serverVersion = "<?php echo htmlspecialchars(SITE_VERSION, ENT_QUOTES, 'UTF-8'); ?>";
-            var match = document.cookie.match(/(?:^|;)\s*site_version=([^;]*)/);
-            var cookieVersion = match ? decodeURIComponent(match[1]) : "";
-            var encodedVersion = encodeURIComponent(serverVersion);
-            if (cookieVersion === serverVersion) {
-                return;
-            }
-            if (window.location.search.indexOf("__v=" + encodedVersion) !== -1) {
-                document.cookie = "site_version=" + encodedVersion + "; path=/; SameSite=Lax";
-                return;
-            }
-            document.cookie = "site_version=" + encodedVersion + "; path=/; SameSite=Lax";
-            var sep = window.location.search ? "&" : "?";
-            var target = window.location.pathname + window.location.search + sep
-                + "__v=" + encodedVersion + "&__t=" + Date.now() + window.location.hash;
-            window.location.replace(target);
-        })();
-    </script>
+    <script src="<?php echo htmlspecialchars(lawnding_versioned_url($assetBase . '/res/scr/site-version.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
     
     <link rel="icon" type="image/jpg" href="<?php echo htmlspecialchars($assetBase); ?>/res/img/logo.jpg">
     <link rel="stylesheet" href="<?php echo htmlspecialchars(lawnding_versioned_url($assetBase . '/res/style.css'), ENT_QUOTES, 'UTF-8'); ?>">
@@ -449,7 +441,7 @@ if (!empty($usersWarnings)) {
 
     <script src="<?php echo htmlspecialchars(lawnding_versioned_url($assetBase . '/res/scr/jquery-3.7.1.min.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
 </head>
-<body>
+<body data-header-json="<?php echo $headerDataJson; ?>" data-app-config-json="<?php echo $appConfigJson; ?>">
     <!-- Runtime notices and admin alerts. -->
     <div id="noJsWarning"><noscript>This site requires JavaScript to function properly. Please enable JavaScript in your browser.</noscript></div>
     <div class="adminNotices" id="adminNotices">
@@ -970,18 +962,7 @@ if (!empty($usersWarnings)) {
             </div>
         </div>
     </div>
-    <script>
-        // Expose header data to JS for assets like the logo background.
-        window.headerData = <?php echo json_encode($headerDataDisplay, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
-        window.appConfig = {
-            basePath: <?php echo json_encode($assetBase); ?>,
-            currentUser: <?php echo json_encode($currentUserName); ?>,
-            canEditSite: <?php echo json_encode($canEditSite); ?>,
-            paneIds: <?php echo json_encode(array_values($paneIds)); ?>,
-            panes: <?php echo json_encode($panesForJs); ?>,
-            modules: <?php echo json_encode($modulesCatalog); ?>
-        };
-    </script>
+    <script src="<?php echo htmlspecialchars(lawnding_versioned_url($assetBase . '/res/scr/admin-data.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
     <script src="<?php echo htmlspecialchars(lawnding_versioned_url($assetBase . '/res/scr/app.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
     <script src="<?php echo htmlspecialchars(lawnding_versioned_url($assetBase . '/res/scr/config.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
 </body>

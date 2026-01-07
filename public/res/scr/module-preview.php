@@ -1,7 +1,7 @@
 <?php
 require_once __DIR__ . '/../../../lp-bootstrap.php';
 // Module preview proxy: serves module preview images to authenticated admins only.
-session_start();
+lawnding_init_session();
 
 function respond_status($code) {
     http_response_code($code);

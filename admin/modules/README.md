@@ -109,7 +109,8 @@ The platform has a single "Save all changes" flow. Modules participate by:
 
 Immediate saves (e.g., file uploads) and custom save buttons are handled
 by module code and any shared save helpers.
-Module-specific CSS should be included inline in `public.php`/`admin.php` or stored in the module folder.
+Module-specific CSS should live in `style.css` inside the module folder and be loaded as a separate file (no inline `<style>` blocks). Because `admin/modules/` is outside the public web root (and can be protected), load it via `/res/scr/module-style.php?module=<moduleId>` instead of a direct `style.css` URL.
+Module-specific JavaScript should live in a separate file inside the module folder and be included with a `<script src="...">` tag (no inline scripts). If the module folder is not web-accessible, proxy the script through a public endpoint or move it into a public directory.
 
 ## Icons
 

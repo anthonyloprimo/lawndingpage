@@ -82,6 +82,32 @@ header.header {
     font-weight: 600;
 }
 
+@media (max-width: 979px) {
+    .headline {
+        position: relative;
+    }
+
+    .headlineInput {
+        transition: transform 0.18s ease, box-shadow 0.18s ease;
+    }
+
+    .headlineInput:focus {
+        position: relative;
+        z-index: 5;
+        width: 100vw;
+        margin-left: calc(50% - 50vw);
+        margin-right: calc(50% - 50vw);
+        width: 90vw;
+        background: #00000066;
+        transform: scale(1.05);
+        box-shadow: 0 10px 24px #00000088, 0 0 0 1px #FFFFFF66;
+    }
+
+    .headlineInput[name="siteSubtitle"]:focus {
+        transform: scale(1.03);
+    }
+}
+
 /* Logout button inherits base button styles and overrides color. */
 .logoutButton {
     padding: 2px 6px;

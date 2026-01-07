@@ -1,0 +1,99 @@
+body {
+    background: #111;
+}
+
+.loginWrap {
+    flex: 1 1 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem 1rem;
+}
+
+.loginPane {
+    width: min(520px, 92vw);
+    flex: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.loginPane .pane {
+    width: min(320px, 88vw);
+    flex: none;
+}
+
+.loginForm {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+}
+
+.loginField {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    font-size: 0.9rem;
+    color: #FFFFFFCC;
+}
+
+.loginInput {
+    border: 1px solid #FFFFFF55;
+    border-radius: 12px;
+    padding: 0.45rem 0.65rem;
+    background: #00000033;
+}
+
+.loginButton {
+    border: 1px solid #FFFFFF77;
+    border-radius: 999px;
+    padding: 0.5rem 0.9rem;
+    background: #00000055;
+    font-weight: 600;
+}
+
+.notice {
+    border: 1px solid #FFCC6677;
+    background: #33220066;
+    border-radius: 12px;
+    padding: 0.6rem 0.75rem;
+    font-size: 0.85rem;
+    line-height: 1.3;
+    width: min(520px, 92vw);
+    margin: 0 auto;
+}
+
+.message {
+    border-radius: 12px;
+    padding: 0.6rem 0.75rem;
+    font-size: 0.85rem;
+    line-height: 1.3;
+    margin-top: 0.75rem;
+}
+
+.message.error {
+    border: 1px solid #FF777777;
+    background: #33000066;
+}
+
+.message.success {
+    border: 1px solid #77FFAA77;
+    background: #00331A66;
+}
+
+.adminFooter {
+    text-align: center;
+    padding: 0.75rem 1rem 1rem;
+}
+
+.loginButton:hover {
+    background-color: #77777733;
+    border: 1px solid #FFFFFFBB;
+}
+
+.loginButton:active {
+    background-color: #00000055;
+    border: 1px solid #FFFFFF55;
+}

@@ -2,7 +2,7 @@
 // Upload a new background image and append it to header.json.
 require_once __DIR__ . '/../../../lp-bootstrap.php';
 require_once __DIR__ . '/backgrounds-helpers.php';
-session_start();
+lawnding_init_session();
 
 // JSON API response for the admin UI.
 header('Content-Type: application/json');
@@ -42,6 +42,7 @@ if ($postMaxBytes > 0 && $contentLength > $postMaxBytes) {
 
 // Require auth and edit_site permission.
 backgrounds_require_edit_site();
+backgrounds_require_csrf();
 
 // Validate the file upload payload.
 $upload = $_FILES['bgFile'] ?? null;

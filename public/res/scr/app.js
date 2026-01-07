@@ -331,7 +331,7 @@ function renderEventLists() {
         }
 
         function buildMapsUrl(address) {
-            return `http://maps.google.com/?q=${encodeURIComponent(address)}`;
+            return `https://maps.google.com/?q=${encodeURIComponent(address)}`;
         }
 
         function sanitizeId(value) {

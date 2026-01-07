@@ -1,0 +1,91 @@
+.markdownEditor {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
+.markdownToolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 6px;
+    border: 1px solid #FFFFFF33;
+    border-bottom: 1px solid #FFFFFF22;
+    border-radius: 4px 4px 0 0;
+    background: #00000033;
+}
+
+.markdownToolbarGroup,
+.markdownToolbarPreview {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+}
+
+.markdownToolbarPreview {
+    margin-left: auto;
+}
+
+.mdToolbarButton {
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    min-width: 0;
+    font-size: 0.75rem;
+    line-height: 1;
+    border-radius: 6px;
+}
+
+.markdownHeadingSelect {
+    padding: 4px 6px;
+    border-radius: 4px;
+    border: 1px solid #FFFFFF33;
+    background: #00000044;
+    color: inherit;
+    font-size: 0.75rem;
+}
+
+.mdToolbarButton svg {
+    width: 18px;
+    height: 18px;
+    display: block;
+    fill: currentColor;
+}
+
+.mdToolbarButton.mdTextIcon {
+    font-size: 0.65rem;
+}
+
+.mdToolbarButton.isActive {
+    border-color: #FFFFFFAA;
+    background: #FFFFFF22;
+}
+
+.markdownEditor .paneEditor,
+.markdownTextarea {
+    border-top: 0;
+    border-radius: 0 0 4px 4px;
+}
+
+.markdownPreview {
+    display: none;
+    border: 1px solid #FFFFFF33;
+    border-top: 0;
+    border-radius: 0 0 4px 4px;
+    padding: 8px;
+    background: #00000033;
+    color: inherit;
+    font-family: inherit;
+    overflow: auto;
+    flex: 1 1 auto;
+}
+
+.markdownEditor.isPreviewing .markdownTextarea {
+    display: none;
+}
+
+.markdownEditor.isPreviewing .markdownPreview {
+    display: block;
+}

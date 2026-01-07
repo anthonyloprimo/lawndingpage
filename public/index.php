@@ -22,12 +22,16 @@ if (!isset($_COOKIE['site_version']) || $_COOKIE['site_version'] !== SITE_VERSIO
         'expires' => time() + 31536000,
         'path' => '/',
         'secure' => isset($_SERVER['HTTPS']),
-        'httponly' => false,
+        'httponly' => true,
         'samesite' => 'Lax'
     ]);
 }
 // Suppress error output in production responses.
 ini_set('display_errors', '0');
+
+// Content Security Policy for the public site.
+header("Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: https://www.google.com https://t0.gstatic.com https://t1.gstatic.com https://t2.gstatic.com https://t3.gstatic.com; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'");
+header('X-Frame-Options: DENY');
 
 // Resolve a data file path using bootstrap helpers when available.
 function lawnding_public_data_path($file) {
@@ -137,6 +141,7 @@ if (!empty($headerDataResolved['backgrounds']) && is_array($headerDataResolved['
         return $bg;
     }, $headerDataResolved['backgrounds']);
 }
+$headerDataJson = htmlspecialchars(json_encode($headerDataResolved, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT), ENT_QUOTES, 'UTF-8');
 
 // Load pane instances and module manifests for dynamic public rendering.
 function lawnding_load_panes(string $path): array {
@@ -216,37 +221,18 @@ $panes = lawnding_sort_panes(lawnding_load_panes($panesPath));
 ?> 
 
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-site-version="<?php echo htmlspecialchars(SITE_VERSION, ENT_QUOTES, 'UTF-8'); ?>">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-    <script>
-        (function () {
-            var serverVersion = "<?php echo htmlspecialchars(SITE_VERSION, ENT_QUOTES, 'UTF-8'); ?>";
-            var match = document.cookie.match(/(?:^|;)\s*site_version=([^;]*)/);
-            var cookieVersion = match ? decodeURIComponent(match[1]) : "";
-            var encodedVersion = encodeURIComponent(serverVersion);
-            if (cookieVersion === serverVersion) {
-                return;
-            }
-            if (window.location.search.indexOf("__v=" + encodedVersion) !== -1) {
-                document.cookie = "site_version=" + encodedVersion + "; path=/; SameSite=Lax";
-                return;
-            }
-            document.cookie = "site_version=" + encodedVersion + "; path=/; SameSite=Lax";
-            var sep = window.location.search ? "&" : "?";
-            var target = window.location.pathname + window.location.search + sep
-                + "__v=" + encodedVersion + "&__t=" + Date.now() + window.location.hash;
-            window.location.replace(target);
-        })();
-    </script>
+    <script src="<?php echo htmlspecialchars(lawnding_versioned_url(lawnding_asset_url('res/scr/site-version.js')), ENT_QUOTES, 'UTF-8'); ?>"></script>
     
     <link rel="icon" type="image/jpg" href="<?php echo htmlspecialchars(lawnding_asset_url('res/img/logo.jpg'), ENT_QUOTES, 'UTF-8'); ?>"/>
     <link rel="stylesheet" href="<?php echo htmlspecialchars(lawnding_versioned_url(lawnding_asset_url('res/style.css')), ENT_QUOTES, 'UTF-8'); ?>">
 
     <script src="<?php echo htmlspecialchars(lawnding_versioned_url(lawnding_asset_url('res/scr/jquery-3.7.1.min.js')), ENT_QUOTES, 'UTF-8'); ?>"></script>
 </head>
-<body>
+<body data-header-json="<?php echo $headerDataJson; ?>">
     <!-- No-JS fallback for browsers with JavaScript disabled. -->
     <div id="noJsWarning"><noscript>This site requires JavaScript to function properly. Please enable JavaScript in your browser.</noscript></div>
     <!-- Header with logo and title/subtitle. -->
@@ -305,10 +291,7 @@ $panes = lawnding_sort_panes(lawnding_load_panes($panesPath));
             LawndingPage <?php echo htmlspecialchars(SITE_VERSION, ENT_QUOTES, 'UTF-8'); ?>.  Background image by <span class="authorPlain"></span><a class="authorLink hidden" href="" rel="noopener" target="_blank"><span class="authorName"></span></a>.
         </div>
     </nav>
-    <script>
-        // Expose header data to JS for assets like the logo background.
-        window.headerData = <?php echo json_encode($headerDataResolved, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
-    </script>
+    <script src="<?php echo htmlspecialchars(lawnding_versioned_url(lawnding_asset_url('res/scr/public-data.js')), ENT_QUOTES, 'UTF-8'); ?>"></script>
     <script src="<?php echo htmlspecialchars(lawnding_versioned_url(lawnding_asset_url('res/scr/app.js')), ENT_QUOTES, 'UTF-8'); ?>"></script>
 </body>
 </html>

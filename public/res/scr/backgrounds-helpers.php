@@ -81,6 +81,18 @@ function backgrounds_require_edit_site(): array {
     ];
 }
 
+// Require a valid CSRF token for state-changing requests.
+function backgrounds_require_csrf(): void {
+    $sessionToken = $_SESSION['csrf_token'] ?? '';
+    $postedToken = $_POST['csrf_token'] ?? '';
+    if (!is_string($sessionToken) || $sessionToken === '' || !is_string($postedToken) || $postedToken === '') {
+        backgrounds_json_response(['error' => 'Forbidden'], 403);
+    }
+    if (!hash_equals($sessionToken, $postedToken)) {
+        backgrounds_json_response(['error' => 'Forbidden'], 403);
+    }
+}
+
 // Resolve paths used by the backgrounds endpoints.
 function backgrounds_paths(): array {
     $publicDir = function_exists('lawnding_config')

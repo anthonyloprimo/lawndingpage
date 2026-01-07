@@ -22,10 +22,14 @@ if (!isset($_COOKIE['site_version']) || $_COOKIE['site_version'] !== SITE_VERSIO
         'expires' => time() + 31536000,
         'path' => '/',
         'secure' => isset($_SERVER['HTTPS']),
-        'httponly' => false,
+        'httponly' => true,
         'samesite' => 'Lax'
     ]);
 }
+
+// Content Security Policy for the admin entrypoint + clickjacking protection.
+header("Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'");
+header('X-Frame-Options: DENY');
 
 // Normalize /admin to /admin/ for clean relative URL behavior.
 $requestPath = parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH);
@@ -47,7 +51,7 @@ $errorLogPath = $adminRoot . '/errors.txt';
 ini_set('log_errors', '1');
 ini_set('error_log', $errorLogPath);
 
-session_start(); // Initialize PHP session storage and load existing session data.
+lawnding_init_session(); // Initialize PHP session storage and load existing session data.
 
 // Users file location (stored outside public web root).
 $usersPath = function_exists('lawnding_config')
@@ -691,135 +695,16 @@ if ($authRecord && !$forcePasswordChange) {
 }
 ?>
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-site-version="<?php echo htmlspecialchars(SITE_VERSION, ENT_QUOTES, 'UTF-8'); ?>">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <title>Admin Panel</title>
-    <script>
-        (function () {
-            var serverVersion = "<?php echo htmlspecialchars(SITE_VERSION, ENT_QUOTES, 'UTF-8'); ?>";
-            var match = document.cookie.match(/(?:^|;)\s*site_version=([^;]*)/);
-            var cookieVersion = match ? decodeURIComponent(match[1]) : "";
-            var encodedVersion = encodeURIComponent(serverVersion);
-            if (cookieVersion === serverVersion) {
-                return;
-            }
-            if (window.location.search.indexOf("__v=" + encodedVersion) !== -1) {
-                document.cookie = "site_version=" + encodedVersion + "; path=/; SameSite=Lax";
-                return;
-            }
-            document.cookie = "site_version=" + encodedVersion + "; path=/; SameSite=Lax";
-            var sep = window.location.search ? "&" : "?";
-            var target = window.location.pathname + window.location.search + sep
-                + "__v=" + encodedVersion + "&__t=" + Date.now() + window.location.hash;
-            window.location.replace(target);
-        })();
-    </script>
     <?php $assetBase = function_exists('lawnding_config') ? rtrim(lawnding_config('base_url', ''), '/') : ''; ?>
+    <script src="<?php echo htmlspecialchars(lawnding_versioned_url($assetBase . '/res/scr/site-version.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
     <link rel="icon" type="image/jpg" href="<?php echo htmlspecialchars($assetBase); ?>/res/img/logo.jpg">
     <link rel="stylesheet" href="<?php echo htmlspecialchars(lawnding_versioned_url($assetBase . '/res/style.css'), ENT_QUOTES, 'UTF-8'); ?>">
-    <style>
-        body {
-            background: #111;
-        }
-
-        .loginWrap {
-            flex: 1 1 auto;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 2rem 1rem;
-        }
-
-        .loginPane {
-            width: min(520px, 92vw);
-            flex: none;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 0.75rem;
-        }
-
-        .loginPane .pane {
-            width: min(320px, 88vw);
-            flex: none;
-        }
-
-        .loginForm {
-            display: flex;
-            flex-direction: column;
-            gap: 0.5rem;
-            margin-top: 0.75rem;
-        }
-
-        .loginField {
-            display: flex;
-            flex-direction: column;
-            gap: 0.25rem;
-            font-size: 0.9rem;
-            color: #FFFFFFCC;
-        }
-
-        .loginInput {
-            border: 1px solid #FFFFFF55;
-            border-radius: 12px;
-            padding: 0.45rem 0.65rem;
-            background: #00000033;
-        }
-
-        .loginButton {
-            border: 1px solid #FFFFFF77;
-            border-radius: 999px;
-            padding: 0.5rem 0.9rem;
-            background: #00000055;
-            font-weight: 600;
-        }
-
-        .notice {
-            border: 1px solid #FFCC6677;
-            background: #33220066;
-            border-radius: 12px;
-            padding: 0.6rem 0.75rem;
-            font-size: 0.85rem;
-            line-height: 1.3;
-            width: min(520px, 92vw);
-            margin: 0 auto;
-        }
-
-        .message {
-            border-radius: 12px;
-            padding: 0.6rem 0.75rem;
-            font-size: 0.85rem;
-            line-height: 1.3;
-            margin-top: 0.75rem;
-        }
-
-        .message.error {
-            border: 1px solid #FF777777;
-            background: #33000066;
-        }
-
-        .message.success {
-            border: 1px solid #77FFAA77;
-            background: #00331A66;
-        }
-
-        .adminFooter {
-            text-align: center;
-            padding: 0.75rem 1rem 1rem;
-        }
-
-        .loginButton:hover {
-            background-color: #77777733;
-            border: 1px solid #FFFFFFBB;
-        }
-
-        .loginButton:active {
-            background-color: #00000055;
-            border: 1px solid #FFFFFF55;
-        }
-    </style>
+    <link rel="stylesheet" href="<?php echo htmlspecialchars(lawnding_versioned_url($assetBase . '/res/data/admin.css'), ENT_QUOTES, 'UTF-8'); ?>">
 </head>
 <body>
     <!-- Login / first-run / password reset screen. -->

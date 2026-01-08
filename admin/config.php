@@ -116,12 +116,16 @@ function lawnding_render_user_actions($username, $csrfToken, $permissionsDisable
 
     return ''
         . '<div class="usersActions">'
-        . '<button class="usersButton usersPermissionsButton" type="button"' . $permissionsAttr . '>Permissions</button>'
+        . '<button class="usersButton usersPermissionsButton iconButton" type="button" title="Permissions" aria-label="Permissions"' . $permissionsAttr . '>'
+        . '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3,5H9V11H3V5M5,7V9H7V7H5M11,7H21V9H11V7M11,15H21V17H11V15M5,20L1.5,16.5L2.91,15.09L5,17.17L9.59,12.59L11,14L5,20Z" /></svg>'
+        . '</button>'
         . '<form method="post" action="" class="usersResetForm" data-username="' . $usernameEsc . '">'
         . '<input type="hidden" name="action" value="reset_password">'
         . '<input type="hidden" name="csrf_token" value="' . $csrfEsc . '">'
         . '<input type="hidden" name="target_username" value="' . $usernameEsc . '">'
-        . '<button class="usersButton" type="submit"' . $resetAttr . '>Reset Password</button>'
+        . '<button class="usersButton usersResetButton iconButton" type="submit" title="Reset Password" aria-label="Reset Password"' . $resetAttr . '>'
+        . '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12.63,2C18.16,2 22.64,6.5 22.64,12C22.64,17.5 18.16,22 12.63,22C9.12,22 6.05,20.18 4.26,17.43L5.84,16.18C7.25,18.47 9.76,20 12.64,20A8,8 0 0,0 20.64,12A8,8 0 0,0 12.64,4C8.56,4 5.2,7.06 4.71,11H7.47L3.73,14.73L0,11H2.69C3.19,5.95 7.45,2 12.63,2M15.59,10.24C16.09,10.25 16.5,10.65 16.5,11.16V15.77C16.5,16.27 16.09,16.69 15.58,16.69H10.05C9.54,16.69 9.13,16.27 9.13,15.77V11.16C9.13,10.65 9.54,10.25 10.04,10.24V9.23C10.04,7.7 11.29,6.46 12.81,6.46C14.34,6.46 15.59,7.7 15.59,9.23V10.24M12.81,7.86C12.06,7.86 11.44,8.47 11.44,9.23V10.24H14.19V9.23C14.19,8.47 13.57,7.86 12.81,7.86Z" /></svg>'
+        . '</button>'
         . '</form>'
         . '<button class="usersButton usersDanger usersRemoveButton iconButton" type="button" aria-label="Remove user" title="Remove this user"' . $removeAttr . '>'
         . lawnding_icon_svg('delete')
@@ -432,7 +436,7 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
 <html lang="en" data-site-version="<?php echo htmlspecialchars(SITE_VERSION, ENT_QUOTES, 'UTF-8'); ?>">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
     <script src="<?php echo htmlspecialchars(lawnding_versioned_url($assetBase . '/res/scr/site-version.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
     
     <link rel="icon" type="image/jpg" href="<?php echo htmlspecialchars($assetBase); ?>/res/img/logo.jpg">
@@ -477,7 +481,7 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
             </div>
         <?php endif; ?>
         <?php if (($usersPermissionsFixResult ?? '') === 'ok'): ?>
-            <div class="adminNotice adminNotice--ok" data-persist="true">
+            <div class="adminNotice adminNotice--ok">
                 <span class="adminNoticeText">Updated `users.json` permissions to 0640.</span>
                 <button type="button" class="adminNoticeClose" aria-label="Dismiss notification">×</button>
             </div>
@@ -563,21 +567,26 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
                         ?>
                         <div class="linksConfigCard">
                             <div class="linksConfigRow">
-                                <label class="linksConfigField" title="The internal HTML ID of the link.  Make it unique."><span class="linksConfigLabelText">ID</span>
-                                    <input class="linksConfigInput" type="text" name="linkId[]" value="<?php echo htmlspecialchars($id); ?>" placeholder="Link ID" title="The internal HTML ID of the link.  Make it unique.">
+                                <label class="linksConfigField" title="The label that is displayed for each link.">
+                                    <span class="linksConfigLabelText">Name</span>
+                                    <input class="linksConfigInput" type="text" name="linkText[]" value="<?php echo htmlspecialchars($text); ?>" placeholder="Display text" title="The label that is displayed for each link.">
                                 </label>
-                                <label class="linksConfigField" title="The full URL (https: and all) to link to."><span class="linksConfigLabelText">URL</span>
-                                        <input class="linksConfigInput" type="text" name="linkUrl[]" value="<?php echo htmlspecialchars($href); ?>" placeholder="Link URL" title="The full URL (https: and all) to link to.">
-                                    </label>
+                                <div class="linksConfigField linksConfigIdField" title="The internal HTML ID of the link.  Make it unique.">
+                                    <span class="linksConfigLabelText">ID</span>
+                                    <span class="linksConfigIdValue" tabindex="0" aria-label="ID <?php echo htmlspecialchars($id); ?>">#<?php echo htmlspecialchars($id); ?></span>
+                                    <input class="linksConfigIdInput" type="hidden" name="linkId[]" value="<?php echo htmlspecialchars($id); ?>">
                                 </div>
-                                <div class="linksConfigRow">
-                                    <label class="linksConfigField" title="The label that is displayed for each link."><span class="linksConfigLabelText">Text</span>
-                                        <input class="linksConfigInput" type="text" name="linkText[]" value="<?php echo htmlspecialchars($text); ?>" placeholder="Display text" title="The label that is displayed for each link.">
-                                    </label>
-                                    <label class="linksConfigField" title="The text that appears when the user hovers over a link."><span class="linksConfigLabelText">Title</span>
-                                        <input class="linksConfigInput" type="text" name="linkTitle[]" value="<?php echo htmlspecialchars($title); ?>" placeholder="Title attribute" title="The text that appears when the user hovers over a link.">
-                                    </label>
-                                </div>
+                            </div>
+                            <div class="linksConfigRow">
+                                <label class="linksConfigField" title="The full URL (https: and all) to link to.">
+                                    <span class="linksConfigLabelText">URL</span>
+                                    <input class="linksConfigInput" type="text" name="linkUrl[]" value="<?php echo htmlspecialchars($href); ?>" placeholder="Link URL" title="The full URL (https: and all) to link to.">
+                                </label>
+                                <label class="linksConfigField" title="The text that appears when the user hovers over a link.">
+                                    <span class="linksConfigLabelText">Tooltip</span>
+                                    <input class="linksConfigInput" type="text" name="linkTitle[]" value="<?php echo htmlspecialchars($title); ?>" placeholder="Title attribute" title="The text that appears when the user hovers over a link.">
+                                </label>
+                            </div>
                             <div class="linksConfigRow linksConfigToggles">
                                 <label class="linksConfigCheckbox" title="If checked, the link takes up the full width of the links pane.  Otherwise, it'll take up half of the width.">
                                     <input type="checkbox" name="linkFullWidth[]" <?php echo $isFullWidth ? 'checked' : ''; ?> title="If checked, the link takes up the full width of the links pane.  Otherwise, it'll take up half of the width.">
@@ -709,8 +718,29 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
                     </div>
                 <?php endforeach; ?>
                 <div class="bgConfigActions">
-                    <input type="file" id="bgFileInput" accept="image/*" class="fileInputHidden">
-                    <button class="addBackground" type="button">Add background image</button>
+                    <div class="bgConfigOptions" aria-hidden="true">
+                        <div class="bgConfigOptionGroup">
+                            <select class="bgConfigOptionSelect" id="bgModeSelect" aria-label="Mode (Coming Soon)">
+                                <option value="random">Random</option>
+                                <option value="cycle">Cycle</option>
+                            </select>
+                        </div>
+                        <div class="bgConfigOptionGroup">
+                            <select class="bgConfigOptionSelect" id="bgFrequencySelect" aria-label="Frequency (Coming Soon)">
+                                <option value="reload">On Reload</option>
+                                <option value="slideshow">Slideshow</option>
+                            </select>
+                        </div>
+                        <div class="bgConfigOptionDuration">
+                            <input class="bgConfigOptionInput" type="text" inputmode="numeric" aria-label="Slideshow duration">
+                            <span class="bgConfigOptionUnit">s</span>
+                        </div>
+                        Coming Soon...
+                    </div>
+                    <div class="bgConfigActionsRight">
+                        <input type="file" id="bgFileInput" accept="image/*" class="fileInputHidden">
+                        <button class="addBackground" type="button">Add</button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -732,7 +762,8 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
     </div>
     <!-- Bottom navigation for pane switching. -->
     <nav>
-        <ul class="navBar glassConcave" id="navBar">
+        <div class="navBarWrap" id="navBarWrap">
+            <ul class="navBar glassConcave" id="navBar">
             <li><a class="navLink" href="#" data-pane="users" aria-label="Users" title="User Management"><?php echo lawnding_icon_svg('users'); ?></a></li>
             <li><a class="navLink" href="#" data-pane="bg" aria-label="Backgrounds" title="Edit Random Background Images"><?php echo lawnding_icon_svg('backgrounds'); ?></a></li>
             <li class="navSeparator" aria-hidden="true"></li>
@@ -764,7 +795,12 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
             <?php endif; ?>
             <li class="navSeparator" aria-hidden="true"></li>
             <li><a class="navLink" href="#" data-pane="changelog" aria-label="Changelog" title="Changelog"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><title>Changelog</title><path d="M13,9H18.5L13,3.5V9M6,2H14L20,8V20A2,2 0 0,1 18,22H6C4.89,22 4,21.1 4,20V4C4,2.89 4.89,2 6,2M6.12,15.5L9.86,19.24L11.28,17.83L8.95,15.5L11.28,13.17L9.86,11.76L6.12,15.5M17.28,15.5L13.54,11.76L12.12,13.17L14.45,15.5L12.12,17.83L13.54,19.24L17.28,15.5Z" /></svg></a></li>
-        </ul>
+            </ul>
+            <div class="navBarFadeLayer" aria-hidden="true">
+                <div class="navBarFade navBarFadeLeft"></div>
+                <div class="navBarFade navBarFadeRight"></div>
+            </div>
+        </div>
         <div class="footer">
             LawndingPage <?php echo htmlspecialchars(SITE_VERSION, ENT_QUOTES, 'UTF-8'); ?>.
         </div>
@@ -783,10 +819,10 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
             <?php if (!empty($resetLogoutAfterReset)): ?>
                 <form method="post" action="">
                     <input type="hidden" name="action" value="logout">
-                    <button class="usersButton" type="submit">OK</button>
+                    <button class="usersButton" type="submit" data-modal-confirm="true">OK</button>
                 </form>
             <?php else: ?>
-                <button class="usersButton userModalClose" type="button">OK</button>
+                <button class="usersButton userModalClose" type="button" data-modal-confirm="true">OK</button>
             <?php endif; ?>
         </div>
     <?php lawnding_modal_close(); ?>
@@ -795,7 +831,7 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
         <p class="usersHint">This will remove the image from the list and delete the file from disk.</p>
         <div class="userModalActions">
             <button class="usersButton userModalClose" type="button">Cancel</button>
-            <button class="usersButton usersDanger iconButton" id="bgDeleteConfirm" type="button" aria-label="Delete background" title="Remove this background">
+            <button class="usersButton usersDanger iconButton" id="bgDeleteConfirm" type="button" aria-label="Delete background" title="Remove this background" data-modal-confirm="true">
                 <?php echo lawnding_icon_svg('delete'); ?>
             </button>
         </div>
@@ -825,7 +861,7 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
                 <?php endforeach; ?>
             </div>
             <div class="userModalActions">
-                <button class="usersButton" type="submit">Save</button>
+                <button class="usersButton" type="submit" data-modal-confirm="true">Save</button>
                 <button class="usersButton userModalClose" type="button">Cancel</button>
             </div>
         </form>
@@ -838,7 +874,7 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token'] ?? ''); ?>">
             <input type="hidden" name="target_username" id="removeUsername" value="">
             <div class="userModalActions">
-                <button class="usersButton usersDanger iconButton" type="submit" aria-label="Delete user" title="Remove this user">
+                <button class="usersButton usersDanger iconButton" type="submit" aria-label="Delete user" title="Remove this user" data-modal-confirm="true">
                     <?php echo lawnding_icon_svg('delete'); ?>
                 </button>
                 <button class="usersButton userModalClose" type="button">Cancel</button>
@@ -849,7 +885,7 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
     <?php lawnding_modal_open('permissionsSelfConfirmModal', 'Remove Your Permissions'); ?>
         <p class="usersHint">You are removing your own permissions. Another admin will need to re-enable them. Continue?</p>
         <div class="userModalActions">
-            <button class="usersButton" type="button" id="permissionsSelfConfirmYes">Yes</button>
+            <button class="usersButton" type="button" id="permissionsSelfConfirmYes" data-modal-confirm="true">Yes</button>
             <button class="usersButton userModalClose" type="button">Cancel</button>
         </div>
     <?php lawnding_modal_close(); ?>
@@ -857,7 +893,7 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
     <?php lawnding_modal_open('resetConfirmModal', 'Reset Password'); ?>
         <p class="usersHint" id="resetConfirmMessage">Are you sure you want to reset this password?</p>
         <div class="userModalActions">
-            <button class="usersButton" type="button" id="resetConfirmYes">Yes</button>
+            <button class="usersButton" type="button" id="resetConfirmYes" data-modal-confirm="true">Yes</button>
             <button class="usersButton userModalClose" type="button">No</button>
         </div>
     <?php lawnding_modal_close(); ?>
@@ -869,7 +905,7 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
         <div class="paneManageList" id="paneManageList"></div>
         <div class="paneManageActions">
             <button class="usersButton" type="button" id="paneAddButton">Add Pane</button>
-            <button class="usersButton" type="button" id="paneManageSave">Save</button>
+            <button class="usersButton" type="button" id="paneManageSave" data-modal-confirm="true">Save</button>
             <button class="usersButton userModalClose" type="button">Cancel</button>
         </div>
     <?php lawnding_modal_close(); ?>
@@ -920,7 +956,7 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
         </div>
         <div class="paneManageActions">
             <button class="usersButton usersDanger" type="button" id="paneIconRemove">Remove Icon</button>
-            <button class="usersButton" type="button" id="paneIconSave">Save</button>
+            <button class="usersButton" type="button" id="paneIconSave" data-modal-confirm="true">Save</button>
             <button class="usersButton userModalClose" type="button">Cancel</button>
         </div>
     <?php lawnding_modal_close(); ?>
@@ -929,7 +965,16 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
     <?php lawnding_modal_open('paneDeleteConfirmModal', 'Remove Pane'); ?>
         <p class="usersHint" id="paneDeleteConfirmMessage">Are you sure you want to remove this pane? This will delete its data files.</p>
         <div class="userModalActions">
-            <button class="usersButton usersDanger" type="button" id="paneDeleteConfirmYes">Delete</button>
+            <button class="usersButton usersDanger" type="button" id="paneDeleteConfirmYes" data-modal-confirm="true">Delete</button>
+            <button class="usersButton userModalClose" type="button">Cancel</button>
+        </div>
+    <?php lawnding_modal_close(); ?>
+
+    <?php // Event delete confirmation modal. ?>
+    <?php lawnding_modal_open('eventDeleteConfirmModal', 'Remove Event'); ?>
+        <p class="usersHint">Are you sure you want to remove this event?</p>
+        <div class="userModalActions">
+            <button class="usersButton usersDanger" type="button" id="eventDeleteConfirmYes" data-modal-confirm="true" autofocus>Remove</button>
             <button class="usersButton userModalClose" type="button">Cancel</button>
         </div>
     <?php lawnding_modal_close(); ?>
@@ -943,7 +988,7 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
             <pre class="migrationPre" id="migrationPanesPreview"></pre>
         </div>
         <div class="paneManageActions">
-            <button class="usersButton" type="button" id="migrationApply">Apply Migration</button>
+            <button class="usersButton" type="button" id="migrationApply" data-modal-confirm="true">Apply Migration</button>
             <button class="usersButton userModalClose" type="button">Cancel</button>
         </div>
     <?php lawnding_modal_close(); ?>

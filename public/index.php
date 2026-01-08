@@ -224,15 +224,24 @@ $panes = lawnding_sort_panes(lawnding_load_panes($panesPath));
 <html lang="en" data-site-version="<?php echo htmlspecialchars(SITE_VERSION, ENT_QUOTES, 'UTF-8'); ?>">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
     <script src="<?php echo htmlspecialchars(lawnding_versioned_url(lawnding_asset_url('res/scr/site-version.js')), ENT_QUOTES, 'UTF-8'); ?>"></script>
+    <script src="<?php echo htmlspecialchars(lawnding_versioned_url(lawnding_asset_url('res/scr/no-zoom.js')), ENT_QUOTES, 'UTF-8'); ?>"></script>
     
     <link rel="icon" type="image/jpg" href="<?php echo htmlspecialchars(lawnding_asset_url('res/img/logo.jpg'), ENT_QUOTES, 'UTF-8'); ?>"/>
     <link rel="stylesheet" href="<?php echo htmlspecialchars(lawnding_versioned_url(lawnding_asset_url('res/style.css')), ENT_QUOTES, 'UTF-8'); ?>">
 
     <script src="<?php echo htmlspecialchars(lawnding_versioned_url(lawnding_asset_url('res/scr/jquery-3.7.1.min.js')), ENT_QUOTES, 'UTF-8'); ?>"></script>
+    <noscript>
+        <style>
+            body.is-loading #header,
+            body.is-loading #container,
+            body.is-loading nav { opacity: 1; pointer-events: auto; }
+            body::before { opacity: 1; }
+        </style>
+    </noscript>
 </head>
-<body data-header-json="<?php echo $headerDataJson; ?>">
+<body class="is-loading" data-header-json="<?php echo $headerDataJson; ?>">
     <!-- No-JS fallback for browsers with JavaScript disabled. -->
     <div id="noJsWarning"><noscript>This site requires JavaScript to function properly. Please enable JavaScript in your browser.</noscript></div>
     <!-- Header with logo and title/subtitle. -->
@@ -268,7 +277,8 @@ $panes = lawnding_sort_panes(lawnding_load_panes($panesPath));
     </div>
     <!-- Bottom navigation for pane switching and footer credits. -->
     <nav>
-        <ul class="navBar glassConcave" id="navBar">
+        <div class="navBarWrap" id="navBarWrap">
+            <ul class="navBar glassConcave" id="navBar">
             <li><a class="navLink" href="#" data-pane="links" aria-label="Links" title="Links"><?php echo lawnding_icon_svg('links'); ?></a></li>
             <?php // Render dynamic pane nav items from panes.json. ?>
             <?php foreach ($panes as $pane): ?>
@@ -286,7 +296,12 @@ $panes = lawnding_sort_panes(lawnding_load_panes($panesPath));
                     </a>
                 </li>
             <?php endforeach; ?>
-        </ul>
+            </ul>
+            <div class="navBarFadeLayer" aria-hidden="true">
+                <div class="navBarFade navBarFadeLeft"></div>
+                <div class="navBarFade navBarFadeRight"></div>
+            </div>
+        </div>
         <div class="footer">
             LawndingPage <?php echo htmlspecialchars(SITE_VERSION, ENT_QUOTES, 'UTF-8'); ?>.  Background image by <span class="authorPlain"></span><a class="authorLink hidden" href="" rel="noopener" target="_blank"><span class="authorName"></span></a>.
         </div>

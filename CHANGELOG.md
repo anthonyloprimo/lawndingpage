@@ -1,5 +1,24 @@
 ### Changelog
 
+#### v1.6.0
+**Changes:**
+- UI: Tweaked the display of the title and subtitle fields in the admin panel on mobile devices.
+- UI: Tweaked the display of the existing users list and adjusted the button display for better readability on mobile and desktop devices.
+- UI: Tweaked the display and behavior of the background image pane for better readability and usability on mobile.
+- UI: Tweaked the display and behavior of the links list for better readability and usability on mobile.  Simplified some of the fields.
+- UI: Tweaked the display and behavior of the eventList module for better readability and usability on mobile.
+- UI: Tweaked the display and layout of the Pane Management modal for better readability and usability on mobile.
+- Fixed a bug where it was possible to create events that ended before their start date/times.
+- Fixed a bug where re-ordering links would make them jump around in a strange order.
+- Front-end has a quick fade-in once the content is loading, so we don't see abrasive popping in of content before it's ready.
+- Added visual fade indicator when the navbar can be scrolled.
+- General usability tweaks on desktop mode
+
+**Known Issues:**
+- Added the initial options to change background display mode, but it does not yet function.
+
+-----
+
 #### v1.5.0
 **Changes:**
 - Security fix: Session & Cookie hardening

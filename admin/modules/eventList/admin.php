@@ -112,26 +112,34 @@ $dataHint = $dataFiles ? 'saves to ' . implode(', ', $dataFiles) : '';
                             </button>
                         </div>
                     </div>
+                    <div class="eventSectionDivider" aria-hidden="true"></div>
                     <div class="eventTimeRow">
-                        <div class="eventFieldTitle">Start</div>
-                        <div class="eventTimeGroup">
-                            <input type="date" class="eventStartDateInput" value="<?php echo htmlspecialchars($startDate); ?>" aria-label="Start date">
-                            <input type="time" class="eventStartTimeInput" value="<?php echo htmlspecialchars($startTime); ?>" aria-label="Start time">
+                        <div class="eventFieldTitle eventFieldTitleRow">When</div>
+                        <div class="eventTimeFields">
+                            <div class="eventTimeGroup">
+                                <span class="eventTimeLabel">From</span>
+                                <input type="date" class="eventStartDateInput" value="<?php echo htmlspecialchars($startDate); ?>" aria-label="Start date">
+                                <input type="time" class="eventStartTimeInput" value="<?php echo htmlspecialchars($startTime); ?>" aria-label="Start time">
+                            </div>
+                            <div class="eventTimeDash">-</div>
+                            <div class="eventTimeGroup">
+                                <span class="eventTimeLabel">To</span>
+                                <input type="date" class="eventEndDateInput" value="<?php echo htmlspecialchars($endDate); ?>" aria-label="End date">
+                                <input type="time" class="eventEndTimeInput" value="<?php echo htmlspecialchars($endTime); ?>" aria-label="End time">
+                            </div>
                         </div>
-                        <div class="eventFieldTitle">End</div>
-                        <div class="eventTimeGroup">
-                            <input type="date" class="eventEndDateInput" value="<?php echo htmlspecialchars($endDate); ?>" aria-label="End date">
-                            <input type="time" class="eventEndTimeInput" value="<?php echo htmlspecialchars($endTime); ?>" aria-label="End time">
-                        </div>
-                        <div class="eventTimeZone">
-                            <span class="eventFieldTitle">Time Zone</span>
-                            <input type="text" class="eventTimezoneInput" value="<?php echo htmlspecialchars($timeZone); ?>" placeholder="America/New_York" aria-label="Time zone">
-                        </div>
+                    </div>
+                    <div class="eventSectionDivider" aria-hidden="true"></div>
+                    <div class="eventTimeZoneRow">
+                        <span class="eventFieldTitle">Time Zone</span>
+                        <input type="text" class="eventTimezoneInput" value="<?php echo htmlspecialchars($timeZone); ?>" placeholder="America/New_York" aria-label="Time zone">
                     </div>
                     <div class="eventAddressRow">
                         <div class="eventFieldTitle">Address</div>
                         <input type="text" class="eventAddressInput" value="<?php echo htmlspecialchars($address); ?>" placeholder="123 Main St, City, State" aria-label="Address">
                     </div>
+                    <div class="eventSectionDivider" aria-hidden="true"></div>
+                    <div class="eventSectionDivider" aria-hidden="true"></div>
                     <div class="eventDescriptionLabel">
                         <span class="eventFieldTitle">Description</span>
                         <div class="markdownEditor">

@@ -1,0 +1,38 @@
+{
+    "showPast": true,
+    "events": [
+        {
+            "id": "2026-awards-ceremony-2026-01-15-19-00",
+            "name": "2026 Awards Ceremony",
+            "startDate": "2026-01-15",
+            "startTime": "19:00",
+            "endDate": "2026-01-15",
+            "endTime": "22:00",
+            "timeZone": "America/New_York",
+            "address": "123 Lawn Ding Page Road, Anytown, USA 12345",
+            "description": "Join us for an amazing night of food, drinks, and laughs as we announce the winners of the 2026 sales contest!"
+        },
+        {
+            "id": "awards-ceremony-dress-rehearsal-2026-01-07-19-00",
+            "name": "Awards Ceremony Dress Rehearsal",
+            "startDate": "2026-01-07",
+            "startTime": "19:00",
+            "endDate": "2026-01-07",
+            "endTime": "22:00",
+            "timeZone": "America/New_York",
+            "address": "123 Lawn Ding Page Road, Anytown, USA 12345",
+            "description": "Dress rehearsal for the 2026 sales contest!  Join us for snacks and a pleasant dinner while we go over the event details with you!"
+        },
+        {
+            "id": "2025-awards-ceremony-2025-01-05-19-00",
+            "name": "2025 Awards Ceremony",
+            "startDate": "2025-01-05",
+            "startTime": "19:00",
+            "endDate": "2025-01-05",
+            "endTime": "23:30",
+            "timeZone": "America/New_York",
+            "address": "123 Lawn Ding Page Road, Anytown, USA 12345",
+            "description": "Join us for an amazing night of food, drinks, and laughs as we announce the winners of the 2025 sales contest!"
+        }
+    ]
+}

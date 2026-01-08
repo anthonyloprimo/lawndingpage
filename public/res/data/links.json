@@ -1,7 +1,7 @@
 [
     {
         "type": "link",
-        "id": "linkMain",
+        "id": "linkWildcardCreations",
         "href": "https://www.wildcardcreations.net",
         "text": "Wildcard Creations",
         "title": "The creator of LawndingPage.",
@@ -10,7 +10,7 @@
     },
     {
         "type": "link",
-        "id": "linkSecondary",
+        "id": "linkGoogle",
         "href": "https://www.google.com/",
         "text": "Google",
         "title": "The google.com homepage.",
@@ -19,7 +19,7 @@
     },
     {
         "type": "link",
-        "id": "linkRoll",
+        "id": "linkNeverGonnaGiveYouUp",
         "href": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
         "text": "Never Gonna Give You Up",
         "title": "This is literally a rickroll.",
@@ -31,7 +31,7 @@
     },
     {
         "type": "link",
-        "id": "linkFour",
+        "id": "linkExamplePage",
         "href": "https://www.example.com",
         "text": "Example Page",
         "title": "Another link",

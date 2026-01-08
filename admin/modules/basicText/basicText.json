@@ -3,6 +3,7 @@
   "name": "Basic Text Pane",
   "version": "1.0.0",
   "description": "Markdown-backed text pane.",
+  "preview": "basicText.png",
   "data_files": [
     { "type": "md", "pattern": "{paneId}.md" }
   ],

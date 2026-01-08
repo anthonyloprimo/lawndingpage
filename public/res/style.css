@@ -18,9 +18,37 @@ body {
     height: var(--app-height, 100dvh);
     overflow: hidden;
     overscroll-behavior: none;
-    background: linear-gradient(#00000055);
+    background: #111;
+    position: relative;
+}
+body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    background-image: var(--bg-image, linear-gradient(#00000055));
     background-size: cover;
     background-position: center;
+    opacity: 0;
+    transition: opacity 900ms ease;
+    z-index: 0;
+}
+body.bg-ready::before {
+    opacity: 1;
+}
+body > * {
+    position: relative;
+    z-index: 1;
+}
+body.is-loading #header,
+body.is-loading #container,
+body.is-loading nav {
+    opacity: 0;
+    pointer-events: none;
+}
+#header,
+#container,
+nav {
+    transition: opacity 600ms ease;
 }
 
 /* Header */
@@ -247,6 +275,13 @@ nav {
     width: 100%;
     padding-bottom: env(safe-area-inset-bottom);
 }
+    .navBarWrap {
+        position: relative;
+        display: inline-flex;
+        justify-content: center;
+        max-width: 100%;
+        isolation: isolate;
+    }
     .navBar {
         display: inline-flex;
         align-items: center;
@@ -258,6 +293,39 @@ nav {
         padding: 0.75rem 1.25rem;
         border-radius: 128px;
         overflow-x: visible;
+    }
+    .navBarFadeLayer {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        border-radius: 128px;
+        z-index: 3;
+        contain: paint;
+        transform: translateZ(0);
+    }
+    .navBarFade {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        width: 48px;
+        opacity: 0;
+        transition: opacity 150ms ease;
+        pointer-events: none;
+        border-radius: 128px;
+    }
+    .navBarFadeLeft {
+        left: 0;
+        background: linear-gradient(to right, #111111, rgba(17, 17, 17, 0));
+    }
+    .navBarFadeRight {
+        right: 0;
+        background: linear-gradient(to left, #111111, rgba(17, 17, 17, 0));
+    }
+    .navBarWrap.navFadeLeft .navBarFadeLeft {
+        opacity: 1;
+    }
+    .navBarWrap.navFadeRight .navBarFadeRight {
+        opacity: 1;
     }
     .navBar.navBarFull {
         width: 100%;

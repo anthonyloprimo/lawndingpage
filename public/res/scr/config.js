@@ -8,10 +8,168 @@ $(document).ready(function() {
     let initialSnapshot = null;
     let pendingBgDelete = null;
     const csrfToken = window.appConfig && window.appConfig.csrfToken ? window.appConfig.csrfToken : '';
+    let activeModal = null;
+    let lastFocusedElement = null;
+    const modalStack = [];
+    const modalBackgroundSelectors = ['#header', '#container', 'nav', '.adminNotices'];
 
     function appendCsrf(formData) {
         if (csrfToken) {
             formData.append('csrf_token', csrfToken);
+        }
+    }
+
+    function setModalBackgroundState(isOpen) {
+        modalBackgroundSelectors.forEach((selector) => {
+            document.querySelectorAll(selector).forEach((node) => {
+                if (isOpen) {
+                    node.setAttribute('inert', '');
+                    node.setAttribute('aria-hidden', 'true');
+                } else {
+                    node.removeAttribute('inert');
+                    node.removeAttribute('aria-hidden');
+                }
+            });
+        });
+    }
+
+    function getFocusableElements($modal) {
+        return $modal
+            .find('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')
+            .filter(':visible')
+            .filter(function() {
+                return !this.disabled;
+            });
+    }
+
+    function focusModal($modal) {
+        const $focusable = getFocusableElements($modal);
+        const $autoFocus = $modal.find('[autofocus]').filter(':visible').first();
+        const $dialog = $modal.find('.userModal').first();
+        if ($autoFocus.length) {
+            $autoFocus.focus();
+            return;
+        }
+        if ($focusable.length) {
+            $focusable.first().focus();
+            return;
+        }
+        if ($dialog.length) {
+            $dialog.attr('tabindex', '-1').focus();
+        }
+    }
+
+    function findModalConfirm($modal) {
+        const selectors = [
+            '[data-modal-confirm]',
+            'button[type="submit"]',
+            'button:not(.userModalClose)'
+        ];
+        for (let i = 0; i < selectors.length; i += 1) {
+            const $candidate = $modal.find(selectors[i]).filter(':visible').filter(function() {
+                return !this.disabled;
+            });
+            if ($candidate.length) {
+                return $candidate.first();
+            }
+        }
+        return $();
+    }
+
+    function handleModalKeydown(event) {
+        if (!activeModal) {
+            return;
+        }
+
+        const $modal = activeModal;
+        if (event.key === 'Escape') {
+            event.preventDefault();
+            const $cancel = $modal.find('.userModalClose, [data-modal-cancel]').filter(':visible').first();
+            if ($cancel.length) {
+                $cancel.trigger('click');
+            } else {
+                closeAdminModal($modal);
+            }
+            return;
+        }
+
+        if (event.key === 'Enter' && !event.isComposing) {
+            const target = event.target;
+            if (target && (target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+                return;
+            }
+            if (target && target.closest && target.closest('button, a[href], input[type="submit"], input[type="button"]')) {
+                return;
+            }
+            const $confirm = findModalConfirm($modal);
+            if ($confirm.length) {
+                event.preventDefault();
+                $confirm.trigger('click');
+            }
+            return;
+        }
+
+        if (event.key === 'Tab') {
+            const $focusable = getFocusableElements($modal);
+            if (!$focusable.length) {
+                event.preventDefault();
+                return;
+            }
+            const first = $focusable.first().get(0);
+            const last = $focusable.last().get(0);
+            if (event.shiftKey && document.activeElement === first) {
+                event.preventDefault();
+                last.focus();
+            } else if (!event.shiftKey && document.activeElement === last) {
+                event.preventDefault();
+                first.focus();
+            }
+        }
+    }
+
+    function openAdminModal($modal) {
+        if (!$modal || !$modal.length) {
+            return;
+        }
+        const modalEl = $modal.get(0);
+        if (modalStack.length === 0) {
+            lastFocusedElement = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+        }
+        if (!modalStack.includes(modalEl)) {
+            modalStack.push(modalEl);
+        }
+        activeModal = $modal;
+        $modal.addClass('isOpen').attr('aria-hidden', 'false');
+        if (modalStack.length === 1) {
+            setModalBackgroundState(true);
+        }
+        focusModal($modal);
+        $(document).off('keydown.adminModal').on('keydown.adminModal', handleModalKeydown);
+    }
+
+    function closeAdminModal($modal) {
+        const $target = $modal && $modal.length ? $modal : activeModal;
+        if (!$target || !$target.length) {
+            return;
+        }
+        const targetEl = $target.get(0);
+        $target.removeClass('isOpen').attr('aria-hidden', 'true');
+        const index = modalStack.indexOf(targetEl);
+        if (index !== -1) {
+            modalStack.splice(index, 1);
+        }
+        if (modalStack.length === 0) {
+            activeModal = null;
+            setModalBackgroundState(false);
+            $(document).off('keydown.adminModal');
+            if (lastFocusedElement && typeof lastFocusedElement.focus === 'function') {
+                lastFocusedElement.focus();
+            }
+            lastFocusedElement = null;
+        } else {
+            const nextModalEl = modalStack[modalStack.length - 1];
+            activeModal = $(nextModalEl);
+            focusModal(activeModal);
         }
     }
 
@@ -28,8 +186,13 @@ $(document).ready(function() {
     bindMigrationFlow();
     bindEventListEditors();
     bindMarkdownToolbars();
+    bindHeadlineEditingMode();
+    bindBackgroundEditingMode();
     applySiteEditPermissions();
     bindAdminNotices();
+    $('.userModalOverlay.isOpen').each(function() {
+        openAdminModal($(this));
+    });
 
     // Bind tutorial controls
     $('.tutorialNext').on('click', function() {
@@ -199,6 +362,7 @@ $(document).ready(function() {
         $('.addLink').on('click', function() {
             const $newCard = $(createLinkCard());
             $list.append($newCard);
+            updateLinkIdForCard($newCard);
             refreshLinkControls();
             scrollListToBottom($list);
         });
@@ -214,13 +378,15 @@ $(document).ready(function() {
         // Initial state
         refreshLinkControls();
 
-        $list.on('blur', 'input[name="linkId[]"]', function() {
-            updateReservedIdState($(this));
+        $list.on('input', 'input[name="linkText[]"]', function() {
+            updateLinkIdForCard($(this).closest('.linksConfigCard'));
         });
 
-        $list.find('input[name="linkId[]"]').each(function() {
-            updateReservedIdState($(this));
+        $list.find('.linksConfigCard').not('.linksConfigSeparator').each(function() {
+            updateLinkIdForCard($(this));
         });
+
+        bindLinksEditingMode();
     }
 
     function refreshLinkControls() {
@@ -236,24 +402,75 @@ $(document).ready(function() {
         }
     }
 
+    function buildLinkIdFromText(text) {
+        const words = (text || '').match(/[a-z0-9]+/gi) || [];
+        if (!words.length) {
+            return '';
+        }
+        const pascal = words
+            .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+            .join('');
+        return `link${pascal}`;
+    }
+
+    function updateLinkIdForCard($card) {
+        if (!$card.length || $card.hasClass('linksConfigSeparator')) {
+            return;
+        }
+        const $textInput = $card.find('input[name="linkText[]"]');
+        const $idInput = $card.find('input[name="linkId[]"]');
+        const $idValue = $card.find('.linksConfigIdValue');
+        const textValue = $textInput.val() || '';
+        const generated = buildLinkIdFromText(textValue);
+        const nextId = generated || ($idInput.val() || '');
+        $idInput.val(nextId);
+        $idValue.text(`#${nextId}`);
+        $idValue.attr('aria-label', `ID ${nextId}`);
+        updateReservedIdState($idInput);
+    }
+
+    function bindLinksEditingMode() {
+        const selector = '.linksConfigInput[name="linkText[]"], .linksConfigInput[name="linkUrl[]"], .linksConfigInput[name="linkTitle[]"], .linksConfigIdValue';
+        $(document).on('focus', selector, function() {
+            const $input = $(this);
+            const $row = $input.closest('.linksConfigRow');
+            const $field = $input.closest('.linksConfigField');
+            $row.addClass('isEditing');
+            $row.find('.linksConfigField').removeClass('isEditing');
+            $field.addClass('isEditing');
+        });
+        $(document).on('blur', selector, function() {
+            const $input = $(this);
+            const $row = $input.closest('.linksConfigRow');
+            setTimeout(function() {
+                if (!$row.find(selector).is(':focus')) {
+                    $row.removeClass('isEditing');
+                    $row.find('.linksConfigField').removeClass('isEditing');
+                }
+            }, 0);
+        });
+    }
+
     function createLinkCard() {
         linkCounter += 1;
-        const uniqueId = `link_${linkCounter}`;
+        const uniqueId = `link${linkCounter}`;
         return `
             <div class="linksConfigCard">
                 <div class="linksConfigRow">
-                    <label class="linksConfigField" title="The internal HTML ID of the link.  Make it unique."><span class="linksConfigLabelText">ID</span>
-                        <input class="linksConfigInput" type="text" name="linkId[]" value="${uniqueId}" placeholder="Link ID" title="The internal HTML ID of the link.  Make it unique.">
+                    <label class="linksConfigField" title="The label that is displayed for each link."><span class="linksConfigLabelText">Name</span>
+                        <input class="linksConfigInput" type="text" name="linkText[]" value="" placeholder="Display text" title="The label that is displayed for each link.">
                     </label>
+                    <div class="linksConfigField linksConfigIdField" title="The internal HTML ID of the link.  Make it unique.">
+                        <span class="linksConfigLabelText">ID</span>
+                        <span class="linksConfigIdValue" tabindex="0" aria-label="ID ${uniqueId}">#${uniqueId}</span>
+                        <input class="linksConfigIdInput" type="hidden" name="linkId[]" value="${uniqueId}">
+                    </div>
+                </div>
+                <div class="linksConfigRow">
                     <label class="linksConfigField" title="The full URL (https: and all) to link to."><span class="linksConfigLabelText">URL</span>
                         <input class="linksConfigInput" type="text" name="linkUrl[]" value="" placeholder="Link URL" title="The full URL (https: and all) to link to.">
                     </label>
-                </div>
-                <div class="linksConfigRow">
-                    <label class="linksConfigField" title="The label that is displayed for each link."><span class="linksConfigLabelText">Text</span>
-                        <input class="linksConfigInput" type="text" name="linkText[]" value="" placeholder="Display text" title="The label that is displayed for each link.">
-                    </label>
-                    <label class="linksConfigField" title="The text that appears when the user hovers over a link."><span class="linksConfigLabelText">Title</span>
+                    <label class="linksConfigField" title="The text that appears when the user hovers over a link."><span class="linksConfigLabelText">Tooltip</span>
                         <input class="linksConfigInput" type="text" name="linkTitle[]" value="" placeholder="Title attribute" title="The text that appears when the user hovers over a link.">
                     </label>
                 </div>
@@ -694,6 +911,15 @@ $(document).ready(function() {
         };
     }
 
+    function isEndBeforeStart(startDate, startTime, endDate, endTime) {
+        if (!startDate || !startTime || !endDate || !endTime) {
+            return false;
+        }
+        const startKey = `${startDate} ${startTime}`;
+        const endKey = `${endDate} ${endTime}`;
+        return endKey < startKey;
+    }
+
     // Validate all event list panes and show inline errors.
     function validateEventLists() {
         let isValid = true;
@@ -737,6 +963,9 @@ $(document).ready(function() {
                 }
                 if ((event.endDate && !event.endTime) || (!event.endDate && event.endTime)) {
                     errors.push('End date and time must both be set or both be blank.');
+                }
+                if (event.endDate && event.endTime && isEndBeforeStart(event.startDate, event.startTime, event.endDate, event.endTime)) {
+                    errors.push('End date/time cannot be earlier than start date/time.');
                 }
                 if (!event.address) {
                     errors.push('Address is required.');
@@ -790,16 +1019,21 @@ $(document).ready(function() {
 
     function updateReservedIdState($input) {
         const value = ($input.val() || '').trim().toLowerCase();
+        const $card = $input.closest('.linksConfigCard');
+        const $display = $card.find('.linksConfigIdValue');
         if (!value) {
             $input.removeClass('isReserved');
+            $display.removeClass('isReserved');
             return;
         }
         const reservedIds = getReservedIdSet();
         if (reservedIds.has(value)) {
             $input.addClass('isReserved');
+            $display.addClass('isReserved');
             return;
         }
         $input.removeClass('isReserved');
+        $display.removeClass('isReserved');
     }
 
     function getReservedIdSet() {
@@ -965,24 +1199,16 @@ $(document).ready(function() {
     }
 
     function openBgDeleteModal() {
-        $('#bgDeleteModal').addClass('isOpen').attr('aria-hidden', 'false');
+        openAdminModal($('#bgDeleteModal'));
     }
 
     function closeBgDeleteModal() {
-        $('#bgDeleteModal').removeClass('isOpen').attr('aria-hidden', 'true');
+        closeAdminModal($('#bgDeleteModal'));
     }
 
     function bindUserActions() {
         let pendingResetForm = null;
         let pendingPermissionsForm = null;
-
-        function openModal($modal) {
-            $modal.addClass('isOpen').attr('aria-hidden', 'false');
-        }
-
-        function closeModal($modal) {
-            $modal.removeClass('isOpen').attr('aria-hidden', 'true');
-        }
 
         $(document).on('click', '.usersPermissionsButton', function() {
             const $row = $(this).closest('.usersRow');
@@ -999,7 +1225,7 @@ $(document).ready(function() {
             });
             applyFullAdminState($permissionsModal);
 
-            openModal($permissionsModal);
+            openAdminModal($permissionsModal);
         });
 
         $(document).on('click', '.usersRemoveButton', function() {
@@ -1013,11 +1239,11 @@ $(document).ready(function() {
                 ? ' You will be logged out.'
                 : '';
             $('#removeUserWarning').text(warningBase + warningSuffix);
-            openModal($removeModal);
+            openAdminModal($removeModal);
         });
 
         $(document).on('click', '.userModalClose', function() {
-            closeModal($(this).closest('.userModalOverlay'));
+            closeAdminModal($(this).closest('.userModalOverlay'));
         });
 
         $(document).on('change', '#permissionsModal input[type="checkbox"][value="full_admin"]', function() {
@@ -1048,7 +1274,7 @@ $(document).ready(function() {
                     if (removed.length > 0) {
                         event.preventDefault();
                         pendingPermissionsForm = this;
-                        openModal($('#permissionsSelfConfirmModal'));
+                        openAdminModal($('#permissionsSelfConfirmModal'));
                         return;
                     }
                 }
@@ -1070,7 +1296,7 @@ $(document).ready(function() {
                 ? ' This will log you out.'
                 : '';
             $('#resetConfirmMessage').text(baseMessage + logoutMessage);
-            openModal($('#resetConfirmModal'));
+            openAdminModal($('#resetConfirmModal'));
         });
 
         $(document).on('click', '#resetConfirmYes', function() {
@@ -1078,12 +1304,12 @@ $(document).ready(function() {
                 submitUsersForm(pendingResetForm);
                 pendingResetForm = null;
             }
-            closeModal($('#resetConfirmModal'));
+            closeAdminModal($('#resetConfirmModal'));
         });
 
         $(document).on('click', '#resetConfirmModal .userModalClose', function() {
             pendingResetForm = null;
-            closeModal($('#resetConfirmModal'));
+            closeAdminModal($('#resetConfirmModal'));
         });
 
         $(document).on('click', '#permissionsSelfConfirmYes', function() {
@@ -1091,12 +1317,12 @@ $(document).ready(function() {
                 submitUsersForm(pendingPermissionsForm);
                 pendingPermissionsForm = null;
             }
-            closeModal($('#permissionsSelfConfirmModal'));
+            closeAdminModal($('#permissionsSelfConfirmModal'));
         });
 
         $(document).on('click', '#permissionsSelfConfirmModal .userModalClose', function() {
             pendingPermissionsForm = null;
-            closeModal($('#permissionsSelfConfirmModal'));
+            closeAdminModal($('#permissionsSelfConfirmModal'));
         });
     }
 
@@ -1169,6 +1395,8 @@ $(document).ready(function() {
                     $('#permissionsSelfConfirmModal').replaceWith(permissionsSelfConfirmModal);
                 }
 
+                bindAdminNotices();
+
                 const $newPermissionsModal = $('#permissionsModal');
                 applyFullAdminState($newPermissionsModal);
                 updateEditSitePermissionFromUsers();
@@ -1222,14 +1450,6 @@ $(document).ready(function() {
         const $paneTypeModal = $('#paneTypeModal');
         const $paneIconModal = $('#paneIconModal');
         const $paneDeleteModal = $('#paneDeleteConfirmModal');
-
-        function openModal($modal) {
-            $modal.addClass('isOpen').attr('aria-hidden', 'false');
-        }
-
-        function closeModal($modal) {
-            $modal.removeClass('isOpen').attr('aria-hidden', 'true');
-        }
 
         // Normalize pane names into camelCase ids (alphanumeric only).
         function normalizePaneId(value) {
@@ -1295,22 +1515,24 @@ $(document).ready(function() {
             panesState.forEach((pane, index) => {
                 const $row = $(`
                     <div class="paneManageRow" data-pane-index="${index}">
-                        <button class="paneManageIconButton paneIconButton" type="button" aria-label="Edit pane icon"></button>
-                        <div class="paneManageMain">
+                        <div class="paneManageTop">
+                            <button class="paneManageIconButton paneIconButton" type="button" aria-label="Edit pane icon"></button>
                             <input class="paneManageName" type="text" value="">
-                            <div class="paneManageMeta">Type: <span class="paneManageType"></span></div>
                         </div>
-                        <div class="paneManageRowActions">
-                            <button class="paneManageTypeButton usersButton" type="button">Change Pane Type</button>
-                            <button class="moveUpLink iconButton" type="button" title="Move up" aria-label="Move up">${moveUpIcon}</button>
-                            <button class="moveDownLink iconButton" type="button" title="Move down" aria-label="Move down">${moveDownIcon}</button>
-                            <button class="deleteLink paneManageDelete iconButton" type="button" title="Remove pane" aria-label="Remove pane">${deleteIcon}</button>
+                        <div class="paneManageBottom">
+                            <button class="paneManageTypeButton usersButton" type="button"></button>
+                            <div class="paneManageRowActions">
+                                <button class="moveUpLink iconButton" type="button" title="Move up" aria-label="Move up">${moveUpIcon}</button>
+                                <button class="moveDownLink iconButton" type="button" title="Move down" aria-label="Move down">${moveDownIcon}</button>
+                                <button class="deleteLink paneManageDelete iconButton" type="button" title="Remove pane" aria-label="Remove pane">${deleteIcon}</button>
+                            </div>
                         </div>
                     </div>
                 `);
                 $row.find('.paneManageIconButton').html(`<span class="paneIconPreview">${renderIconPreview(pane.icon)}</span>`);
                 $row.find('.paneManageName').val(pane.name || '');
-                $row.find('.paneManageType').text(getModuleName(pane.module));
+                const moduleName = getModuleName(pane.module) || 'Pane Type';
+                $row.find('.paneManageTypeButton').text(`${moduleName} (Change)`);
                 $paneList.append($row);
             });
             validatePaneList();
@@ -1358,7 +1580,7 @@ $(document).ready(function() {
         function openPaneTypeModal(index, isAdd) {
             pendingTypeIndex = index;
             pendingAddPane = isAdd;
-            openModal($paneTypeModal);
+            openAdminModal($paneTypeModal);
         }
 
         // Open the icon editor modal for a specific pane id.
@@ -1373,7 +1595,7 @@ $(document).ready(function() {
             $('#paneIconFileInput').val('');
             activeIconMode = icon.type === 'file' ? 'file' : 'svg';
             setIconMode(activeIconMode);
-            openModal($paneIconModal);
+            openAdminModal($paneIconModal);
         }
 
         // Toggle between SVG and file upload tabs in the icon editor.
@@ -1466,10 +1688,10 @@ $(document).ready(function() {
                 contentType: false,
                 success: function() {
                     hideSavingOverlay();
-                    closeModal($manageModal);
-                    closeModal($paneIconModal);
-                    closeModal($paneTypeModal);
-                    closeModal($paneDeleteModal);
+                    closeAdminModal($manageModal);
+                    closeAdminModal($paneIconModal);
+                    closeAdminModal($paneTypeModal);
+                    closeAdminModal($paneDeleteModal);
                     if (shouldReload) {
                         window.location.reload();
                         return;
@@ -1502,7 +1724,7 @@ $(document).ready(function() {
         // Open pane management modal from the navbar button.
         $(document).on('click', '.paneManageButton', function() {
             renderPaneList();
-            openModal($manageModal);
+            openAdminModal($manageModal);
         });
 
         // Icon button inside the management list.
@@ -1564,7 +1786,7 @@ $(document).ready(function() {
                 if (pane.module !== moduleId) {
                     const confirmed = window.confirm('Changing the pane type will delete existing pane data when saved. Continue?');
                     if (!confirmed) {
-                        closeModal($paneTypeModal);
+                        closeAdminModal($paneTypeModal);
                         pendingTypeIndex = null;
                         pendingAddPane = false;
                         return;
@@ -1575,7 +1797,7 @@ $(document).ready(function() {
             }
             pendingTypeIndex = null;
             pendingAddPane = false;
-            closeModal($paneTypeModal);
+            closeAdminModal($paneTypeModal);
         });
 
         // Update pane name and ID as the user types.
@@ -1621,7 +1843,7 @@ $(document).ready(function() {
             }
             pendingDeletePaneId = panesState[index].id;
             $('#paneDeleteConfirmMessage').text(`Are you sure you want to remove ${panesState[index].name}? This will delete its data files.`);
-            openModal($paneDeleteModal);
+            openAdminModal($paneDeleteModal);
         });
 
         // Prompt for pane deletion from the navbar overlay button.
@@ -1634,7 +1856,7 @@ $(document).ready(function() {
             }
             pendingDeletePaneId = paneId;
             $('#paneDeleteConfirmMessage').text(`Are you sure you want to remove ${pane.name}? This will delete its data files.`);
-            openModal($paneDeleteModal);
+            openAdminModal($paneDeleteModal);
         });
 
         // Confirm deletion and immediately persist the change.
@@ -1644,7 +1866,7 @@ $(document).ready(function() {
             }
             panesState = panesState.filter((pane) => pane.id !== pendingDeletePaneId);
             pendingDeletePaneId = null;
-            closeModal($paneDeleteModal);
+            closeAdminModal($paneDeleteModal);
             renderPaneList();
             savePaneManagementChanges();
         });
@@ -1687,7 +1909,7 @@ $(document).ready(function() {
                 }
             }
             updatePaneIconPreview(activeIconPaneId);
-            closeModal($paneIconModal);
+            closeAdminModal($paneIconModal);
             savePaneManagementChanges({ force: true, reload: false });
         });
 
@@ -1703,7 +1925,7 @@ $(document).ready(function() {
             pane.icon = { type: 'none', value: '' };
             pane.iconFile = null;
             updatePaneIconPreview(activeIconPaneId);
-            closeModal($paneIconModal);
+            closeAdminModal($paneIconModal);
             savePaneManagementChanges({ force: true, reload: false });
         });
 
@@ -1720,11 +1942,11 @@ $(document).ready(function() {
         let migrationToken = '';
 
         function openModal() {
-            $modal.addClass('isOpen').attr('aria-hidden', 'false');
+            openAdminModal($modal);
         }
 
         function closeModal() {
-            $modal.removeClass('isOpen').attr('aria-hidden', 'true');
+            closeAdminModal($modal);
         }
 
         // Render human-readable file actions (create/update/backup/delete).
@@ -1855,6 +2077,50 @@ $(document).ready(function() {
 
         $(document).on('click', '#migrationModal .userModalClose', function() {
             closeModal();
+        });
+    }
+
+    function bindHeadlineEditingMode() {
+        const $inputs = $('.headlineInput');
+        if (!$inputs.length) {
+            return;
+        }
+        $inputs.on('focus', function() {
+            $('body').addClass('isHeadlineEditing');
+            $inputs.removeClass('isEditing');
+            $(this).addClass('isEditing');
+        });
+        $inputs.on('blur', function() {
+            const $body = $('body');
+            $(this).removeClass('isEditing');
+            setTimeout(function() {
+                if (!$inputs.is(':focus')) {
+                    $body.removeClass('isHeadlineEditing');
+                    $inputs.removeClass('isEditing');
+                }
+            }, 0);
+        });
+    }
+
+    function bindBackgroundEditingMode() {
+        const selector = '.bgAuthorInput, .bgAuthorUrlInput';
+        $(document).on('focus', selector, function() {
+            const $input = $(this);
+            const $row = $input.closest('.bgConfigRow');
+            $row.addClass('isEditing');
+            $row.find(selector).removeClass('isEditing');
+            $input.addClass('isEditing');
+        });
+        $(document).on('blur', selector, function() {
+            const $input = $(this);
+            const $row = $input.closest('.bgConfigRow');
+            $input.removeClass('isEditing');
+            setTimeout(function() {
+                if (!$row.find(selector).is(':focus')) {
+                    $row.removeClass('isEditing');
+                    $row.find(selector).removeClass('isEditing');
+                }
+            }, 0);
         });
     }
 
@@ -2139,6 +2405,25 @@ $(document).ready(function() {
         }
 
         const paneApis = [];
+        let pendingEventDelete = null;
+
+        function openEventDeleteModal(action) {
+            pendingEventDelete = action;
+            openAdminModal($('#eventDeleteConfirmModal'));
+        }
+
+        $(document).on('click', '#eventDeleteConfirmYes', function() {
+            if (typeof pendingEventDelete === 'function') {
+                pendingEventDelete();
+            }
+            pendingEventDelete = null;
+            closeAdminModal($('#eventDeleteConfirmModal'));
+        });
+
+        $(document).on('click', '#eventDeleteConfirmModal .userModalClose', function() {
+            pendingEventDelete = null;
+            closeAdminModal($('#eventDeleteConfirmModal'));
+        });
 
         $eventPanes.each(function() {
             const $pane = $(this);
@@ -2219,6 +2504,9 @@ $(document).ready(function() {
                     if ((event.endDate && !event.endTime) || (!event.endDate && event.endTime)) {
                         errors.push('End date and time must both be set or both be blank.');
                     }
+                    if (event.endDate && event.endTime && isEndBeforeStart(event.startDate, event.startTime, event.endDate, event.endTime)) {
+                        errors.push('End date/time cannot be earlier than start date/time.');
+                    }
                     if (!event.address) {
                         errors.push('Address is required.');
                     }
@@ -2280,26 +2568,34 @@ $(document).ready(function() {
                                 <button class=\"deleteLink iconButton\" type=\"button\" title=\"Remove event\" aria-label=\"Remove event\">${$('.linksConfig .deleteLink').first().html() || ''}</button>
                             </div>
                         </div>
+                        <div class=\"eventSectionDivider\" aria-hidden=\"true\"></div>
                         <div class=\"eventTimeRow\">
-                            <div class=\"eventFieldTitle\">Start</div>
-                            <div class=\"eventTimeGroup\">
-                                <input type=\"date\" class=\"eventStartDateInput\" aria-label=\"Start date\">
-                                <input type=\"time\" class=\"eventStartTimeInput\" aria-label=\"Start time\">
-                            </div>
-                            <div class=\"eventFieldTitle\">End</div>
-                            <div class=\"eventTimeGroup\">
-                                <input type=\"date\" class=\"eventEndDateInput\" aria-label=\"End date\">
-                                <input type=\"time\" class=\"eventEndTimeInput\" aria-label=\"End time\">
-                            </div>
-                            <div class=\"eventTimeZone\">
-                                <span class=\"eventFieldTitle\">Time Zone</span>
-                                <input type=\"text\" class=\"eventTimezoneInput\" placeholder=\"America/New_York\" aria-label=\"Time zone\">
+                            <div class=\"eventFieldTitle eventFieldTitleRow\">When</div>
+                            <div class=\"eventTimeFields\">
+                                <div class=\"eventTimeGroup\">
+                                    <span class=\"eventTimeLabel\">From</span>
+                                    <input type=\"date\" class=\"eventStartDateInput\" aria-label=\"Start date\">
+                                    <input type=\"time\" class=\"eventStartTimeInput\" aria-label=\"Start time\">
+                                </div>
+                                <div class=\"eventTimeDash\">-</div>
+                                <div class=\"eventTimeGroup\">
+                                    <span class=\"eventTimeLabel\">To</span>
+                                    <input type=\"date\" class=\"eventEndDateInput\" aria-label=\"End date\">
+                                    <input type=\"time\" class=\"eventEndTimeInput\" aria-label=\"End time\">
+                                </div>
                             </div>
                         </div>
+                        <div class=\"eventSectionDivider\" aria-hidden=\"true\"></div>
+                        <div class=\"eventTimeZoneRow\">
+                            <span class=\"eventFieldTitle\">Time Zone</span>
+                            <input type=\"text\" class=\"eventTimezoneInput\" placeholder=\"America/New_York\" aria-label=\"Time zone\">
+                        </div>
+                        <div class=\"eventSectionDivider\" aria-hidden=\"true\"></div>
                         <div class=\"eventAddressRow\">
                             <div class=\"eventFieldTitle\">Address</div>
                             <input type=\"text\" class=\"eventAddressInput\" placeholder=\"123 Main St, City, State\" aria-label=\"Address\">
                         </div>
+                        <div class=\"eventSectionDivider\" aria-hidden=\"true\"></div>
                         <div class=\"eventDescriptionLabel\">
                             <span class=\"eventFieldTitle\">Description</span>
                             <div class=\"markdownEditor\">
@@ -2360,9 +2656,12 @@ $(document).ready(function() {
             });
 
             $pane.on('click', '.eventCard .deleteLink', function() {
-                $(this).closest('.eventCard').remove();
-                ensureEmptyState();
-                refreshValidation();
+                const $card = $(this).closest('.eventCard');
+                openEventDeleteModal(function() {
+                    $card.remove();
+                    ensureEmptyState();
+                    refreshValidation();
+                });
             });
 
             $pane.on('input change', '.eventCard input, .eventCard textarea, .eventShowPast', function() {
@@ -2451,8 +2750,17 @@ $(document).ready(function() {
         $('#savingOverlay').removeClass('isActive').attr('aria-hidden', 'true');
     }
 
+    function noticeHasAction($notice) {
+        if (!$notice || !$notice.length) {
+            return false;
+        }
+        return $notice.find('form, button:not(.adminNoticeClose), input[type="submit"], input[type="button"]').length > 0;
+    }
+
     function bindAdminNotices() {
-        $(document).on('click', '.adminNoticeClose', function() {
+        $(document)
+            .off('click.adminNoticeClose')
+            .on('click.adminNoticeClose', '.adminNoticeClose', function() {
             const $notice = $(this).closest('.adminNotice');
             clearNoticeTimer($notice);
             $notice.remove();
@@ -2463,6 +2771,9 @@ $(document).ready(function() {
                 return;
             }
             if ($notice.hasClass('adminNotice--danger')) {
+                return;
+            }
+            if (noticeHasAction($notice)) {
                 return;
             }
             const timeoutMs = $notice.hasClass('adminNotice--warning') ? 15000 : 5000;

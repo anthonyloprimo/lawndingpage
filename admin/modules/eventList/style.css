@@ -48,39 +48,99 @@
 }
 .eventNameRow,
 .eventTimeRow,
+.eventTimeZoneRow,
 .eventAddressRow {
     display: grid;
-    gap: 10px;
+    gap: 6px;
     align-items: center;
 }
 .eventNameRow {
     grid-template-columns: 1fr auto;
 }
 .eventTimeRow {
-    grid-template-columns: 60px minmax(0, 1fr) 50px minmax(0, 1fr) minmax(160px, 1fr);
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+}
+
+.eventFieldTitleRow {
+    margin-bottom: 2px;
+}
+
+.eventTimeFields {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 16px minmax(0, 1fr);
+    gap: 6px;
+    align-items: center;
+}
+
+.eventTimeDash {
+    text-align: center;
+    font-weight: 600;
+    opacity: 0.8;
 }
 .eventTimeGroup {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    gap: 8px;
+    grid-template-columns: auto minmax(0, .5fr) minmax(0, .5fr);
+    gap: 6px;
     align-items: center;
+}
+
+.eventTimeLabel {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    opacity: 0.6;
 }
 .eventFieldTitle {
     font-size: 12px;
     text-transform: uppercase;
     letter-spacing: 0.04em;
     opacity: 0.8;
+    margin-bottom: 2px;
 }
 .eventNameLabel,
 .eventDescriptionLabel {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 4px;
 }
-.eventTimeZone {
-    display: flex;
-    align-items: center;
-    gap: 8px;
+.eventTimeZoneRow {
+    grid-template-columns: 80px minmax(0, 1fr);
+}
+
+.eventSectionDivider {
+    height: 1px;
+    background: #FFFFFF22;
+    border-radius: 1px;
+}
+
+@media (max-width: 860px) {
+    .eventTimeFields {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .eventTimeDash {
+        display: none;
+    }
+
+    .eventTimeGroup {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .eventTimeLabel {
+        width: 44px;
+        flex: 0 0 44px;
+        text-align: right;
+    }
+
+    .eventTimeGroup input {
+        flex: 1 1 0;
+        min-width: 0;
+        max-width: 100%;
+        width: 100%;
+    }
 }
 .eventCard input,
 .eventCard textarea {
@@ -90,6 +150,10 @@
     background: #00000033;
     color: inherit;
     font-family: inherit;
+}
+
+.eventTimeGroup input {
+    height: 32px;
 }
 
 .eventCard input[type="date"]::-webkit-calendar-picker-indicator,

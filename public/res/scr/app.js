@@ -107,6 +107,9 @@ function init() {
         updateNavActiveState();
     });
 
+    $('#navBar').on('scroll', updateNavBarFades);
+    window.addEventListener('resize', updateNavBarFades);
+
     // Any time the window is resized, check to see if we're still in the same mode or not.
     $(window).on('resize', function() {
         // Check the mode we're in.
@@ -172,6 +175,8 @@ function setLogoBackground() {
 // Pick a random body background image from headerData.backgrounds while keeping other background properties intact.
 function setRandomBackground() {
     if (!window.headerData) {
+        document.body.style.setProperty('--bg-image', 'linear-gradient(#00000055)');
+        document.body.classList.add('bg-ready');
         return;
     }
 
@@ -198,11 +203,14 @@ function setRandomBackground() {
 
     const chosen = backgrounds.length > 0 ? backgrounds[Math.floor(Math.random() * backgrounds.length)] : null;
     if (!chosen) {
+        document.body.style.setProperty('--bg-image', 'linear-gradient(#00000055)');
+        document.body.classList.add('bg-ready');
         return;
     }
 
     // Preserve existing gradient by setting the layered background-image only.
-    $('body').css('background-image', `linear-gradient(#00000055), url('${chosen.url}')`);
+    document.body.style.setProperty('--bg-image', `linear-gradient(#00000055), url('${chosen.url}')`);
+    document.body.classList.add('bg-ready');
 
     // Update the footer with the background author (fallback to 'anonymous' if missing).
     const author = chosen.author && chosen.author.trim().length > 0 ? chosen.author.trim() : 'anonymous';
@@ -642,6 +650,35 @@ function updateNavBarLayout() {
     if (barEl.scrollWidth >= viewWidth) {
         navBar.addClass('navBarFull');
     }
+
+    updateNavBarFades();
+}
+
+// Toggle nav fade indicators for scrollable navbars.
+function updateNavBarFades() {
+    const navBar = document.getElementById('navBar');
+    const navBarWrap = document.getElementById('navBarWrap');
+    if (!navBar || !navBarWrap) {
+        return;
+    }
+
+    navBarWrap.classList.remove('navFadeLeft', 'navFadeRight');
+
+    if (!navBar.classList.contains('navBarFull')) {
+        return;
+    }
+
+    const maxScroll = navBar.scrollWidth - navBar.clientWidth;
+    if (maxScroll <= 1) {
+        return;
+    }
+
+    if (navBar.scrollLeft > 0) {
+        navBarWrap.classList.add('navFadeLeft');
+    }
+    if (navBar.scrollLeft < maxScroll - 1) {
+        navBarWrap.classList.add('navFadeRight');
+    }
 }
 
 // Helper: default pane for mobile (first nav entry).
@@ -778,4 +815,9 @@ function applyFaviconsToLinks(links, iconMap) {
 // Ensure we update the layout as soon as the page loads.
 $(document).ready(function() {
     init();
+});
+
+// Fade in content after all assets have loaded.
+$(window).on('load', function() {
+    document.body.classList.remove('is-loading');
 });

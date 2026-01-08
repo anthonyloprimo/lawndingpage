@@ -83,28 +83,27 @@ header.header {
 }
 
 @media (max-width: 979px) {
-    .headline {
-        position: relative;
-    }
-
     .headlineInput {
-        transition: transform 0.18s ease, box-shadow 0.18s ease;
+        font-size: 16px;
     }
 
-    .headlineInput:focus {
-        position: relative;
-        z-index: 5;
-        width: 100vw;
-        margin-left: calc(50% - 50vw);
-        margin-right: calc(50% - 50vw);
-        width: 90vw;
-        background: #00000066;
-        transform: scale(1.05);
-        box-shadow: 0 10px 24px #00000088, 0 0 0 1px #FFFFFF66;
+    body.isHeadlineEditing .logo,
+    body.isHeadlineEditing .headerActionStack {
+        display: none;
     }
 
-    .headlineInput[name="siteSubtitle"]:focus {
-        transform: scale(1.03);
+    body.isHeadlineEditing .headline {
+        margin-right: 0;
+    }
+
+    body.isHeadlineEditing .headlineInput {
+        display: none;
+    }
+
+    body.isHeadlineEditing .headlineInput.isEditing {
+        display: block;
+        width: 100%;
+        margin: 6px 0;
     }
 }
 
@@ -151,6 +150,53 @@ header.header {
     color: #FFFFFFBB;
     margin: 0 0 10px;
     text-align: center;
+}
+
+/* Admin nav scroll fade overlays */
+#navBarWrap {
+    position: relative;
+    display: inline-flex;
+    justify-content: center;
+    max-width: 100%;
+    margin-bottom: 8px;
+    isolation: isolate;
+}
+#navBar {
+    margin-bottom: 0;
+}
+.navBarFadeLayer {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    border-radius: 128px;
+    z-index: 3;
+    contain: paint;
+    transform: translateZ(0);
+}
+.navBarFade {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 48px;
+    opacity: 0;
+    transition: opacity 150ms ease;
+    pointer-events: none;
+    border-radius: 128px;
+    z-index: 1;
+}
+.navBarFadeLeft {
+    left: 0;
+    background: linear-gradient(to right, #111111, rgba(17, 17, 17, 0));
+}
+.navBarFadeRight {
+    right: 0;
+    background: linear-gradient(to left, #111111, rgba(17, 17, 17, 0));
+}
+#navBarWrap.navFadeLeft .navBarFadeLeft {
+    opacity: 1;
+}
+#navBarWrap.navFadeRight .navBarFadeRight {
+    opacity: 1;
 }
 
 /* Top notices and saving overlay */
@@ -461,11 +507,47 @@ button:disabled {
     border-color: #FF6A6A;
 }
 
+.usersPermissionsButton {
+    border-color: #8FC0FF99;
+    background: #4A8BE055;
+}
+
+.usersPermissionsButton:hover {
+    background-color: #5AA0F055;
+    border-color: #A8D2FFBB;
+}
+
+.usersPermissionsButton:active {
+    background-color: #3970BE66;
+    border-color: #6EA7F5AA;
+}
+
+.usersResetButton {
+    border-color: #FFD977AA;
+    background: #4A3B1488;
+}
+
+.usersResetButton:hover {
+    background-color: #5A471ACC;
+    border-color: #FFE4A3BB;
+}
+
+.usersResetButton:active {
+    background-color: #3D2F0FA3;
+    border-color: #F4C95E99;
+}
+
 .usersRow {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 8px;
+}
+
+.usersRow > span {
+    flex: 1 1 auto;
+    min-width: 0;
+    word-break: break-word;
 }
 
 .usersHeader {
@@ -475,11 +557,20 @@ button:disabled {
 .usersActions {
     display: flex;
     gap: 6px;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
+    align-items: center;
+    flex: 0 0 auto;
+    white-space: nowrap;
 }
 
 .usersActions form {
     margin: 0;
+}
+
+.usersActions .usersButton.iconButton {
+    width: 32px;
+    height: 32px;
+    padding: 0;
 }
 
 .usersHint {
@@ -579,6 +670,13 @@ button:disabled {
     font-weight: 600;
     font-size: 0.9rem;
     flex: 1 1 0;
+    max-width: 50%;
+    min-width: 0;
+}
+
+.linksConfigIdField {
+    flex: 0 0 auto;
+    justify-content: flex-end;
 }
 
 .linksConfigLabelText {
@@ -587,6 +685,28 @@ button:disabled {
     font-size: 0.75rem;
     text-align: right;
 }
+
+.linksConfigIdValue {
+    position: relative;
+    flex: 1 1 auto;
+    min-width: 0;
+    padding: 6px 8px;
+    border-radius: 4px;
+    border: 1px dashed #FFFFFF44;
+    font-family: monospace;
+    font-size: 0.8rem;
+    color: #FFFFFFBB;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.linksConfigIdValue.isReserved {
+    border-color: #FFD977AA;
+    background: #4A3B1488;
+    color: #FFF3C2;
+}
+
 
 .linksConfigInput {
     width: 100%;
@@ -597,6 +717,7 @@ button:disabled {
     background: #00000055;
     color: inherit;
     font-weight: 500;
+    flex: 1 1 auto;
 }
 
 .linksConfigInput.isReserved {
@@ -634,6 +755,23 @@ button:disabled {
     margin-top: 12px;
     justify-content: flex-end;
     padding-top: 4px;
+}
+
+@media (max-width: 979px) {
+    .linksConfigRow.isEditing .linksConfigField {
+        display: none;
+    }
+
+    .linksConfigRow.isEditing .linksConfigField.isEditing {
+        display: flex;
+        width: 100%;
+        max-width: 100%;
+        flex-basis: 100%;
+    }
+
+    .linksConfigRow.isEditing .linksConfigField.isEditing .linksConfigInput {
+        flex: 1 1 auto;
+    }
 }
 
 .bgConfig {
@@ -717,6 +855,23 @@ button:disabled {
     color: inherit;
 }
 
+@media (max-width: 979px) {
+    .bgConfigRow.isEditing {
+        min-height: 72px;
+    }
+
+    .bgConfigRow.isEditing > * {
+        display: none;
+    }
+
+    .bgConfigRow.isEditing .bgAuthorInput.isEditing,
+    .bgConfigRow.isEditing .bgAuthorUrlInput.isEditing {
+        display: block;
+        grid-column: 1 / -1;
+        z-index: 1;
+    }
+}
+
 .deleteBackground,
 .addBackground {
     padding: 6px 8px;
@@ -727,9 +882,62 @@ button:disabled {
 }
 
 .bgConfigActions {
-    display: flex;
-    justify-content: flex-end;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    gap: 12px;
     margin-top: auto;
+}
+.bgConfigOptions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+.bgConfigOptionGroup {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.bgConfigOptionLabel {
+    font-size: 0.8rem;
+    color: #FFFFFFBB;
+}
+.bgConfigOptionSelect {
+    width: 64px;
+    padding: 6px 8px;
+    border-radius: 4px;
+    border: 1px solid #FFFFFF33;
+    background: #00000033;
+    color: inherit;
+}
+.bgConfigOptionDuration {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.bgConfigOptionInput {
+    width: 32px;
+    padding: 6px 8px;
+    border-radius: 4px;
+    border: 1px solid #FFFFFF33;
+    background: #00000033;
+    color: inherit;
+}
+.bgConfigOptionUnit {
+    font-size: 0.85rem;
+    color: #FFFFFFBB;
+}
+.bgConfigActionsRight {
+    display: flex;
+    align-items: center;
+    justify-self: end;
+}
+
+@media (max-width: 979px) {
+    .bgConfigOptions {
+        width: 100%;
+    }
 }
 
 .paneEditor {
@@ -869,23 +1077,35 @@ button:disabled {
 }
 
 .paneManageRow {
-    display: grid;
-    grid-template-columns: auto 1fr auto;
-    gap: 10px;
-    align-items: center;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
     padding: 10px;
     border-radius: 8px;
     border: 1px solid #FFFFFF22;
     background: #00000033;
+    width: 100%;
+    min-width: 0;
 }
 
-.paneManageMain {
+.paneManageTop {
     display: flex;
-    flex-direction: column;
-    gap: 6px;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+}
+
+.paneManageBottom {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    min-width: 0;
 }
 
 .paneManageName {
+    flex: 1 1 auto;
+    min-width: 0;
     padding: 6px 8px;
     border-radius: 4px;
     border: 1px solid #FFFFFF33;
@@ -895,11 +1115,6 @@ button:disabled {
 
 .paneManageName.isInvalid {
     border-color: #ff6b6b;
-}
-
-.paneManageMeta {
-    font-size: 12px;
-    opacity: 0.85;
 }
 
 .paneManageActions {
@@ -938,6 +1153,7 @@ button:disabled {
     display: flex;
     align-items: center;
     gap: 6px;
+    flex: 0 0 auto;
 }
 
 .paneManageRowActions .iconButton {
@@ -946,6 +1162,14 @@ button:disabled {
 
 .paneManageTypeButton {
     font-size: 8pt;
+    text-align: left;
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: 100%;
+    display: inline-flex;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .paneTypeList {

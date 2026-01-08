@@ -698,10 +698,11 @@ if ($authRecord && !$forcePasswordChange) {
 <html lang="en" data-site-version="<?php echo htmlspecialchars(SITE_VERSION, ENT_QUOTES, 'UTF-8'); ?>">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
     <title>Admin Panel</title>
     <?php $assetBase = function_exists('lawnding_config') ? rtrim(lawnding_config('base_url', ''), '/') : ''; ?>
     <script src="<?php echo htmlspecialchars(lawnding_versioned_url($assetBase . '/res/scr/site-version.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
+    <script src="<?php echo htmlspecialchars(lawnding_versioned_url($assetBase . '/res/scr/no-zoom.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
     <link rel="icon" type="image/jpg" href="<?php echo htmlspecialchars($assetBase); ?>/res/img/logo.jpg">
     <link rel="stylesheet" href="<?php echo htmlspecialchars(lawnding_versioned_url($assetBase . '/res/style.css'), ENT_QUOTES, 'UTF-8'); ?>">
     <link rel="stylesheet" href="<?php echo htmlspecialchars(lawnding_versioned_url($assetBase . '/res/admin.css'), ENT_QUOTES, 'UTF-8'); ?>">

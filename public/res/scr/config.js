@@ -12,6 +12,7 @@ $(document).ready(function() {
     let lastFocusedElement = null;
     const modalStack = [];
     const modalBackgroundSelectors = ['#header', '#container', 'nav', '.adminNotices'];
+    const defaultBackgroundSettings = { mode: 'random_load', duration: 5 };
 
     function appendCsrf(formData) {
         if (csrfToken) {
@@ -180,6 +181,7 @@ $(document).ready(function() {
 
     bindLinksControls();
     bindBackgroundControls();
+    initBackgroundSettings();
     bindSaveHandler();
     bindUserActions();
     bindPaneManagement();
@@ -635,6 +637,28 @@ $(document).ready(function() {
             openBgDeleteModal();
         });
 
+        // Move up
+        $bgList.on('click', '.moveUpLink', function() {
+            const $row = $(this).closest('.bgConfigRow');
+            const $prev = $row.prevAll('.bgConfigRow').not('.bgConfigHeader').first();
+            if ($prev.length) {
+                $row.insertBefore($prev);
+                updateBackgroundRowIndexes();
+                refreshBackgroundControls();
+            }
+        });
+
+        // Move down
+        $bgList.on('click', '.moveDownLink', function() {
+            const $row = $(this).closest('.bgConfigRow');
+            const $next = $row.nextAll('.bgConfigRow').not('.bgConfigHeader').first();
+            if ($next.length) {
+                $row.insertAfter($next);
+                updateBackgroundRowIndexes();
+                refreshBackgroundControls();
+            }
+        });
+
         // Add new background
         $('.addBackground').on('click', function() {
             $bgFileInput.trigger('click');
@@ -652,6 +676,49 @@ $(document).ready(function() {
             pendingBgDelete = null;
             closeBgDeleteModal();
         });
+    }
+
+    function updateBackgroundRowIndexes() {
+        $('#bgConfig')
+            .find('.bgConfigRow')
+            .not('.bgConfigHeader')
+            .each(function(index) {
+                $(this).attr('data-index', index);
+            });
+    }
+
+    function refreshBackgroundControls() {
+        const $rows = $('#bgConfig').find('.bgConfigRow').not('.bgConfigHeader');
+        $rows.find('.moveUpLink, .moveDownLink').prop('disabled', false);
+        if ($rows.length === 0) {
+            return;
+        }
+        $rows.first().find('.moveUpLink').prop('disabled', true);
+        $rows.last().find('.moveDownLink').prop('disabled', true);
+        if ($rows.length === 1) {
+            $rows.first().find('.moveDownLink').prop('disabled', true);
+        }
+    }
+
+    function initBackgroundSettings() {
+        const $mode = $('#bgModeSelect');
+        const $duration = $('#bgDurationInput');
+        if (!$mode.length || !$duration.length) {
+            return;
+        }
+        const headerSettings = window.headerData && typeof window.headerData === 'object'
+            ? window.headerData.backgroundSettings
+            : null;
+        const settings = headerSettings && typeof headerSettings === 'object'
+            ? headerSettings
+            : {};
+        const mode = settings.mode || defaultBackgroundSettings.mode;
+        const durationRaw = parseInt(settings.duration, 10);
+        const duration = Number.isFinite(durationRaw) && durationRaw > 0
+            ? durationRaw
+            : defaultBackgroundSettings.duration;
+        $mode.val(mode);
+        $duration.val(String(duration));
     }
 
     function uploadBackgroundFile(file) {
@@ -716,6 +783,10 @@ $(document).ready(function() {
             if (!isEqualSnapshot(currentSnapshot.header, initialSnapshot.header)) {
                 formData.append('siteTitle', currentSnapshot.header.title || '');
                 formData.append('siteSubtitle', currentSnapshot.header.subtitle || '');
+                if (currentSnapshot.header.backgroundSettings) {
+                    formData.append('backgroundMode', currentSnapshot.header.backgroundSettings.mode || defaultBackgroundSettings.mode);
+                    formData.append('backgroundDuration', String(currentSnapshot.header.backgroundSettings.duration || defaultBackgroundSettings.duration));
+                }
                 hasChanges = true;
             }
 
@@ -732,10 +803,15 @@ $(document).ready(function() {
             }
 
             // Backgrounds
-            const authorChanges = getBackgroundAuthorChanges(currentSnapshot.backgrounds, initialSnapshot.backgrounds);
-            if (authorChanges.length > 0) {
-                formData.append('backgroundAuthors', JSON.stringify(authorChanges));
+            if (!isEqualSnapshot(currentSnapshot.backgrounds, initialSnapshot.backgrounds)) {
+                formData.append('backgrounds', JSON.stringify(currentSnapshot.backgrounds));
                 hasChanges = true;
+            } else {
+                const authorChanges = getBackgroundAuthorChanges(currentSnapshot.backgrounds, initialSnapshot.backgrounds);
+                if (authorChanges.length > 0) {
+                    formData.append('backgroundAuthors', JSON.stringify(authorChanges));
+                    hasChanges = true;
+                }
             }
 
             // Pane data (save_map entries)
@@ -798,9 +874,18 @@ $(document).ready(function() {
     }
 
     function getHeaderData() {
+        const mode = $('#bgModeSelect').val() || defaultBackgroundSettings.mode;
+        const durationRaw = parseInt($('#bgDurationInput').val(), 10);
+        const duration = Number.isFinite(durationRaw) && durationRaw > 0
+            ? durationRaw
+            : defaultBackgroundSettings.duration;
         return {
             title: $('.headlineInput[name="siteTitle"]').val() || '',
-            subtitle: $('.headlineInput[name="siteSubtitle"]').val() || ''
+            subtitle: $('.headlineInput[name="siteSubtitle"]').val() || '',
+            backgroundSettings: {
+                mode,
+                duration
+            }
         };
     }
 
@@ -1141,6 +1226,10 @@ $(document).ready(function() {
             return;
         }
 
+        const moveUpIcon = $('.linksConfig .moveUpLink').first().html() || 'Up';
+        const moveDownIcon = $('.linksConfig .moveDownLink').first().html() || 'Down';
+        const deleteIcon = $('.linksConfig .deleteLink').first().html() || 'Delete';
+
         backgrounds.forEach((bg, index) => {
             const url = bg && typeof bg.url === 'string' ? bg.url : '';
             const displayUrl = bg && typeof bg.displayUrl === 'string' ? bg.displayUrl : url;
@@ -1155,13 +1244,18 @@ $(document).ready(function() {
                     </div>
                     <input class="bgAuthorInput" type="text" name="bgAuthor[]" value="${escapeHtml(author)}" placeholder="Author">
                     <input class="bgAuthorUrlInput" type="text" name="bgAuthorUrl[]" value="${escapeHtml(authorUrl)}" placeholder="URL">
-                    <button class="deleteBackground usersDanger iconButton" type="button" aria-label="Delete background" title="Remove this background">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z" /></svg>
-                    </button>
+                    <div class="bgRowActions">
+                        <button class="moveUpLink iconButton" type="button" title="Move background up" aria-label="Move background up">${moveUpIcon}</button>
+                        <button class="moveDownLink iconButton" type="button" title="Move background down" aria-label="Move background down">${moveDownIcon}</button>
+                        <button class="deleteBackground usersDanger iconButton" type="button" aria-label="Delete background" title="Remove this background">${deleteIcon}</button>
+                    </div>
                 </div>
             `;
             $(row).insertBefore($actions);
         });
+
+        updateBackgroundRowIndexes();
+        refreshBackgroundControls();
     }
 
     function deleteBackground(url, index) {

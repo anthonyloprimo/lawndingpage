@@ -185,9 +185,26 @@ $headerDefaults = [
     'logo' => 'res/img/logo.jpg',
     'title' => 'Long Island Furs',
     'subtitle' => 'A Long Island furry community encompassing Queens, Nassau County, and Suffolk County.  And Staten Island, but we do not talk about that.',
-    'backgrounds' => ['res/img/bg.jpg']
+    'backgrounds' => ['res/img/bg.jpg'],
+    'backgroundSettings' => [
+        'mode' => 'random_load',
+        'duration' => 5
+    ]
 ];
 $headerData = array_merge($headerDefaults, $readJson($headerJsonPath, []));
+if (empty($headerData['backgroundSettings']) || !is_array($headerData['backgroundSettings'])) {
+    $headerData['backgroundSettings'] = $headerDefaults['backgroundSettings'];
+}
+$backgroundSettings = array_merge($headerDefaults['backgroundSettings'], $headerData['backgroundSettings']);
+$backgroundMode = (string) ($backgroundSettings['mode'] ?? $headerDefaults['backgroundSettings']['mode']);
+$backgroundDuration = (int) ($backgroundSettings['duration'] ?? $headerDefaults['backgroundSettings']['duration']);
+$validBackgroundModes = ['random_load', 'sequential_load', 'random_slideshow', 'sequential_slideshow'];
+if (!in_array($backgroundMode, $validBackgroundModes, true)) {
+    $backgroundMode = $headerDefaults['backgroundSettings']['mode'];
+}
+if ($backgroundDuration <= 0) {
+    $backgroundDuration = (int) $headerDefaults['backgroundSettings']['duration'];
+}
 // Build a display-ready version with asset URLs resolved.
 $headerDataDisplay = $headerData;
 $headerDataDisplay['logo'] = $makeAssetUrl($headerDataDisplay['logo'] ?? '');
@@ -712,34 +729,42 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
                         </div>
                         <input class="bgAuthorInput" type="text" name="bgAuthor[]" value="<?php echo htmlspecialchars($bgAuthor); ?>" placeholder="Author">
                         <input class="bgAuthorUrlInput" type="text" name="bgAuthorUrl[]" value="<?php echo htmlspecialchars($bgAuthorUrl); ?>" placeholder="URL">
-                        <button class="deleteBackground usersDanger iconButton" type="button" aria-label="Delete background" title="Remove this background">
-                            <?php echo lawnding_icon_svg('delete'); ?>
-                        </button>
+                        <div class="bgRowActions">
+                            <button class="moveUpLink iconButton" type="button" title="Move background up" aria-label="Move background up">
+                                <?php echo lawnding_icon_svg('move_up'); ?>
+                            </button>
+                            <button class="moveDownLink iconButton" type="button" title="Move background down" aria-label="Move background down">
+                                <?php echo lawnding_icon_svg('move_down'); ?>
+                            </button>
+                            <button class="deleteBackground usersDanger iconButton" type="button" aria-label="Delete background" title="Remove this background">
+                                <?php echo lawnding_icon_svg('delete'); ?>
+                            </button>
+                        </div>
                     </div>
                 <?php endforeach; ?>
                 <div class="bgConfigActions">
-                    <div class="bgConfigOptions" aria-hidden="true">
+                    <div class="bgConfigOptions">
                         <div class="bgConfigOptionGroup">
-                            <select class="bgConfigOptionSelect" id="bgModeSelect" aria-label="Mode (Coming Soon)">
-                                <option value="random">Random</option>
-                                <option value="cycle">Cycle</option>
-                            </select>
-                        </div>
-                        <div class="bgConfigOptionGroup">
-                            <select class="bgConfigOptionSelect" id="bgFrequencySelect" aria-label="Frequency (Coming Soon)">
-                                <option value="reload">On Reload</option>
-                                <option value="slideshow">Slideshow</option>
+                            <select class="bgConfigOptionSelect" id="bgModeSelect" aria-label="Background Mode">
+                                <option value="random_load" <?php echo $backgroundMode === 'random_load' ? 'selected' : ''; ?>>Random on load</option>
+                                <option value="sequential_load" <?php echo $backgroundMode === 'sequential_load' ? 'selected' : ''; ?>>Sequential on load</option>
+                                <option value="random_slideshow" <?php echo $backgroundMode === 'random_slideshow' ? 'selected' : ''; ?>>Random slideshow</option>
+                                <option value="sequential_slideshow" <?php echo $backgroundMode === 'sequential_slideshow' ? 'selected' : ''; ?>>Sequential slideshow</option>
                             </select>
                         </div>
                         <div class="bgConfigOptionDuration">
-                            <input class="bgConfigOptionInput" type="text" inputmode="numeric" aria-label="Slideshow duration">
-                            <span class="bgConfigOptionUnit">s</span>
+                            <label class="bgConfigOptionLabel" for="bgDurationInput">Duration</label>
+                            <div class="bgConfigOptionDurationField">
+                                <input class="bgConfigOptionInput" id="bgDurationInput" type="text" inputmode="numeric" value="<?php echo htmlspecialchars((string) $backgroundDuration); ?>" aria-label="Slideshow duration in seconds">
+                                <span class="bgConfigOptionUnit">s</span>
+                            </div>
                         </div>
-                        Coming Soon...
                     </div>
                     <div class="bgConfigActionsRight">
                         <input type="file" id="bgFileInput" accept="image/*" class="fileInputHidden">
-                        <button class="addBackground" type="button">Add</button>
+                        <button class="addBackground" type="button" title="Add new background image">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M18 15V18H15V20H18V23H20V20H23V18H20V15H18M13.3 21H5C3.9 21 3 20.1 3 19V5C3 3.9 3.9 3 5 3H19C20.1 3 21 3.9 21 5V13.3C20.4 13.1 19.7 13 19 13C17.9 13 16.8 13.3 15.9 13.9L14.5 12L11 16.5L8.5 13.5L5 18H13.1C13 18.3 13 18.7 13 19C13 19.7 13.1 20.4 13.3 21Z" /></svg>
+                        </button>
                     </div>
                 </div>
             </div>

@@ -788,6 +788,11 @@ button:disabled {
     gap: 8px;
     align-items: center;
 }
+.bgRowActions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
 .bgConfigRow:not(.bgConfigHeader):nth-child(even) {
     background: #FFFFFF15;
 }
@@ -879,18 +884,27 @@ button:disabled {
     border: 1px solid #FFFFFF44;
     background: #00000055;
     color: inherit;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+.addBackground svg {
+    width: 20px;
+    height: 20px;
+    fill: currentColor;
+    display: block;
 }
 
 .bgConfigActions {
     display: grid;
     grid-template-columns: 1fr auto;
-    align-items: center;
+    align-items: end;
     gap: 12px;
     margin-top: auto;
 }
 .bgConfigOptions {
     display: flex;
-    align-items: center;
+    align-items: flex-end;
     gap: 12px;
     flex-wrap: wrap;
 }
@@ -904,7 +918,8 @@ button:disabled {
     color: #FFFFFFBB;
 }
 .bgConfigOptionSelect {
-    width: 64px;
+    width: 180px;
+    max-width: 100%;
     padding: 6px 8px;
     border-radius: 4px;
     border: 1px solid #FFFFFF33;
@@ -913,11 +928,16 @@ button:disabled {
 }
 .bgConfigOptionDuration {
     display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.bgConfigOptionDurationField {
+    display: flex;
     align-items: center;
     gap: 6px;
 }
 .bgConfigOptionInput {
-    width: 32px;
+    width: 64px;
     padding: 6px 8px;
     border-radius: 4px;
     border: 1px solid #FFFFFF33;
@@ -930,7 +950,7 @@ button:disabled {
 }
 .bgConfigActionsRight {
     display: flex;
-    align-items: center;
+    align-items: flex-end;
     justify-self: end;
 }
 

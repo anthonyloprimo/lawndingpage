@@ -91,13 +91,23 @@ function load_header_data($headerPath) {
         'logo' => 'res/img/logo.jpg',
         'title' => 'Long Island Furs',
         'subtitle' => 'A Long Island furry community encompassing Queens, Nassau County, and Suffolk County.  And Staten Island, but we do not talk about that.',
-        'backgrounds' => ['res/img/bg.jpg']
+        'backgrounds' => ['res/img/bg.jpg'],
+        'backgroundSettings' => [
+            'mode' => 'random_load',
+            'duration' => 5
+        ]
     ];
     if (is_readable($headerPath)) {
         $decoded = json_decode(file_get_contents($headerPath), true);
         if (is_array($decoded)) {
             $headerData = array_merge($headerData, $decoded);
         }
+    }
+    if (empty($headerData['backgroundSettings']) || !is_array($headerData['backgroundSettings'])) {
+        $headerData['backgroundSettings'] = [
+            'mode' => 'random_load',
+            'duration' => 5
+        ];
     }
     return $headerData;
 }
@@ -220,6 +230,18 @@ $paneIds = array_values(array_filter(array_map(function ($pane) {
 }));
 
 $action = $_POST['action'] ?? '';
+
+$backgroundMode = isset($_POST['backgroundMode']) ? trim((string) $_POST['backgroundMode']) : null;
+$backgroundDurationRaw = $_POST['backgroundDuration'] ?? null;
+$validBackgroundModes = ['random_load', 'sequential_load', 'random_slideshow', 'sequential_slideshow'];
+if ($backgroundMode !== null && !in_array($backgroundMode, $validBackgroundModes, true)) {
+    $backgroundMode = null;
+}
+$backgroundDuration = null;
+if ($backgroundDurationRaw !== null) {
+    $durationValue = (int) $backgroundDurationRaw;
+    $backgroundDuration = $durationValue > 0 ? $durationValue : 5;
+}
 
 // Normalize stored asset paths into res/... form for consistent matching.
 function normalize_asset_path($path) {
@@ -1036,6 +1058,20 @@ if (is_array($newBackgrounds)) {
     $headerChanged = true;
 }
 if ($backgroundAuthorsChanged) {
+    $headerChanged = true;
+}
+if ($backgroundMode !== null || $backgroundDuration !== null) {
+    $settings = $headerData['backgroundSettings'] ?? ['mode' => 'random_load', 'duration' => 5];
+    if (!is_array($settings)) {
+        $settings = ['mode' => 'random_load', 'duration' => 5];
+    }
+    if ($backgroundMode !== null) {
+        $settings['mode'] = $backgroundMode;
+    }
+    if ($backgroundDuration !== null) {
+        $settings['duration'] = $backgroundDuration;
+    }
+    $headerData['backgroundSettings'] = $settings;
     $headerChanged = true;
 }
 

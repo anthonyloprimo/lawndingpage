@@ -1,4 +1,7 @@
 {
+    "logo": "res/img/logo.jpg",
+    "title": "LawndingPage Title",
+    "subtitle": "Snazzy community subtitle goes here",
     "backgrounds": [
         {
             "url": "res/img/bg.jpg",
@@ -6,7 +9,8 @@
             "authorUrl": "google.com"
         }
     ],
-    "logo": "res/img/logo.jpg",
-    "title": "LawndingPage Title",
-    "subtitle": "Snazzy community subtitle goes here"
+    "backgroundSettings": {
+        "mode": "random_load",
+        "duration": 10
+    }
 }

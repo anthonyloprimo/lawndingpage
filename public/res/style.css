@@ -35,6 +35,9 @@ body::before {
 body.bg-ready::before {
     opacity: 1;
 }
+body.bg-fade-out::before {
+    opacity: 0;
+}
 body > * {
     position: relative;
     z-index: 1;

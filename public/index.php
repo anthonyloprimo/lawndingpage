@@ -114,9 +114,19 @@ $headerData = [
     'logo' => 'res/img/logo.jpg',
     'title' => 'Long Island Furs',
     'subtitle' => 'A Long Island furry community encompassing Queens, Nassau County, and Suffolk County.  And Staten Island, but we do not talk about that.',
-    'backgrounds' => ['res/img/bg.jpg']
+    'backgrounds' => ['res/img/bg.jpg'],
+    'backgroundSettings' => [
+        'mode' => 'random_load',
+        'duration' => 5
+    ]
 ];
 $headerData = array_merge($headerData, lawnding_read_json($headerJsonPath, []));
+if (empty($headerData['backgroundSettings']) || !is_array($headerData['backgroundSettings'])) {
+    $headerData['backgroundSettings'] = [
+        'mode' => 'random_load',
+        'duration' => 5
+    ];
+}
 // Resolve asset URLs relative to the detected base URL.
 $resolveAssetUrl = function ($path) {
     if (!is_string($path) || $path === '') {

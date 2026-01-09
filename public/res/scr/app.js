@@ -6,6 +6,17 @@ let mode = null;
 let currentPane = null;
 let paneOrder = [];
 const faviconCache = new Map();
+const BACKGROUND_DEFAULT_SETTINGS = { mode: 'random_load', duration: 5 };
+const BACKGROUND_FADE_MS = 450;
+const backgroundState = {
+    order: [],
+    index: 0,
+    mode: BACKGROUND_DEFAULT_SETTINGS.mode,
+    duration: BACKGROUND_DEFAULT_SETTINGS.duration,
+    backgrounds: [],
+    timerId: null,
+    fadeTimerId: null
+};
 
 // Helper: ensure we aren't trying to show the always-visible pane on desktop.
 function ensureDesktopPaneSelection() {
@@ -76,8 +87,8 @@ function init() {
     // Set the header logo background image from JSON-provided data.
     setLogoBackground();
 
-    // Randomize the body background image from the JSON-provided list while preserving other background styles.
-    setRandomBackground();
+    // Apply the body background image based on configured settings.
+    setBackgroundFromSettings();
 
     // Set favicon-style icons on link buttons.
     setLinkFavicons();
@@ -172,20 +183,55 @@ function setLogoBackground() {
     $('#logo').css('background-image', `url('${window.headerData.logo}')`);
 }
 
-// Pick a random body background image from headerData.backgrounds while keeping other background properties intact.
-function setRandomBackground() {
-    if (!window.headerData) {
-        document.body.style.setProperty('--bg-image', 'linear-gradient(#00000055)');
-        document.body.classList.add('bg-ready');
+// Apply a body background image sequence based on configured settings.
+function setBackgroundFromSettings() {
+    if (!document.body) {
         return;
     }
 
-    const rawBackgrounds = Array.isArray(window.headerData.backgrounds)
-        ? window.headerData.backgrounds
-        : [];
+    const backgrounds = normalizeBackgrounds(window.headerData && window.headerData.backgrounds);
+    if (!backgrounds.length) {
+        updateBackgroundImage('linear-gradient(#00000055)', false);
+        updateBackgroundAuthor(null);
+        return;
+    }
 
-    // Normalize entries to objects with url + author.
-    const backgrounds = rawBackgrounds
+    const settings = getBackgroundSettings();
+    const isRandom = settings.mode.indexOf('random') === 0;
+    const isSlideshow = settings.mode.indexOf('slideshow') !== -1;
+
+    backgroundState.backgrounds = backgrounds;
+    backgroundState.mode = settings.mode;
+    backgroundState.duration = settings.duration;
+    backgroundState.order = buildBackgroundOrder(backgrounds.length, isRandom);
+    backgroundState.index = 0;
+
+    applyBackgroundIndex(0, false);
+
+    if (isSlideshow && backgrounds.length > 1) {
+        scheduleBackgroundAdvance();
+    }
+}
+
+function getBackgroundSettings() {
+    const rawSettings = window.headerData && typeof window.headerData === 'object'
+        ? window.headerData.backgroundSettings
+        : null;
+    const mode = rawSettings && typeof rawSettings.mode === 'string'
+        ? rawSettings.mode
+        : BACKGROUND_DEFAULT_SETTINGS.mode;
+    const durationRaw = rawSettings && rawSettings.duration != null
+        ? parseInt(rawSettings.duration, 10)
+        : NaN;
+    const duration = Number.isFinite(durationRaw) && durationRaw > 0
+        ? durationRaw
+        : BACKGROUND_DEFAULT_SETTINGS.duration;
+    return { mode, duration };
+}
+
+function normalizeBackgrounds(rawBackgrounds) {
+    const raw = Array.isArray(rawBackgrounds) ? rawBackgrounds : [];
+    return raw
         .map((bg) => {
             if (typeof bg === 'string') {
                 return { url: bg, author: '', authorUrl: '' };
@@ -200,21 +246,80 @@ function setRandomBackground() {
             return null;
         })
         .filter((bg) => bg && bg.url.length > 0);
+}
 
-    const chosen = backgrounds.length > 0 ? backgrounds[Math.floor(Math.random() * backgrounds.length)] : null;
-    if (!chosen) {
-        document.body.style.setProperty('--bg-image', 'linear-gradient(#00000055)');
-        document.body.classList.add('bg-ready');
+function buildBackgroundOrder(count, randomize) {
+    const order = Array.from({ length: count }, (_, i) => i);
+    if (randomize) {
+        for (let i = order.length - 1; i > 0; i -= 1) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [order[i], order[j]] = [order[j], order[i]];
+        }
+    }
+    return order;
+}
+
+function scheduleBackgroundAdvance() {
+    if (backgroundState.timerId) {
+        clearTimeout(backgroundState.timerId);
+    }
+    backgroundState.timerId = setTimeout(function() {
+        advanceBackground();
+        scheduleBackgroundAdvance();
+    }, backgroundState.duration * 1000);
+}
+
+function advanceBackground() {
+    if (!backgroundState.backgrounds.length) {
         return;
     }
+    const isRandom = backgroundState.mode.indexOf('random') === 0;
+    let nextIndex = backgroundState.index + 1;
+    if (nextIndex >= backgroundState.order.length) {
+        backgroundState.order = buildBackgroundOrder(backgroundState.backgrounds.length, isRandom);
+        nextIndex = 0;
+    }
+    backgroundState.index = nextIndex;
+    applyBackgroundIndex(nextIndex, true);
+}
 
-    // Preserve existing gradient by setting the layered background-image only.
-    document.body.style.setProperty('--bg-image', `linear-gradient(#00000055), url('${chosen.url}')`);
-    document.body.classList.add('bg-ready');
+function applyBackgroundIndex(index, allowFade) {
+    const orderIndex = backgroundState.order[index];
+    const chosen = backgroundState.backgrounds[orderIndex];
+    if (!chosen) {
+        return;
+    }
+    updateBackgroundImage(`linear-gradient(#00000055), url('${chosen.url}')`, allowFade);
+    updateBackgroundAuthor(chosen);
+}
 
-    // Update the footer with the background author (fallback to 'anonymous' if missing).
-    const author = chosen.author && chosen.author.trim().length > 0 ? chosen.author.trim() : 'anonymous';
-    const authorUrl = normalizeExternalUrl(chosen.authorUrl);
+function updateBackgroundImage(imageValue, allowFade) {
+    if (!document.body) {
+        return;
+    }
+    if (backgroundState.fadeTimerId) {
+        clearTimeout(backgroundState.fadeTimerId);
+        backgroundState.fadeTimerId = null;
+    }
+    const body = document.body;
+    if (!allowFade || !body.classList.contains('bg-ready')) {
+        body.style.setProperty('--bg-image', imageValue);
+        body.classList.add('bg-ready');
+        return;
+    }
+    body.classList.add('bg-fade-out');
+    backgroundState.fadeTimerId = setTimeout(function() {
+        body.style.setProperty('--bg-image', imageValue);
+        body.classList.remove('bg-fade-out');
+        backgroundState.fadeTimerId = null;
+    }, BACKGROUND_FADE_MS);
+}
+
+function updateBackgroundAuthor(chosen) {
+    const author = chosen && chosen.author && chosen.author.trim().length > 0
+        ? chosen.author.trim()
+        : 'anonymous';
+    const authorUrl = normalizeExternalUrl(chosen ? chosen.authorUrl : '');
     const $authorLink = $('.authorLink');
     const $authorPlain = $('.authorPlain');
 

@@ -1,5 +1,11 @@
 ### Changelog
 
+#### v1.6.1
+**Changes:**
+- Added background display mode (random, sequential, slideshow random, slideshow sequential) with duration specification for slideshow modes.
+
+-----
+
 #### v1.6.0
 **Changes:**
 - UI: Tweaked the display of the title and subtitle fields in the admin panel on mobile devices.

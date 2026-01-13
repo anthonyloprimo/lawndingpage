@@ -1,5 +1,12 @@
 ### Changelog
 
+#### v1.6.2
+**Changes:**
+- Updated `README.md` to be accurate to the current version.
+- Added information on the admin panel to `README.md`.
+
+-----
+
 #### v1.6.1
 **Changes:**
 - Added background display mode (random, sequential, slideshow random, slideshow sequential) with duration specification for slideshow modes.

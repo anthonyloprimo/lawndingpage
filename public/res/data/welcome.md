@@ -9,7 +9,6 @@ To access the admin panel, click [here](admin/).
 You can get LawndingPage from [GitHub](https://github.com/anthonyloprimo/lawndingpage)
 <br><br>
 
-
 #### This is a test page that you can view.  
 <br><br>
 

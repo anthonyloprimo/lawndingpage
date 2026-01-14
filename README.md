@@ -627,3 +627,21 @@ shows as
 > These two rows
 >
 > have a blank line in between them!
+
+That being said, the `<br>` button inserts this tag easily.
+
+##### Event List pane
+Event list panes let you enter events.  The information you can enter is:
+    - Event Name
+    - Start date and time
+    - Optional end date and time (if omitted, defaults to an hour long event) so the `.ics` file remains compliant and accepted by most calendar apps).
+    - Time Zone - autofills based on your location.
+    - Address - written out on one line (123 Any Street, Small Town, NY, 12345).  Information can be omitted, however this gets converted to a Google Maps link; the less information, the less chance google maps will behave with the entered info.
+    - Description - markdown-enabled text field to provide additional information, such as hosts, things to bring, or whatever else you might need to enter.
+
+At the bottom of the list there's an option to "Show past events on the site".  If you want to showcase previous events, leave this checked.  If you wish to keep them hidden and ONLY show current and upcoming events, uncheck this box.
+To add an event, click the "Add Event" button at the bottom-right corner of this pane.
+To save changes to the Event List, click the "Save all changes" button.  Note, upon saving, the events will be re-ordered from newest to oldest.
+
+#### Changelog
+The last button in the navbar is the Changelog button.  It opens a dedicated pane that displays the updates to the LanwdingPage system.

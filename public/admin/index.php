@@ -198,20 +198,25 @@ function enforce_users_permissions($usersPath, &$warnings) {
 
 // Compute effective permissions for the current user.
 function build_permission_context($authRecord, $allowedPermissions) {
+    $isReadOnlyUser = $authRecord && !empty($authRecord['read_only']);
     $currentPermissions = $authRecord ? normalize_permissions($authRecord['permissions'] ?? [], $allowedPermissions) : [];
+    if ($isReadOnlyUser) {
+        $currentPermissions = [];
+    }
     $isMasterUser = $authRecord && !empty($authRecord['master']);
-    $isFullAdmin = $isMasterUser || in_array('full_admin', $currentPermissions, true);
+    $isFullAdmin = !$isReadOnlyUser && ($isMasterUser || in_array('full_admin', $currentPermissions, true));
     if ($isFullAdmin) {
         $currentPermissions = $allowedPermissions;
     }
     return [
         'currentPermissions' => $currentPermissions,
+        'isReadOnlyUser' => $isReadOnlyUser,
         'isMasterUser' => $isMasterUser,
         'isFullAdmin' => $isFullAdmin,
-        'canAddUsers' => $isFullAdmin || in_array('add_users', $currentPermissions, true),
-        'canEditUsers' => $isFullAdmin || in_array('edit_users', $currentPermissions, true),
-        'canRemoveUsers' => $isFullAdmin || in_array('remove_users', $currentPermissions, true),
-        'canEditSite' => $isFullAdmin || in_array('edit_site', $currentPermissions, true),
+        'canAddUsers' => !$isReadOnlyUser && ($isFullAdmin || in_array('add_users', $currentPermissions, true)),
+        'canEditUsers' => !$isReadOnlyUser && ($isFullAdmin || in_array('edit_users', $currentPermissions, true)),
+        'canRemoveUsers' => !$isReadOnlyUser && ($isFullAdmin || in_array('remove_users', $currentPermissions, true)),
+        'canEditSite' => !$isReadOnlyUser && ($isFullAdmin || in_array('edit_site', $currentPermissions, true)),
     ];
 }
 
@@ -287,12 +292,16 @@ $authRecord = $authUser !== '' ? find_user($users, $authUser) : null;
 $forcePasswordChange = $authRecord && !empty($authRecord['must_change_password']);
 $permissionContext = build_permission_context($authRecord, $allowedPermissions);
 $currentPermissions = $permissionContext['currentPermissions'];
+$isReadOnlyUser = $permissionContext['isReadOnlyUser'];
 $isMasterUser = $permissionContext['isMasterUser'];
 $isFullAdmin = $permissionContext['isFullAdmin'];
 $canAddUsers = $permissionContext['canAddUsers'];
 $canEditUsers = $permissionContext['canEditUsers'];
 $canRemoveUsers = $permissionContext['canRemoveUsers'];
 $canEditSite = $permissionContext['canEditSite'];
+if ($isReadOnlyUser) {
+    $forcePasswordChange = false;
+}
 
 // Health checks for files and directories needed by the admin app.
 if (!file_exists($errorLogPath)) {
@@ -361,6 +370,8 @@ if ($action === 'fix_users_permissions') {
 if ($action === 'change_password') {
     if ($blockUserActions) {
         $errors[] = 'Password changes unavailable: `users.json` is damaged.';
+    } elseif ($isReadOnlyUser) {
+        $errors[] = 'Read-only accounts cannot change passwords.';
     } elseif (!$authRecord) {
         $errors[] = 'You must be logged in to change your password.';
     } else {
@@ -404,6 +415,8 @@ if ($action === 'change_password') {
 if ($action === 'create_user') {
     if ($blockUserActions) {
         $usersErrors[] = 'User actions unavailable: `users.json` is damaged.';
+    } elseif ($isReadOnlyUser) {
+        $usersErrors[] = 'Read-only accounts cannot create users.';
     } elseif (!$authRecord || $forcePasswordChange) {
         $usersErrors[] = 'You must be logged in to create users.';
     } elseif (!$canAddUsers) {
@@ -447,6 +460,8 @@ if ($action === 'create_user') {
 if ($action === 'save_permissions') {
     if ($blockUserActions) {
         $usersErrors[] = 'User actions unavailable: `users.json` is damaged.';
+    } elseif ($isReadOnlyUser) {
+        $usersErrors[] = 'Read-only accounts cannot edit permissions.';
     } elseif (!$authRecord || $forcePasswordChange) {
         $usersErrors[] = 'You must be logged in to edit permissions.';
     } else {
@@ -457,9 +472,15 @@ if ($action === 'save_permissions') {
             }
             if (count($usersErrors) === 0) {
                 $submitted = $_POST['permissions'] ?? [];
+                $targetRecord = find_user($users, $targetUsername);
+                $isTargetMaster = $targetRecord && !empty($targetRecord['master']);
+                $readOnlyRequested = $isMasterUser && !$isTargetMaster && !empty($_POST['read_only']);
                 $normalized = normalize_permissions($submitted, $allowedPermissions);
                 if (!$isMasterUser) {
                     $normalized = array_values(array_diff($normalized, ['full_admin']));
+                }
+                if ($readOnlyRequested) {
+                    $normalized = [];
                 }
                 if (in_array('full_admin', $normalized, true)) {
                     $normalized = $allowedPermissions;
@@ -471,7 +492,18 @@ if ($action === 'save_permissions') {
                 $updated = false;
                 foreach ($users as &$user) {
                     if (($user['username'] ?? '') === $targetUsername) {
+                        $isTargetMaster = !empty($user['master']);
+                        $existingReadOnly = !empty($user['read_only']);
+                        $readOnlyValue = $isMasterUser ? ($readOnlyRequested && !$isTargetMaster) : $existingReadOnly;
                         $user['permissions'] = $normalized;
+                        if ($readOnlyValue) {
+                            $user['permissions'] = [];
+                            $user['must_change_password'] = false;
+                            $user['temp_password'] = '';
+                        }
+                        if ($isMasterUser) {
+                            $user['read_only'] = $readOnlyValue;
+                        }
                         $user['updated_at'] = gmdate('c');
                         $updated = true;
                         break;
@@ -489,6 +521,7 @@ if ($action === 'save_permissions') {
                             $authRecord = find_user($users, $authUser);
                             $permissionContext = build_permission_context($authRecord, $allowedPermissions);
                             $currentPermissions = $permissionContext['currentPermissions'];
+                            $isReadOnlyUser = $permissionContext['isReadOnlyUser'];
                             $isMasterUser = $permissionContext['isMasterUser'];
                             $isFullAdmin = $permissionContext['isFullAdmin'];
                             $canAddUsers = $permissionContext['canAddUsers'];
@@ -507,6 +540,8 @@ if ($action === 'save_permissions') {
 if ($action === 'reset_password') {
     if ($blockUserActions) {
         $usersErrors[] = 'User actions unavailable: `users.json` is damaged.';
+    } elseif ($isReadOnlyUser) {
+        $usersErrors[] = 'Read-only accounts cannot reset passwords.';
     } elseif (!$authRecord || $forcePasswordChange) {
         $usersErrors[] = 'You must be logged in to reset passwords.';
     } else {
@@ -521,13 +556,17 @@ if ($action === 'reset_password') {
                 $resetLogoutAfter = false;
                 foreach ($users as &$user) {
                     if (($user['username'] ?? '') === $targetUsername) {
+                        if (!empty($user['read_only']) && !$isMasterUser) {
+                            $usersErrors[] = 'Read-only accounts cannot reset passwords.';
+                            break;
+                        }
                         if (!empty($user['master']) && !$isFullAdmin) {
                             $usersErrors[] = 'Only master or full admin accounts can reset the master password.';
                             break;
                         }
                         $user['password_hash'] = password_hash($newTempPassword, PASSWORD_DEFAULT);
-                        $user['must_change_password'] = true;
-                        $user['temp_password'] = $newTempPassword;
+                        $user['must_change_password'] = empty($user['read_only']);
+                        $user['temp_password'] = empty($user['read_only']) ? $newTempPassword : '';
                         $user['updated_at'] = gmdate('c');
                         $updated = true;
                         $resetLogoutAfter = !empty($user['master']) || ($targetUsername === $authUser);
@@ -554,6 +593,8 @@ if ($action === 'reset_password') {
 if ($action === 'remove_user') {
     if ($blockUserActions) {
         $usersErrors[] = 'User actions unavailable: `users.json` is damaged.';
+    } elseif ($isReadOnlyUser) {
+        $usersErrors[] = 'Read-only accounts cannot remove users.';
     } elseif (!$authRecord || $forcePasswordChange) {
         $usersErrors[] = 'You must be logged in to remove users.';
     } else {
@@ -567,6 +608,11 @@ if ($action === 'remove_user') {
                 $removed = false;
                 foreach ($users as $user) {
                     if (($user['username'] ?? '') === $targetUsername) {
+                        if (!empty($user['read_only']) && !$isMasterUser) {
+                            $usersErrors[] = 'Read-only accounts cannot be removed.';
+                            $newUsers[] = $user;
+                            continue;
+                        }
                         if (!empty($user['master'])) {
                             $usersErrors[] = 'Master accounts cannot be removed.';
                             $newUsers[] = $user;

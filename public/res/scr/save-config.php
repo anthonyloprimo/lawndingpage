@@ -180,6 +180,9 @@ $authRecord = find_user($users, $authUser);
 if (!$authRecord) {
     respond(['error' => 'Unauthorized'], 401);
 }
+if (!empty($authRecord['read_only']) && empty($authRecord['master'])) {
+    respond(['error' => 'Forbidden'], 403);
+}
 
 // Site edits require either full admin or edit_site permission.
 $permissions = $authRecord['permissions'] ?? [];

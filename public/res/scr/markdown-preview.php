@@ -45,6 +45,9 @@ if (is_array($users)) {
 if (!$record) {
     respond(['error' => 'Unauthorized'], 401);
 }
+if (!empty($record['read_only']) && empty($record['master'])) {
+    respond(['error' => 'Forbidden'], 403);
+}
 $permissions = $record['permissions'] ?? [];
 if (!is_array($permissions)) {
     $permissions = [];

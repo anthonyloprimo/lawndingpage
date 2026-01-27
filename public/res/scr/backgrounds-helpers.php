@@ -59,6 +59,9 @@ function backgrounds_require_edit_site(): array {
     if (!$authRecord) {
         backgrounds_json_response(['error' => 'Unauthorized'], 401);
     }
+    if (!empty($authRecord['read_only']) && empty($authRecord['master'])) {
+        backgrounds_json_response(['error' => 'Forbidden'], 403);
+    }
 
     $permissions = $authRecord['permissions'] ?? [];
     if (!is_array($permissions)) {

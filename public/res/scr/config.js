@@ -1317,7 +1317,23 @@ $(document).ready(function() {
             permissions.forEach(function(permission) {
                 $permissionsModal.find(`input[type="checkbox"][value="${permission}"]`).prop('checked', true);
             });
-            applyFullAdminState($permissionsModal);
+            const isTargetMaster = $row.data('master') === true || $row.data('master') === 'true';
+            const isTargetReadOnly = $row.data('readonly') === true || $row.data('readonly') === 'true';
+            const $readOnlyItem = $('#readOnlyPermissionItem');
+            const $readOnlyToggle = $('#readOnlyToggle');
+            if ($readOnlyItem.length && $readOnlyToggle.length) {
+                if (isTargetMaster) {
+                    $readOnlyToggle.prop('checked', false);
+                    $readOnlyItem.addClass('hidden');
+                } else {
+                    $readOnlyItem.removeClass('hidden');
+                    $readOnlyToggle.prop('checked', isTargetReadOnly);
+                }
+            }
+            applyPermissionsModalState($permissionsModal);
+            if (window.appConfig && window.appConfig.isReadOnlyUser) {
+                $permissionsModal.find('button[type="submit"]').prop('disabled', true);
+            }
 
             openAdminModal($permissionsModal);
         });
@@ -1341,11 +1357,20 @@ $(document).ready(function() {
         });
 
         $(document).on('change', '#permissionsModal input[type="checkbox"][value="full_admin"]', function() {
-            applyFullAdminState($('#permissionsModal'));
+            applyPermissionsModalState($('#permissionsModal'));
+        });
+
+        $(document).on('change', '#readOnlyToggle', function() {
+            applyPermissionsModalState($('#permissionsModal'));
         });
 
         $(document).on('submit', '.usersCreateForm, #permissionsForm, #removeUserForm', function(event) {
             if (this.id === 'permissionsForm') {
+                if (window.appConfig && window.appConfig.isReadOnlyUser) {
+                    event.preventDefault();
+                    addAdminNotice('danger', 'Read-only accounts cannot update permissions.');
+                    return;
+                }
                 const currentUser = window.appConfig && window.appConfig.currentUser ? window.appConfig.currentUser : '';
                 const targetUser = $('#permissionsUsername').val() || '';
                 if (currentUser && targetUser && currentUser === targetUser) {
@@ -1426,18 +1451,43 @@ $(document).ready(function() {
             return;
         }
         const isFullAdmin = $fullAdmin.is(':checked');
+        const $readOnly = $permissionsModal.find('#readOnlyToggle');
         const $otherItems = $permissionsModal.find('.permissionsItem').filter(function() {
-            return $(this).find('input[type="checkbox"]').val() !== 'full_admin';
+            const $checkbox = $(this).find('input[type="checkbox"]');
+            return $checkbox.val() !== 'full_admin' && $checkbox.attr('id') !== 'readOnlyToggle';
         });
         const $otherCheckboxes = $otherItems.find('input[type="checkbox"]');
 
         if (isFullAdmin) {
             $otherCheckboxes.prop('checked', true).prop('disabled', true);
             $otherItems.addClass('isDisabled');
+            if ($readOnly.length) {
+                $readOnly.prop('checked', false).prop('disabled', true);
+                $readOnly.closest('.permissionsItem').addClass('isDisabled');
+            }
         } else {
             $otherCheckboxes.prop('disabled', false);
             $otherItems.removeClass('isDisabled');
+            if ($readOnly.length) {
+                $readOnly.prop('disabled', false);
+                $readOnly.closest('.permissionsItem').removeClass('isDisabled');
+            }
         }
+    }
+
+    function applyPermissionsModalState($permissionsModal) {
+        const $readOnly = $permissionsModal.find('#readOnlyToggle');
+        const isReadOnly = $readOnly.length && $readOnly.is(':checked');
+        if (isReadOnly) {
+            const $otherItems = $permissionsModal.find('.permissionsItem').filter(function() {
+                return $(this).find('input[type="checkbox"]').attr('id') !== 'readOnlyToggle';
+            });
+            const $otherCheckboxes = $otherItems.find('input[type="checkbox"]');
+            $otherCheckboxes.prop('checked', false).prop('disabled', true);
+            $otherItems.addClass('isDisabled');
+            return;
+        }
+        applyFullAdminState($permissionsModal);
     }
 
     function submitUsersForm(form) {
@@ -1492,7 +1542,7 @@ $(document).ready(function() {
                 bindAdminNotices();
 
                 const $newPermissionsModal = $('#permissionsModal');
-                applyFullAdminState($newPermissionsModal);
+                applyPermissionsModalState($newPermissionsModal);
                 updateEditSitePermissionFromUsers();
                 applySiteEditPermissions();
                 $('#permissionsModal').removeClass('isOpen').attr('aria-hidden', 'true');
@@ -2789,7 +2839,8 @@ $(document).ready(function() {
     }
 
     function applySiteEditPermissions() {
-        const canEditSite = window.appConfig && window.appConfig.canEditSite === false ? false : true;
+        const isReadOnlyUser = window.appConfig && window.appConfig.isReadOnlyUser === true;
+        const canEditSite = !isReadOnlyUser && !(window.appConfig && window.appConfig.canEditSite === false);
         const $targets = $('#container')
             .find('.pane')
             .not('#users')
@@ -2975,7 +3026,11 @@ $(document).ready(function() {
         const raw = row.getAttribute('data-permissions') || '';
         const perms = raw ? raw.split(',') : [];
         const isFullAdmin = perms.includes('full_admin');
-        window.appConfig.canEditSite = isFullAdmin || perms.includes('edit_site');
+        const isReadOnly = row.getAttribute('data-readonly') === 'true';
+        if (window.appConfig) {
+            window.appConfig.isReadOnlyUser = isReadOnly;
+            window.appConfig.canEditSite = !isReadOnly && (isFullAdmin || perms.includes('edit_site'));
+        }
     }
 
     function buildTutorialSteps() {

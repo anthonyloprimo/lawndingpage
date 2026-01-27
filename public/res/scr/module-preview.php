@@ -30,6 +30,9 @@ if (is_array($users)) {
 if (!$record) {
     respond_status(401);
 }
+if (!empty($record['read_only']) && empty($record['master'])) {
+    respond_status(403);
+}
 $permissions = $record['permissions'] ?? [];
 if (!is_array($permissions)) {
     $permissions = [];

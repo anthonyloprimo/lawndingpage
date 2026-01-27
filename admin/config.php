@@ -425,6 +425,7 @@ $canRemoveUsers = $canRemoveUsers ?? true;
 $canEditSite = $canEditSite ?? true;
 $isFullAdmin = $isFullAdmin ?? false;
 $isMasterUser = $isMasterUser ?? false;
+$isReadOnlyUser = $isReadOnlyUser ?? false;
 // Collect server-side status messages to render at top of page.
 $adminNotices = [];
 if (!empty($usersErrors)) {
@@ -441,6 +442,8 @@ $appConfigPayload = [
     'basePath' => $assetBase,
     'currentUser' => $currentUserName,
     'canEditSite' => $canEditSite,
+    'isMasterUser' => $isMasterUser,
+    'isReadOnlyUser' => $isReadOnlyUser,
     'csrfToken' => $_SESSION['csrf_token'] ?? '',
     'paneIds' => array_values($paneIds),
     'panes' => $panesForJs,
@@ -663,12 +666,18 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
                                 <?php
                                     $username = $user['username'] ?? '';
                                     $isMaster = !empty($user['master']);
+                                    $isReadOnly = !empty($user['read_only']);
                                     $isSelf = $username !== '' && $username === $currentUserName;
                                     $permissionsDisabled = $isMaster || (!$canEditUsers && !$isSelf);
-                                    $resetDisabled = (!$canEditUsers && !$isSelf) || ($isMaster && !($isMasterUser || $isFullAdmin));
-                                    $removeDisabled = $isMaster || (!$canRemoveUsers && !$isSelf);
+                                    $resetDisabled = (!$canEditUsers && !$isSelf)
+                                        || ($isMaster && !($isMasterUser || $isFullAdmin))
+                                        || ($isReadOnlyUser && $isSelf);
+                                    $removeDisabled = $isMaster || (!$canRemoveUsers && !$isSelf) || ($isReadOnlyUser && $isSelf);
                                     $tempPassword = $user['temp_password'] ?? '';
                                     $label = $username . ($isMaster ? ' (Master Account)' : '');
+                                    if ($isReadOnly) {
+                                        $label .= ' (Read-only)';
+                                    }
                                     if (!$isMaster && !empty($tempPassword)) {
                                         $label .= ' (Temporary password: ' . $tempPassword . ')';
                                     }
@@ -682,7 +691,11 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
                                     $permissionsAttr = htmlspecialchars(implode(',', $permissions));
                                     $csrfToken = $_SESSION['csrf_token'] ?? '';
                                 ?>
-                                <div class="usersRow" data-username="<?php echo htmlspecialchars($username); ?>" data-permissions="<?php echo $permissionsAttr; ?>">
+                                <div class="usersRow"
+                                     data-username="<?php echo htmlspecialchars($username); ?>"
+                                     data-permissions="<?php echo $permissionsAttr; ?>"
+                                     data-master="<?php echo $isMaster ? 'true' : 'false'; ?>"
+                                     data-readonly="<?php echo $isReadOnly ? 'true' : 'false'; ?>">
                                     <span><?php echo htmlspecialchars($label); ?></span>
                                     <?php echo lawnding_render_user_actions($username, $csrfToken, $permissionsDisabled, $resetDisabled, $removeDisabled); ?>
                                 </div>
@@ -884,6 +897,12 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
                         <?php echo htmlspecialchars($permissionLabels[$permission] ?? $permission); ?>
                     </label>
                 <?php endforeach; ?>
+                <?php if (!empty($isMasterUser)): ?>
+                    <label class="permissionsItem permissionsItemReadOnly" id="readOnlyPermissionItem">
+                        <input type="checkbox" name="read_only" value="1" id="readOnlyToggle">
+                        Read-only (no permissions, cannot edit or change password)
+                    </label>
+                <?php endif; ?>
             </div>
             <div class="userModalActions">
                 <button class="usersButton" type="submit" data-modal-confirm="true">Save</button>

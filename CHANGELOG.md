@@ -1,5 +1,11 @@
 ### Changelog
 
+#### v1.6.3
+**Changes:**
+- Tweaked user account behaviors for live demo using the "read only" mode.
+
+-----
+
 #### v1.6.2
 **Changes:**
 - Updated `README.md` to be accurate to the current version.

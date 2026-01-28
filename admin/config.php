@@ -668,11 +668,33 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
                                     $isMaster = !empty($user['master']);
                                     $isReadOnly = !empty($user['read_only']);
                                     $isSelf = $username !== '' && $username === $currentUserName;
-                                    $permissionsDisabled = $isMaster || (!$canEditUsers && !$isSelf);
-                                    $resetDisabled = (!$canEditUsers && !$isSelf)
-                                        || ($isMaster && !($isMasterUser || $isFullAdmin))
+                                    $permissions = $user['permissions'] ?? [];
+                                    if (!is_array($permissions)) {
+                                        $permissions = [];
+                                    }
+                                    if (!empty($allowedPermissions) && is_array($allowedPermissions)) {
+                                        $permissions = array_values(array_intersect($permissions, $allowedPermissions));
+                                    }
+                                    $isFullAdminTarget = $isMaster || in_array('full_admin', $permissions, true);
+                                    $canManageFullAdmin = $isMasterUser || $isFullAdmin;
+                                    $canManageReadOnly = $isMasterUser || $isFullAdmin;
+                                    $permissionsHierarchyBlocked = ($isMaster && !$isMasterUser)
+                                        || ($isFullAdminTarget && !$canManageFullAdmin)
+                                        || ($isReadOnly && !$canManageReadOnly);
+                                    $resetHierarchyBlocked = ($isMaster && !($isMasterUser || $isFullAdmin))
+                                        || ($isFullAdminTarget && !$canManageFullAdmin)
+                                        || ($isReadOnly && !$canManageReadOnly);
+                                    $removeHierarchyBlocked = ($isMaster && !$isMasterUser)
+                                        || ($isFullAdminTarget && !$canManageFullAdmin)
+                                        || ($isReadOnly && !$canManageReadOnly);
+                                    $permissionsDisabled = $permissionsHierarchyBlocked || (!$canEditUsers && !$isSelf);
+                                    $resetDisabled = $resetHierarchyBlocked
+                                        || (!$canEditUsers && !$isSelf)
                                         || ($isReadOnlyUser && $isSelf);
-                                    $removeDisabled = $isMaster || (!$canRemoveUsers && !$isSelf) || ($isReadOnlyUser && $isSelf);
+                                    $removeDisabled = $removeHierarchyBlocked
+                                        || $isMaster
+                                        || (!$canRemoveUsers && !$isSelf)
+                                        || ($isReadOnlyUser && $isSelf);
                                     $tempPassword = $user['temp_password'] ?? '';
                                     $label = $username . ($isMaster ? ' (Master Account)' : '');
                                     if ($isReadOnly) {
@@ -680,13 +702,6 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
                                     }
                                     if (!$isMaster && !empty($tempPassword)) {
                                         $label .= ' (Temporary password: ' . $tempPassword . ')';
-                                    }
-                                    $permissions = $user['permissions'] ?? [];
-                                    if (!is_array($permissions)) {
-                                        $permissions = [];
-                                    }
-                                    if (!empty($allowedPermissions) && is_array($allowedPermissions)) {
-                                        $permissions = array_values(array_intersect($permissions, $allowedPermissions));
                                     }
                                     $permissionsAttr = htmlspecialchars(implode(',', $permissions));
                                     $csrfToken = $_SESSION['csrf_token'] ?? '';

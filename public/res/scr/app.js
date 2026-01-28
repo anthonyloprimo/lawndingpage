@@ -788,13 +788,16 @@ function updateNavBarFades() {
 
 // Helper: default pane for mobile (first nav entry).
 function getDefaultMobilePane() {
+    if (paneOrder.includes('users')) {
+        return 'users';
+    }
     return paneOrder[0] || 'links';
 }
 
 // Helper: default pane for desktop (second nav entry if present, else first).
 function getDefaultDesktopPane() {
-    if (paneOrder.includes('bg')) {
-        return 'bg';
+    if (paneOrder.includes('users')) {
+        return 'users';
     }
     return paneOrder[1] || paneOrder[0] || 'about';
 }

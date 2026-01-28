@@ -3,6 +3,8 @@
 #### v1.6.3
 **Changes:**
 - Tweaked user account behaviors for live demo using the "read only" mode.
+- Fixed account permission behaviors.
+- Changed default page to user account management for the admin panel.
 
 -----
 

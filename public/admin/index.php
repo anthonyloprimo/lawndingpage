@@ -474,6 +474,18 @@ if ($action === 'save_permissions') {
                 $submitted = $_POST['permissions'] ?? [];
                 $targetRecord = find_user($users, $targetUsername);
                 $isTargetMaster = $targetRecord && !empty($targetRecord['master']);
+                $targetPermissions = normalize_permissions($targetRecord ? ($targetRecord['permissions'] ?? []) : [], $allowedPermissions);
+                $isTargetFullAdmin = $isTargetMaster || in_array('full_admin', $targetPermissions, true);
+                $isTargetReadOnly = $targetRecord && !empty($targetRecord['read_only']);
+                if ($targetRecord && $isTargetMaster && !$isMasterUser) {
+                    $usersErrors[] = 'Only master accounts can edit master accounts.';
+                } elseif ($targetRecord && $isTargetFullAdmin && !$isMasterUser && !$isFullAdmin) {
+                    $usersErrors[] = 'Only full admin or master accounts can edit full admin accounts.';
+                } elseif ($targetRecord && $isTargetReadOnly && !$isMasterUser && !$isFullAdmin) {
+                    $usersErrors[] = 'Only full admin or master accounts can edit read-only accounts.';
+                }
+            }
+            if (count($usersErrors) === 0) {
                 $readOnlyRequested = $isMasterUser && !$isTargetMaster && !empty($_POST['read_only']);
                 $normalized = normalize_permissions($submitted, $allowedPermissions);
                 if (!$isMasterUser) {
@@ -551,19 +563,25 @@ if ($action === 'reset_password') {
                 $usersErrors[] = 'You do not have permission to edit users.';
             }
             if (count($usersErrors) === 0) {
+                $targetRecord = find_user($users, $targetUsername);
+                $targetPermissions = normalize_permissions($targetRecord ? ($targetRecord['permissions'] ?? []) : [], $allowedPermissions);
+                $isTargetMaster = $targetRecord && !empty($targetRecord['master']);
+                $isTargetFullAdmin = $isTargetMaster || in_array('full_admin', $targetPermissions, true);
+                $isTargetReadOnly = $targetRecord && !empty($targetRecord['read_only']);
+                if ($targetRecord && $isTargetMaster && !$isMasterUser && !$isFullAdmin) {
+                    $usersErrors[] = 'Only master or full admin accounts can reset the master password.';
+                } elseif ($targetRecord && $isTargetFullAdmin && !$isMasterUser && !$isFullAdmin) {
+                    $usersErrors[] = 'Only full admin or master accounts can reset full admin passwords.';
+                } elseif ($targetRecord && $isTargetReadOnly && !$isMasterUser && !$isFullAdmin) {
+                    $usersErrors[] = 'Only full admin or master accounts can reset read-only passwords.';
+                }
+            }
+            if (count($usersErrors) === 0) {
                 $newTempPassword = bin2hex(random_bytes(6));
                 $updated = false;
                 $resetLogoutAfter = false;
                 foreach ($users as &$user) {
                     if (($user['username'] ?? '') === $targetUsername) {
-                        if (!empty($user['read_only']) && !$isMasterUser) {
-                            $usersErrors[] = 'Read-only accounts cannot reset passwords.';
-                            break;
-                        }
-                        if (!empty($user['master']) && !$isFullAdmin) {
-                            $usersErrors[] = 'Only master or full admin accounts can reset the master password.';
-                            break;
-                        }
                         $user['password_hash'] = password_hash($newTempPassword, PASSWORD_DEFAULT);
                         $user['must_change_password'] = empty($user['read_only']);
                         $user['temp_password'] = empty($user['read_only']) ? $newTempPassword : '';
@@ -604,15 +622,24 @@ if ($action === 'remove_user') {
                 $usersErrors[] = 'You do not have permission to remove users.';
             }
             if (count($usersErrors) === 0) {
+                $targetRecord = find_user($users, $targetUsername);
+                $targetPermissions = normalize_permissions($targetRecord ? ($targetRecord['permissions'] ?? []) : [], $allowedPermissions);
+                $isTargetMaster = $targetRecord && !empty($targetRecord['master']);
+                $isTargetFullAdmin = $isTargetMaster || in_array('full_admin', $targetPermissions, true);
+                $isTargetReadOnly = $targetRecord && !empty($targetRecord['read_only']);
+                if ($targetRecord && $isTargetMaster && !$isMasterUser) {
+                    $usersErrors[] = 'Only master accounts can remove master accounts.';
+                } elseif ($targetRecord && $isTargetFullAdmin && !$isMasterUser && !$isFullAdmin) {
+                    $usersErrors[] = 'Only full admin or master accounts can remove full admin accounts.';
+                } elseif ($targetRecord && $isTargetReadOnly && !$isMasterUser && !$isFullAdmin) {
+                    $usersErrors[] = 'Only full admin or master accounts can remove read-only accounts.';
+                }
+            }
+            if (count($usersErrors) === 0) {
                 $newUsers = [];
                 $removed = false;
                 foreach ($users as $user) {
                     if (($user['username'] ?? '') === $targetUsername) {
-                        if (!empty($user['read_only']) && !$isMasterUser) {
-                            $usersErrors[] = 'Read-only accounts cannot be removed.';
-                            $newUsers[] = $user;
-                            continue;
-                        }
                         if (!empty($user['master'])) {
                             $usersErrors[] = 'Master accounts cannot be removed.';
                             $newUsers[] = $user;

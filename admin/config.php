@@ -177,7 +177,17 @@ $changelog = $Parsedown->text($changelogMarkdown);
 
 // Load link list configuration (JSON structure used by the editor).
 $linksJsonPath = $dataPath('links.json');
-$linksData = $readJson($linksJsonPath, []);
+$linksPayload = $readJson($linksJsonPath, []);
+$linksSettings = ['show_links' => true];
+$linksData = [];
+if (is_array($linksPayload) && array_key_exists('links', $linksPayload)) {
+    $linksData = is_array($linksPayload['links']) ? $linksPayload['links'] : [];
+    if (isset($linksPayload['settings']) && is_array($linksPayload['settings'])) {
+        $linksSettings['show_links'] = !array_key_exists('show_links', $linksPayload['settings']) || !empty($linksPayload['settings']['show_links']);
+    }
+} elseif (is_array($linksPayload)) {
+    $linksData = $linksPayload;
+}
 
 // Load header configuration, with defaults when JSON is missing.
 $headerJsonPath = $dataPath('header.json');
@@ -624,6 +634,11 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
                 <?php endforeach; ?>
             </div>
                 <div class="linksConfigActions">
+                    <label class="linksConfigCheckbox" title="Toggle whether the links list appears on the public website.">
+                        <input type="checkbox" id="linksVisibleToggle" <?php echo !empty($linksSettings['show_links']) ? 'checked' : ''; ?>>
+                        Show link list on website
+                    </label>
+                    <span class="linksConfigSpacer"></span>
                     <button class="addLink" type="button">Add link</button>
                     <button class="addSeparator" type="button">Add separator</button>
                 </div>
@@ -729,47 +744,49 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
             <h3>BACKGROUND IMAGES</h3>
             <div class="paneHint">Images are saved immediately on upload. Adding or deleting a background saves immediately. To save Author, click 'Save All Changes' afterwards.</div>
             <div class="bgConfig" id="bgConfig">
-                <div class="bgConfigRow bgConfigHeader">
-                    <span>Preview</span>
-                    <span>Author</span>
-                    <span>URL</span>
-                    <span aria-hidden="true"></span>
-                </div>
-                <?php foreach ($backgrounds as $bg): ?>
-                    <?php
-                        $bgUrl = '';
-                        $bgAuthor = '';
-                        $bgAuthorUrl = '';
-                        if (is_string($bg)) {
-                            $bgUrl = $bg;
-                        } elseif (is_array($bg)) {
-                            $bgUrl = $bg['url'] ?? '';
-                            $bgAuthor = $bg['author'] ?? '';
-                            $bgAuthorUrl = $bg['authorUrl'] ?? '';
-                        }
-                        $bgDisplayUrl = $makeAssetUrl($bgUrl);
-                        $isEmptyBg = empty($bgUrl);
-                    ?>
-                    <div class="bgConfigRow" data-current-url="<?php echo htmlspecialchars($bgUrl); ?>" data-author-url="<?php echo htmlspecialchars($bgAuthorUrl); ?>">
-                        <div class="bgThumbWrap <?php echo $isEmptyBg ? 'empty' : ''; ?>">
-                            <img class="bgThumb" src="<?php echo htmlspecialchars($bgDisplayUrl); ?>" alt="Background preview">
-                            <button class="bgChange" type="button">Change</button>
-                        </div>
-                        <input class="bgAuthorInput" type="text" name="bgAuthor[]" value="<?php echo htmlspecialchars($bgAuthor); ?>" placeholder="Author">
-                        <input class="bgAuthorUrlInput" type="text" name="bgAuthorUrl[]" value="<?php echo htmlspecialchars($bgAuthorUrl); ?>" placeholder="URL">
-                        <div class="bgRowActions">
-                            <button class="moveUpLink iconButton" type="button" title="Move background up" aria-label="Move background up">
-                                <?php echo lawnding_icon_svg('move_up'); ?>
-                            </button>
-                            <button class="moveDownLink iconButton" type="button" title="Move background down" aria-label="Move background down">
-                                <?php echo lawnding_icon_svg('move_down'); ?>
-                            </button>
-                            <button class="deleteBackground usersDanger iconButton" type="button" aria-label="Delete background" title="Remove this background">
-                                <?php echo lawnding_icon_svg('delete'); ?>
-                            </button>
-                        </div>
+                <div class="bgConfigList">
+                    <div class="bgConfigRow bgConfigHeader">
+                        <span>Preview</span>
+                        <span>Author</span>
+                        <span>URL</span>
+                        <span aria-hidden="true"></span>
                     </div>
-                <?php endforeach; ?>
+                    <?php foreach ($backgrounds as $bg): ?>
+                        <?php
+                            $bgUrl = '';
+                            $bgAuthor = '';
+                            $bgAuthorUrl = '';
+                            if (is_string($bg)) {
+                                $bgUrl = $bg;
+                            } elseif (is_array($bg)) {
+                                $bgUrl = $bg['url'] ?? '';
+                                $bgAuthor = $bg['author'] ?? '';
+                                $bgAuthorUrl = $bg['authorUrl'] ?? '';
+                            }
+                            $bgDisplayUrl = $makeAssetUrl($bgUrl);
+                            $isEmptyBg = empty($bgUrl);
+                        ?>
+                        <div class="bgConfigRow" data-current-url="<?php echo htmlspecialchars($bgUrl); ?>" data-author-url="<?php echo htmlspecialchars($bgAuthorUrl); ?>">
+                            <div class="bgThumbWrap <?php echo $isEmptyBg ? 'empty' : ''; ?>">
+                                <img class="bgThumb" src="<?php echo htmlspecialchars($bgDisplayUrl); ?>" alt="Background preview">
+                                <button class="bgChange" type="button">Change</button>
+                            </div>
+                            <input class="bgAuthorInput" type="text" name="bgAuthor[]" value="<?php echo htmlspecialchars($bgAuthor); ?>" placeholder="Author">
+                            <input class="bgAuthorUrlInput" type="text" name="bgAuthorUrl[]" value="<?php echo htmlspecialchars($bgAuthorUrl); ?>" placeholder="URL">
+                            <div class="bgRowActions">
+                                <button class="moveUpLink iconButton" type="button" title="Move background up" aria-label="Move background up">
+                                    <?php echo lawnding_icon_svg('move_up'); ?>
+                                </button>
+                                <button class="moveDownLink iconButton" type="button" title="Move background down" aria-label="Move background down">
+                                    <?php echo lawnding_icon_svg('move_down'); ?>
+                                </button>
+                                <button class="deleteBackground usersDanger iconButton" type="button" aria-label="Delete background" title="Remove this background">
+                                    <?php echo lawnding_icon_svg('delete'); ?>
+                                </button>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
                 <div class="bgConfigActions">
                     <div class="bgConfigOptions">
                         <div class="bgConfigOptionGroup">

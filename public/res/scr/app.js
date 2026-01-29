@@ -7,6 +7,7 @@ let currentPane = null;
 let paneOrder = [];
 const faviconCache = new Map();
 const BACKGROUND_DEFAULT_SETTINGS = { mode: 'random_load', duration: 5 };
+const BACKGROUND_NEXT_INDEX_KEY = 'lawnding_bg_next_index';
 const BACKGROUND_FADE_MS = 450;
 const backgroundState = {
     order: [],
@@ -20,6 +21,11 @@ const backgroundState = {
 
 // Helper: ensure we aren't trying to show the always-visible pane on desktop.
 function ensureDesktopPaneSelection() {
+    const linksHidden = document.body && document.body.classList.contains('linksHidden');
+    const linksPaneExists = document.querySelector('#links');
+    if (linksHidden || !linksPaneExists || !paneOrder.includes('links')) {
+        return;
+    }
     const alwaysVisiblePane = paneOrder.includes('links') ? 'links' : paneOrder[0];
     const secondPane = getDefaultDesktopPane();
     if (currentPane === alwaysVisiblePane && secondPane) {
@@ -42,6 +48,9 @@ function updatePaneVisibility(panes, visibleIds) {
 
 // Helper: show/hide the Links nav item based on mode.
 function toggleLinksNav(show) {
+    if (document.body && document.body.classList.contains('linksHidden')) {
+        return;
+    }
     const linkItem = $('.navLink[data-pane="links"]');
     const linkItems = linkItem.closest('li');
     if (show) {
@@ -151,6 +160,8 @@ function init() {
 function applyLayout() {
     // Easily store jquery reference to a constant.
     const panes = $('.pane');
+    const linksHidden = document.body && document.body.classList.contains('linksHidden');
+    const linksPaneExists = $('#links').length > 0;
 
     // check the mode and apply layout based on that.
     if (mode === 'desktop') {
@@ -158,7 +169,11 @@ function applyLayout() {
         ensureDesktopPaneSelection();
 
         // Show the links pane plus the current content pane.
-        updatePaneVisibility(panes, new Set(['links', currentPane]));
+        if (linksHidden || !linksPaneExists) {
+            updatePaneVisibility(panes, new Set([currentPane]));
+        } else {
+            updatePaneVisibility(panes, new Set(['links', currentPane]));
+        }
 
         // Hide the Links nav item on desktop (links pane is always visible already).
         toggleLinksNav(false);
@@ -199,6 +214,7 @@ function setBackgroundFromSettings() {
     const settings = getBackgroundSettings();
     const isRandom = settings.mode.indexOf('random') === 0;
     const isSlideshow = settings.mode.indexOf('slideshow') !== -1;
+    const isSequentialLoad = settings.mode === 'sequential_load';
 
     backgroundState.backgrounds = backgrounds;
     backgroundState.mode = settings.mode;
@@ -206,7 +222,13 @@ function setBackgroundFromSettings() {
     backgroundState.order = buildBackgroundOrder(backgrounds.length, isRandom);
     backgroundState.index = 0;
 
-    applyBackgroundIndex(0, false);
+    let initialIndex = 0;
+    if (isSequentialLoad) {
+        initialIndex = getSequentialLoadIndex(backgrounds.length);
+        saveSequentialLoadIndex(initialIndex + 1, backgrounds.length);
+    }
+    backgroundState.index = initialIndex;
+    applyBackgroundIndex(initialIndex, false);
 
     if (isSlideshow && backgrounds.length > 1) {
         scheduleBackgroundAdvance();
@@ -257,6 +279,34 @@ function buildBackgroundOrder(count, randomize) {
         }
     }
     return order;
+}
+
+function getSequentialLoadIndex(count) {
+    if (count <= 0) {
+        return 0;
+    }
+    try {
+        const raw = localStorage.getItem(BACKGROUND_NEXT_INDEX_KEY);
+        const parsed = parseInt(raw, 10);
+        if (!Number.isFinite(parsed) || parsed < 0 || parsed >= count) {
+            return 0;
+        }
+        return parsed;
+    } catch (err) {
+        return 0;
+    }
+}
+
+function saveSequentialLoadIndex(nextIndex, count) {
+    if (count <= 0) {
+        return;
+    }
+    const value = Number.isFinite(nextIndex) ? nextIndex : 0;
+    try {
+        localStorage.setItem(BACKGROUND_NEXT_INDEX_KEY, String(value));
+    } catch (err) {
+        // Ignore storage failures (private mode, quota, etc.)
+    }
 }
 
 function scheduleBackgroundAdvance() {
@@ -796,6 +846,10 @@ function getDefaultMobilePane() {
 
 // Helper: default pane for desktop (second nav entry if present, else first).
 function getDefaultDesktopPane() {
+    const linksHidden = document.body && document.body.classList.contains('linksHidden');
+    if (linksHidden) {
+        return paneOrder[0] || 'about';
+    }
     if (paneOrder.includes('users')) {
         return 'users';
     }

@@ -101,7 +101,19 @@ function lawnding_render_link_item($link): string {
 
 // Load links configuration used by the links pane.
 $linksJsonPath = lawnding_public_data_path('links.json');
-$linksData = lawnding_read_json($linksJsonPath, []);
+$linksPayload = lawnding_read_json($linksJsonPath, []);
+$linksSettings = ['show_links' => true];
+$linksData = [];
+if (is_array($linksPayload) && array_key_exists('links', $linksPayload)) {
+    $linksData = is_array($linksPayload['links']) ? $linksPayload['links'] : [];
+    if (isset($linksPayload['settings']) && is_array($linksPayload['settings'])) {
+        if (array_key_exists('show_links', $linksPayload['settings'])) {
+            $linksSettings['show_links'] = !empty($linksPayload['settings']['show_links']);
+        }
+    }
+} elseif (is_array($linksPayload)) {
+    $linksData = $linksPayload;
+}
 
 // Load header configuration with defaults if missing.
 $headerJsonPath = lawnding_public_data_path('header.json');
@@ -223,6 +235,9 @@ function lawnding_render_pane_icon(array $pane): string {
 
 $panesPath = lawnding_public_data_path('panes.json');
 $panes = lawnding_sort_panes(lawnding_load_panes($panesPath));
+$showLinks = !empty($linksSettings['show_links']);
+$isLinksOnly = $showLinks && count($panes) === 0;
+$isLinksHidden = !$showLinks;
 ?> 
 
 <!DOCTYPE html>
@@ -246,7 +261,7 @@ $panes = lawnding_sort_panes(lawnding_load_panes($panesPath));
         </style>
     </noscript>
 </head>
-<body class="is-loading" data-header-json="<?php echo $headerDataJson; ?>">
+<body class="is-loading<?php echo $isLinksOnly ? ' linksOnly' : ''; ?><?php echo $isLinksHidden ? ' linksHidden' : ''; ?>" data-header-json="<?php echo $headerDataJson; ?>">
     <!-- No-JS fallback for browsers with JavaScript disabled. -->
     <div id="noJsWarning"><noscript>This site requires JavaScript to function properly. Please enable JavaScript in your browser.</noscript></div>
     <!-- Header with logo and title/subtitle. -->
@@ -259,14 +274,16 @@ $panes = lawnding_sort_panes(lawnding_load_panes($panesPath));
     </header>
     <!-- Main content panes. -->
     <div class="container" id="container">
-        <div class="pane glassConvex alwaysShow" id="links">
-            <h3>LINKS</h3>
-            <ul class="linkList" id="linkList">
-                <?php foreach ($linksData as $link): ?>
-                    <?php echo lawnding_render_link_item($link); ?>
-                <?php endforeach; ?>
-            </ul>
-        </div>
+        <?php if ($showLinks): ?>
+            <div class="pane glassConvex alwaysShow" id="links">
+                <h3>LINKS</h3>
+                <ul class="linkList" id="linkList">
+                    <?php foreach ($linksData as $link): ?>
+                        <?php echo lawnding_render_link_item($link); ?>
+                    <?php endforeach; ?>
+                </ul>
+            </div>
+        <?php endif; ?>
         <?php // Render each dynamic pane using its module template. ?>
         <?php foreach ($panes as $pane): ?>
             <?php
@@ -284,7 +301,9 @@ $panes = lawnding_sort_panes(lawnding_load_panes($panesPath));
     <nav>
         <div class="navBarWrap" id="navBarWrap">
             <ul class="navBar glassConcave" id="navBar">
-            <li><a class="navLink" href="#" data-pane="links" aria-label="Links" title="Links"><?php echo lawnding_icon_svg('links'); ?></a></li>
+            <?php if ($showLinks): ?>
+                <li><a class="navLink" href="#" data-pane="links" aria-label="Links" title="Links"><?php echo lawnding_icon_svg('links'); ?></a></li>
+            <?php endif; ?>
             <?php // Render dynamic pane nav items from panes.json. ?>
             <?php foreach ($panes as $pane): ?>
                 <?php

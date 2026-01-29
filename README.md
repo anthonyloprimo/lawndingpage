@@ -568,6 +568,7 @@ The core design of `config.php` is directly based on `index.php`.  Literally, I 
 - Separators only have the up/down/remove buttons.
 - At the bottom of the Links List, there's an "Add link" and "Add separator" button.
     - Newly added links or separators appear at the bottom of the list.
+- There's also a checkbox to toggle visibility of the links list.  If disabled, only the other panes will display on the site.
 - To save changes, click the "Save all changes" button in the header (the floppy disk icon).
 
 #### Pane Management

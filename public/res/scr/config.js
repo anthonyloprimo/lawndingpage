@@ -174,6 +174,18 @@ $(document).ready(function() {
         }
     }
 
+    function resetAdminModalState() {
+        $('.userModalOverlay').removeClass('isOpen').attr('aria-hidden', 'true');
+        modalStack.length = 0;
+        activeModal = null;
+        setModalBackgroundState(false);
+        $(document).off('keydown.adminModal');
+        if (lastFocusedElement && typeof lastFocusedElement.focus === 'function') {
+            lastFocusedElement.focus();
+        }
+        lastFocusedElement = null;
+    }
+
     // Bind Help button
     $('.helpTutorial').on('click', function() {
         startTutorial();
@@ -680,7 +692,7 @@ $(document).ready(function() {
 
     function updateBackgroundRowIndexes() {
         $('#bgConfig')
-            .find('.bgConfigRow')
+            .find('.bgConfigList .bgConfigRow')
             .not('.bgConfigHeader')
             .each(function(index) {
                 $(this).attr('data-index', index);
@@ -688,7 +700,7 @@ $(document).ready(function() {
     }
 
     function refreshBackgroundControls() {
-        const $rows = $('#bgConfig').find('.bgConfigRow').not('.bgConfigHeader');
+        const $rows = $('#bgConfig').find('.bgConfigList .bgConfigRow').not('.bgConfigHeader');
         $rows.find('.moveUpLink, .moveDownLink').prop('disabled', false);
         if ($rows.length === 0) {
             return;
@@ -757,8 +769,10 @@ $(document).ready(function() {
     }
 
     function scrollBgListToBottom() {
-        const $bgList = $('#bgConfig');
-        $bgList.scrollTop($bgList[0].scrollHeight);
+        const $bgList = $('#bgConfig .bgConfigList');
+        if ($bgList.length) {
+            $bgList.scrollTop($bgList[0].scrollHeight);
+        }
     }
 
     // Save handler: gather data and POST to save endpoint.
@@ -913,7 +927,13 @@ $(document).ready(function() {
                 cta
             });
         });
-        return links;
+        const showLinks = $('#linksVisibleToggle').is(':checked');
+        return {
+            settings: {
+                show_links: showLinks
+            },
+            links
+        };
     }
 
     function getBackgroundsData() {
@@ -1218,8 +1238,7 @@ $(document).ready(function() {
     }
 
     function renderBackgrounds(backgrounds) {
-        const $bgList = $('#bgConfig');
-        const $actions = $bgList.find('.bgConfigActions');
+        const $bgList = $('#bgConfig .bgConfigList');
         $bgList.find('.bgConfigRow').not('.bgConfigHeader').remove();
 
         if (!Array.isArray(backgrounds)) {
@@ -1251,7 +1270,7 @@ $(document).ready(function() {
                     </div>
                 </div>
             `;
-            $(row).insertBefore($actions);
+            $bgList.append(row);
         });
 
         updateBackgroundRowIndexes();
@@ -1545,10 +1564,7 @@ $(document).ready(function() {
                 applyPermissionsModalState($newPermissionsModal);
                 updateEditSitePermissionFromUsers();
                 applySiteEditPermissions();
-                $('#permissionsModal').removeClass('isOpen').attr('aria-hidden', 'true');
-                $('#removeUserModal').removeClass('isOpen').attr('aria-hidden', 'true');
-                $('#resetConfirmModal').removeClass('isOpen').attr('aria-hidden', 'true');
-                $('#permissionsSelfConfirmModal').removeClass('isOpen').attr('aria-hidden', 'true');
+                resetAdminModalState();
 
                 if (status === 401 || status === 403) {
                     if (!document.querySelector('#adminNotices .adminNotice--danger')) {

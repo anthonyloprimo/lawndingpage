@@ -522,6 +522,25 @@ $linksData = parse_json_payload($linksJson, 'Invalid links payload');
 $backgroundsData = parse_json_payload($backgroundsJson, 'Invalid backgrounds payload');
 $backgroundAuthors = parse_json_payload($backgroundAuthorsJson, 'Invalid background authors payload');
 
+// Normalize links payload to { settings, links } structure.
+function normalize_links_payload($linksData): array {
+    $settings = ['show_links' => true];
+    $links = [];
+    if (is_array($linksData) && array_key_exists('links', $linksData)) {
+        $links = is_array($linksData['links']) ? $linksData['links'] : [];
+        if (isset($linksData['settings']) && is_array($linksData['settings'])) {
+            if (array_key_exists('show_links', $linksData['settings'])) {
+                $settings['show_links'] = !empty($linksData['settings']['show_links']);
+            }
+        }
+        return ['settings' => $settings, 'links' => $links];
+    }
+    if (is_array($linksData)) {
+        $links = $linksData;
+    }
+    return ['settings' => $settings, 'links' => $links];
+}
+
 if ($action === 'pane_management') {
     // Pane management save: validate entries, rename/remove data files, and write panes.json.
     if (!is_string($panesPayload) || $panesPayload === '') {
@@ -959,10 +978,13 @@ if (is_array($backgroundAuthors)) {
 
 // Handle link configuration updates.
 $linksOut = null;
+$linksSettings = null;
 if (is_array($linksData)) {
+    $normalizedLinks = normalize_links_payload($linksData);
+    $linksSettings = $normalizedLinks['settings'];
     $linksOut = [];
     $reservedIds = [];
-    foreach ($linksData as $link) {
+    foreach ($normalizedLinks['links'] as $link) {
         if (!is_array($link)) {
             continue;
         }
@@ -1083,7 +1105,10 @@ if ($headerChanged) {
     write_json_file($headerPath, $headerData, 'Failed to write header data');
 }
 if (is_array($linksOut)) {
-    write_json_file($linksPath, $linksOut, 'Failed to write links data');
+    $payload = is_array($linksSettings)
+        ? ['settings' => $linksSettings, 'links' => $linksOut]
+        : $linksOut;
+    write_json_file($linksPath, $payload, 'Failed to write links data');
 }
 
 // All operations succeeded.

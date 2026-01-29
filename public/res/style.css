@@ -106,10 +106,27 @@ header {
     height: 0;
     min-height: 0;
 }
+body.linksOnly #container {
+    justify-content: center;
+}
+body.linksHidden #container {
+    justify-content: center;
+}
     #links {
         flex: 0 0 320px;
         min-width: 560px;
         white-space: nowrap;
+    }
+    body.linksOnly #links {
+        flex: 0 1 560px;
+        min-width: 0;
+        width: min(560px, 100%);
+        margin: 0 auto;
+    }
+    body.linksHidden .pane {
+        flex: 0 1 60%;
+        width: 60%;
+        margin: 0 auto;
     }
     #rules ol {
         list-style-type: decimal;
@@ -428,5 +445,13 @@ nav {
             width: 100%;
             max-width: none;
             min-width: 0;
+        }
+        body.linksOnly #links {
+            width: min(560px, 100%);
+            margin: 0 auto;
+        }
+        body.linksHidden .pane {
+            width: 100%;
+            margin: 0 auto;
         }
 }

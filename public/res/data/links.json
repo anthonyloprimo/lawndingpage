@@ -1,41 +1,46 @@
-[
-    {
-        "type": "link",
-        "id": "linkWildcardCreations",
-        "href": "https://www.wildcardcreations.net",
-        "text": "Wildcard Creations",
-        "title": "The creator of LawndingPage.",
-        "fullWidth": true,
-        "cta": true
+{
+    "settings": {
+        "show_links": true
     },
-    {
-        "type": "link",
-        "id": "linkGoogle",
-        "href": "https://www.google.com/",
-        "text": "Google",
-        "title": "The google.com homepage.",
-        "fullWidth": false,
-        "cta": false
-    },
-    {
-        "type": "link",
-        "id": "linkNeverGonnaGiveYouUp",
-        "href": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-        "text": "Never Gonna Give You Up",
-        "title": "This is literally a rickroll.",
-        "fullWidth": false,
-        "cta": false
-    },
-    {
-        "type": "separator"
-    },
-    {
-        "type": "link",
-        "id": "linkExamplePage",
-        "href": "https://www.example.com",
-        "text": "Example Page",
-        "title": "Another link",
-        "fullWidth": true,
-        "cta": false
-    }
-]
+    "links": [
+        {
+            "type": "link",
+            "id": "linkWildcardCreations",
+            "href": "https://www.wildcardcreations.net",
+            "text": "Wildcard Creations",
+            "title": "The creator of LawndingPage.",
+            "fullWidth": true,
+            "cta": true
+        },
+        {
+            "type": "link",
+            "id": "linkGoogle",
+            "href": "https://www.google.com/",
+            "text": "Google",
+            "title": "The google.com homepage.",
+            "fullWidth": false,
+            "cta": false
+        },
+        {
+            "type": "link",
+            "id": "linkNeverGonnaGiveYouUp",
+            "href": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+            "text": "Never Gonna Give You Up",
+            "title": "This is literally a rickroll.",
+            "fullWidth": false,
+            "cta": false
+        },
+        {
+            "type": "separator"
+        },
+        {
+            "type": "link",
+            "id": "linkExamplePage",
+            "href": "https://www.example.com",
+            "text": "Example Page",
+            "title": "Another link",
+            "fullWidth": true,
+            "cta": false
+        }
+    ]
+}

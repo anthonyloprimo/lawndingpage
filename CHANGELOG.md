@@ -1,5 +1,14 @@
 ### Changelog
 
+#### v1.7.0
+- FEATURE: Enabled toggling of the link list.  If disabled, only defined panes will display.
+- UI TWEAK: Tweaked the display of the link list on the front-end so it's centered when no other panes are defined.
+- BUGFIX: Fixed a bug where removing users or modifying their roles/permissions where upon saving the entire page becomes unresponsive, except for the notification that pops up.
+- BIGFIX: Fixed a bug where the bottom toolbar for the background image list behaved as if it were inside the list, being pushed down when enough entries were in the list.
+- BUGFIX: Fixed a bug where background display mode "sequential on load" was always loading the first image instead of loading the next in the list.
+
+-----
+
 #### v1.6.3
 **Changes:**
 - Tweaked user account behaviors for live demo using the "read only" mode.

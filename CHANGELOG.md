@@ -1,5 +1,37 @@
 ### Changelog
 
+#### v1.8.0
+- FEATURE: Added media gallery module.
+- TODO: Media gallery module review and fix:
+    - Allows images and video to be uploaded, no other files for this module.
+    - Back-end:
+        - Creates a `mediaGallery-<paneName>/` directory in the `data/` folder, or in `usrfile/`
+        - Grid view.  Bottom toolbar (stays outside of scrollable area, like other list views).
+            - Each cell is 160px square, possibly larger and just wraps around.  8px margin around each square.
+            - Add new creates a new entry but no upload prompt yet.
+            - Clicking on an entry opens a modal with a preview, clicking preview lets user upload a file.
+            - If video is detected, allow user to upload a thumbnail as well
+            - Also have delete button
+        - `media.json` specifies the order and thumbnails for videos.
+    - Front-end:
+        - Grid view like for back-end minus controlls
+        - Clicking on an image opens a shadow box style overlay
+        - Can use arrow keys or buttons to go previous/next
+        - Loops through gallery, so pressing previous for the first entry or next for the last entry loops back to the last or first entry, respectively.
+        - Video files will have a play icon or some other indicator to show that it's a video.
+    - POST-GENERATION:
+        - List area isn't visible; it's condensed, with "toolbar" at bottom of area.
+            - We need to expand the list area to fill the content.
+            - Also expand description to explain `saves to <paneName>.json and /public/res/data/mediaGalleryContent-<paneName>/`.
+            - Ensure bottom toolbar is on bottom OUTSIDE of the list and extends from left to right.
+        - Uploading images saves to directory and json, but when reloading, it's empty.  All uploaded images display uploading another image.
+        - Modal opens, but I cannot click on anything.
+            - No buttons respond, only pressing "Esc" works to dismiss.
+            - I cannot edit, remove, or modify images, only add.  Buttons don't respond.
+        - Public view only shows blank thumbnails, images do not open to shadow box.  Opening in new tab does work, though.
+
+-----
+
 #### v1.7.0
 - FEATURE: Enabled toggling of the link list.  If disabled, only defined panes will display.
 - UI TWEAK: Tweaked the display of the link list on the front-end so it's centered when no other panes are defined.

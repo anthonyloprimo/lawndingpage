@@ -174,6 +174,9 @@ $(document).ready(function() {
         }
     }
 
+    window.openAdminModal = openAdminModal;
+    window.closeAdminModal = closeAdminModal;
+
     function resetAdminModalState() {
         $('.userModalOverlay').removeClass('isOpen').attr('aria-hidden', 'true');
         modalStack.length = 0;
@@ -853,13 +856,22 @@ $(document).ready(function() {
                 success: function(resp) {
                     console.log('Save successful', resp);
                     addAdminNotice('ok', 'Changes saved.');
-                    initialSnapshot = captureSnapshot();
+                    let refreshPromise = Promise.resolve();
                     if (typeof window.refreshEventListUIs === 'function') {
                         window.refreshEventListUIs();
                         addAdminNotice('ok', 'Event list re-sorted.');
                     }
-                    pendingLogoFile = null;
-                    hideSavingOverlay();
+                    if (typeof window.refreshMediaGalleryUIs === 'function') {
+                        const result = window.refreshMediaGalleryUIs();
+                        if (result && typeof result.then === 'function') {
+                            refreshPromise = result;
+                        }
+                    }
+                    refreshPromise.finally(function() {
+                        initialSnapshot = captureSnapshot();
+                        pendingLogoFile = null;
+                        hideSavingOverlay();
+                    });
                 },
                 error: function(xhr) {
                     const responseText = xhr && xhr.responseText ? xhr.responseText : '';
@@ -2894,6 +2906,8 @@ $(document).ready(function() {
         }
     }
 
+    window.addAdminNotice = addAdminNotice;
+
     function escapeHtml(value) {
         return String(value)
             .replace(/&/g, '&amp;')
@@ -2910,6 +2924,9 @@ $(document).ready(function() {
     function hideSavingOverlay() {
         $('#savingOverlay').removeClass('isActive').attr('aria-hidden', 'true');
     }
+
+    window.showSavingOverlay = showSavingOverlay;
+    window.hideSavingOverlay = hideSavingOverlay;
 
     function noticeHasAction($notice) {
         if (!$notice || !$notice.length) {

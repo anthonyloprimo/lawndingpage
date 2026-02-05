@@ -466,6 +466,9 @@ $(document).ready(function() {
         const $changes = $pane.find('.mediaGalleryChanges');
         const $dataScript = $pane.find('.mediaGalleryData');
         const $modal = $pane.find('.mediaGalleryModal');
+        if ($modal.length && !$modal.parent().is('body')) {
+            $('body').append($modal);
+        }
 
         let payload = {};
         if ($dataScript.length) {

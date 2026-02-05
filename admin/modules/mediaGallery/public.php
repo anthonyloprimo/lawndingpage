@@ -64,7 +64,7 @@ foreach ($items as $item) {
     $itemsForJson[] = $item;
 }
 
-$itemsJson = json_encode(['items' => $itemsForJson], JSON_UNESCAPED_SLASHES);
+$itemsJson = json_encode(['items' => $itemsForJson], JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
 if ($itemsJson === false) {
     $itemsJson = '{"items":[]}';
 }
@@ -83,15 +83,18 @@ if ($itemsJson === false) {
                 $itemTitle = isset($item['title']) ? (string) $item['title'] : '';
                 $itemFileUrl = function_exists('lawnding_asset_url') ? lawnding_asset_url($itemFile) : $itemFile;
                 $thumbPath = $itemThumb !== '' ? $itemThumb : ($itemType === 'image' ? $itemFile : '');
-                $thumbUrl = function_exists('lawnding_asset_url') ? lawnding_asset_url($thumbPath) : $thumbPath;
+                $thumbUrl = $thumbPath !== '' && function_exists('lawnding_asset_url') ? lawnding_asset_url($thumbPath) : $thumbPath;
             ?>
-            <a class="mediaGalleryPublicItem<?php echo $itemType === 'video' ? ' isVideo' : ''; ?>" href="<?php echo htmlspecialchars($itemFileUrl); ?>" data-media-id="<?php echo htmlspecialchars($itemId); ?>" data-media-type="<?php echo htmlspecialchars($itemType); ?>" data-media-file="<?php echo htmlspecialchars($itemFileUrl); ?>" data-media-thumb="<?php echo htmlspecialchars($itemThumb); ?>" data-media-title="<?php echo htmlspecialchars($itemTitle); ?>"<?php echo $thumbUrl !== '' ? ' style="background-image: url(' . htmlspecialchars($thumbUrl) . ');"' : ''; ?>>
+            <a class="mediaGalleryPublicItem<?php echo $itemType === 'video' ? ' isVideo' : ''; ?>" href="<?php echo htmlspecialchars($itemFileUrl); ?>" data-media-id="<?php echo htmlspecialchars($itemId); ?>" data-media-type="<?php echo htmlspecialchars($itemType); ?>" data-media-file="<?php echo htmlspecialchars($itemFileUrl); ?>" data-media-thumb="<?php echo htmlspecialchars($itemThumb); ?>" data-media-title="<?php echo htmlspecialchars($itemTitle); ?>">
+                <?php if ($thumbUrl !== ''): ?>
+                    <img class="mediaGalleryPublicThumb" src="<?php echo htmlspecialchars($thumbUrl); ?>" alt="">
+                <?php endif; ?>
                 <span class="mediaGalleryPublicLabel" aria-hidden="true"></span>
             </a>
         <?php endforeach; ?>
     </div>
 
-    <script type="application/json" class="mediaGalleryData"><?php echo htmlspecialchars($itemsJson, ENT_QUOTES, 'UTF-8'); ?></script>
+    <script type="application/json" class="mediaGalleryData"><?php echo $itemsJson; ?></script>
 
     <div class="mediaGalleryLightbox" id="mediaGalleryLightbox-<?php echo htmlspecialchars($paneId); ?>" aria-hidden="true">
         <div class="mediaGalleryLightboxBackdrop" data-lightbox-close></div>

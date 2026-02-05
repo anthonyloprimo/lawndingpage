@@ -1,9 +1,13 @@
 .mediaGalleryPane {
     padding: 8px 10px 10px;
+    display: flex;
+    flex-direction: column;
+    min-height: 360px;
 }
 
 .mediaGalleryScroll {
-    max-height: 380px;
+    flex: 1 1 auto;
+    min-height: 160px;
     overflow: auto;
     margin: 8px 0 10px;
     padding-right: 6px;
@@ -87,9 +91,19 @@
     display: flex;
     flex-direction: column;
     gap: 6px;
+    width: 100%;
+    margin-top: auto;
 }
 
 .mediaGalleryControlsRow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    width: 100%;
+}
+
+.mediaGalleryControlsActions {
     display: flex;
     align-items: center;
     gap: 10px;
@@ -115,29 +129,38 @@
 .mediaGalleryAddIcon {
     width: 14px;
     height: 14px;
-    background: #ffffffcc;
+    fill: currentColor;
+    color: #ffffffcc;
 }
 
 .mediaGalleryFootnote {
     font-size: 0.85rem;
     color: #ffffff88;
+    margin: 0;
 }
 
 .mediaGalleryModal .userModal {
-    max-width: 980px;
+    width: 80vw;
+    height: 80vh;
+    max-width: 80vw;
+    max-height: 80vh;
+    overflow: hidden;
+    position: relative;
 }
 
 .mediaGalleryModalBody {
     display: flex;
     gap: 20px;
     align-items: flex-start;
+    max-width: 100%;
+    height: 100%;
 }
 
 .mediaGalleryModalPreview {
     flex: 1 1 auto;
-    max-width: 600px;
-    max-height: 600px;
-    width: 100%;
+    max-width: calc(80vw - 280px);
+    max-height: 80vh;
+    width: calc(80vw - 280px);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -145,9 +168,9 @@
 
 .mediaGalleryModalImage {
     width: 100%;
-    aspect-ratio: 1 / 1;
-    max-width: 600px;
-    max-height: 600px;
+    height: 80vh;
+    max-width: calc(80vw - 280px);
+    max-height: 80vh;
     background-color: #0f0f0f;
     background-size: contain;
     background-position: center;
@@ -158,8 +181,9 @@
 
 .mediaGalleryModalVideo {
     width: 100%;
-    max-width: 600px;
-    max-height: 600px;
+    height: 80vh;
+    max-width: calc(80vw - 280px);
+    max-height: 80vh;
     border-radius: 10px;
     border: 1px solid #ffffff22;
     display: none;
@@ -178,6 +202,14 @@
     display: flex;
     flex-direction: column;
     gap: 12px;
+    max-height: 100%;
+    overflow: hidden;
+}
+
+.mediaGalleryModal .userModalClose {
+    position: absolute;
+    top: 10px;
+    right: 10px;
 }
 
 .mediaGalleryField {
@@ -207,15 +239,6 @@
 .mediaGalleryButtonStack button {
     padding: 6px 10px;
     border-radius: 6px;
-    background: #ffffff22;
-}
-
-.mediaGalleryButtonStack button:hover {
-    background: #ffffff33;
-}
-
-.mediaGalleryButtonStack button.usersDanger {
-    background: #33000066;
 }
 
 @media (max-width: 780px) {
@@ -224,6 +247,16 @@
     }
     .mediaGalleryModalActions {
         width: 100%;
+    }
+    .mediaGalleryModalPreview {
+        max-width: 100%;
+        width: 100%;
+    }
+    .mediaGalleryModalImage,
+    .mediaGalleryModalVideo {
+        max-width: 100%;
+        height: 60vh;
+        max-height: 60vh;
     }
 }
 
@@ -238,12 +271,15 @@
     aspect-ratio: 1 / 1;
     border-radius: 12px;
     background-color: #0f0f0f;
-    background-size: cover;
-    background-position: center;
-    background-repeat: no-repeat;
     position: relative;
     overflow: hidden;
     border: 1px solid #ffffff22;
+}
+
+.mediaGalleryPublicThumb {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
 }
 
 .mediaGalleryPublicItem.isVideo::before {

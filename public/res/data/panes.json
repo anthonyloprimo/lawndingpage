@@ -26,6 +26,19 @@
                 "json": "eventList.json"
             },
             "order": 2
+        },
+        {
+            "id": "pictures",
+            "name": "Pictures",
+            "module": "mediaGallery",
+            "icon": {
+                "type": "none",
+                "value": ""
+            },
+            "data": {
+                "json": "pictures.json"
+            },
+            "order": 3
         }
     ]
 }

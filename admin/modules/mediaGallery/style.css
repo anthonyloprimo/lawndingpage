@@ -1,0 +1,387 @@
+.mediaGalleryPane {
+    padding: 8px 10px 10px;
+}
+
+.mediaGalleryScroll {
+    max-height: 380px;
+    overflow: auto;
+    margin: 8px 0 10px;
+    padding-right: 6px;
+}
+
+.mediaGalleryGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 12px;
+}
+
+.mediaGalleryEmpty {
+    padding: 10px;
+    font-size: 0.95rem;
+    color: #ffffffaa;
+}
+
+.mediaGalleryItem {
+    position: relative;
+}
+
+.mediaGalleryThumbButton {
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    border-radius: 10px;
+    background-color: #0f0f0f;
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    border: 1px solid #ffffff22;
+}
+
+.mediaGalleryItem.isVideo .mediaGalleryThumbButton::before {
+    content: "";
+    position: absolute;
+    inset: 6px;
+    border-radius: 8px;
+    background:
+        linear-gradient(#000000aa, #000000aa),
+        repeating-linear-gradient(
+            0deg,
+            #111111 0px,
+            #111111 6px,
+            #1d1d1d 6px,
+            #1d1d1d 12px
+        );
+    opacity: 0.85;
+}
+
+.mediaGalleryItem.isVideo .mediaGalleryThumbButton::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-40%, -50%);
+    width: 0;
+    height: 0;
+    border-left: 18px solid #ffffffee;
+    border-top: 12px solid transparent;
+    border-bottom: 12px solid transparent;
+}
+
+.mediaGalleryItemActions {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.mediaGalleryItemActions .iconButton {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: #00000077;
+    border: 1px solid #ffffff33;
+}
+
+.mediaGalleryControls {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.mediaGalleryControlsRow {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.mediaGalleryAddButton {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    border-radius: 6px;
+    background: #ffffff22;
+}
+
+.mediaGalleryAddButton:hover {
+    background: #ffffff33;
+}
+
+.mediaGalleryAddButton:active {
+    background: #ffffff44;
+}
+
+.mediaGalleryAddIcon {
+    width: 14px;
+    height: 14px;
+    background: #ffffffcc;
+}
+
+.mediaGalleryFootnote {
+    font-size: 0.85rem;
+    color: #ffffff88;
+}
+
+.mediaGalleryModal .userModal {
+    max-width: 980px;
+}
+
+.mediaGalleryModalBody {
+    display: flex;
+    gap: 20px;
+    align-items: flex-start;
+}
+
+.mediaGalleryModalPreview {
+    flex: 1 1 auto;
+    max-width: 600px;
+    max-height: 600px;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.mediaGalleryModalImage {
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    max-width: 600px;
+    max-height: 600px;
+    background-color: #0f0f0f;
+    background-size: contain;
+    background-position: center;
+    background-repeat: no-repeat;
+    border-radius: 10px;
+    border: 1px solid #ffffff22;
+}
+
+.mediaGalleryModalVideo {
+    width: 100%;
+    max-width: 600px;
+    max-height: 600px;
+    border-radius: 10px;
+    border: 1px solid #ffffff22;
+    display: none;
+}
+
+.mediaGalleryModal.isVideo .mediaGalleryModalImage {
+    display: none;
+}
+
+.mediaGalleryModal.isVideo .mediaGalleryModalVideo {
+    display: block;
+}
+
+.mediaGalleryModalActions {
+    flex: 0 0 260px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.mediaGalleryField {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.mediaGalleryFieldLabel {
+    font-size: 0.9rem;
+    color: #ffffffcc;
+}
+
+.mediaGalleryCaptionInput {
+    padding: 6px 8px;
+    border-radius: 6px;
+    background: #00000055;
+    border: 1px solid #ffffff22;
+}
+
+.mediaGalleryButtonStack {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.mediaGalleryButtonStack button {
+    padding: 6px 10px;
+    border-radius: 6px;
+    background: #ffffff22;
+}
+
+.mediaGalleryButtonStack button:hover {
+    background: #ffffff33;
+}
+
+.mediaGalleryButtonStack button.usersDanger {
+    background: #33000066;
+}
+
+@media (max-width: 780px) {
+    .mediaGalleryModalBody {
+        flex-direction: column;
+    }
+    .mediaGalleryModalActions {
+        width: 100%;
+    }
+}
+
+.mediaGalleryPublicGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 12px;
+}
+
+.mediaGalleryPublicItem {
+    display: block;
+    aspect-ratio: 1 / 1;
+    border-radius: 12px;
+    background-color: #0f0f0f;
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    position: relative;
+    overflow: hidden;
+    border: 1px solid #ffffff22;
+}
+
+.mediaGalleryPublicItem.isVideo::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background:
+        linear-gradient(#00000088, #00000088),
+        repeating-linear-gradient(
+            0deg,
+            #111111 0px,
+            #111111 6px,
+            #1d1d1d 6px,
+            #1d1d1d 12px
+        );
+    opacity: 0.85;
+}
+
+.mediaGalleryPublicItem.isVideo::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-40%, -50%);
+    width: 0;
+    height: 0;
+    border-left: 22px solid #ffffffee;
+    border-top: 14px solid transparent;
+    border-bottom: 14px solid transparent;
+}
+
+.mediaGalleryLightbox {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.75);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+}
+
+.mediaGalleryLightbox.isOpen {
+    display: flex;
+}
+
+.mediaGalleryLightboxBackdrop {
+    position: absolute;
+    inset: 0;
+}
+
+.mediaGalleryLightboxContent {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    max-width: 90vw;
+    max-height: 90vh;
+}
+
+.mediaGalleryLightboxMedia {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    max-width: 80vw;
+    max-height: 80vh;
+}
+
+.mediaGalleryLightboxImage,
+.mediaGalleryLightboxVideo {
+    max-width: 80vw;
+    max-height: 80vh;
+    border-radius: 10px;
+    border: 1px solid #ffffff22;
+    background: #000000cc;
+}
+
+.mediaGalleryLightboxVideo {
+    display: none;
+}
+
+.mediaGalleryLightbox.isVideo .mediaGalleryLightboxImage {
+    display: none;
+}
+
+.mediaGalleryLightbox.isVideo .mediaGalleryLightboxVideo {
+    display: block;
+}
+
+.mediaGalleryLightboxClose {
+    position: absolute;
+    top: -10px;
+    right: -10px;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: #000000aa;
+    border: 1px solid #ffffff33;
+    color: #fff;
+    font-size: 24px;
+    line-height: 1;
+}
+
+.mediaGalleryLightboxNav {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: #000000aa;
+    border: 1px solid #ffffff33;
+    color: #fff;
+    font-size: 28px;
+    line-height: 1;
+}
+
+.mediaGalleryLightboxPrev {
+    left: -50px;
+}
+
+.mediaGalleryLightboxNext {
+    right: -50px;
+}
+
+.mediaGalleryLightboxCaption {
+    color: #ffffffcc;
+    font-size: 0.95rem;
+    text-align: center;
+    max-width: 80vw;
+}
+
+@media (max-width: 720px) {
+    .mediaGalleryLightboxPrev {
+        left: 10px;
+    }
+    .mediaGalleryLightboxNext {
+        right: 10px;
+    }
+}

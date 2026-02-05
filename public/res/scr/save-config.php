@@ -85,6 +85,109 @@ function resolve_paths() {
     ];
 }
 
+function media_gallery_dir(string $dataDir, string $paneId): string {
+    return rtrim($dataDir, '/\\') . '/mediaGalleryContent-' . $paneId;
+}
+
+function media_gallery_remove_dir(string $dir): void {
+    if (!is_dir($dir)) {
+        return;
+    }
+    $items = scandir($dir);
+    if (!is_array($items)) {
+        return;
+    }
+    foreach ($items as $item) {
+        if ($item === '.' || $item === '..') {
+            continue;
+        }
+        $path = $dir . '/' . $item;
+        if (is_dir($path)) {
+            media_gallery_remove_dir($path);
+        } else {
+            unlink($path);
+        }
+    }
+    rmdir($dir);
+}
+
+function media_gallery_apply_changes(array $data, array $changes): array {
+    $items = $data['items'] ?? [];
+    if (!is_array($items)) {
+        $items = [];
+    }
+    $updates = $changes['updates'] ?? [];
+    if (!is_array($updates) || empty($updates)) {
+        $data['items'] = $items;
+        return $data;
+    }
+    $indexById = [];
+    foreach ($items as $index => $item) {
+        if (is_array($item) && isset($item['id'])) {
+            $indexById[(string) $item['id']] = $index;
+        }
+    }
+    foreach ($updates as $update) {
+        if (!is_array($update)) {
+            continue;
+        }
+        $id = isset($update['id']) ? (string) $update['id'] : '';
+        if ($id === '' || !isset($indexById[$id])) {
+            continue;
+        }
+        $idx = $indexById[$id];
+        if (!is_array($items[$idx])) {
+            $items[$idx] = [];
+        }
+        if (array_key_exists('title', $update)) {
+            $items[$idx]['title'] = (string) $update['title'];
+        }
+        if (array_key_exists('order', $update)) {
+            $items[$idx]['order'] = (int) $update['order'];
+        }
+    }
+    usort($items, function ($a, $b) {
+        $orderA = is_array($a) && isset($a['order']) ? (int) $a['order'] : 0;
+        $orderB = is_array($b) && isset($b['order']) ? (int) $b['order'] : 0;
+        return $orderA <=> $orderB;
+    });
+    $order = 1;
+    foreach ($items as &$item) {
+        if (!is_array($item)) {
+            $item = [];
+        }
+        $item['order'] = $order;
+        $order += 1;
+    }
+    unset($item);
+    $data['items'] = $items;
+    return $data;
+}
+
+function media_gallery_update_paths(array $data, string $oldId, string $newId): array {
+    $items = $data['items'] ?? [];
+    if (!is_array($items)) {
+        $data['items'] = [];
+        return $data;
+    }
+    $oldSegment = 'mediaGalleryContent-' . $oldId . '/';
+    $newSegment = 'mediaGalleryContent-' . $newId . '/';
+    foreach ($items as &$item) {
+        if (!is_array($item)) {
+            $item = [];
+        }
+        if (!empty($item['file']) && is_string($item['file'])) {
+            $item['file'] = str_replace($oldSegment, $newSegment, $item['file']);
+        }
+        if (!empty($item['thumb']) && is_string($item['thumb'])) {
+            $item['thumb'] = str_replace($oldSegment, $newSegment, $item['thumb']);
+        }
+    }
+    unset($item);
+    $data['items'] = $items;
+    return $data;
+}
+
 // Load existing header data with defaults.
 function load_header_data($headerPath) {
     $headerData = [
@@ -688,6 +791,37 @@ if ($action === 'pane_management') {
                     }
                 }
             }
+            if ($currentModule === 'mediaGallery') {
+                $oldDir = media_gallery_dir($paths['data_dir'], $prevId);
+                $newDir = media_gallery_dir($paths['data_dir'], $currentId);
+                if (is_dir($oldDir) && !is_dir($newDir)) {
+                    rename($oldDir, $newDir);
+                }
+                $jsonFile = '';
+                if (is_array($oldData)) {
+                    foreach ($oldData as $entry) {
+                        if (!is_array($entry)) {
+                            continue;
+                        }
+                        $type = isset($entry['type']) ? (string) $entry['type'] : '';
+                        $pattern = isset($entry['pattern']) ? (string) $entry['pattern'] : '';
+                        if ($type === 'json' && $pattern !== '') {
+                            $jsonFile = resolve_pane_filename($pattern, $currentId);
+                            break;
+                        }
+                    }
+                }
+                if ($jsonFile !== '') {
+                    $jsonPath = rtrim($paths['data_dir'], '/\\') . '/' . $jsonFile;
+                    if (is_readable($jsonPath)) {
+                        $decoded = json_decode((string) file_get_contents($jsonPath), true);
+                        if (is_array($decoded)) {
+                            $updated = media_gallery_update_paths($decoded, $prevId, $currentId);
+                            write_json_file($jsonPath, $updated, 'Failed to update media gallery paths for ' . $currentId . '.');
+                        }
+                    }
+                }
+            }
         }
 
         if ($prevModule !== '' && $prevModule !== $currentModule && isset($existingById[$prevId])) {
@@ -712,6 +846,10 @@ if ($action === 'pane_management') {
                     }
                 }
             }
+            if ($prevModule === 'mediaGallery') {
+                $oldDir = media_gallery_dir($paths['data_dir'], $prevId);
+                media_gallery_remove_dir($oldDir);
+            }
         }
 
         $newManifest = load_module_manifest($modulesDir, $currentModule);
@@ -733,11 +871,18 @@ if ($action === 'pane_management') {
                 $path = rtrim($paths['data_dir'], '/\\') . '/' . $file;
                 if (!is_readable($path)) {
                     if ($type === 'json') {
-                        write_json_file($path, new stdClass(), 'Failed to initialize pane data for ' . $currentId . '.');
+                        $payload = $currentModule === 'mediaGallery' ? ['items' => []] : new stdClass();
+                        write_json_file($path, $payload, 'Failed to initialize pane data for ' . $currentId . '.');
                     } else {
                         write_text_file($path, '', 'Failed to initialize pane data for ' . $currentId . '.');
                     }
                 }
+            }
+        }
+        if ($currentModule === 'mediaGallery') {
+            $mediaDir = media_gallery_dir($paths['data_dir'], $currentId);
+            if (!is_dir($mediaDir)) {
+                mkdir($mediaDir, 0775, true);
             }
         }
     }
@@ -766,6 +911,10 @@ if ($action === 'pane_management') {
                     unlink($path);
                 }
             }
+        }
+        if ($removedModule === 'mediaGallery' && is_string($removedId) && $removedId !== '') {
+            $mediaDir = media_gallery_dir($paths['data_dir'], $removedId);
+            media_gallery_remove_dir($mediaDir);
         }
     }
 
@@ -1052,6 +1201,26 @@ if (is_array($panePayload)) {
             }
             $targetPath = rtrim($paths['data_dir'], '/\\') . '/' . $filename;
             $value = $panePayload[$paneId][$key];
+            if ($moduleId === 'mediaGallery' && $key === 'mediaChanges') {
+                $value = (string) $value;
+                if (trim($value) === '') {
+                    continue;
+                }
+                $decoded = json_decode($value, true);
+                if (!is_array($decoded)) {
+                    respond(['error' => 'Invalid JSON for pane ' . $paneId . '.'], 400);
+                }
+                $existing = ['items' => []];
+                if (is_readable($targetPath)) {
+                    $currentDecoded = json_decode((string) file_get_contents($targetPath), true);
+                    if (is_array($currentDecoded)) {
+                        $existing = $currentDecoded;
+                    }
+                }
+                $updated = media_gallery_apply_changes($existing, $decoded);
+                write_json_file($targetPath, $updated, 'Failed to write pane data for ' . $paneId . '.');
+                continue;
+            }
             if ($type === 'json') {
                 $decoded = json_decode((string) $value, true);
                 if (!is_array($decoded)) {

@@ -1,0 +1,12 @@
+{
+  "id": "mediaGallery",
+  "name": "Media Gallery Pane",
+  "version": "1.0.0",
+  "description": "Image and video gallery with lightbox viewing.",
+  "data_files": [
+    { "type": "json", "pattern": "{paneId}.json" }
+  ],
+  "save_map": [
+    { "key": "mediaChanges", "type": "json", "file": "{paneId}.json" }
+  ]
+}

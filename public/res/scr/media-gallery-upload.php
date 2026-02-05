@@ -5,27 +5,6 @@ lawnding_init_session();
 
 media_gallery_require_method('POST');
 
-function media_gallery_ini_size_to_bytes($value) {
-    $value = trim((string) $value);
-    if ($value === '') {
-        return 0;
-    }
-    $last = strtolower($value[strlen($value) - 1]);
-    $number = (float) $value;
-    switch ($last) {
-        case 'g':
-            $number *= 1024;
-            // no break
-        case 'm':
-            $number *= 1024;
-            // no break
-        case 'k':
-            $number *= 1024;
-            break;
-    }
-    return (int) $number;
-}
-
 $postMaxBytes = media_gallery_ini_size_to_bytes(ini_get('post_max_size'));
 $contentLength = isset($_SERVER['CONTENT_LENGTH']) ? (int) $_SERVER['CONTENT_LENGTH'] : 0;
 if ($postMaxBytes > 0 && $contentLength > $postMaxBytes) {

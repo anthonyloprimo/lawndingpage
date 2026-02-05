@@ -67,7 +67,7 @@ if (!empty($paneData) && is_array($paneData)) {
 }
 $dataHint = $dataFiles ? 'saves to ' . implode(', ', $dataFiles) : '';
 
-$itemsJson = json_encode(['items' => $items], JSON_UNESCAPED_SLASHES);
+$itemsJson = json_encode(['items' => $items], JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
 if ($itemsJson === false) {
     $itemsJson = '{"items":[]}';
 }
@@ -82,6 +82,7 @@ if ($itemsJson === false) {
             <?php if ($dataHint !== ''): ?>
                 <span class="paneDataHint"><?php echo htmlspecialchars('(' . $dataHint . ')'); ?></span>
             <?php endif; ?>
+            <span class="paneDataHint"><?php echo htmlspecialchars('Folder: mediaGalleryContent-' . $paneId); ?></span>
         </div>
     </div>
 
@@ -117,17 +118,19 @@ if ($itemsJson === false) {
 
     <div class="mediaGalleryControls">
         <div class="mediaGalleryControlsRow">
-            <button class="mediaGalleryAddButton" type="button">
-                <span class="mediaGalleryAddIcon" aria-hidden="true"></span>
-                Add new media
-            </button>
-            <input class="mediaGalleryUploadInput" type="file" accept="image/*,video/*" hidden>
+            <div class="mediaGalleryFootnote">Uploads are saved immediately. Max upload size: 2MB.</div>
+            <div class="mediaGalleryControlsActions">
+                <button class="mediaGalleryAddButton" type="button">
+                    <svg class="mediaGalleryAddIcon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 15V18H15V20H18V23H20V20H23V18H20V15H18M13.3 21H5C3.9 21 3 20.1 3 19V5C3 3.9 3.9 3 5 3H19C20.1 3 21 3.9 21 5V13.3C20.4 13.1 19.7 13 19 13C17.9 13 16.8 13.3 15.9 13.9L14.5 12L11 16.5L8.5 13.5L5 18H13.1C13 18.3 13 18.7 13 19C13 19.7 13.1 20.4 13.3 21Z" /></svg>
+                    Add new media
+                </button>
+                <input class="mediaGalleryUploadInput" type="file" accept="image/*,video/*" hidden>
+            </div>
         </div>
-        <div class="mediaGalleryFootnote">Uploads are saved immediately. Max upload size: 2MB.</div>
     </div>
 
     <textarea class="mediaGalleryChanges" name="pane[<?php echo htmlspecialchars($paneId); ?>][mediaChanges]" aria-label="<?php echo htmlspecialchars($paneName); ?> media changes" hidden></textarea>
-    <script type="application/json" class="mediaGalleryData"><?php echo htmlspecialchars($itemsJson, ENT_QUOTES, 'UTF-8'); ?></script>
+    <script type="application/json" class="mediaGalleryData"><?php echo $itemsJson; ?></script>
 
     <div class="userModalOverlay mediaGalleryModal" id="mediaGalleryModal-<?php echo htmlspecialchars($paneId); ?>" aria-hidden="true">
         <div class="userModal glassConcave">
@@ -143,12 +146,12 @@ if ($itemsJson === false) {
                         <input type="text" class="mediaGalleryCaptionInput" placeholder="Optional caption">
                     </label>
                     <div class="mediaGalleryButtonStack">
-                        <button class="mediaGalleryChangeButton" type="button">Change media</button>
+                        <button class="mediaGalleryChangeButton usersButton" type="button">Change media</button>
                         <input class="mediaGalleryChangeInput" type="file" accept="image/*,video/*" hidden>
-                        <button class="mediaGalleryThumbButtonAction" type="button">Set thumbnail</button>
+                        <button class="mediaGalleryThumbButtonAction usersButton" type="button">Set thumbnail</button>
                         <input class="mediaGalleryThumbInput" type="file" accept="image/*" hidden>
-                        <button class="mediaGalleryThumbClear" type="button">Use default thumbnail</button>
-                        <button class="mediaGalleryRemoveButton usersDanger" type="button">Remove from gallery</button>
+                        <button class="mediaGalleryThumbClear usersButton" type="button">Use default thumbnail</button>
+                        <button class="mediaGalleryRemoveButton usersButton usersDanger" type="button">Remove from gallery</button>
                     </div>
                     <div class="mediaGalleryFootnote">Uploads are saved immediately. Max upload size: 2MB.</div>
                 </div>

@@ -300,7 +300,7 @@ function media_gallery_abs_from_asset(string $dataDir, string $path): ?string {
     if (!str_starts_with($normalized, 'res/data/')) {
         return null;
     }
-    $relative = substr($normalized, strlen('res/'));
+    $relative = substr($normalized, strlen('res/data/'));
     return rtrim($dataDir, '/\\') . '/' . $relative;
 }
 

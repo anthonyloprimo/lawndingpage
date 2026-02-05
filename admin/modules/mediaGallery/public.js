@@ -37,6 +37,9 @@
         if (!lightbox) {
             return;
         }
+        if (lightbox.parentElement !== document.body) {
+            document.body.appendChild(lightbox);
+        }
         const lightboxImage = lightbox.querySelector('.mediaGalleryLightboxImage');
         const lightboxVideo = lightbox.querySelector('.mediaGalleryLightboxVideo');
         const caption = lightbox.querySelector('.mediaGalleryLightboxCaption');

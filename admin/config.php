@@ -6,20 +6,11 @@ $cacheHeadersPath = function_exists('lawnding_public_path')
     ? lawnding_public_path('res/scr/cache_headers.php')
     : __DIR__ . '/../public/res/scr/cache_headers.php';
 require_once $cacheHeadersPath;
-// Load the authoritative site version and set client cookie if needed.
+// Load the authoritative site version for display and shared constants.
 $versionPath = function_exists('lawnding_public_path')
     ? lawnding_public_path('res/version.php')
     : __DIR__ . '/../public/res/version.php';
 require_once $versionPath;
-if (!isset($_COOKIE['site_version']) || $_COOKIE['site_version'] !== SITE_VERSION) {
-    setcookie('site_version', SITE_VERSION, [
-        'expires' => time() + 31536000,
-        'path' => '/',
-        'secure' => isset($_SERVER['HTTPS']),
-        'httponly' => false,
-        'samesite' => 'Lax'
-    ]);
-}
 
 // Load Parsedown for Markdown rendering.
 $parsedownPath = function_exists('lawnding_public_path')
@@ -548,17 +539,17 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
 ?>
 
 <!DOCTYPE html>
-<html lang="en" data-site-version="<?php echo htmlspecialchars(SITE_VERSION, ENT_QUOTES, 'UTF-8'); ?>">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-    <script src="<?php echo htmlspecialchars(lawnding_versioned_url($assetBase . '/res/scr/site-version.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
+    <?php // Deprecated: site-version.js cache-busting is no longer loaded. ?>
     
     <link rel="icon" type="image/jpg" href="<?php echo htmlspecialchars($assetBase); ?>/res/img/logo.jpg">
-    <link rel="stylesheet" href="<?php echo htmlspecialchars(lawnding_versioned_url($assetBase . '/res/style.css'), ENT_QUOTES, 'UTF-8'); ?>">
-    <link rel="stylesheet" href="<?php echo htmlspecialchars(lawnding_versioned_url($assetBase . '/res/config.css'), ENT_QUOTES, 'UTF-8'); ?>">
+    <link rel="stylesheet" href="<?php echo htmlspecialchars($assetBase . '/res/style.css', ENT_QUOTES, 'UTF-8'); ?>">
+    <link rel="stylesheet" href="<?php echo htmlspecialchars($assetBase . '/res/config.css', ENT_QUOTES, 'UTF-8'); ?>">
 
-    <script src="<?php echo htmlspecialchars(lawnding_versioned_url($assetBase . '/res/scr/jquery-3.7.1.min.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
+    <script src="<?php echo htmlspecialchars($assetBase . '/res/scr/jquery-3.7.1.min.js', ENT_QUOTES, 'UTF-8'); ?>"></script>
 </head>
 <body data-header-json="<?php echo $headerDataJson; ?>" data-app-config-json="<?php echo $appConfigJson; ?>">
     <div class="hidden" id="tgBotTokenToggleClosed"><?php echo lawnding_icon_svg('eye_closed'); ?></div>
@@ -1328,8 +1319,8 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
             </div>
         </div>
     </div>
-    <script src="<?php echo htmlspecialchars(lawnding_versioned_url($assetBase . '/res/scr/admin-data.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
-    <script src="<?php echo htmlspecialchars(lawnding_versioned_url($assetBase . '/res/scr/app.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
-    <script src="<?php echo htmlspecialchars(lawnding_versioned_url($assetBase . '/res/scr/config.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
+    <script src="<?php echo htmlspecialchars($assetBase . '/res/scr/admin-data.js', ENT_QUOTES, 'UTF-8'); ?>"></script>
+    <script src="<?php echo htmlspecialchars($assetBase . '/res/scr/app.js', ENT_QUOTES, 'UTF-8'); ?>"></script>
+    <script src="<?php echo htmlspecialchars($assetBase . '/res/scr/config.js', ENT_QUOTES, 'UTF-8'); ?>"></script>
 </body>
 </html>

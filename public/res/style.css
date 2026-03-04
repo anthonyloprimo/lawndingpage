@@ -244,6 +244,34 @@ body.linksHidden #container {
                     position: relative;
                     z-index: 1;
                 }
+                .link--nsfw {
+                    padding-right: 48px;
+                }
+                .linkContentBadge {
+                    position: absolute;
+                    right: 8px;
+                    top: 5px;
+                    z-index: 2;
+                    display: inline-flex;
+                    align-items: center;
+                    justify-content: center;
+                    min-height: 12px;
+                    padding: 0 5px;
+                    border-radius: 4px;
+                    font-size: 0.5rem;
+                    line-height: 1;
+                    font-weight: 700;
+                    letter-spacing: 0.04em;
+                    text-transform: uppercase;
+                    box-shadow: 0 1px 4px #00000066, inset 0 1px 0 #FFFFFF88;
+                    border: 1px solid #FFF2A8CC;
+                    pointer-events: none;
+                    text-shadow: none;
+                }
+                .linkContentBadge--nsfw {
+                    color: #101010;
+                    background: linear-gradient(180deg, #FFF4A6 0%, #FFD84A 52%, #F2B900 100%);
+                }
 
             .link:hover {
                 background-color: #77777733;

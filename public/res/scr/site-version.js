@@ -1,4 +1,5 @@
-// Cache-busting helper for site version changes.
+// Deprecated: do not use for new code. This client-side version redirect cache-busting
+// flow is being phased out in favor of standard cache revalidation headers.
 (function () {
     var root = document.documentElement;
     if (!root) {

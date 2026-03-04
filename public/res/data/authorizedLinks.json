@@ -1,0 +1,16 @@
+{
+    "settings": {
+        "mock_state": "logged_out"
+    },
+    "links": [
+        {
+            "type": "link",
+            "id": "authLinkSuperDuperSecretLink",
+            "href": "https://www.google.com",
+            "text": "Super duper secret link",
+            "title": "The secret google link",
+            "fullWidth": true,
+            "cta": false
+        }
+    ]
+}

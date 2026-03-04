@@ -193,7 +193,8 @@ body.linksHidden #container {
             .linkList > li.separator {
                 flex: 0 0 100%;
             }
-                .linkList > li > a {
+                .linkList > li > a,
+                .linkList > li > .link {
                     display: block;
                     border: 1px solid #FFFFFF77;
                     border-radius: 32px;
@@ -221,7 +222,8 @@ body.linksHidden #container {
                     height: 40px;
                     line-height: 40px;
                 }
-                .linkList > li > a::before {
+                .linkList > li > a::before,
+                .linkList > li > .link::before {
                     content: "";
                     position: absolute;
                     left: 8px;
@@ -268,6 +270,111 @@ body.linksHidden #container {
         .pane a:not(.link):hover {
             text-decoration: underline;
             text-underline-offset: 3px;
+        }
+        .linkList > li.authLinksLogin {
+            flex: 0 0 100%;
+            display: flex;
+            justify-content: center;
+            margin: 8px 0 0;
+        }
+        .authLinkMessage::before {
+            display: none;
+        }
+        .authLinkMessage {
+            --link-icon: none;
+            width: 80%;
+            margin: 0 auto;
+            height: auto;
+            line-height: 1.2;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            white-space: normal;
+            background-color: #00000022;
+            border-color: #FFFFFF33;
+        }
+        .linkList > li.authLinksNotice {
+            flex: 0 0 50%;
+            margin-left: auto;
+            margin-right: auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .linkList > li.authLinksLogout {
+            display: flex;
+            justify-content: center;
+        }
+        .linkList > li.authLinksNotice > .link.authLinkMessage {
+            width: 100%;
+            margin: 0;
+            height: auto;
+            line-height: normal;
+            white-space: normal;
+            overflow: visible;
+            text-overflow: unset;
+            justify-content: center;
+        }
+        .linkList > li.authLinksNotice > .link.authLinkMessage .linkLabel {
+            white-space: normal;
+            overflow: visible;
+            text-overflow: unset;
+            word-break: break-word;
+            text-align: center;
+            display: block;
+            padding-bottom: 8px;
+        }
+        .authLinkLogoutButton {
+            border: 1px solid #FF7A7A;
+            background-color: #5A1E1E;
+            color: #FFDADA;
+            border-radius: 999px;
+            padding: 6px 14px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 16px;
+            display: inline-block;
+            text-decoration: none;
+        }
+        .authLinkLogoutButton:hover {
+            background-color: #6D2424;
+            border-color: #FF9A9A;
+            color: #FFE8E8;
+            text-decoration: none;
+        }
+        .authLinkLogoutButton:active {
+            background-color: #4A1818;
+            border-color: #FF6A6A;
+        }
+        .authLinksLogin .lpTgLoginWidget {
+            display: block;
+            text-align: center;
+        }
+        .authLinksLogin .lpTgLoginWidget iframe {
+            display: block;
+            margin: 0 auto;
+            border: 0;
+        }
+        .authLinkLogo {
+            display: block;
+            width: 80%;
+            max-width: 180px;
+        }
+        .authLinkLogo svg {
+            display: block;
+            width: 100%;
+            height: auto;
+        }
+        .authLinkLogo--warning {
+            width: 36%;
+            max-width: 110px;
+            margin: 0 auto;
+        }
+        .authLinkLogo--warning svg path {
+            fill: #F3E9A8;
         }
         .fullWidth {
             flex-basis: 100%;

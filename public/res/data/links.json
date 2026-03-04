@@ -1,6 +1,7 @@
 {
     "settings": {
-        "show_links": true
+        "show_links": true,
+        "auth_links": true
     },
     "links": [
         {
@@ -41,6 +42,9 @@
             "title": "Another link",
             "fullWidth": true,
             "cta": false
+        },
+        {
+            "type": "separator"
         }
     ]
 }

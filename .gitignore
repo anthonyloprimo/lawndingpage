@@ -6,3 +6,5 @@ admin/users.json
 *.oldphp
 *.oldcss
 *.oldjs
+admin/lp-tgBot.json
+admin/lp-tgMembershipCache.json

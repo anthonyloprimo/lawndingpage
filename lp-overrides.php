@@ -1,6 +1,7 @@
 <?php
 // Optional overrides for lp-bootstrap.php. Return an array to override defaults.
 return [
+    // 'root_dir' => '/absolute/path/to/project/root',
     // 'base_url' => '/lawndingpage/public',
     // 'public_dir' => '/absolute/path/to/public',
     // 'admin_dir' => '/absolute/path/to/admin',

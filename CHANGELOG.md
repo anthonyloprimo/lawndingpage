@@ -1,11 +1,12 @@
 ### Changelog
 
 #### v1.9.0
-- FEATURE: Added authorized links that integrates with Telegram groups; user logs in with telegram and as long as they're in specified groups, they can view hidden links.
-- REQUESTED: Added SFW and NSFW link categories, and SFW and NSFW group ID notation.
-- UI TWEAK: Tweaked how the bottom toolbar for the links list displays options on mobile.
-- BUGFIX: Fixed a bug where enabling/disabling the auth links pane on mobile resets the active pane.
-- BUGFIX: Fixed a bug where if the active pane ever points to 'null', it points to a default pane if possible, otherwise a message displayed to notify the user to select a pane.
+- Added authorized links that integrates with Telegram groups; user logs in with telegram and as long as they're in specified groups, they can view hidden links.
+- Added SFW and NSFW link categories, and SFW and NSFW group ID notation.
+- Tweaked how the bottom toolbar for the links list displays options on mobile.
+- Updated when and how files are re-cached.  No more query string for URLs.
+- Fixed a bug where enabling/disabling the auth links pane on mobile resets the active pane.
+- Fixed a bug where if the active pane ever points to 'null', it points to a default pane if possible, otherwise a message displayed to notify the user to select a pane.
 
 -----
 

@@ -1,8 +1,8 @@
 <?php
-// Site version string used for cache-busting and display.
+// Site version string used for display and schema-adjacent compatibility checks.
 // The guard prevents redefinition if this file is loaded multiple times.
 if (!defined('SITE_VERSION')) {
-    define('SITE_VERSION', 'v1.8.0');
+    define('SITE_VERSION', 'v1.9.0');
 }
 
 // Schema version for panes.json and module-driven pane configuration.
@@ -12,6 +12,8 @@ if (!defined('PANE_SCHEMA_VERSION')) {
 }
 
 if (!function_exists('lawnding_versioned_url')) {
+    // Deprecated: do not use for new code. Cache-busting query strings are being phased out
+    // in favor of cache-control and validator headers managed outside this helper.
     function lawnding_versioned_url(string $url): string {
         if ($url === '') {
             return $url;

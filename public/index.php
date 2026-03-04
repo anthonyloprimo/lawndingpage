@@ -17,20 +17,11 @@ $cacheHeadersPath = function_exists('lawnding_public_path')
     ? lawnding_public_path('res/scr/cache_headers.php')
     : __DIR__ . '/res/scr/cache_headers.php';
 require_once $cacheHeadersPath;
-// Load the authoritative site version and set client cookie if needed.
+// Load the authoritative site version for display and shared constants.
 $versionPath = function_exists('lawnding_public_path')
     ? lawnding_public_path('res/version.php')
     : __DIR__ . '/res/version.php';
 require_once $versionPath;
-if (!isset($_COOKIE['site_version']) || $_COOKIE['site_version'] !== SITE_VERSION) {
-    setcookie('site_version', SITE_VERSION, [
-        'expires' => time() + 31536000,
-        'path' => '/',
-        'secure' => isset($_SERVER['HTTPS']),
-        'httponly' => true,
-        'samesite' => 'Lax'
-    ]);
-}
 // Suppress error output in production responses.
 ini_set('display_errors', '0');
 
@@ -106,11 +97,19 @@ function lawnding_render_link_item($link): string {
     $id = $link['id'] ?? '';
     $isFullWidth = !empty($link['fullWidth']);
     $isCta = !empty($link['cta']);
+    $contentLevel = isset($link['content']) && is_string($link['content'])
+        ? strtolower(trim($link['content']))
+        : 'sfw';
+    $isNsfw = $contentLevel === 'nsfw';
     $liClasses = trim(($isFullWidth ? 'fullWidth ' : '') . 'linkItem');
-    $aClasses = trim('link linkTelegram ' . ($isCta ? 'cta ' : ''));
+    $aClasses = trim('link linkTelegram ' . ($isCta ? 'cta ' : '') . ($isNsfw ? 'link--nsfw ' : ''));
+    $badgeHtml = $isNsfw
+        ? '<span class="linkContentBadge linkContentBadge--nsfw" aria-label="NSFW">NSFW</span>'
+        : '';
 
     return '<li class="' . htmlspecialchars($liClasses) . '" id="' . htmlspecialchars($id) . '">'
         . '<a class="' . htmlspecialchars($aClasses) . '" href="' . htmlspecialchars($href) . '" title="' . htmlspecialchars($title) . '">'
+        . $badgeHtml
         . '<span class="linkLabel">' . htmlspecialchars($text) . '</span>'
         . '</a>'
         . '</li>';
@@ -347,17 +346,16 @@ $isLinksHidden = !$showLinks;
 ?> 
 
 <!DOCTYPE html>
-<html lang="en" data-site-version="<?php echo htmlspecialchars(SITE_VERSION, ENT_QUOTES, 'UTF-8'); ?>">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-    <script src="<?php echo htmlspecialchars(lawnding_versioned_url(lawnding_asset_url('res/scr/site-version.js')), ENT_QUOTES, 'UTF-8'); ?>"></script>
-    <script src="<?php echo htmlspecialchars(lawnding_versioned_url(lawnding_asset_url('res/scr/no-zoom.js')), ENT_QUOTES, 'UTF-8'); ?>"></script>
+    <script src="<?php echo htmlspecialchars(lawnding_asset_url('res/scr/no-zoom.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
     
     <link rel="icon" type="image/jpg" href="<?php echo htmlspecialchars(lawnding_asset_url('res/img/logo.jpg'), ENT_QUOTES, 'UTF-8'); ?>"/>
-    <link rel="stylesheet" href="<?php echo htmlspecialchars(lawnding_versioned_url(lawnding_asset_url('res/style.css')), ENT_QUOTES, 'UTF-8'); ?>">
+    <link rel="stylesheet" href="<?php echo htmlspecialchars(lawnding_asset_url('res/style.css'), ENT_QUOTES, 'UTF-8'); ?>">
 
-    <script src="<?php echo htmlspecialchars(lawnding_versioned_url(lawnding_asset_url('res/scr/jquery-3.7.1.min.js')), ENT_QUOTES, 'UTF-8'); ?>"></script>
+    <script src="<?php echo htmlspecialchars(lawnding_asset_url('res/scr/jquery-3.7.1.min.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
     <noscript>
         <style>
             body.is-loading #header,
@@ -473,7 +471,7 @@ $isLinksHidden = !$showLinks;
             LawndingPage <?php echo htmlspecialchars(SITE_VERSION, ENT_QUOTES, 'UTF-8'); ?>.  Background image by <span class="authorPlain"></span><a class="authorLink hidden" href="" rel="noopener" target="_blank"><span class="authorName"></span></a>.
         </div>
     </nav>
-    <script src="<?php echo htmlspecialchars(lawnding_versioned_url(lawnding_asset_url('res/scr/public-data.js')), ENT_QUOTES, 'UTF-8'); ?>"></script>
-    <script src="<?php echo htmlspecialchars(lawnding_versioned_url(lawnding_asset_url('res/scr/app.js')), ENT_QUOTES, 'UTF-8'); ?>"></script>
+    <script src="<?php echo htmlspecialchars(lawnding_asset_url('res/scr/public-data.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
+    <script src="<?php echo htmlspecialchars(lawnding_asset_url('res/scr/app.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
 </body>
 </html>

@@ -12,20 +12,11 @@ $cacheHeadersPath = function_exists('lawnding_public_path')
     ? lawnding_public_path('res/scr/cache_headers.php')
     : __DIR__ . '/../res/scr/cache_headers.php';
 require_once $cacheHeadersPath;
-// Load the authoritative site version and set client cookie if needed.
+// Load the authoritative site version for display and shared constants.
 $versionPath = function_exists('lawnding_public_path')
     ? lawnding_public_path('res/version.php')
     : __DIR__ . '/../res/version.php';
 require_once $versionPath;
-if (!isset($_COOKIE['site_version']) || $_COOKIE['site_version'] !== SITE_VERSION) {
-    setcookie('site_version', SITE_VERSION, [
-        'expires' => time() + 31536000,
-        'path' => '/',
-        'secure' => isset($_SERVER['HTTPS']),
-        'httponly' => true,
-        'samesite' => 'Lax'
-    ]);
-}
 
 // Content Security Policy for the admin entrypoint + clickjacking protection.
 header("Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'");
@@ -768,17 +759,17 @@ if ($authRecord && !$forcePasswordChange) {
 }
 ?>
 <!DOCTYPE html>
-<html lang="en" data-site-version="<?php echo htmlspecialchars(SITE_VERSION, ENT_QUOTES, 'UTF-8'); ?>">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
     <title>Admin Panel</title>
     <?php $assetBase = function_exists('lawnding_config') ? rtrim(lawnding_config('base_url', ''), '/') : ''; ?>
-    <script src="<?php echo htmlspecialchars(lawnding_versioned_url($assetBase . '/res/scr/site-version.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
-    <script src="<?php echo htmlspecialchars(lawnding_versioned_url($assetBase . '/res/scr/no-zoom.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
+    <?php // Deprecated: site-version.js cache-busting is no longer loaded. ?>
+    <script src="<?php echo htmlspecialchars($assetBase . '/res/scr/no-zoom.js', ENT_QUOTES, 'UTF-8'); ?>"></script>
     <link rel="icon" type="image/jpg" href="<?php echo htmlspecialchars($assetBase); ?>/res/img/logo.jpg">
-    <link rel="stylesheet" href="<?php echo htmlspecialchars(lawnding_versioned_url($assetBase . '/res/style.css'), ENT_QUOTES, 'UTF-8'); ?>">
-    <link rel="stylesheet" href="<?php echo htmlspecialchars(lawnding_versioned_url($assetBase . '/res/admin.css'), ENT_QUOTES, 'UTF-8'); ?>">
+    <link rel="stylesheet" href="<?php echo htmlspecialchars($assetBase . '/res/style.css', ENT_QUOTES, 'UTF-8'); ?>">
+    <link rel="stylesheet" href="<?php echo htmlspecialchars($assetBase . '/res/admin.css', ENT_QUOTES, 'UTF-8'); ?>">
 </head>
 <body>
     <!-- Login / first-run / password reset screen. -->

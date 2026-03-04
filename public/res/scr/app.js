@@ -21,6 +21,9 @@ const backgroundState = {
 
 // Helper: ensure we aren't trying to show the always-visible pane on desktop.
 function ensureDesktopPaneSelection() {
+    if (mode !== 'desktop') {
+        return;
+    }
     const linksHidden = document.body && document.body.classList.contains('linksHidden');
     const linksPaneExists = document.querySelector('#links');
     if (linksHidden || !linksPaneExists || !paneOrder.includes('links')) {
@@ -45,6 +48,54 @@ function updatePaneVisibility(panes, visibleIds) {
         }
     });
 }
+
+// Helper: collect visible nav links for pane order calculation.
+function getVisibleNavLinks() {
+    return $('.navLink').filter(function() {
+        const $link = $(this);
+        const $item = $link.closest('li');
+        if ($link.hasClass('hidden')) {
+            return false;
+        }
+        if ($item.hasClass('isHidden')) {
+            return false;
+        }
+        if ($link.attr('data-pane-disabled')) {
+            return false;
+        }
+        return true;
+    });
+}
+
+function rebuildPaneOrder() {
+    paneOrder = getVisibleNavLinks().map(function() {
+        return $(this).data('pane');
+    }).get();
+}
+
+function ensureValidCurrentPane() {
+    const paneExists = currentPane && $(`#${currentPane}`).length > 0;
+    if (paneExists) {
+        return;
+    }
+    if ($('#noPane').length) {
+        currentPane = 'noPane';
+        return;
+    }
+    currentPane = mode === 'desktop' ? getDefaultDesktopPane() : getDefaultMobilePane();
+}
+
+window.lawndingRebuildPaneOrder = function() {
+    rebuildPaneOrder();
+    if (currentPane && !paneOrder.includes(currentPane)) {
+        currentPane = mode === 'desktop' ? getDefaultDesktopPane() : getDefaultMobilePane();
+    }
+    ensureValidCurrentPane();
+    ensureDesktopPaneSelection();
+    applyLayout();
+    updateNavActiveState();
+    updateNavBarLayout();
+};
 
 // Helper: show/hide the Links nav item based on mode.
 function toggleLinksNav(show) {
@@ -76,10 +127,8 @@ function init() {
     // Hide the noscript warning if JS is enabled.
     $('#noJsWarning').hide();
 
-    // Capture the pane order from nav links for default selection logic.
-    paneOrder = navLinks.map(function() {
-        return $(this).data('pane');
-    }).get();
+    // Capture the pane order from visible nav links for default selection logic.
+    rebuildPaneOrder();
 
     // Set the mode based on the getMode function and pick defaults:
     // - mobile: first pane
@@ -160,6 +209,7 @@ function init() {
 function applyLayout() {
     // Easily store jquery reference to a constant.
     const panes = $('.pane');
+    ensureValidCurrentPane();
     const linksHidden = document.body && document.body.classList.contains('linksHidden');
     const linksPaneExists = $('#links').length > 0;
 

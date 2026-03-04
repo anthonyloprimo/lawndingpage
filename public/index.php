@@ -7,6 +7,11 @@ if (!is_readable($bootstrapPath)) {
     $bootstrapPath = __DIR__ . '/../../lp-bootstrap.php';
 }
 require_once $bootstrapPath;
+$tgAuthPath = function_exists('lawnding_admin_path')
+    ? lawnding_admin_path('lib/tg-auth.php')
+    : __DIR__ . '/../admin/lib/tg-auth.php';
+require_once $tgAuthPath;
+lawnding_init_session();
 // Prevent stale HTML/PHP responses from being cached.
 $cacheHeadersPath = function_exists('lawnding_public_path')
     ? lawnding_public_path('res/scr/cache_headers.php')
@@ -30,7 +35,7 @@ if (!isset($_COOKIE['site_version']) || $_COOKIE['site_version'] !== SITE_VERSIO
 ini_set('display_errors', '0');
 
 // Content Security Policy for the public site.
-header("Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: https://www.google.com https://t0.gstatic.com https://t1.gstatic.com https://t2.gstatic.com https://t3.gstatic.com; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'");
+header("Content-Security-Policy: default-src 'self'; script-src 'self' https://telegram.org; style-src 'self'; img-src 'self' data: https://www.google.com https://t0.gstatic.com https://t1.gstatic.com https://t2.gstatic.com https://t3.gstatic.com; font-src 'self' data:; connect-src 'self'; frame-src https://telegram.org https://oauth.telegram.org; frame-ancestors 'none'");
 header('X-Frame-Options: DENY');
 
 // Resolve a data file path using bootstrap helpers when available.
@@ -52,6 +57,18 @@ function lawnding_read_json($path, array $fallback = []) {
     }
     $decoded = json_decode(file_get_contents($path), true);
     return is_array($decoded) ? $decoded : $fallback;
+}
+
+function lawnding_public_absolute_url(string $path): string {
+    if (preg_match('#^[a-z][a-z0-9+.-]*://#i', $path) || str_starts_with($path, '//')) {
+        return $path;
+    }
+    $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+    $host = $_SERVER['HTTP_HOST'] ?? '';
+    if ($host === '') {
+        return $path;
+    }
+    return $scheme . '://' . $host . (str_starts_with($path, '/') ? $path : '/' . $path);
 }
 
 // Render shared SVG icons by name to avoid inline duplication.
@@ -99,10 +116,55 @@ function lawnding_render_link_item($link): string {
         . '</li>';
 }
 
+function lawnding_auth_link_allowed($link, string $userContentLevel): bool {
+    if (!is_array($link)) {
+        return false;
+    }
+    $type = $link['type'] ?? '';
+    if ($type === 'separator') {
+        return true;
+    }
+    if ($type !== 'link') {
+        return false;
+    }
+    $linkContent = isset($link['content']) && is_string($link['content'])
+        ? strtolower(trim($link['content']))
+        : 'sfw';
+    if ($linkContent !== 'nsfw') {
+        $linkContent = 'sfw';
+    }
+    return $userContentLevel === 'nsfw' || $linkContent === 'sfw';
+}
+
+function lawnding_filter_auth_links(array $links, string $userContentLevel): array {
+    $filtered = [];
+    $pendingSeparator = false;
+    foreach ($links as $link) {
+        if (!is_array($link)) {
+            continue;
+        }
+        if (($link['type'] ?? '') === 'separator') {
+            if (!empty($filtered)) {
+                $pendingSeparator = true;
+            }
+            continue;
+        }
+        if (!lawnding_auth_link_allowed($link, $userContentLevel)) {
+            continue;
+        }
+        if ($pendingSeparator) {
+            $filtered[] = ['type' => 'separator'];
+            $pendingSeparator = false;
+        }
+        $filtered[] = $link;
+    }
+    return $filtered;
+}
+
 // Load links configuration used by the links pane.
 $linksJsonPath = lawnding_public_data_path('links.json');
 $linksPayload = lawnding_read_json($linksJsonPath, []);
-$linksSettings = ['show_links' => true];
+$linksSettings = ['show_links' => true, 'auth_links' => false];
 $linksData = [];
 if (is_array($linksPayload) && array_key_exists('links', $linksPayload)) {
     $linksData = is_array($linksPayload['links']) ? $linksPayload['links'] : [];
@@ -110,9 +172,53 @@ if (is_array($linksPayload) && array_key_exists('links', $linksPayload)) {
         if (array_key_exists('show_links', $linksPayload['settings'])) {
             $linksSettings['show_links'] = !empty($linksPayload['settings']['show_links']);
         }
+        if (array_key_exists('auth_links', $linksPayload['settings'])) {
+            $linksSettings['auth_links'] = !empty($linksPayload['settings']['auth_links']);
+        }
     }
 } elseif (is_array($linksPayload)) {
     $linksData = $linksPayload;
+}
+
+$authLinksEnabled = !empty($linksSettings['auth_links']);
+$authLinksData = [];
+$tgConfig = lawnding_load_tg_config();
+$tgBotMessage = (string) ($tgConfig['unauthorized_message'] ?? 'Unable to display member links.  Join the telegram group with the link above, or contact an admin for assistance.');
+$tgBotUsername = isset($tgConfig['bot_username']) && is_string($tgConfig['bot_username'])
+    ? ltrim(trim($tgConfig['bot_username']), '@')
+    : '';
+$returnPath = '/';
+$authEndpoint = function_exists('lawnding_asset_url')
+    ? lawnding_asset_url('plugins/telegram/auth.php')
+    : '/plugins/telegram/auth.php';
+$logoutEndpoint = function_exists('lawnding_asset_url')
+    ? lawnding_asset_url('plugins/telegram/logout.php')
+    : '/plugins/telegram/logout.php';
+$tgAuthUrl = lawnding_public_absolute_url($authEndpoint . '?return=' . rawurlencode($returnPath));
+$tgLogoutUrl = $logoutEndpoint . '?return=' . rawurlencode($returnPath);
+$authLinksState = 'logged_out';
+$authLinksUserLevel = '';
+$tgUser = isset($_SESSION['tg_user']) && is_array($_SESSION['tg_user']) ? $_SESSION['tg_user'] : null;
+$tgUserId = $tgUser['id'] ?? ($_SESSION['tg_user_id'] ?? null);
+if ($authLinksEnabled) {
+    $authLinksJsonPath = lawnding_public_data_path('authorizedLinks.json');
+    $authLinksPayload = lawnding_read_json($authLinksJsonPath, []);
+    if (is_array($authLinksPayload) && array_key_exists('links', $authLinksPayload)) {
+        $authLinksData = is_array($authLinksPayload['links']) ? $authLinksPayload['links'] : [];
+    } elseif (is_array($authLinksPayload)) {
+        $authLinksData = $authLinksPayload;
+    }
+}
+if ($authLinksEnabled) {
+    if (!empty($tgUserId)) {
+        $authLinksUserLevel = lawnding_tg_user_content_level($tgConfig, $tgUserId);
+        $authLinksState = $authLinksUserLevel !== '' ? 'authorized' : 'unauthorized';
+    } else {
+        $authLinksState = 'logged_out';
+    }
+}
+if ($authLinksEnabled && $authLinksState === 'authorized') {
+    $authLinksData = lawnding_filter_auth_links($authLinksData, $authLinksUserLevel);
 }
 
 // Load header configuration with defaults if missing.
@@ -281,6 +387,43 @@ $isLinksHidden = !$showLinks;
                     <?php foreach ($linksData as $link): ?>
                         <?php echo lawnding_render_link_item($link); ?>
                     <?php endforeach; ?>
+                    <?php if ($authLinksEnabled): ?>
+                        <?php if ($authLinksState === 'authorized'): ?>
+                            <?php foreach ($authLinksData as $link): ?>
+                                <?php echo lawnding_render_link_item($link); ?>
+                            <?php endforeach; ?>
+                            <li class="linkItem fullWidth authLinksLogout" id="authLinksLogout">
+                                <a class="authLinkLogoutButton" href="<?php echo htmlspecialchars($tgLogoutUrl, ENT_QUOTES, 'UTF-8'); ?>">Log out</a>
+                            </li>
+                        <?php elseif ($authLinksState === 'unauthorized'): ?>
+                            <li class="linkItem fullWidth authLinksNotice" id="authLinksNotice">
+                                <div class="link authLinkMessage">
+                                    <span class="authLinkLogo authLinkLogo--warning" aria-hidden="true">
+                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" focusable="false"><path d="M13 14H11V9H13M13 18H11V16H13M1 21H23L12 2L1 21Z" /></svg>
+                                    </span>
+                                    <span class="linkLabel"><?php echo htmlspecialchars($tgBotMessage); ?></span>
+                                </div>
+                            </li>
+                            <li class="linkItem fullWidth authLinksLogout" id="authLinksLogout">
+                                <a class="authLinkLogoutButton" href="<?php echo htmlspecialchars($tgLogoutUrl, ENT_QUOTES, 'UTF-8'); ?>">Log out</a>
+                            </li>
+                        <?php else: ?>
+                            <li class="linkItem fullWidth authLinksLogin" id="authLinksLogin">
+                                <div class="lpTgLoginWidget">
+                                    <?php if ($tgBotUsername !== ''): ?>
+                                        <script async src="https://telegram.org/js/telegram-widget.js?22"
+                                            data-telegram-login="<?php echo htmlspecialchars($tgBotUsername, ENT_QUOTES, 'UTF-8'); ?>"
+                                            data-size="large"
+                                            data-userpic="false"
+                                            data-auth-url="<?php echo htmlspecialchars($tgAuthUrl, ENT_QUOTES, 'UTF-8'); ?>"
+                                            data-request-access="write"></script>
+                                    <?php else: ?>
+                                        Telegram login unavailable. Configure bot username in Telegram settings.
+                                    <?php endif; ?>
+                                </div>
+                            </li>
+                        <?php endif; ?>
+                    <?php endif; ?>
                 </ul>
             </div>
         <?php endif; ?>

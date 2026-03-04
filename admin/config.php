@@ -57,6 +57,7 @@ function lawnding_icon_svg(string $name): string {
         'move_down' => 'M11,4H13V16L18.5,10.5L19.92,11.92L12,19.84L4.08,11.92L5.5,10.5L11,16V4Z',
         'delete' => 'M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z',
         'links' => 'M19,3H5A2,2 0 0,0 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V5A2,2 0 0,0 19,3M13.94,14.81L11.73,17C11.08,17.67 10.22,18 9.36,18C8.5,18 7.64,17.67 7,17C5.67,15.71 5.67,13.58 7,12.26L8.35,10.9L8.34,11.5C8.33,12 8.41,12.5 8.57,12.94L8.62,13.09L8.22,13.5C7.91,13.8 7.74,14.21 7.74,14.64C7.74,15.07 7.91,15.47 8.22,15.78C8.83,16.4 9.89,16.4 10.5,15.78L12.7,13.59C13,13.28 13.18,12.87 13.18,12.44C13.18,12 13,11.61 12.7,11.3C12.53,11.14 12.44,10.92 12.44,10.68C12.44,10.45 12.53,10.23 12.7,10.06C13.03,9.73 13.61,9.74 13.94,10.06C14.57,10.7 14.92,11.54 14.92,12.44C14.92,13.34 14.57,14.18 13.94,14.81M17,11.74L15.66,13.1V12.5C15.67,12 15.59,11.5 15.43,11.06L15.38,10.92L15.78,10.5C16.09,10.2 16.26,9.79 16.26,9.36C16.26,8.93 16.09,8.53 15.78,8.22C15.17,7.6 14.1,7.61 13.5,8.22L11.3,10.42C11,10.72 10.82,11.13 10.82,11.56C10.82,12 11,12.39 11.3,12.7C11.47,12.86 11.56,13.08 11.56,13.32C11.56,13.56 11.47,13.78 11.3,13.94C11.13,14.11 10.91,14.19 10.68,14.19C10.46,14.19 10.23,14.11 10.06,13.94C8.75,12.63 8.75,10.5 10.06,9.19L12.27,7C13.58,5.67 15.71,5.68 17,7C17.65,7.62 18,8.46 18,9.36C18,10.26 17.65,11.1 17,11.74Z',
+        'auth_links' => 'M23 16V15.5A2.5 2.5 0 0 0 18 15.5V16A1 1 0 0 0 17 17V21A1 1 0 0 0 18 22H23A1 1 0 0 0 24 21V17A1 1 0 0 0 23 16M22 16H19V15.5A1.5 1.5 0 0 1 22 15.5M7 8.9H11V7H7A5 5 0 0 0 7 17H11V15.1H7A3.1 3.1 0 0 1 7 8.9M8 11V13H16V11M13 15.1V17H15V15.1M17 7H13V8.9H17A3.09 3.09 0 0 1 19.94 11A5.12 5.12 0 0 1 20.5 11H21.9A5 5 0 0 0 17 7Z',
         'users' => 'M12,5.5A3.5,3.5 0 0,1 15.5,9A3.5,3.5 0 0,1 12,12.5A3.5,3.5 0 0,1 8.5,9A3.5,3.5 0 0,1 12,5.5M5,8C5.56,8 6.08,8.15 6.53,8.42C6.38,9.85 6.8,11.27 7.66,12.38C7.16,13.34 6.16,14 5,14A3,3 0 0,1 2,11A3,3 0 0,1 5,8M19,8A3,3 0 0,1 22,11A3,3 0 0,1 19,14C17.84,14 16.84,13.34 16.34,12.38C17.2,11.27 17.62,9.85 17.47,8.42C17.92,8.15 18.44,8 19,8M5.5,18.25C5.5,16.18 8.41,14.5 12,14.5C15.59,14.5 18.5,16.18 18.5,18.25V20H5.5V18.25M0,20V18.5C0,17.11 1.89,15.94 4.45,15.6C3.86,16.28 3.5,17.22 3.5,18.25V20H0M24,20H20.5V18.25C20.5,17.22 20.14,16.28 19.55,15.6C22.11,15.94 24,17.11 24,18.5V20Z',
         'backgrounds' => 'M22.7 14.3L21.7 15.3L19.7 13.3L20.7 12.3C20.8 12.2 20.9 12.1 21.1 12.1C21.2 12.1 21.4 12.2 21.5 12.3L22.8 13.6C22.9 13.8 22.9 14.1 22.7 14.3M13 19.9V22H15.1L21.2 15.9L19.2 13.9L13 19.9M21 5C21 3.9 20.1 3 19 3H5C3.9 3 3 3.9 3 5V19C3 20.1 3.9 21 5 21H11V19.1L12.1 18H5L8.5 13.5L11 16.5L14.5 12L16.1 14.1L21 9.1V5Z',
         'about' => 'M13,9H11V7H13M13,17H11V11H13M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z',
@@ -65,6 +66,8 @@ function lawnding_icon_svg(string $name): string {
         'events' => 'M19,19V8H5V19H19M16,1H18V3H19A2,2 0 0,1 21,5V19A2,2 0 0,1 19,21H5C3.89,21 3,20.1 3,19V5C3,3.89 3.89,3 5,3H6V1H8V3H16V1M7,10H9V12H7V10M15,10H17V12H15V10M11,14H13V16H11V14M15,14H17V16H15V14Z',
         'donate' => 'M7,15H9C9,16.08 10.37,17 12,17C13.63,17 15,16.08 15,15C15,13.9 13.96,13.5 11.76,12.97C9.64,12.44 7,11.78 7,9C7,7.21 8.47,5.69 10.5,5.18V3H13.5V5.18C15.53,5.69 17,7.21 17,9H15C15,7.92 13.63,7 12,7C10.37,7 9,7.92 9,9C9,10.1 10.04,10.5 12.24,11.03C14.36,11.56 17,12.22 17,15C17,16.79 15.53,18.31 13.5,18.82V21H10.5V18.82C8.47,18.31 7,16.79 7,15Z',
         'changelog' => 'M13,9H18.5L13,3.5V9M6,2H14L20,8V20A2,2 0 0,1 18,22H6C4.89,22 4,21.1 4,20V4C4,2.89 4.89,2 6,2M6.12,15.5L9.86,19.24L11.28,17.83L8.95,15.5L11.28,13.17L9.86,11.76L6.12,15.5M17.28,15.5L13.54,11.76L12.12,13.17L14.45,15.5L12.12,17.83L13.54,19.24L17.28,15.5Z',
+        'eye_open' => 'M12,9A3,3 0 0,0 9,12A3,3 0 0,0 12,15A3,3 0 0,0 15,12A3,3 0 0,0 12,9M12,17A5,5 0 0,1 7,12A5,5 0 0,1 12,7A5,5 0 0,1 17,12A5,5 0 0,1 12,17M12,4.5C7,4.5 2.73,7.61 1,12C2.73,16.39 7,19.5 12,19.5C17,19.5 21.27,16.39 23,12C21.27,7.61 17,4.5 12,4.5Z',
+        'eye_closed' => 'M12 17.5C8.2 17.5 4.8 15.4 3.2 12H1C2.7 16.4 7 19.5 12 19.5S21.3 16.4 23 12H20.8C19.2 15.4 15.8 17.5 12 17.5Z',
     ];
 
     if (!isset($paths[$name])) {
@@ -178,16 +181,98 @@ $changelog = $Parsedown->text($changelogMarkdown);
 // Load link list configuration (JSON structure used by the editor).
 $linksJsonPath = $dataPath('links.json');
 $linksPayload = $readJson($linksJsonPath, []);
-$linksSettings = ['show_links' => true];
+$linksSettings = ['show_links' => true, 'auth_links' => false];
 $linksData = [];
 if (is_array($linksPayload) && array_key_exists('links', $linksPayload)) {
     $linksData = is_array($linksPayload['links']) ? $linksPayload['links'] : [];
     if (isset($linksPayload['settings']) && is_array($linksPayload['settings'])) {
         $linksSettings['show_links'] = !array_key_exists('show_links', $linksPayload['settings']) || !empty($linksPayload['settings']['show_links']);
+        if (array_key_exists('auth_links', $linksPayload['settings'])) {
+            $linksSettings['auth_links'] = !empty($linksPayload['settings']['auth_links']);
+        }
     }
 } elseif (is_array($linksPayload)) {
     $linksData = $linksPayload;
 }
+
+// Load authorized links configuration (same structure as links.json).
+$authLinksJsonPath = $dataPath('authorizedLinks.json');
+$authLinksPayload = $readJson($authLinksJsonPath, []);
+$authLinksData = [];
+if (is_array($authLinksPayload) && array_key_exists('links', $authLinksPayload)) {
+    $authLinksData = is_array($authLinksPayload['links']) ? $authLinksPayload['links'] : [];
+} elseif (is_array($authLinksPayload)) {
+    $authLinksData = $authLinksPayload;
+}
+$authLinksEnabled = !empty($linksSettings['auth_links']);
+$authLinksNeedsNormalization = false;
+
+// Load Telegram bot configuration stored in admin/lp-tgBot.json.
+$tgBotPath = function_exists('lawnding_config')
+    ? lawnding_config('admin_dir', __DIR__) . '/lp-tgBot.json'
+    : __DIR__ . '/lp-tgBot.json';
+$tgBotDefaults = [
+    'bot_username' => '',
+    'bot_token' => '',
+    'group_ids' => [],
+    'membership_cache_ttl_minutes' => 30,
+    'unauthorized_message' => 'Unable to display member links.  Join the telegram group with the link above, or contact an admin for assistance.',
+];
+$tgBotData = $tgBotDefaults;
+if (is_readable($tgBotPath)) {
+    $decoded = json_decode((string) file_get_contents($tgBotPath), true);
+    if (is_array($decoded)) {
+        $tgBotData = array_merge($tgBotDefaults, $decoded);
+    }
+}
+if (!function_exists('lawnding_admin_normalize_tg_group_entries')) {
+    function lawnding_admin_normalize_tg_group_entries($values): array {
+        if (!is_array($values)) {
+            return [];
+        }
+        $order = [];
+        $entriesById = [];
+        foreach ($values as $value) {
+            $groupId = '';
+            $content = 'SFW';
+            if (is_string($value) && trim($value) !== '') {
+                $groupId = trim($value);
+            } elseif (is_array($value)) {
+                $groupId = isset($value['id']) && is_string($value['id']) ? trim($value['id']) : '';
+                $rawContent = isset($value['content']) && is_string($value['content']) ? strtoupper(trim($value['content'])) : 'SFW';
+                $content = $rawContent === 'NSFW' ? 'NSFW' : 'SFW';
+            }
+            if ($groupId === '') {
+                continue;
+            }
+            if (!isset($entriesById[$groupId])) {
+                $order[] = $groupId;
+                $entriesById[$groupId] = ['id' => $groupId, 'content' => $content];
+                continue;
+            }
+            if ($content === 'NSFW') {
+                $entriesById[$groupId]['content'] = 'NSFW';
+            }
+        }
+        $entries = [];
+        foreach ($order as $groupId) {
+            if (isset($entriesById[$groupId])) {
+                $entries[] = $entriesById[$groupId];
+            }
+        }
+        return $entries;
+    }
+}
+$tgBotGroupIds = [];
+if (!empty($tgBotData['group_ids']) && is_array($tgBotData['group_ids'])) {
+    $tgBotGroupIds = lawnding_admin_normalize_tg_group_entries($tgBotData['group_ids']);
+}
+$tgBotGroupIdsText = implode("\n", array_map(function (array $entry): string {
+    return $entry['id'] . ' ' . $entry['content'];
+}, $tgBotGroupIds));
+$webhookBase = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+$webhookHost = $_SERVER['HTTP_HOST'] ?? 'your-domain.com';
+$webhookUrl = $webhookBase . '://' . $webhookHost . ($assetBase ?? '') . '/res/scr/tg-webhook.php';
 
 // Load header configuration, with defaults when JSON is missing.
 $headerJsonPath = $dataPath('header.json');
@@ -476,6 +561,8 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
     <script src="<?php echo htmlspecialchars(lawnding_versioned_url($assetBase . '/res/scr/jquery-3.7.1.min.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
 </head>
 <body data-header-json="<?php echo $headerDataJson; ?>" data-app-config-json="<?php echo $appConfigJson; ?>">
+    <div class="hidden" id="tgBotTokenToggleClosed"><?php echo lawnding_icon_svg('eye_closed'); ?></div>
+    <div class="hidden" id="tgBotTokenToggleOpen"><?php echo lawnding_icon_svg('eye_open'); ?></div>
     <!-- Runtime notices and admin alerts. -->
     <div id="noJsWarning"><noscript>This site requires JavaScript to function properly. Please enable JavaScript in your browser.</noscript></div>
     <div class="adminNotices" id="adminNotices">
@@ -636,13 +723,166 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
                 <div class="linksConfigActions">
                     <label class="linksConfigCheckbox" title="Toggle whether the links list appears on the public website.">
                         <input type="checkbox" id="linksVisibleToggle" <?php echo !empty($linksSettings['show_links']) ? 'checked' : ''; ?>>
-                        Show link list on website
+                        Show link list
+                    </label>
+                    <label class="linksConfigCheckbox" title="Toggle whether authorized links are enabled.">
+                        <input type="checkbox" id="authLinksToggle" <?php echo $authLinksEnabled ? 'checked' : ''; ?>>
+                        Show auth links
                     </label>
                     <span class="linksConfigSpacer"></span>
                     <button class="addLink" type="button">Add link</button>
                     <button class="addSeparator" type="button">Add separator</button>
                 </div>
             </div>
+        </div>
+        <div class="pane glassConvex<?php echo $authLinksEnabled ? '' : ' hidden'; ?>" id="authLinks">
+            <h3>AUTH LINKS</h3>
+            <p class="usersNotice">These links are only shown after the authorization check succeeds.</p>
+            <div class="linksConfig authLinksConfig" id="authLinksConfig" data-needs-normalization="<?php echo $authLinksNeedsNormalization ? 'true' : 'false'; ?>">
+                <div class="authLinksGrid">
+                    <div class="authLinksSidebar">
+                        <div class="authLinksCard">
+                            <label class="linksConfigField" title="Telegram bot token.">
+                                <span class="linksConfigLabelText">Bot username</span>
+                                <input class="linksConfigInput" id="tgBotUsername" type="text" value="<?php echo htmlspecialchars((string) ($tgBotData['bot_username'] ?? '')); ?>" placeholder="samplebot">
+                            </label>
+                            <label class="linksConfigField" title="Telegram bot token.">
+                                <span class="linksConfigLabelText">Bot token</span>
+                                <div class="authLinksTokenField">
+                                    <input class="linksConfigInput" id="tgBotToken" type="password" value="<?php echo htmlspecialchars((string) ($tgBotData['bot_token'] ?? '')); ?>" autocomplete="new-password">
+                                    <button class="iconButton authLinksTokenToggle" type="button" aria-label="Show token" title="Show/hide token" data-visible="false">
+                                        <?php echo lawnding_icon_svg('eye_closed'); ?>
+                                    </button>
+                                </div>
+                                <div class="authLinksFieldActions">
+                                    <button class="usersButton usersWarning authLinksTestBotButton" type="button">Test bot</button>
+                                </div>
+                            </label>
+                            <label class="linksConfigField" title="One group ID per line. Append SFW or NSFW after the ID.">
+                                <span class="linksConfigLabelText">
+                                    Group IDs
+                                    <span class="authLinksHelpIcon authLinksHelpInline" title="How to get the group ID: add the bot to the group(s) you want to check and enter `/lpGetGroup` in each group.  Copy the returned group ID and enter it in this text box, one ID per line.">
+                                        <?php echo lawnding_icon_svg('help'); ?>
+                                    </span>
+                                </span>
+                                <textarea class="linksConfigInput" id="tgBotGroupIds" rows="4" placeholder="-1001234567890 SFW"><?php echo htmlspecialchars($tgBotGroupIdsText); ?></textarea>
+                                <div class="authLinksFieldActions">
+                                    <button class="usersButton usersWarning authLinksValidateGroupsButton" type="button">Validate Group IDs</button>
+                                </div>
+                            </label>
+                            <label class="linksConfigField" title="Membership cache TTL in minutes.">
+                                <span class="linksConfigLabelText">Membership cache TTL (minutes)</span>
+                                <input class="linksConfigInput" id="tgBotCacheTtl" type="text" inputmode="numeric" value="<?php echo htmlspecialchars((string) ($tgBotData['membership_cache_ttl_minutes'] ?? 30)); ?>">
+                            </label>
+                            <label class="linksConfigField" title="Displayed when a user is not authorized.">
+                                <span class="linksConfigLabelText">Unauthorized message</span>
+                                <textarea class="linksConfigInput" id="tgBotUnauthorizedMessage" rows="4"><?php echo htmlspecialchars((string) ($tgBotData['unauthorized_message'] ?? $tgBotDefaults['unauthorized_message'])); ?></textarea>
+                            </label>
+                            <div class="authLinksHelpBlock">
+                                <p><strong>Bot setup</strong></p>
+                                <ol>
+                                    <li>Create a bot with BotFather and paste the token above.</li>
+                                    <li>Set your login domain in BotFather with <code>/setdomain</code> (must match this website host).</li>
+                                    <li>Add the bot to your group(s) and make it an admin.</li>
+                                    <li>Register the webhook from a terminal:</li>
+                                </ol>
+                                <pre><code>curl -X POST "https://api.telegram.org/bot&lt;YOUR_BOT_TOKEN&gt;/setWebhook" \
+  -H "Content-Type: application/json" \
+  -d '{"url":"<?php echo htmlspecialchars($webhookUrl); ?>"}'</code></pre>
+                                <p>In each group, type <code>/lpGetGroup</code> and paste the returned ID into Group IDs as <code>ID SFW</code> or <code>ID NSFW</code>.</p>
+                                <p>Bot username can be entered with or without <code>@</code>; it is saved without the prefix.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="authLinksMain">
+                        <div class="linksConfigList authLinksConfigList">
+                            <?php foreach ($authLinksData as $link): ?>
+                                <?php if (($link['type'] ?? '') === 'separator'): ?>
+                                    <div class="linksConfigCard authLinksConfigCard linksConfigSeparator">
+                                    <div class="linksConfigRow">
+                                        <span class="linksConfigLabel">Separator</span>
+                                        <span class="linksConfigSpacer"></span>
+                                        <?php echo lawnding_render_link_controls(); ?>
+                                        </div>
+                                    </div>
+                                <?php elseif (($link['type'] ?? '') === 'link'): ?>
+                                <?php
+                                    $href = $link['href'] ?? '';
+                                    $text = $link['text'] ?? '';
+                                    $title = $link['title'] ?? '';
+                                    $id = $link['id'] ?? '';
+                                    $isFullWidth = !empty($link['fullWidth']);
+                                    $isCta = !empty($link['cta']);
+                                    $contentLevel = isset($link['content']) && is_string($link['content'])
+                                        ? strtolower(trim($link['content']))
+                                        : 'sfw';
+                                    if ($contentLevel !== 'nsfw') {
+                                        $contentLevel = 'sfw';
+                                    }
+                                    if (!array_key_exists('content', $link)) {
+                                        $authLinksNeedsNormalization = true;
+                                    }
+                                    $isNsfw = $contentLevel === 'nsfw';
+                                ?>
+                                <div class="linksConfigCard authLinksConfigCard">
+                                    <div class="linksConfigRow">
+                                        <label class="linksConfigField" title="The label that is displayed for each link.">
+                                            <span class="linksConfigLabelText">Name</span>
+                                            <input class="linksConfigInput" type="text" name="authLinkText[]" value="<?php echo htmlspecialchars($text); ?>" placeholder="Display text" title="The label that is displayed for each link.">
+                                        </label>
+                                        <div class="linksConfigField linksConfigIdField" title="The internal HTML ID of the link.  Make it unique.">
+                                            <span class="linksConfigLabelText">ID</span>
+                                            <span class="linksConfigIdValue" tabindex="0" aria-label="ID <?php echo htmlspecialchars($id); ?>">#<?php echo htmlspecialchars($id); ?></span>
+                                            <input class="linksConfigIdInput" type="hidden" name="authLinkId[]" value="<?php echo htmlspecialchars($id); ?>">
+                                        </div>
+                                    </div>
+                                    <div class="linksConfigRow">
+                                        <label class="linksConfigField" title="The full URL (https: and all) to link to.">
+                                            <span class="linksConfigLabelText">URL</span>
+                                            <input class="linksConfigInput" type="text" name="authLinkUrl[]" value="<?php echo htmlspecialchars($href); ?>" placeholder="Link URL" title="The full URL (https: and all) to link to.">
+                                        </label>
+                                        <label class="linksConfigField" title="The text that appears when the user hovers over a link.">
+                                            <span class="linksConfigLabelText">Tooltip</span>
+                                            <input class="linksConfigInput" type="text" name="authLinkTitle[]" value="<?php echo htmlspecialchars($title); ?>" placeholder="Title attribute" title="The text that appears when the user hovers over a link.">
+                                        </label>
+                                    </div>
+                                    <div class="linksConfigRow linksConfigToggles">
+                                        <label class="linksConfigCheckbox" title="If checked, the link takes up the full width of the links pane.  Otherwise, it'll take up half of the width.">
+                                            <input type="checkbox" name="authLinkFullWidth[]" <?php echo $isFullWidth ? 'checked' : ''; ?> title="If checked, the link takes up the full width of the links pane.  Otherwise, it'll take up half of the width.">
+                                            Full width
+                                        </label>
+                                        <label class="linksConfigCheckbox" title="AKA Call to Action.  If checked, the link appears more prominently than the others.  Ideally, you will only want to use one, but you can set multiple links as a CTA button.">
+                                            <input type="checkbox" name="authLinkCta[]" <?php echo $isCta ? 'checked' : ''; ?> title="AKA Call to Action.  If checked, the link appears more prominently than the others.  Ideally, you will only want to use one, but you can set multiple links as a CTA button.">
+                                            CTA
+                                        </label>
+                                        <label class="linksConfigCheckbox" title="If checked, this authorized link is marked as NSFW content. If unchecked, it is treated as SFW.">
+                                            <input type="checkbox" name="authLinkNsfw[]" <?php echo $isNsfw ? 'checked' : ''; ?> title="If checked, this authorized link is marked as NSFW content. If unchecked, it is treated as SFW.">
+                                            NSFW
+                                        </label>
+                                        <span class="linksConfigSpacer"></span>
+                                        <?php echo lawnding_render_link_controls(); ?>
+                                    </div>
+                                </div>
+                                <?php endif; ?>
+                            <?php endforeach; ?>
+                        </div>
+                        <div class="linksConfigActions">
+                            <span class="linksConfigSpacer"></span>
+                            <button class="addAuthLink" type="button">Add link</button>
+                            <button class="addAuthSeparator" type="button">Add separator</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <script>
+                (function() {
+                    var authLinksConfig = document.getElementById('authLinksConfig');
+                    if (!authLinksConfig) {
+                        return;
+                    }
+                    authLinksConfig.setAttribute('data-needs-normalization', <?php echo $authLinksNeedsNormalization ? "'true'" : "'false'"; ?>);
+                }());
+            </script>
         </div>
         <div class="pane glassConvex" id="users">
             <h3>USERS</h3>
@@ -826,6 +1066,10 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
             }
             ?>
         <?php endforeach; ?>
+        <div class="pane glassConvex" id="noPane">
+            <h3>SELECT A PANE</h3>
+            <p>Select a pane from the navbar below.</p>
+        </div>
         <div class="pane glassConvex" id="changelog">
             <?php echo $changelog; ?>
         </div>
@@ -838,6 +1082,7 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
             <li><a class="navLink" href="#" data-pane="bg" aria-label="Backgrounds" title="Edit Random Background Images"><?php echo lawnding_icon_svg('backgrounds'); ?></a></li>
             <li class="navSeparator" aria-hidden="true"></li>
             <li><a class="navLink" href="#" data-pane="links" aria-label="Links" title="Links"><?php echo lawnding_icon_svg('links'); ?></a></li>
+            <li class="authLinksNavItem<?php echo $authLinksEnabled ? '' : ' isHidden'; ?>"><a class="navLink<?php echo $authLinksEnabled ? '' : ' hidden'; ?>" href="#" data-pane="authLinks" aria-label="Authorized Links" title="Authorized Links"><?php echo lawnding_icon_svg('auth_links'); ?></a></li>
             <?php // Render dynamic pane nav items from panes.json. ?>
             <?php foreach ($panes as $pane): ?>
                 <?php

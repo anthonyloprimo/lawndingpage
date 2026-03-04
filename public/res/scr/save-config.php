@@ -78,9 +78,11 @@ function resolve_paths() {
         'data_dir' => $dataDir,
         'img_dir' => $imgDir,
         'modules_dir' => rtrim($adminDir, '/\\') . '/modules',
+        'admin_dir' => rtrim($adminDir, '/\\'),
         'pane_icon_dir' => $paneIconDir,
         'header_path' => $dataDir . '/header.json',
         'links_path' => $dataDir . '/links.json',
+        'authorized_links_path' => $dataDir . '/authorizedLinks.json',
         'panes_path' => $dataDir . '/panes.json',
     ];
 }
@@ -321,8 +323,10 @@ $imgDir = $paths['img_dir'];
 $paneIconDir = $paths['pane_icon_dir'];
 $headerPath = $paths['header_path'];
 $linksPath = $paths['links_path'];
+$authorizedLinksPath = $paths['authorized_links_path'];
 $panesPath = $paths['panes_path'];
 $modulesDir = $paths['modules_dir'];
+$tgBotPath = $paths['admin_dir'] . '/lp-tgBot.json';
 
 // Load existing header data with defaults.
 $headerData = load_header_data($headerPath);
@@ -402,6 +406,16 @@ function is_reserved_link_id($value, array $extra = []) {
         'mask-top',
         'nojswarning',
         'navbar',
+        'authlinks',
+        'authlinksconfig',
+        'authlinkslogin',
+        'authlinksnotice',
+        'tgbottoken',
+        'tgbotusername',
+        'tgbotgroupids',
+        'tgbotcachettl',
+        'tgbotunauthorizedmessage',
+        'tgbottokentoggleclosed',
         'permissionsmodal',
         'permissionsform',
         'permissionsselfconfirmmodal',
@@ -615,6 +629,8 @@ function save_image($fileArray, $destName) {
 $siteTitle = $_POST['siteTitle'] ?? null;
 $siteSubtitle = $_POST['siteSubtitle'] ?? null;
 $linksJson = $_POST['links'] ?? null;
+$authorizedLinksJson = $_POST['authorizedLinks'] ?? null;
+$tgBotJson = $_POST['tgBot'] ?? null;
 $backgroundsJson = $_POST['backgrounds'] ?? null;
 $backgroundAuthorsJson = $_POST['backgroundAuthors'] ?? null;
 $panePayload = $_POST['pane'] ?? null;
@@ -622,18 +638,23 @@ $panesPayload = $_POST['panes'] ?? null;
 
 // Parse and validate JSON payloads.
 $linksData = parse_json_payload($linksJson, 'Invalid links payload');
+$authorizedLinksData = parse_json_payload($authorizedLinksJson, 'Invalid authorized links payload');
+$tgBotData = parse_json_payload($tgBotJson, 'Invalid Telegram bot payload');
 $backgroundsData = parse_json_payload($backgroundsJson, 'Invalid backgrounds payload');
 $backgroundAuthors = parse_json_payload($backgroundAuthorsJson, 'Invalid background authors payload');
 
 // Normalize links payload to { settings, links } structure.
 function normalize_links_payload($linksData): array {
-    $settings = ['show_links' => true];
+    $settings = ['show_links' => true, 'auth_links' => false];
     $links = [];
     if (is_array($linksData) && array_key_exists('links', $linksData)) {
         $links = is_array($linksData['links']) ? $linksData['links'] : [];
         if (isset($linksData['settings']) && is_array($linksData['settings'])) {
             if (array_key_exists('show_links', $linksData['settings'])) {
                 $settings['show_links'] = !empty($linksData['settings']['show_links']);
+            }
+            if (array_key_exists('auth_links', $linksData['settings'])) {
+                $settings['auth_links'] = !empty($linksData['settings']['auth_links']);
             }
         }
         return ['settings' => $settings, 'links' => $links];
@@ -642,6 +663,80 @@ function normalize_links_payload($linksData): array {
         $links = $linksData;
     }
     return ['settings' => $settings, 'links' => $links];
+}
+
+function normalize_auth_links_payload($linksData): array {
+    $links = [];
+    if (is_array($linksData) && array_key_exists('links', $linksData)) {
+        $links = is_array($linksData['links']) ? $linksData['links'] : [];
+        return ['settings' => null, 'links' => $links];
+    }
+    if (is_array($linksData)) {
+        $links = $linksData;
+    }
+    return ['settings' => null, 'links' => $links];
+}
+
+function normalize_tg_bot_payload($payload): array {
+    $defaults = [
+        'bot_username' => '',
+        'bot_token' => '',
+        'group_ids' => [],
+        'membership_cache_ttl_minutes' => 30,
+        'unauthorized_message' => 'Unable to display member links.  Join the telegram group with the link above, or contact an admin for assistance.',
+    ];
+    if (!is_array($payload)) {
+        return $defaults;
+    }
+    $username = isset($payload['bot_username']) ? trim((string) $payload['bot_username']) : '';
+    $username = ltrim($username, '@');
+    $token = isset($payload['bot_token']) ? trim((string) $payload['bot_token']) : '';
+    $ttl = isset($payload['membership_cache_ttl_minutes']) ? (int) $payload['membership_cache_ttl_minutes'] : 30;
+    $ttl = $ttl > 0 ? $ttl : 30;
+    $message = isset($payload['unauthorized_message']) ? trim((string) $payload['unauthorized_message']) : '';
+    $message = $message !== '' ? $message : $defaults['unauthorized_message'];
+    $groupIds = [];
+    $entriesById = [];
+    $groupOrder = [];
+    if (!empty($payload['group_ids']) && is_array($payload['group_ids'])) {
+        foreach ($payload['group_ids'] as $value) {
+            $groupId = '';
+            $content = 'SFW';
+            if (is_string($value)) {
+                $groupId = trim($value);
+            } elseif (is_array($value)) {
+                $groupId = isset($value['id']) ? trim((string) $value['id']) : '';
+                $rawContent = isset($value['content']) ? strtoupper(trim((string) $value['content'])) : 'SFW';
+                $content = $rawContent === 'NSFW' ? 'NSFW' : 'SFW';
+            }
+            if ($groupId === '') {
+                continue;
+            }
+            if (!isset($entriesById[$groupId])) {
+                $groupOrder[] = $groupId;
+                $entriesById[$groupId] = ['id' => $groupId, 'content' => $content];
+                continue;
+            }
+            if ($content === 'NSFW') {
+                $entriesById[$groupId]['content'] = 'NSFW';
+            }
+        }
+    }
+    foreach ($groupOrder as $groupId) {
+        if (isset($entriesById[$groupId])) {
+            $groupIds[] = $entriesById[$groupId];
+        }
+    }
+    usort($groupIds, function ($a, $b) {
+        return strnatcmp((string) ($a['id'] ?? ''), (string) ($b['id'] ?? ''));
+    });
+    return [
+        'bot_username' => $username,
+        'bot_token' => $token,
+        'group_ids' => $groupIds,
+        'membership_cache_ttl_minutes' => $ttl,
+        'unauthorized_message' => $message,
+    ];
 }
 
 if ($action === 'pane_management') {
@@ -1128,6 +1223,7 @@ if (is_array($backgroundAuthors)) {
 // Handle link configuration updates.
 $linksOut = null;
 $linksSettings = null;
+$linksIds = [];
 if (is_array($linksData)) {
     $normalizedLinks = normalize_links_payload($linksData);
     $linksSettings = $normalizedLinks['settings'];
@@ -1146,6 +1242,9 @@ if (is_array($linksData)) {
                 $reservedIds[] = $id;
                 continue;
             }
+            if (is_string($id) && $id !== '') {
+                $linksIds[] = strtolower($id);
+            }
             $linksOut[] = [
                 'type' => 'link',
                 'id' => $id,
@@ -1160,6 +1259,62 @@ if (is_array($linksData)) {
     if (!empty($reservedIds)) {
         $unique = array_values(array_unique($reservedIds));
         respond(['error' => 'Error: ID cannot be ' . implode(', ', $unique) . '. Please change them to different IDs.'], 400);
+    }
+}
+
+$authLinksOut = null;
+$authLinksSettings = null;
+if (is_array($authorizedLinksData)) {
+    $normalizedAuthLinks = normalize_auth_links_payload($authorizedLinksData);
+    $authLinksSettings = $normalizedAuthLinks['settings'];
+    $authLinksOut = [];
+    $reservedAuthIds = [];
+    $duplicateIds = [];
+    $seenAuthIds = [];
+    foreach ($normalizedAuthLinks['links'] as $link) {
+        if (!is_array($link)) {
+            continue;
+        }
+        $type = $link['type'] ?? '';
+        if ($type === 'separator') {
+            $authLinksOut[] = ['type' => 'separator'];
+        } elseif ($type === 'link') {
+            $id = $link['id'] ?? '';
+            if (is_reserved_link_id($id, $paneIds)) {
+                $reservedAuthIds[] = $id;
+                continue;
+            }
+            $normalizedId = is_string($id) ? strtolower($id) : '';
+            if ($normalizedId !== '') {
+                if (in_array($normalizedId, $linksIds, true) && !in_array($normalizedId, $duplicateIds, true)) {
+                    $duplicateIds[] = $normalizedId;
+                    continue;
+                }
+                if (in_array($normalizedId, $seenAuthIds, true)) {
+                    continue;
+                }
+                $seenAuthIds[] = $normalizedId;
+            }
+            $authLinksOut[] = [
+                'type' => 'link',
+                'id' => $id,
+                'href' => $link['href'] ?? '',
+                'text' => $link['text'] ?? '',
+                'title' => $link['title'] ?? '',
+                'fullWidth' => !empty($link['fullWidth']),
+                'cta' => !empty($link['cta']),
+                'content' => (isset($link['content']) && is_string($link['content']) && strtolower(trim($link['content'])) === 'nsfw')
+                    ? 'nsfw'
+                    : 'sfw',
+            ];
+        }
+    }
+    if (!empty($reservedAuthIds)) {
+        $unique = array_values(array_unique($reservedAuthIds));
+        respond(['error' => 'Error: ID cannot be ' . implode(', ', $unique) . '. Please change them to different IDs.'], 400);
+    }
+    if (!empty($duplicateIds)) {
+        respond(['error' => 'Error: Authorized link IDs must be unique and not overlap with regular links.'], 400);
     }
 }
 
@@ -1278,6 +1433,18 @@ if (is_array($linksOut)) {
         ? ['settings' => $linksSettings, 'links' => $linksOut]
         : $linksOut;
     write_json_file($linksPath, $payload, 'Failed to write links data');
+}
+
+if (is_array($authLinksOut)) {
+    $payload = is_array($authLinksSettings)
+        ? ['settings' => $authLinksSettings, 'links' => $authLinksOut]
+        : $authLinksOut;
+    write_json_file($authorizedLinksPath, $payload, 'Failed to write authorized links data');
+}
+
+if (is_array($tgBotData)) {
+    $normalized = normalize_tg_bot_payload($tgBotData);
+    write_json_file($tgBotPath, $normalized, 'Failed to write Telegram bot data');
 }
 
 // All operations succeeded.

@@ -373,6 +373,146 @@ header.header {
     container-name: users-pane;
 }
 
+#authLinks {
+    container-type: inline-size;
+    container-name: auth-links-pane;
+    overflow: auto;
+}
+
+.authLinksGrid {
+    display: flex;
+    gap: 12px;
+    align-items: stretch;
+    min-height: 0;
+}
+
+.authLinksSidebar {
+    flex: 0 0 32%;
+    min-width: 220px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-height: 0;
+}
+
+.authLinksMain {
+    flex: 1 1 68%;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-height: 0;
+    overflow: visible;
+}
+
+.authLinksCard {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    border: 1px solid #FFFFFF22;
+    border-radius: 6px;
+    padding: 10px;
+    background: #00000033;
+}
+
+.authLinksCard .linksConfigField {
+    width: 100%;
+}
+
+.authLinksCard .linksConfigRow {
+    width: 100%;
+    align-items: stretch;
+}
+
+.authLinksCard .linksConfigRow .linksConfigField {
+    width: 100%;
+}
+
+.authLinksTokenField {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+
+.authLinksTokenField .linksConfigInput {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.authLinksTokenToggle {
+    flex: 0 0 auto;
+    padding: 6px;
+    border-radius: 6px;
+}
+
+.authLinksTokenToggle svg {
+    width: 20px;
+    height: 20px;
+}
+
+.authLinksFieldActions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.authLinksHelpIcon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    color: inherit;
+    opacity: 0.75;
+}
+
+.authLinksHelpIcon svg {
+    width: 16px;
+    height: 16px;
+    fill: currentColor;
+}
+
+.authLinksHelpInline {
+    margin-left: 6px;
+}
+
+.authLinksHelpBlock {
+    border: 1px solid #FFFFFF22;
+    border-radius: 6px;
+    padding: 10px;
+    background: #0000002A;
+    font-size: 0.85rem;
+    line-height: 1.4;
+}
+
+.authLinksHelpBlock ol {
+    margin: 6px 0 8px 18px;
+}
+
+.authLinksHelpBlock code {
+    font-family: monospace;
+}
+
+.authLinksHelpBlock pre {
+    margin: 6px 0;
+    padding: 8px;
+    background: #00000033;
+    border: 1px solid #FFFFFF22;
+    border-radius: 6px;
+    overflow: auto;
+}
+
+@container auth-links-pane (max-width: 800px) {
+    .authLinksGrid {
+        flex-direction: column;
+    }
+    .authLinksSidebar,
+    .authLinksMain {
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+}
+
 .usersGrid {
     display: flex;
     gap: 12px;
@@ -505,6 +645,21 @@ button:disabled {
 .usersDanger:active {
     background-color: #551515;
     border-color: #FF6A6A;
+}
+
+.usersWarning {
+    border-color: #E2C86B;
+    background: #5A4B1D;
+}
+
+.usersWarning:hover {
+    background-color: #6D5A22;
+    border-color: #F0D788;
+}
+
+.usersWarning:active {
+    background-color: #4A3C17;
+    border-color: #D5B85C;
 }
 
 .usersPermissionsButton {
@@ -670,8 +825,24 @@ button:disabled {
     font-weight: 600;
     font-size: 0.9rem;
     flex: 1 1 0;
-    max-width: 50%;
     min-width: 0;
+}
+
+.authLinksCard .linksConfigField {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    padding-bottom: 10px;
+}
+
+.authLinksCard .linksConfigLabelText {
+    min-width: 0;
+    flex: 0 0 auto;
+    text-align: left;
+}
+
+.authLinksCard .authLinksTokenField {
+    width: 100%;
 }
 
 .linksConfigIdField {
@@ -755,6 +926,48 @@ button:disabled {
     margin-top: 12px;
     justify-content: flex-end;
     padding-top: 4px;
+    flex-wrap: wrap;
+    align-items: flex-end;
+}
+
+#links .linksConfigActions {
+    justify-content: flex-start;
+}
+
+#links .linksConfigActions .linksConfigSpacer {
+    display: none;
+}
+
+#links .linksConfigActions .addLink {
+    margin-left: auto;
+}
+
+#links .linksConfigActions .linksConfigCheckbox {
+    flex: 1 1 100%;
+}
+
+#links .linksConfigActions .addLink,
+#links .linksConfigActions .addSeparator {
+    flex: 0 0 auto;
+    align-self: flex-end;
+}
+
+.authLinksMain {
+    min-height: 0;
+}
+
+.authLinksMain .linksConfigList {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: visible;
+}
+
+#authLinks .linksConfig {
+    overflow: visible;
+}
+
+.authLinksMain .linksConfigActions {
+    margin-top: auto;
 }
 
 @media (max-width: 979px) {
@@ -1352,6 +1565,8 @@ button:disabled {
 .deleteLink,
 .addLink,
 .addSeparator,
+.addAuthLink,
+.addAuthSeparator,
 .deleteBackground,
 .addBackground,
 .helpTutorial,
@@ -1417,6 +1632,8 @@ button:disabled {
 .moveDownLink:hover,
 .addLink:hover,
 .addSeparator:hover,
+.addAuthLink:hover,
+.addAuthSeparator:hover,
 .addBackground:hover,
 .helpTutorial:hover,
 .saveChanges:hover,
@@ -1431,6 +1648,8 @@ button:disabled {
 .moveDownLink:active,
 .addLink:active,
 .addSeparator:active,
+.addAuthLink:active,
+.addAuthSeparator:active,
 .addBackground:active,
 .helpTutorial:active,
 .saveChanges:active,

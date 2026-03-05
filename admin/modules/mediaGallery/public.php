@@ -13,14 +13,14 @@ if (!$mediaGalleryPublicAssetsInjected) {
         ? lawnding_asset_url('res/scr/module-style.php?module=mediaGallery')
         : '/res/scr/module-style.php?module=mediaGallery';
     echo '<link rel="stylesheet" href="'
-        . htmlspecialchars(lawnding_versioned_url($styleUrl), ENT_QUOTES, 'UTF-8')
+        . htmlspecialchars($styleUrl, ENT_QUOTES, 'UTF-8')
         . '">';
 
     $scriptUrl = function_exists('lawnding_asset_url')
         ? lawnding_asset_url('res/scr/module-script.php?module=mediaGallery&file=public.js')
         : '/res/scr/module-script.php?module=mediaGallery&file=public.js';
     echo '<script src="'
-        . htmlspecialchars(lawnding_versioned_url($scriptUrl), ENT_QUOTES, 'UTF-8')
+        . htmlspecialchars($scriptUrl, ENT_QUOTES, 'UTF-8')
         . '" defer></script>';
 }
 

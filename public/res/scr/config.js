@@ -4,9 +4,11 @@ $(document).ready(function() {
     const steps = buildTutorialSteps();
     let currentStep = 0;
     let pendingLogoFile = null;
-    let linkCounter = $('.linksConfigCard').length;
+    let linkCounter = $('#linksConfig .linksConfigCard').length;
+    let authLinkCounter = $('#authLinksConfig .authLinksConfigCard').length;
     let initialSnapshot = null;
     let pendingBgDelete = null;
+    let authLinksNeedsNormalization = $('#authLinksConfig').attr('data-needs-normalization') === 'true';
     const csrfToken = window.appConfig && window.appConfig.csrfToken ? window.appConfig.csrfToken : '';
     let activeModal = null;
     let lastFocusedElement = null;
@@ -18,6 +20,32 @@ $(document).ready(function() {
         if (csrfToken) {
             formData.append('csrf_token', csrfToken);
         }
+    }
+
+    function parseTgGroupEntries(rawValue) {
+        const lines = String(rawValue || '')
+            .split('\n')
+            .map((value) => value.trim())
+            .filter((value) => value.length > 0);
+        const order = [];
+        const entriesById = new Map();
+        lines.forEach((line) => {
+            const parts = line.split(/\s+/).filter((value) => value.length > 0);
+            if (!parts.length) {
+                return;
+            }
+            const id = parts[0];
+            const content = parts[1] && /^nsfw$/i.test(parts[1]) ? 'NSFW' : 'SFW';
+            if (!entriesById.has(id)) {
+                order.push(id);
+                entriesById.set(id, { id, content });
+                return;
+            }
+            if (content === 'NSFW') {
+                entriesById.set(id, { id, content: 'NSFW' });
+            }
+        });
+        return order.map((id) => entriesById.get(id)).filter(Boolean);
     }
 
     function setModalBackgroundState(isOpen) {
@@ -195,6 +223,7 @@ $(document).ready(function() {
     });
 
     bindLinksControls();
+    bindAuthLinksControls();
     bindBackgroundControls();
     initBackgroundSettings();
     bindSaveHandler();
@@ -347,7 +376,11 @@ $(document).ready(function() {
 
     // Link list interactions (add, delete, reorder)
     function bindLinksControls() {
-        const $list = $('.linksConfigList');
+        const $list = $('#linksConfig .linksConfigList');
+
+        if (!$list.length) {
+            return;
+        }
 
         // Move up
         $list.on('click', '.moveUpLink', function() {
@@ -355,7 +388,7 @@ $(document).ready(function() {
             const $prev = $card.prev('.linksConfigCard');
             if ($prev.length) {
                 $card.insertBefore($prev);
-                refreshLinkControls();
+                refreshLinkControls($list);
             }
         });
 
@@ -365,14 +398,14 @@ $(document).ready(function() {
             const $next = $card.next('.linksConfigCard');
             if ($next.length) {
                 $card.insertAfter($next);
-                refreshLinkControls();
+                refreshLinkControls($list);
             }
         });
 
         // Delete
         $list.on('click', '.deleteLink', function() {
             $(this).closest('.linksConfigCard').remove();
-            refreshLinkControls();
+            refreshLinkControls($list);
         });
 
         // Add link
@@ -380,7 +413,7 @@ $(document).ready(function() {
             const $newCard = $(createLinkCard());
             $list.append($newCard);
             updateLinkIdForCard($newCard);
-            refreshLinkControls();
+            refreshLinkControls($list);
             scrollListToBottom($list);
         });
 
@@ -388,12 +421,12 @@ $(document).ready(function() {
         $('.addSeparator').on('click', function() {
             const $newCard = $(createSeparatorCard());
             $list.append($newCard);
-            refreshLinkControls();
+            refreshLinkControls($list);
             scrollListToBottom($list);
         });
 
         // Initial state
-        refreshLinkControls();
+        refreshLinkControls($list);
 
         $list.on('input', 'input[name="linkText[]"]', function() {
             updateLinkIdForCard($(this).closest('.linksConfigCard'));
@@ -406,8 +439,166 @@ $(document).ready(function() {
         bindLinksEditingMode();
     }
 
-    function refreshLinkControls() {
-        const $cards = $('.linksConfigCard');
+    function bindAuthLinksControls() {
+        const $list = $('#authLinksConfig .authLinksConfigList');
+        const $toggle = $('#authLinksToggle');
+        const $tokenToggle = $('.authLinksTokenToggle');
+        const $testBot = $('.authLinksTestBotButton');
+        const $validateGroups = $('.authLinksValidateGroupsButton');
+
+        if (!$list.length) {
+            return;
+        }
+
+        $list.on('click', '.moveUpLink', function() {
+            const $card = $(this).closest('.authLinksConfigCard');
+            const $prev = $card.prev('.authLinksConfigCard');
+            if ($prev.length) {
+                $card.insertBefore($prev);
+                refreshAuthLinkControls($list);
+            }
+        });
+
+        $list.on('click', '.moveDownLink', function() {
+            const $card = $(this).closest('.authLinksConfigCard');
+            const $next = $card.next('.authLinksConfigCard');
+            if ($next.length) {
+                $card.insertAfter($next);
+                refreshAuthLinkControls($list);
+            }
+        });
+
+        $list.on('click', '.deleteLink', function() {
+            $(this).closest('.authLinksConfigCard').remove();
+            refreshAuthLinkControls($list);
+        });
+
+        $('.addAuthLink').on('click', function() {
+            const $newCard = $(createAuthLinkCard());
+            $list.append($newCard);
+            updateAuthLinkIdForCard($newCard);
+            refreshAuthLinkControls($list);
+            scrollListToBottom($list);
+        });
+
+        $('.addAuthSeparator').on('click', function() {
+            const $newCard = $(createAuthSeparatorCard());
+            $list.append($newCard);
+            refreshAuthLinkControls($list);
+            scrollListToBottom($list);
+        });
+
+        $list.on('input', 'input[name="authLinkText[]"]', function() {
+            updateAuthLinkIdForCard($(this).closest('.authLinksConfigCard'));
+        });
+
+        $list.find('.authLinksConfigCard').not('.linksConfigSeparator').each(function() {
+            updateAuthLinkIdForCard($(this));
+        });
+
+        if ($toggle.length) {
+            $toggle.on('change', function() {
+                const enabled = $(this).is(':checked');
+                setAuthLinksVisibility(enabled);
+            });
+            setAuthLinksVisibility($toggle.is(':checked'));
+        }
+
+        if ($tokenToggle.length) {
+            $tokenToggle.on('click', function() {
+                const $button = $(this);
+                const $input = $('#tgBotToken');
+                const isVisible = $button.attr('data-visible') === 'true';
+                $input.attr('type', isVisible ? 'password' : 'text');
+                $button.attr('data-visible', isVisible ? 'false' : 'true');
+                $button.attr('aria-label', isVisible ? 'Show token' : 'Hide token');
+                const icon = isVisible
+                    ? $button.data('icon-closed')
+                    : $button.data('icon-open');
+                if (icon) {
+                    $button.html(icon);
+                }
+            });
+            $tokenToggle.each(function() {
+                const $button = $(this);
+                if (!$button.data('icon-open')) {
+                    const open = $('#tgBotTokenToggleOpen').html() || '';
+                    $button.data('icon-open', open);
+                }
+                if (!$button.data('icon-closed')) {
+                    const closed = $('#tgBotTokenToggleClosed').html() || '';
+                    $button.data('icon-closed', closed);
+                }
+            });
+        }
+
+        if ($testBot.length) {
+            $testBot.on('click', function() {
+                const basePath = window.appConfig && typeof window.appConfig.basePath === 'string'
+                    ? window.appConfig.basePath.replace(/\/$/, '')
+                    : '';
+                const url = basePath ? `${basePath}/res/scr/tg-test.php` : '/res/scr/tg-test.php';
+                fetch(url, { method: 'GET' })
+                    .then((resp) => resp.json())
+                    .then((data) => {
+                        const ok = data && data.ok;
+                        const desc = data && data.description ? String(data.description) : 'No response message.';
+                        const expected = 'Expected: ok=true with a bot username/id if the token is valid.';
+                        alert(`${ok ? 'OK' : 'FAILED'}: ${desc}\n${expected}`);
+                    })
+                    .catch((err) => {
+                        alert(`FAILED: ${err && err.message ? err.message : 'Request failed.'}\nExpected: ok=true with a bot username/id if the token is valid.`);
+                    });
+            });
+        }
+
+        if ($validateGroups.length) {
+            $validateGroups.on('click', function() {
+                const basePath = window.appConfig && typeof window.appConfig.basePath === 'string'
+                    ? window.appConfig.basePath.replace(/\/$/, '')
+                    : '';
+                const url = basePath ? `${basePath}/res/scr/tg-validate-groups.php` : '/res/scr/tg-validate-groups.php';
+                const raw = $('#tgBotGroupIds').val() || '';
+                const groupIds = parseTgGroupEntries(raw).map((entry) => entry.id);
+                if (!groupIds.length) {
+                    alert('No group IDs found. Add at least one ID and try again.');
+                    return;
+                }
+                fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ group_ids: groupIds })
+                })
+                    .then((resp) => resp.json())
+                    .then((data) => {
+                        if (!data || !data.ok) {
+                            const desc = data && data.description ? String(data.description) : 'Validation failed.';
+                            alert(`FAILED: ${desc}`);
+                            return;
+                        }
+                        const valid = Array.isArray(data.valid) ? data.valid : [];
+                        const invalid = Array.isArray(data.invalid) ? data.invalid : [];
+                        if (!invalid.length) {
+                            alert(`OK: All ${valid.length} group ID(s) are valid.`);
+                            return;
+                        }
+                        const messages = invalid.map((id) => {
+                            const reason = data.errors && data.errors[id] ? data.errors[id] : 'Unknown error';
+                            return `${id}: ${reason}`;
+                        });
+                        alert(`Some group IDs failed:\n${messages.join('\n')}`);
+                    })
+                    .catch((err) => {
+                        alert(`FAILED: ${err && err.message ? err.message : 'Request failed.'}`);
+                    });
+            });
+        }
+
+        refreshAuthLinkControls($list);
+    }
+
+    function refreshLinkControls($list) {
+        const $cards = $list ? $list.find('.linksConfigCard') : $('.linksConfigCard');
         $cards.find('.moveUpLink, .moveDownLink').prop('disabled', false);
         if ($cards.length === 0) {
             return;
@@ -419,7 +610,7 @@ $(document).ready(function() {
         }
     }
 
-    function buildLinkIdFromText(text) {
+    function buildLinkIdFromText(text, prefix = 'link') {
         const words = (text || '').match(/[a-z0-9]+/gi) || [];
         if (!words.length) {
             return '';
@@ -427,7 +618,7 @@ $(document).ready(function() {
         const pascal = words
             .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
             .join('');
-        return `link${pascal}`;
+        return `${prefix}${pascal}`;
     }
 
     function updateLinkIdForCard($card) {
@@ -447,7 +638,7 @@ $(document).ready(function() {
     }
 
     function bindLinksEditingMode() {
-        const selector = '.linksConfigInput[name="linkText[]"], .linksConfigInput[name="linkUrl[]"], .linksConfigInput[name="linkTitle[]"], .linksConfigIdValue';
+        const selector = '.linksConfigInput[name="linkText[]"], .linksConfigInput[name="linkUrl[]"], .linksConfigInput[name="linkTitle[]"], .linksConfigInput[name="authLinkText[]"], .linksConfigInput[name="authLinkUrl[]"], .linksConfigInput[name="authLinkTitle[]"], .linksConfigIdValue';
         $(document).on('focus', selector, function() {
             const $input = $(this);
             const $row = $input.closest('.linksConfigRow');
@@ -818,6 +1009,16 @@ $(document).ready(function() {
                 formData.append('links', JSON.stringify(currentSnapshot.links));
                 hasChanges = true;
             }
+            // Authorized links
+            if (!isEqualSnapshot(currentSnapshot.authLinks, initialSnapshot.authLinks) || authLinksNeedsNormalization) {
+                formData.append('authorizedLinks', JSON.stringify(currentSnapshot.authLinks));
+                hasChanges = true;
+            }
+            // Telegram bot settings
+            if (!isEqualSnapshot(currentSnapshot.tgBot, initialSnapshot.tgBot)) {
+                formData.append('tgBot', JSON.stringify(currentSnapshot.tgBot));
+                hasChanges = true;
+            }
 
             // Backgrounds
             if (!isEqualSnapshot(currentSnapshot.backgrounds, initialSnapshot.backgrounds)) {
@@ -868,6 +1069,8 @@ $(document).ready(function() {
                         }
                     }
                     refreshPromise.finally(function() {
+                        authLinksNeedsNormalization = false;
+                        $('#authLinksConfig').attr('data-needs-normalization', 'false');
                         initialSnapshot = captureSnapshot();
                         pendingLogoFile = null;
                         hideSavingOverlay();
@@ -917,7 +1120,7 @@ $(document).ready(function() {
 
     function getLinksData() {
         const links = [];
-        $('.linksConfigCard').each(function() {
+        $('#linksConfig .linksConfigCard').each(function() {
             const $card = $(this);
             if ($card.hasClass('linksConfigSeparator')) {
                 links.push({ type: 'separator' });
@@ -940,11 +1143,61 @@ $(document).ready(function() {
             });
         });
         const showLinks = $('#linksVisibleToggle').is(':checked');
+        const authLinksEnabled = $('#authLinksToggle').is(':checked');
         return {
             settings: {
-                show_links: showLinks
+                show_links: showLinks,
+                auth_links: authLinksEnabled
             },
             links
+        };
+    }
+
+    function getAuthLinksData() {
+        const links = [];
+        $('#authLinksConfig .authLinksConfigCard').each(function() {
+            const $card = $(this);
+            if ($card.hasClass('linksConfigSeparator')) {
+                links.push({ type: 'separator' });
+                return;
+            }
+            const id = $card.find('input[name="authLinkId[]"]').val() || '';
+            const href = $card.find('input[name="authLinkUrl[]"]').val() || '';
+            const text = $card.find('input[name="authLinkText[]"]').val() || '';
+            const title = $card.find('input[name="authLinkTitle[]"]').val() || '';
+            const fullWidth = $card.find('input[name="authLinkFullWidth[]"]').is(':checked');
+            const cta = $card.find('input[name="authLinkCta[]"]').is(':checked');
+            const content = $card.find('input[name="authLinkNsfw[]"]').is(':checked') ? 'nsfw' : 'sfw';
+            links.push({
+                type: 'link',
+                id,
+                href,
+                text,
+                title,
+                fullWidth,
+                cta,
+                content
+            });
+        });
+        return { links };
+    }
+
+    function getTgBotData() {
+        const token = ($('#tgBotToken').val() || '').trim();
+        const username = ($('#tgBotUsername').val() || '').trim();
+        const ttlRaw = ($('#tgBotCacheTtl').val() || '').trim();
+        const ttlValue = parseInt(ttlRaw, 10);
+        const ttl = Number.isFinite(ttlValue) && ttlValue > 0 ? ttlValue : 30;
+        const message = ($('#tgBotUnauthorizedMessage').val() || '').trim();
+        const groupRaw = $('#tgBotGroupIds').val() || '';
+        const entries = parseTgGroupEntries(groupRaw);
+        entries.sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }));
+        return {
+            bot_username: username,
+            bot_token: token,
+            group_ids: entries,
+            membership_cache_ttl_minutes: ttl,
+            unauthorized_message: message
         };
     }
 
@@ -1023,6 +1276,8 @@ $(document).ready(function() {
         return {
             header: getHeaderData(),
             links: getLinksData(),
+            authLinks: getAuthLinksData(),
+            tgBot: getTgBotData(),
             backgrounds: getBackgroundsData(),
             panes: getPaneSaveData()
         };
@@ -1114,8 +1369,15 @@ $(document).ready(function() {
     function findReservedLinkIds() {
         const reservedIds = getReservedIdSet();
         const ids = [];
-        $('.linksConfigCard').not('.linksConfigSeparator').each(function() {
+        $('#linksConfig .linksConfigCard').not('.linksConfigSeparator').each(function() {
             const value = $(this).find('input[name="linkId[]"]').val() || '';
+            const trimmed = value.trim();
+            if (trimmed) {
+                ids.push(trimmed);
+            }
+        });
+        $('#authLinksConfig .authLinksConfigCard').not('.linksConfigSeparator').each(function() {
+            const value = $(this).find('input[name="authLinkId[]"]').val() || '';
             const trimmed = value.trim();
             if (trimmed) {
                 ids.push(trimmed);
@@ -1153,6 +1415,127 @@ $(document).ready(function() {
         $display.removeClass('isReserved');
     }
 
+    function setAuthLinksVisibility(enabled) {
+        const $pane = $('#authLinks');
+        const $navItem = $('.authLinksNavItem');
+        const $navLink = $navItem.find('.navLink[data-pane="authLinks"]');
+        if (enabled) {
+            $pane.removeClass('hidden');
+            $navItem.removeClass('isHidden');
+            $navLink.removeClass('hidden');
+        } else {
+            $pane.addClass('hidden');
+            $navItem.addClass('isHidden');
+            $navLink.addClass('hidden');
+            if ($('.navLink.navActive[data-pane="authLinks"]').length) {
+                $('.navLink[data-pane="links"]').trigger('click');
+            }
+        }
+        if (typeof window.lawndingRebuildPaneOrder === 'function') {
+            window.lawndingRebuildPaneOrder();
+        }
+    }
+
+    function refreshAuthLinkControls($list) {
+        const $cards = $list ? $list.find('.authLinksConfigCard') : $('.authLinksConfigCard');
+        $cards.find('.moveUpLink, .moveDownLink').prop('disabled', false);
+        if ($cards.length === 0) {
+            return;
+        }
+        $cards.first().find('.moveUpLink').prop('disabled', true);
+        $cards.last().find('.moveDownLink').prop('disabled', true);
+        if ($cards.length === 1) {
+            $cards.first().find('.moveDownLink').prop('disabled', true);
+        }
+    }
+
+    function updateAuthLinkIdForCard($card) {
+        if (!$card.length || $card.hasClass('linksConfigSeparator')) {
+            return;
+        }
+        const $textInput = $card.find('input[name="authLinkText[]"]');
+        const $idInput = $card.find('input[name="authLinkId[]"]');
+        const $idValue = $card.find('.linksConfigIdValue');
+        const textValue = $textInput.val() || '';
+        const generated = buildLinkIdFromText(textValue, 'authLink');
+        const nextId = generated || ($idInput.val() || '');
+        $idInput.val(nextId);
+        $idValue.text(`#${nextId}`);
+        $idValue.attr('aria-label', `ID ${nextId}`);
+        updateReservedIdState($idInput);
+    }
+
+    function createAuthLinkCard() {
+        authLinkCounter += 1;
+        const uniqueId = `authLink${authLinkCounter}`;
+        return `
+            <div class="linksConfigCard authLinksConfigCard">
+                <div class="linksConfigRow">
+                    <label class="linksConfigField" title="The label that is displayed for each link."><span class="linksConfigLabelText">Name</span>
+                        <input class="linksConfigInput" type="text" name="authLinkText[]" value="" placeholder="Display text" title="The label that is displayed for each link.">
+                    </label>
+                    <div class="linksConfigField linksConfigIdField" title="The internal HTML ID of the link.  Make it unique.">
+                        <span class="linksConfigLabelText">ID</span>
+                        <span class="linksConfigIdValue" tabindex="0" aria-label="ID ${uniqueId}">#${uniqueId}</span>
+                        <input class="linksConfigIdInput" type="hidden" name="authLinkId[]" value="${uniqueId}">
+                    </div>
+                </div>
+                <div class="linksConfigRow">
+                    <label class="linksConfigField" title="The full URL (https: and all) to link to."><span class="linksConfigLabelText">URL</span>
+                        <input class="linksConfigInput" type="text" name="authLinkUrl[]" value="" placeholder="Link URL" title="The full URL (https: and all) to link to.">
+                    </label>
+                    <label class="linksConfigField" title="The text that appears when the user hovers over a link."><span class="linksConfigLabelText">Tooltip</span>
+                        <input class="linksConfigInput" type="text" name="authLinkTitle[]" value="" placeholder="Title attribute" title="The text that appears when the user hovers over a link.">
+                    </label>
+                </div>
+                <div class="linksConfigRow linksConfigToggles">
+                    <label class="linksConfigCheckbox" title="If checked, the link takes up the full width of the links pane.  Otherwise, it'll take up half of the width.">
+                        <input type="checkbox" name="authLinkFullWidth[]" title="If checked, the link takes up the full width of the links pane.  Otherwise, it'll take up half of the width.">
+                        Full width
+                    </label>
+                    <label class="linksConfigCheckbox" title="AKA Call to Action.  If checked, the link appears more prominently than the others.  Ideally, you will only want to use one, but you can set multiple links as a CTA button.">
+                        <input type="checkbox" name="authLinkCta[]" title="AKA Call to Action.  If checked, the link appears more prominently than the others.  Ideally, you will only want to use one, but you can set multiple links as a CTA button.">
+                        CTA
+                    </label>
+                    <label class="linksConfigCheckbox" title="If checked, this authorized link is marked as NSFW content. If unchecked, it is treated as SFW.">
+                        <input type="checkbox" name="authLinkNsfw[]" title="If checked, this authorized link is marked as NSFW content. If unchecked, it is treated as SFW.">
+                        NSFW
+                    </label>
+                    <span class="linksConfigSpacer"></span>
+                    <button class="moveUpLink iconButton" type="button" title="Move this entry up in the list." aria-label="Move this entry up in the list.">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13,20H11V8L5.5,13.5L4.08,12.08L12,4.16L19.92,12.08L18.5,13.5L13,8V20Z" /></svg>
+                    </button>
+                    <button class="moveDownLink iconButton" type="button" title="Move this entry down in the list." aria-label="Move this entry down in the list.">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M11,4H13V16L18.5,10.5L19.92,11.92L12,19.84L4.08,11.92L5.5,10.5L11,16V4Z" /></svg>
+                    </button>
+                    <button class="deleteLink usersDanger iconButton" type="button" title="Removes this entry from the list." aria-label="Remove this entry from the list.">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z" /></svg>
+                    </button>
+                </div>
+            </div>
+        `;
+    }
+
+    function createAuthSeparatorCard() {
+        return `
+            <div class="linksConfigCard authLinksConfigCard linksConfigSeparator">
+                <div class="linksConfigRow">
+                    <span class="linksConfigLabel">Separator</span>
+                    <span class="linksConfigSpacer"></span>
+                    <button class="moveUpLink iconButton" type="button" title="Move this entry up in the list." aria-label="Move this entry up in the list.">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13,20H11V8L5.5,13.5L4.08,12.08L12,4.16L19.92,12.08L18.5,13.5L13,8V20Z" /></svg>
+                    </button>
+                    <button class="moveDownLink iconButton" type="button" title="Move this entry down in the list." aria-label="Move this entry down in the list.">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M11,4H13V16L18.5,10.5L19.92,11.92L12,19.84L4.08,11.92L5.5,10.5L11,16V4Z" /></svg>
+                    </button>
+                    <button class="deleteLink usersDanger iconButton" type="button" title="Removes this entry from the list." aria-label="Remove this entry from the list.">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z" /></svg>
+                    </button>
+                </div>
+            </div>
+        `;
+    }
+
     function getReservedIdSet() {
         const staticIds = [
             'adminnotices',
@@ -1174,6 +1557,16 @@ $(document).ready(function() {
             'mask-top',
             'nojswarning',
             'navbar',
+            'authlinks',
+            'authlinksconfig',
+            'authlinkslogin',
+            'authlinksnotice',
+            'tgbottoken',
+            'tgbotusername',
+            'tgbotgroupids',
+            'tgbotcachettl',
+            'tgbotunauthorizedmessage',
+            'tgbottokentoggleclosed',
             'permissionsmodal',
             'permissionsform',
             'permissionsselfconfirmmodal',

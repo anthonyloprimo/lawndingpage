@@ -1,4 +1,4 @@
 <?php
-header("Cache-Control: no-cache, must-revalidate");
+header("Cache-Control: private, no-cache");
 header("Pragma: no-cache");
 header("Expires: 0");

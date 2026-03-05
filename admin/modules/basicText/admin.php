@@ -14,7 +14,7 @@ if (!$basicTextAdminStylesInjected) {
         ? lawnding_asset_url('res/scr/module-style.php?module=basicText')
         : '/res/scr/module-style.php?module=basicText';
     echo '<link rel="stylesheet" href="'
-        . htmlspecialchars(lawnding_versioned_url($styleUrl), ENT_QUOTES, 'UTF-8')
+        . htmlspecialchars($styleUrl, ENT_QUOTES, 'UTF-8')
         . '">';
 }
 

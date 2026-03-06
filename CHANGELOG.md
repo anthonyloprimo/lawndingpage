@@ -1,5 +1,10 @@
 ### Changelog
 
+#### v1.9.1
+- Security fixes.
+
+-----
+
 #### v1.9.0
 - Added authorized links that integrates with Telegram groups; user logs in with telegram and as long as they're in specified groups, they can view hidden links.
 - Added SFW and NSFW link categories, and SFW and NSFW group ID notation.

@@ -30,9 +30,22 @@ if (!class_exists('Parsedown')) {
         : __DIR__ . '/../../public/res/scr/Parsedown.php';
     require_once $parsedownPath;
 }
+if (!function_exists('lawnding_markdown_gate_apply')) {
+    $gatingPath = function_exists('lawnding_public_path')
+        ? lawnding_public_path('res/scr/markdown-gating.php')
+        : __DIR__ . '/../../../public/res/scr/markdown-gating.php';
+    require_once $gatingPath;
+}
 
+$clearance = isset($markdownGateClearance) && is_string($markdownGateClearance)
+    ? $markdownGateClearance
+    : 'none';
+$gated = lawnding_markdown_gate_apply((string) $markdown, $clearance, false);
+if (empty($gated['ok'])) {
+    error_log('basicText/public.php: invalid content-gating syntax in ' . $markdownFile);
+}
 $parser = new Parsedown();
-$content = $parser->text($markdown);
+$content = $parser->text((string) ($gated['markdown'] ?? ''));
 ?>
 <div class="pane glassConvex" id="<?php echo htmlspecialchars($paneId); ?>">
     <?php echo $content; ?>

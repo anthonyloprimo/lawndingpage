@@ -764,10 +764,50 @@ if ($authRecord && !$forcePasswordChange) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
     <title>Admin Panel</title>
-    <?php $assetBase = function_exists('lawnding_config') ? rtrim(lawnding_config('base_url', ''), '/') : ''; ?>
+    <?php
+        $assetBase = function_exists('lawnding_config') ? rtrim(lawnding_config('base_url', ''), '/') : '';
+        $headerLogoPath = 'res/img/logo.jpg';
+        $headerPath = function_exists('lawnding_data_path')
+            ? lawnding_data_path('header.json')
+            : __DIR__ . '/../res/data/header.json';
+        if (is_readable($headerPath)) {
+            $headerDecoded = json_decode((string) file_get_contents($headerPath), true);
+            if (is_array($headerDecoded) && !empty($headerDecoded['logo']) && is_string($headerDecoded['logo'])) {
+                $headerLogoPath = $headerDecoded['logo'];
+            }
+        }
+        $logoPathTrimmed = ltrim($headerLogoPath, '/');
+        if (str_starts_with($logoPathTrimmed, 'public/')) {
+            $logoPathTrimmed = substr($logoPathTrimmed, strlen('public/'));
+        }
+        $faviconUrl = '';
+        if (preg_match('#^[a-z][a-z0-9+.-]*:#i', $headerLogoPath) || str_starts_with($headerLogoPath, '//')) {
+            $faviconUrl = $headerLogoPath;
+        } elseif (str_starts_with($logoPathTrimmed, 'res/')) {
+            $faviconUrl = ($assetBase !== '' ? $assetBase : '') . '/' . $logoPathTrimmed;
+        } else {
+            $faviconUrl = ($assetBase !== '' ? $assetBase : '') . '/res/img/logo.jpg';
+            $logoPathTrimmed = 'res/img/logo.jpg';
+        }
+        $faviconToken = defined('SITE_VERSION') ? (string) SITE_VERSION : '';
+        if (str_starts_with($logoPathTrimmed, 'res/')) {
+            $logoFsPath = function_exists('lawnding_public_path')
+                ? lawnding_public_path($logoPathTrimmed)
+                : __DIR__ . '/../' . $logoPathTrimmed;
+            if (is_file($logoFsPath)) {
+                $mtime = @filemtime($logoFsPath);
+                if (is_int($mtime) && $mtime > 0) {
+                    $faviconToken = (string) $mtime;
+                }
+            }
+        }
+        if ($faviconToken !== '') {
+            $faviconUrl .= (str_contains($faviconUrl, '?') ? '&' : '?') . 'v=' . rawurlencode($faviconToken);
+        }
+    ?>
     <?php // Deprecated: site-version.js cache-busting is no longer loaded. ?>
     <script src="<?php echo htmlspecialchars($assetBase . '/res/scr/no-zoom.js', ENT_QUOTES, 'UTF-8'); ?>"></script>
-    <link rel="icon" type="image/jpg" href="<?php echo htmlspecialchars($assetBase); ?>/res/img/logo.jpg">
+    <link rel="icon" href="<?php echo htmlspecialchars($faviconUrl, ENT_QUOTES, 'UTF-8'); ?>">
     <link rel="stylesheet" href="<?php echo htmlspecialchars($assetBase . '/res/style.css', ENT_QUOTES, 'UTF-8'); ?>">
     <link rel="stylesheet" href="<?php echo htmlspecialchars($assetBase . '/res/admin.css', ENT_QUOTES, 'UTF-8'); ?>">
 </head>

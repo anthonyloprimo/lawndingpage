@@ -3,6 +3,7 @@
 require_once __DIR__ . '/../../../lp-bootstrap.php';
 // Load versioned constants (schema version, site version) for consistency checks.
 require_once __DIR__ . '/../version.php';
+require_once __DIR__ . '/markdown-gating.php';
 lawnding_init_session();
 
 // Unified JSON response helper.
@@ -244,6 +245,16 @@ function write_text_file($path, $content, $errorMessage) {
     }
 }
 
+function validate_markdown_gating_or_fail(string $markdown, string $context): void {
+    $result = lawnding_markdown_gate_apply($markdown, 'nsfw', true);
+    if (!empty($result['ok'])) {
+        return;
+    }
+    $suffix = $context !== '' ? (' (' . $context . ')') : '';
+    $message = (string) ($result['error'] ?? 'Invalid content-gating syntax.');
+    respond(['error' => $message . $suffix], 400);
+}
+
 // Require a valid CSRF token for state-changing requests.
 function require_csrf_token() {
     $sessionToken = $_SESSION['csrf_token'] ?? '';
@@ -375,6 +386,49 @@ function normalize_asset_path($path) {
         return $trimmed;
     }
     return $path;
+}
+
+// Resolve a local logo path under res/img; returns null for non-local or unsafe paths.
+function resolve_local_logo_path($assetPath, $imgDir) {
+    $normalized = normalize_asset_path($assetPath);
+    if (!is_string($normalized) || $normalized === '') {
+        return null;
+    }
+    if (preg_match('#^https?://#i', $normalized) || str_starts_with($normalized, '//')) {
+        return null;
+    }
+    $trimmed = ltrim($normalized, '/');
+    if (str_starts_with($trimmed, 'public/')) {
+        $trimmed = substr($trimmed, strlen('public/'));
+    }
+    if (!str_starts_with($trimmed, 'res/img/')) {
+        return null;
+    }
+    $relative = substr($trimmed, strlen('res/img/'));
+    if (!is_string($relative) || $relative === '') {
+        return null;
+    }
+    if (preg_match('#(^|/)\.\.(/|$)#', $relative)) {
+        return null;
+    }
+    return rtrim($imgDir, '/\\') . '/' . $relative;
+}
+
+// Remove the previously configured logo file when a new logo path replaces it.
+function remove_replaced_logo_file($previousLogo, $newLogo, $imgDir) {
+    $previousNormalized = normalize_asset_path($previousLogo);
+    $newNormalized = normalize_asset_path($newLogo);
+    if (!is_string($previousNormalized) || $previousNormalized === '') {
+        return;
+    }
+    if (!is_string($newNormalized) || $newNormalized === '' || $previousNormalized === $newNormalized) {
+        return;
+    }
+    $previousPath = resolve_local_logo_path($previousNormalized, $imgDir);
+    if ($previousPath === null || !is_file($previousPath)) {
+        return;
+    }
+    @unlink($previousPath);
 }
 
 // Block IDs that collide with existing admin DOM element IDs.
@@ -1138,9 +1192,11 @@ if ($action === 'migration_apply') {
 
 // Handle logo upload (optional).
 if (isset($_FILES['logoFile'])) {
+    $previousLogo = $headerData['logo'] ?? '';
     $savedLogo = save_image($_FILES['logoFile'], 'logo');
     if ($savedLogo) {
         $headerData['logo'] = $savedLogo;
+        remove_replaced_logo_file($previousLogo, $savedLogo, $imgDir);
     }
 }
 
@@ -1381,8 +1437,30 @@ if (is_array($panePayload)) {
                 if (!is_array($decoded)) {
                     respond(['error' => 'Invalid JSON for pane ' . $paneId . '.'], 400);
                 }
+                if ($moduleId === 'eventList' && $key === 'events') {
+                    $events = $decoded['events'] ?? [];
+                    if (!is_array($events)) {
+                        respond(['error' => 'Invalid events payload for pane ' . $paneId . '.'], 400);
+                    }
+                    foreach ($events as $eventIndex => $event) {
+                        if (!is_array($event)) {
+                            continue;
+                        }
+                        $description = $event['description'] ?? '';
+                        if (!is_string($description) || $description === '') {
+                            continue;
+                        }
+                        $eventLabel = isset($event['id']) && is_string($event['id']) && $event['id'] !== ''
+                            ? $event['id']
+                            : ('event #' . ((int) $eventIndex + 1));
+                        validate_markdown_gating_or_fail($description, 'pane ' . $paneId . ', ' . $eventLabel);
+                    }
+                }
                 write_json_file($targetPath, $decoded, 'Failed to write pane data for ' . $paneId . '.');
             } else {
+                if ($type === 'md') {
+                    validate_markdown_gating_or_fail((string) $value, 'pane ' . $paneId);
+                }
                 write_text_file($targetPath, (string) $value, 'Failed to write pane data for ' . $paneId . '.');
             }
         }

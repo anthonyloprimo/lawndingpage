@@ -38,6 +38,66 @@
     border-radius: 6px;
 }
 
+.mdTagButton {
+    width: auto;
+    min-width: 48px;
+    padding: 0 8px;
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+}
+
+.markdownGatingControls {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.markdownGatingLabel {
+    font-size: 0.66rem;
+    font-weight: 600;
+    opacity: 0.9;
+}
+
+.markdownGatingMeter {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.mdGatingButton {
+    height: 28px;
+    min-width: 50px;
+    padding: 0 8px;
+    font-size: 0.62rem;
+    font-weight: 700;
+    border: 1px solid #FFFFFF44;
+    background: #00000055;
+    color: inherit;
+    border-radius: 6px;
+}
+
+.mdGatingButtonPair {
+    border-radius: 0;
+}
+
+.mdGatingButtonPairStart {
+    border-top-left-radius: 6px;
+    border-bottom-left-radius: 6px;
+    margin-right: -4px;
+}
+
+.mdGatingButtonPairEnd {
+    border-top-right-radius: 6px;
+    border-bottom-right-radius: 6px;
+}
+
+.mdGatingButton.isActive {
+    border-color: #FFFFFFAA;
+    background: #FFFFFF22;
+}
+
 .markdownHeadingSelect {
     padding: 4px 6px;
     border-radius: 4px;

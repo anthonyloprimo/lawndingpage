@@ -50,6 +50,15 @@ if (!empty($events)) {
             : __DIR__ . '/../../public/res/scr/Parsedown.php';
         require_once $parsedownPath;
     }
+    if (!function_exists('lawnding_markdown_gate_apply')) {
+        $gatingPath = function_exists('lawnding_public_path')
+            ? lawnding_public_path('res/scr/markdown-gating.php')
+            : __DIR__ . '/../../../public/res/scr/markdown-gating.php';
+        require_once $gatingPath;
+    }
+    $clearance = isset($markdownGateClearance) && is_string($markdownGateClearance)
+        ? $markdownGateClearance
+        : 'none';
     $parser = new Parsedown();
     foreach ($events as &$event) {
         if (!is_array($event)) {
@@ -57,7 +66,12 @@ if (!empty($events)) {
         }
         $desc = $event['description'] ?? '';
         if (is_string($desc) && $desc !== '') {
-            $event['descriptionHtml'] = $parser->text($desc);
+            $gated = lawnding_markdown_gate_apply($desc, $clearance, false);
+            if (empty($gated['ok'])) {
+                $eventId = isset($event['id']) ? (string) $event['id'] : '(unknown)';
+                error_log('eventList/public.php: invalid content-gating syntax in event ' . $eventId);
+            }
+            $event['descriptionHtml'] = $parser->text((string) ($gated['markdown'] ?? ''));
         }
     }
     unset($event);

@@ -2,7 +2,7 @@
 // Site version string used for display and schema-adjacent compatibility checks.
 // The guard prevents redefinition if this file is loaded multiple times.
 if (!defined('SITE_VERSION')) {
-    define('SITE_VERSION', 'v1.9.0');
+    define('SITE_VERSION', 'v1.9.1');
 }
 
 // Schema version for panes.json and module-driven pane configuration.

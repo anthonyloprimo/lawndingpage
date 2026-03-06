@@ -1,7 +1,10 @@
 ### Changelog
 
-#### v1.9.1
+#### v1.10.0
 - Security fixes.
+- Fixed an issue where favicon wouldn't always update.
+- Modified some visual elements - the NSFW tag for links as well as the logout button was fixed.
+- Added content gating to mardown-supported text inputs so it behaves like gated links.  Use `[sfw][/sfw]` and `[nsfw][/nsfw]` tags to conceal content only intended for members.
 
 -----
 

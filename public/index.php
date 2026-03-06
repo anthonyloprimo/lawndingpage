@@ -197,8 +197,18 @@ $tgAuthUrl = lawnding_public_absolute_url($authEndpoint . '?return=' . rawurlenc
 $tgLogoutUrl = $logoutEndpoint . '?return=' . rawurlencode($returnPath);
 $authLinksState = 'logged_out';
 $authLinksUserLevel = '';
+$markdownGateClearance = 'none';
 $tgUser = isset($_SESSION['tg_user']) && is_array($_SESSION['tg_user']) ? $_SESSION['tg_user'] : null;
 $tgUserId = $tgUser['id'] ?? ($_SESSION['tg_user_id'] ?? null);
+$viewerContentLevel = '';
+if (!empty($tgUserId)) {
+    $viewerContentLevel = lawnding_tg_user_content_level($tgConfig, $tgUserId);
+    if ($viewerContentLevel === 'nsfw') {
+        $markdownGateClearance = 'nsfw';
+    } elseif ($viewerContentLevel === 'sfw') {
+        $markdownGateClearance = 'sfw';
+    }
+}
 if ($authLinksEnabled) {
     $authLinksJsonPath = lawnding_public_data_path('authorizedLinks.json');
     $authLinksPayload = lawnding_read_json($authLinksJsonPath, []);
@@ -210,7 +220,7 @@ if ($authLinksEnabled) {
 }
 if ($authLinksEnabled) {
     if (!empty($tgUserId)) {
-        $authLinksUserLevel = lawnding_tg_user_content_level($tgConfig, $tgUserId);
+        $authLinksUserLevel = $viewerContentLevel;
         $authLinksState = $authLinksUserLevel !== '' ? 'authorized' : 'unauthorized';
     } else {
         $authLinksState = 'logged_out';
@@ -262,6 +272,32 @@ if (!empty($headerDataResolved['backgrounds']) && is_array($headerDataResolved['
         }
         return $bg;
     }, $headerDataResolved['backgrounds']);
+}
+$faviconUrl = is_string($headerDataResolved['logo'] ?? null) && $headerDataResolved['logo'] !== ''
+    ? $headerDataResolved['logo']
+    : $resolveAssetUrl('res/img/logo.jpg');
+$faviconToken = defined('SITE_VERSION') ? (string) SITE_VERSION : '';
+$faviconPathRaw = is_string($headerData['logo'] ?? null) ? $headerData['logo'] : '';
+if ($faviconPathRaw !== '' && !preg_match('#^[a-z][a-z0-9+.-]*:#i', $faviconPathRaw) && !str_starts_with($faviconPathRaw, '//')) {
+    $faviconPath = ltrim($faviconPathRaw, '/');
+    if (str_starts_with($faviconPath, 'public/')) {
+        $faviconPath = substr($faviconPath, strlen('public/'));
+    }
+    if (str_starts_with($faviconPath, 'res/')) {
+        $faviconFsPath = function_exists('lawnding_public_path')
+            ? lawnding_public_path($faviconPath)
+            : __DIR__ . '/' . $faviconPath;
+        if (is_file($faviconFsPath)) {
+            $mtime = @filemtime($faviconFsPath);
+            if (is_int($mtime) && $mtime > 0) {
+                $faviconToken = (string) $mtime;
+            }
+        }
+    }
+}
+$faviconHref = $faviconUrl;
+if ($faviconToken !== '') {
+    $faviconHref .= (str_contains($faviconHref, '?') ? '&' : '?') . 'v=' . rawurlencode($faviconToken);
 }
 $headerDataJson = htmlspecialchars(json_encode($headerDataResolved, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT), ENT_QUOTES, 'UTF-8');
 
@@ -352,7 +388,7 @@ $isLinksHidden = !$showLinks;
     <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
     <script src="<?php echo htmlspecialchars(lawnding_asset_url('res/scr/no-zoom.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
     
-    <link rel="icon" type="image/jpg" href="<?php echo htmlspecialchars(lawnding_asset_url('res/img/logo.jpg'), ENT_QUOTES, 'UTF-8'); ?>"/>
+    <link rel="icon" href="<?php echo htmlspecialchars($faviconHref, ENT_QUOTES, 'UTF-8'); ?>"/>
     <link rel="stylesheet" href="<?php echo htmlspecialchars(lawnding_asset_url('res/style.css'), ENT_QUOTES, 'UTF-8'); ?>">
 
     <script src="<?php echo htmlspecialchars(lawnding_asset_url('res/scr/jquery-3.7.1.min.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>

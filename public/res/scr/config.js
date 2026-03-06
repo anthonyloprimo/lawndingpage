@@ -2726,10 +2726,20 @@ $(document).ready(function() {
                     <button class="usersButton iconButton mdToolbarButton" type="button" data-md-action="image" title="Image" aria-label="Image">
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 19C13 19.7 13.13 20.37 13.35 21H5C3.9 21 3 20.11 3 19V5C3 3.9 3.9 3 5 3H19C20.11 3 21 3.9 21 5V13.35C20.37 13.13 19.7 13 19 13V5H5V19H13M13.96 12.29L11.21 15.83L9.25 13.47L6.5 17H13.35C13.75 15.88 14.47 14.91 15.4 14.21L13.96 12.29M20 18V15H18V18H15V20H18V23H20V20H23V18H20Z" /></svg>
                     </button>
+                    <button class="usersButton mdToolbarButton mdTagButton" type="button" data-md-action="sfw_tag" title="Insert SFW tag" aria-label="Insert SFW tag">SFW</button>
+                    <button class="usersButton mdToolbarButton mdTagButton" type="button" data-md-action="nsfw_tag" title="Insert NSFW tag" aria-label="Insert NSFW tag">NSFW</button>
                     <button class="usersButton iconButton mdToolbarButton mdTextIcon" type="button" data-md-action="linebreak" title="Line break" aria-label="Line break">&lt;br&gt;</button>
                     <button class="usersButton iconButton mdToolbarButton mdTextIcon" type="button" data-md-action="hr" title="Horizontal rule" aria-label="Horizontal rule">&lt;hr&gt;</button>
                 </div>
                 <div class="markdownToolbarPreview">
+                    <div class="markdownGatingControls">
+                        <span class="markdownGatingLabel">Content Gating:</span>
+                        <div class="markdownGatingMeter">
+                            <button class="usersButton mdGatingButton mdGatingButtonNone isActive" type="button" data-md-gating-level="none" title="Preview with no gated content">NONE</button>
+                            <button class="usersButton mdGatingButton mdGatingButtonPair mdGatingButtonPairStart" type="button" data-md-gating-level="sfw" title="Preview with SFW gated content">SFW</button>
+                            <button class="usersButton mdGatingButton mdGatingButtonPair mdGatingButtonPairEnd" type="button" data-md-gating-level="nsfw" title="Preview with SFW and NSFW gated content">NSFW</button>
+                        </div>
+                    </div>
                     <button class="usersButton iconButton mdToolbarButton mdPreviewButton" type="button" data-md-action="preview" title="Preview" aria-label="Preview" aria-pressed="false">
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12,9A3,3 0 0,0 9,12A3,3 0 0,0 12,15A3,3 0 0,0 15,12A3,3 0 0,0 12,9M12,17A5,5 0 0,1 7,12A5,5 0 0,1 12,7A5,5 0 0,1 17,12A5,5 0 0,1 12,17M12,4.5C7,4.5 2.73,7.61 1,12C2.73,16.39 7,19.5 12,19.5C17,19.5 21.27,16.39 23,12C21.27,7.61 17,4.5 12,4.5Z" /></svg>
                     </button>
@@ -2738,7 +2748,75 @@ $(document).ready(function() {
         `;
     }
 
+    function ensureMarkdownToolbarEnhancements($context) {
+        const $scope = $context && $context.length ? $context : $(document);
+        $scope.find('.markdownToolbar').each(function() {
+            const $toolbar = $(this);
+            const $group = $toolbar.find('.markdownToolbarGroup').first();
+            const $preview = $toolbar.find('.markdownToolbarPreview').first();
+            if ($group.length && !$group.find('[data-md-action="sfw_tag"]').length) {
+                $group.append('<button class="usersButton mdToolbarButton mdTagButton" type="button" data-md-action="sfw_tag" title="Insert SFW tag" aria-label="Insert SFW tag">SFW</button>');
+                $group.append('<button class="usersButton mdToolbarButton mdTagButton" type="button" data-md-action="nsfw_tag" title="Insert NSFW tag" aria-label="Insert NSFW tag">NSFW</button>');
+            }
+            if ($preview.length && !$preview.find('.markdownGatingControls').length) {
+                const controls = `
+                    <div class="markdownGatingControls">
+                        <span class="markdownGatingLabel">Content Gating:</span>
+                        <div class="markdownGatingMeter">
+                            <button class="usersButton mdGatingButton mdGatingButtonNone isActive" type="button" data-md-gating-level="none" title="Preview with no gated content">NONE</button>
+                            <button class="usersButton mdGatingButton mdGatingButtonPair mdGatingButtonPairStart" type="button" data-md-gating-level="sfw" title="Preview with SFW gated content">SFW</button>
+                            <button class="usersButton mdGatingButton mdGatingButtonPair mdGatingButtonPairEnd" type="button" data-md-gating-level="nsfw" title="Preview with SFW and NSFW gated content">NSFW</button>
+                        </div>
+                    </div>
+                `;
+                const $previewButton = $preview.find('[data-md-action="preview"]').first();
+                if ($previewButton.length) {
+                    $(controls).insertBefore($previewButton);
+                } else {
+                    $preview.append(controls);
+                }
+            }
+            const $editor = $toolbar.closest('.markdownEditor');
+            if ($editor.length) {
+                setMarkdownGatingLevel($editor, getMarkdownGatingLevel($editor));
+            }
+        });
+    }
+
+    function getMarkdownGatingLevel($editor) {
+        const level = String($editor.data('mdGatingLevel') || '').toLowerCase();
+        if (level === 'sfw' || level === 'nsfw') {
+            return level;
+        }
+        return 'none';
+    }
+
+    function setMarkdownGatingLevel($editor, level) {
+        const normalized = level === 'nsfw' ? 'nsfw' : (level === 'sfw' ? 'sfw' : 'none');
+        $editor.data('mdGatingLevel', normalized);
+        const $toolbar = $editor.find('.markdownToolbar').first();
+        const $none = $toolbar.find('[data-md-gating-level="none"]');
+        const $sfw = $toolbar.find('[data-md-gating-level="sfw"]');
+        const $nsfw = $toolbar.find('[data-md-gating-level="nsfw"]');
+        $none.toggleClass('isActive', normalized === 'none');
+        $sfw.toggleClass('isActive', normalized === 'sfw' || normalized === 'nsfw');
+        $nsfw.toggleClass('isActive', normalized === 'nsfw');
+    }
+
+    function renderMarkdownPreview($editor, $textarea) {
+        const markdown = $textarea.val() || '';
+        const $preview = $editor.find('.markdownPreview');
+        const clearance = getMarkdownGatingLevel($editor);
+        requestMarkdownPreview(markdown, clearance, function(html) {
+            $preview.html(html).removeAttr('hidden');
+        }, function(message) {
+            $preview.html(`<p>${escapeHtml(message || 'Preview failed.')}</p>`).removeAttr('hidden');
+        });
+    }
+
     function bindMarkdownToolbars() {
+        ensureMarkdownToolbarEnhancements($(document));
+
         $(document).on('mousedown', '.markdownToolbar button', function(event) {
             event.preventDefault();
         });
@@ -2750,6 +2828,14 @@ $(document).ready(function() {
             const $editor = $toolbar.closest('.markdownEditor');
             const $textarea = $editor.find('textarea').first();
             if (!$textarea.length) {
+                return;
+            }
+            const gatingLevel = String($button.data('md-gating-level') || '');
+            if (gatingLevel) {
+                setMarkdownGatingLevel($editor, gatingLevel);
+                if ($editor.hasClass('isPreviewing')) {
+                    renderMarkdownPreview($editor, $textarea);
+                }
                 return;
             }
             const textarea = $textarea[0];
@@ -2808,6 +2894,12 @@ $(document).ready(function() {
             case 'hr':
                 insertText(textarea, '\n<hr>\n');
                 break;
+            case 'sfw_tag':
+                wrapSelection(textarea, '[sfw]', '[/sfw]', 'SFW content');
+                break;
+            case 'nsfw_tag':
+                wrapSelection(textarea, '[nsfw]', '[/nsfw]', 'NSFW content');
+                break;
             default:
                 break;
         }
@@ -2817,7 +2909,7 @@ $(document).ready(function() {
         const isActive = $editor.hasClass('isPreviewing');
         const $preview = $editor.find('.markdownPreview');
         const $toolbar = $editor.find('.markdownToolbar');
-        const $toolbarButtons = $toolbar.find('button').not('[data-md-action="preview"]');
+        const $toolbarButtons = $toolbar.find('button').not('[data-md-action="preview"]').not('[data-md-gating-level]');
         const $toolbarSelect = $toolbar.find('.markdownHeadingSelect');
         if (isActive) {
             $editor.removeClass('isPreviewing');
@@ -2832,21 +2924,17 @@ $(document).ready(function() {
         $button.addClass('isActive').attr('aria-pressed', 'true');
         $toolbarButtons.prop('disabled', true);
         $toolbarSelect.prop('disabled', true);
-        const markdown = $textarea.val() || '';
-        requestMarkdownPreview(markdown, function(html) {
-            $preview.html(html).removeAttr('hidden');
-        }, function(message) {
-            $preview.html(`<p>${escapeHtml(message || 'Preview failed.')}</p>`).removeAttr('hidden');
-        });
+        renderMarkdownPreview($editor, $textarea);
     }
 
-    function requestMarkdownPreview(markdown, onSuccess, onError) {
+    function requestMarkdownPreview(markdown, clearance, onSuccess, onError) {
         const basePath = window.appConfig && typeof window.appConfig.basePath === 'string'
             ? window.appConfig.basePath.replace(/\/$/, '')
             : '';
         const previewUrl = basePath ? `${basePath}/res/scr/markdown-preview.php` : '/res/scr/markdown-preview.php';
         const formData = new FormData();
         formData.append('markdown', markdown);
+        formData.append('clearance', clearance || 'none');
         appendCsrf(formData);
         $.ajax({
             url: previewUrl,

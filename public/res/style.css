@@ -268,9 +268,14 @@ body.linksHidden #container {
                     pointer-events: none;
                     text-shadow: none;
                 }
-                .linkContentBadge--nsfw {
+                .linkContentBadge--nsfwOld {
                     color: #101010;
                     background: linear-gradient(180deg, #FFF4A6 0%, #FFD84A 52%, #F2B900 100%);
+                }
+                .linkContentBadge--nsfw {
+                    color: #FFFFFF;
+                    border-color: #A45A5ACC;
+                    background: linear-gradient(180deg, #8A3B3B 0%, #7A2F2F 52%, #6B2525 100%);
                 }
 
             .link:hover {
@@ -356,26 +361,25 @@ body.linksHidden #container {
             padding-bottom: 8px;
         }
         .authLinkLogoutButton {
-            border: 1px solid #FF7A7A;
-            background-color: #5A1E1E;
-            color: #FFDADA;
-            border-radius: 999px;
-            padding: 6px 14px;
-            font-weight: 600;
+            border: 1px solid #FF9A9A !important;
+            background-color: #6D2424 !important;
+            color: #FFE8E8;
+            border-radius: 999px !important;
+            font-weight: 600 !important;
             cursor: pointer;
             margin-top: 16px;
-            display: inline-block;
-            text-decoration: none;
+            display: inline-block !important;
+            text-decoration: none !important;
         }
         .authLinkLogoutButton:hover {
-            background-color: #6D2424;
-            border-color: #FF9A9A;
-            color: #FFE8E8;
+            background-color: #7A2A2A;
+            border-color: #FFB2B2;
+            color: #FFF1F1;
             text-decoration: none;
         }
         .authLinkLogoutButton:active {
-            background-color: #4A1818;
-            border-color: #FF6A6A;
+            background-color: #581F1F;
+            border-color: #E58A8A;
         }
         .authLinksLogin .lpTgLoginWidget {
             display: block;

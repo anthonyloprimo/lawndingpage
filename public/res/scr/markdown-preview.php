@@ -71,7 +71,19 @@ if (!class_exists('Parsedown')) {
         : __DIR__ . '/Parsedown.php';
     require_once $parsedownPath;
 }
+if (!function_exists('lawnding_markdown_gate_apply')) {
+    $gatingPath = function_exists('lawnding_public_path')
+        ? lawnding_public_path('res/scr/markdown-gating.php')
+        : __DIR__ . '/markdown-gating.php';
+    require_once $gatingPath;
+}
+
+$clearance = $_POST['clearance'] ?? 'none';
+$gated = lawnding_markdown_gate_apply($markdown, (string) $clearance, true);
+if (empty($gated['ok'])) {
+    respond(['error' => (string) ($gated['error'] ?? 'Invalid content-gating syntax.')], 400);
+}
 
 $parser = new Parsedown();
-$html = $parser->text($markdown);
+$html = $parser->text((string) ($gated['markdown'] ?? ''));
 respond(['html' => $html]);

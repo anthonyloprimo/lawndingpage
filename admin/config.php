@@ -306,6 +306,32 @@ if (!empty($headerDataDisplay['backgrounds']) && is_array($headerDataDisplay['ba
         return $bg;
     }, $headerDataDisplay['backgrounds']);
 }
+$faviconUrl = is_string($headerDataDisplay['logo'] ?? null) && $headerDataDisplay['logo'] !== ''
+    ? $headerDataDisplay['logo']
+    : $makeAssetUrl('res/img/logo.jpg');
+$faviconToken = defined('SITE_VERSION') ? (string) SITE_VERSION : '';
+$faviconPathRaw = is_string($headerData['logo'] ?? null) ? $headerData['logo'] : '';
+if ($faviconPathRaw !== '' && !preg_match('#^[a-z][a-z0-9+.-]*:#i', $faviconPathRaw) && !str_starts_with($faviconPathRaw, '//')) {
+    $faviconPath = ltrim($faviconPathRaw, '/');
+    if (str_starts_with($faviconPath, 'public/')) {
+        $faviconPath = substr($faviconPath, strlen('public/'));
+    }
+    if (str_starts_with($faviconPath, 'res/')) {
+        $faviconFsPath = function_exists('lawnding_public_path')
+            ? lawnding_public_path($faviconPath)
+            : __DIR__ . '/../public/' . $faviconPath;
+        if (is_file($faviconFsPath)) {
+            $mtime = @filemtime($faviconFsPath);
+            if (is_int($mtime) && $mtime > 0) {
+                $faviconToken = (string) $mtime;
+            }
+        }
+    }
+}
+$faviconHref = $faviconUrl;
+if ($faviconToken !== '') {
+    $faviconHref .= (str_contains($faviconHref, '?') ? '&' : '?') . 'v=' . rawurlencode($faviconToken);
+}
 // Keep raw background data for editing and file operations.
 $backgrounds = [];
 if (!empty($headerData['backgrounds']) && is_array($headerData['backgrounds'])) {
@@ -545,7 +571,7 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
     <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
     <?php // Deprecated: site-version.js cache-busting is no longer loaded. ?>
     
-    <link rel="icon" type="image/jpg" href="<?php echo htmlspecialchars($assetBase); ?>/res/img/logo.jpg">
+    <link rel="icon" href="<?php echo htmlspecialchars($faviconHref, ENT_QUOTES, 'UTF-8'); ?>">
     <link rel="stylesheet" href="<?php echo htmlspecialchars($assetBase . '/res/style.css', ENT_QUOTES, 'UTF-8'); ?>">
     <link rel="stylesheet" href="<?php echo htmlspecialchars($assetBase . '/res/config.css', ENT_QUOTES, 'UTF-8'); ?>">
 

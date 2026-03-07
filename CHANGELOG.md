@@ -7,6 +7,7 @@
 - Added content gating to mardown-supported text inputs so it behaves like gated links.  Use `[sfw][/sfw]` and `[nsfw][/nsfw]` tags to conceal content only intended for members.
 - Added external link support to the main navbar.
 - Modified navbar display, added text labels for public site
+
 -----
 
 #### v1.9.0

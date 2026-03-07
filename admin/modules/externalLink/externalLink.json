@@ -1,0 +1,13 @@
+{
+  "id": "externalLink",
+  "name": "External Nav Link",
+  "version": "1.0.0",
+  "description": "Adds a navbar item that opens an external URL.",
+  "preview": "",
+  "data_files": [
+    { "type": "json", "pattern": "{paneId}.json" }
+  ],
+  "save_map": [
+    { "key": "external", "type": "json", "file": "{paneId}.json" }
+  ]
+}

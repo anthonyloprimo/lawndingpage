@@ -62,6 +62,33 @@ function lawnding_public_absolute_url(string $path): string {
     return $scheme . '://' . $host . (str_starts_with($path, '/') ? $path : '/' . $path);
 }
 
+function lawnding_normalize_external_url(string $value): string {
+    $trimmed = trim($value);
+    if ($trimmed === '') {
+        return '';
+    }
+    if (preg_match('#^[a-z][a-z0-9+.-]*://#i', $trimmed) || str_starts_with($trimmed, '//')) {
+        return $trimmed;
+    }
+    return 'https://' . $trimmed;
+}
+
+function lawnding_external_nav_domain(string $url): string {
+    $normalized = lawnding_normalize_external_url($url);
+    if ($normalized === '') {
+        return '';
+    }
+    $host = parse_url($normalized, PHP_URL_HOST);
+    return is_string($host) ? strtolower($host) : '';
+}
+
+function lawnding_google_favicon_url(string $domain): string {
+    if ($domain === '') {
+        return '';
+    }
+    return 'https://www.google.com/s2/favicons?sz=64&domain=' . rawurlencode($domain);
+}
+
 // Render shared SVG icons by name to avoid inline duplication.
 function lawnding_icon_svg(string $name): string {
     static $paths = [
@@ -374,6 +401,38 @@ function lawnding_render_pane_icon(array $pane): string {
     return '';
 }
 
+function lawnding_nav_label(string $name): string {
+    $trimmed = trim($name);
+    if ($trimmed === '') {
+        return '';
+    }
+    if (function_exists('mb_strlen') && function_exists('mb_substr')) {
+        return mb_strlen($trimmed) > 12 ? mb_substr($trimmed, 0, 10) . '...' : $trimmed;
+    }
+    return strlen($trimmed) > 12 ? substr($trimmed, 0, 10) . '...' : $trimmed;
+}
+
+function lawnding_load_external_nav_settings(array $pane): array {
+    $default = ['url' => '', 'openMode' => 'new', 'iconMode' => 'custom'];
+    $paneData = isset($pane['data']) && is_array($pane['data']) ? $pane['data'] : [];
+    $jsonFile = isset($paneData['json']) && is_string($paneData['json']) ? $paneData['json'] : '';
+    if ($jsonFile === '') {
+        return $default;
+    }
+    $jsonPath = lawnding_public_data_path($jsonFile);
+    if (!is_readable($jsonPath)) {
+        return $default;
+    }
+    $decoded = json_decode((string) file_get_contents($jsonPath), true);
+    if (!is_array($decoded)) {
+        return $default;
+    }
+    $url = isset($decoded['url']) && is_string($decoded['url']) ? trim($decoded['url']) : '';
+    $openMode = (isset($decoded['openMode']) && $decoded['openMode'] === 'same') ? 'same' : 'new';
+    $iconMode = (isset($decoded['iconMode']) && $decoded['iconMode'] === 'favicon') ? 'favicon' : 'custom';
+    return ['url' => $url, 'openMode' => $openMode, 'iconMode' => $iconMode];
+}
+
 $panesPath = lawnding_public_data_path('panes.json');
 $panes = lawnding_sort_panes(lawnding_load_panes($panesPath));
 $showLinks = !empty($linksSettings['show_links']);
@@ -479,22 +538,53 @@ $isLinksHidden = !$showLinks;
         <div class="navBarWrap" id="navBarWrap">
             <ul class="navBar glassConcave" id="navBar">
             <?php if ($showLinks): ?>
-                <li><a class="navLink" href="#" data-pane="links" aria-label="Links" title="Links"><?php echo lawnding_icon_svg('links'); ?></a></li>
+                <li>
+                    <a class="navLink" href="#" data-pane="links" aria-label="Links" title="Links">
+                        <?php echo lawnding_icon_svg('links'); ?>
+                        <span class="navLinkLabel">Links</span>
+                    </a>
+                </li>
             <?php endif; ?>
             <?php // Render dynamic pane nav items from panes.json. ?>
             <?php foreach ($panes as $pane): ?>
                 <?php
                 $paneId = isset($pane['id']) ? (string) $pane['id'] : '';
                 $paneName = isset($pane['name']) ? (string) $pane['name'] : '';
+                $moduleId = isset($pane['module']) ? (string) $pane['module'] : '';
+                $isExternalNav = $moduleId === 'externalLink';
                 $icon = lawnding_render_pane_icon($pane);
+                $label = lawnding_nav_label($paneName);
                 if ($paneId === '') {
                     continue;
                 }
+                if ($isExternalNav) {
+                    $external = lawnding_load_external_nav_settings($pane);
+                    $href = lawnding_normalize_external_url((string) ($external['url'] ?? ''));
+                    if ($href === '') {
+                        $href = '#';
+                    }
+                    $target = (($external['openMode'] ?? 'new') === 'same') ? '_self' : '_blank';
+                    if (($external['iconMode'] ?? 'custom') === 'favicon') {
+                        $domain = lawnding_external_nav_domain($href);
+                        $favicon = lawnding_google_favicon_url($domain);
+                        if ($favicon !== '') {
+                            $icon = '<img class="navLinkIconImage" src="' . htmlspecialchars($favicon, ENT_QUOTES, 'UTF-8') . '" alt="">';
+                        }
+                    }
+                }
                 ?>
                 <li>
-                    <a class="navLink" href="#" data-pane="<?php echo htmlspecialchars($paneId); ?>" aria-label="<?php echo htmlspecialchars($paneName); ?>" title="<?php echo htmlspecialchars($paneName); ?>">
-                        <?php echo $icon; ?>
-                    </a>
+                    <?php if ($isExternalNav): ?>
+                        <a class="navLink navLinkExternal" href="<?php echo htmlspecialchars($href, ENT_QUOTES, 'UTF-8'); ?>" target="<?php echo htmlspecialchars($target, ENT_QUOTES, 'UTF-8'); ?>"<?php echo $target === '_blank' ? ' rel="noopener noreferrer"' : ''; ?> data-external="true" aria-label="<?php echo htmlspecialchars($paneName); ?>" title="<?php echo htmlspecialchars($paneName); ?>">
+                            <?php echo $icon; ?>
+                            <span class="navLinkLabel"><?php echo htmlspecialchars($label); ?></span>
+                        </a>
+                    <?php else: ?>
+                        <a class="navLink" href="#" data-pane="<?php echo htmlspecialchars($paneId); ?>" aria-label="<?php echo htmlspecialchars($paneName); ?>" title="<?php echo htmlspecialchars($paneName); ?>">
+                            <?php echo $icon; ?>
+                            <span class="navLinkLabel"><?php echo htmlspecialchars($label); ?></span>
+                        </a>
+                    <?php endif; ?>
                 </li>
             <?php endforeach; ?>
             </ul>

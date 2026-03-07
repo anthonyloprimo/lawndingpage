@@ -1437,6 +1437,16 @@ if (is_array($panePayload)) {
                 if (!is_array($decoded)) {
                     respond(['error' => 'Invalid JSON for pane ' . $paneId . '.'], 400);
                 }
+                if ($moduleId === 'externalLink' && $key === 'external') {
+                    $url = isset($decoded['url']) && is_string($decoded['url']) ? trim($decoded['url']) : '';
+                    $openMode = (isset($decoded['openMode']) && $decoded['openMode'] === 'same') ? 'same' : 'new';
+                    $iconMode = (isset($decoded['iconMode']) && $decoded['iconMode'] === 'favicon') ? 'favicon' : 'custom';
+                    $decoded = [
+                        'url' => $url,
+                        'openMode' => $openMode,
+                        'iconMode' => $iconMode,
+                    ];
+                }
                 if ($moduleId === 'eventList' && $key === 'events') {
                     $events = $decoded['events'] ?? [];
                     if (!is_array($events)) {

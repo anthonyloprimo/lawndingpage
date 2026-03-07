@@ -53,6 +53,9 @@ function updatePaneVisibility(panes, visibleIds) {
 function getVisibleNavLinks() {
     return $('.navLink').filter(function() {
         const $link = $(this);
+        if ($link.attr('data-external') === 'true') {
+            return false;
+        }
         const $item = $link.closest('li');
         if ($link.hasClass('hidden')) {
             return false;
@@ -165,10 +168,14 @@ function init() {
 
     // Wire up nav clicks to drive pane switching in SPA style.
     navLinks.on('click', function(event) {
+        const $link = $(this);
+        if ($link.attr('data-external') === 'true') {
+            return;
+        }
         event.preventDefault();
 
         // Determine which pane this nav link is responsible for and update state.
-        const targetPane = $(this).data('pane');
+        const targetPane = $link.data('pane');
         currentPane = targetPane;
 
         // Apply layout for the new pane and update nav highlighting.

@@ -1,0 +1,41 @@
+.externalLinkPaneBody {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.externalLinkRow {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+}
+
+.externalLinkField {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 220px;
+    flex: 1 1 280px;
+}
+
+.externalLinkLabel {
+    font-size: 0.78rem;
+    font-weight: 600;
+    opacity: 0.95;
+}
+
+.externalLinkInput,
+.externalLinkSelect {
+    border: 1px solid #FFFFFF44;
+    background: #00000044;
+    color: inherit;
+    border-radius: 6px;
+    height: 34px;
+    padding: 6px 10px;
+}
+
+.externalLinkHint {
+    font-size: 0.74rem;
+    opacity: 0.8;
+}

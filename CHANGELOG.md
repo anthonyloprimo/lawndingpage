@@ -5,7 +5,8 @@
 - Fixed an issue where favicon wouldn't always update.
 - Modified some visual elements - the NSFW tag for links as well as the logout button was fixed.
 - Added content gating to mardown-supported text inputs so it behaves like gated links.  Use `[sfw][/sfw]` and `[nsfw][/nsfw]` tags to conceal content only intended for members.
-
+- Added external link support to the main navbar.
+- Modified navbar display, added text labels for public site
 -----
 
 #### v1.9.0

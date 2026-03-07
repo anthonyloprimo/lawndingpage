@@ -364,7 +364,7 @@ body.linksHidden #container {
             border: 1px solid #FF9A9A !important;
             background-color: #6D2424 !important;
             color: #FFE8E8;
-            border-radius: 999px !important;
+            border-radius: 1000px !important;
             font-weight: 600 !important;
             cursor: pointer;
             margin-top: 16px;
@@ -508,27 +508,47 @@ nav {
         }
             .navBar li a {
                 display: flex;
-                align-items: center;
+                flex-direction: column;
                 justify-content: center;
+                align-items: center;
                 background: #FFFFFF11;
-                border-radius: 64px;
+                border-radius: 999px;
                 border: 1px solid #FFFFFF33;
                 font-weight: 600;
-                padding: 0;
+                padding: 4px 6px 3px;
+                gap: 2px;
                 text-align: center;
-                width: 42px;
-                height: 42px;
+                width: 72px;
+                min-height: 54px;
                 color: inherit;
                 text-decoration: none;
                 user-select: none;
             }
             .navBar li a svg {
-                width: 24px;
-                height: 24px;
-                max-height: 24px;
-                max-width: 24px;
+                width: 22px;
+                height: 22px;
+                max-height: 22px;
+                max-width: 22px;
                 margin: 0 auto;
                 fill: currentColor;
+            }
+            .navBar li a .navLinkIconImage {
+                width: 22px;
+                height: 22px;
+                max-width: 22px;
+                max-height: 22px;
+                border-radius: 4px;
+                object-fit: cover;
+            }
+            .navBar li a .navLinkLabel {
+                display: block;
+                width: 100%;
+                max-width: 58px;
+                font-size: 8pt;
+                line-height: 1.1;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
             }
             .navBar li a.navActive {
                 border-color: #FFFFFFAA;

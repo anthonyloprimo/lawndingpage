@@ -6,9 +6,8 @@ if (!isset($pane) || !is_array($pane)) {
 }
 
 // Inject admin styles/scripts once per request.
-static $mediaGalleryAdminAssetsInjected = false;
-if (!$mediaGalleryAdminAssetsInjected) {
-    $mediaGalleryAdminAssetsInjected = true;
+if (!defined('LAWNDING_MEDIA_GALLERY_ADMIN_ASSETS_INJECTED')) {
+    define('LAWNDING_MEDIA_GALLERY_ADMIN_ASSETS_INJECTED', true);
     $styleUrl = function_exists('lawnding_asset_url')
         ? lawnding_asset_url('res/scr/module-style.php?module=mediaGallery')
         : '/res/scr/module-style.php?module=mediaGallery';

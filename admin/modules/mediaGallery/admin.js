@@ -5,6 +5,10 @@ $(document).ready(function() {
     if (!$panes.length) {
         return;
     }
+    if (window.__mediaGalleryAdminInitialized) {
+        return;
+    }
+    window.__mediaGalleryAdminInitialized = true;
 
     const basePath = window.appConfig && typeof window.appConfig.basePath === 'string'
         ? window.appConfig.basePath.replace(/\/$/, '')
@@ -44,6 +48,39 @@ $(document).ready(function() {
             return;
         }
         alert(text);
+    }
+
+    function parseApiResponse(response) {
+        const contentType = (response.headers.get('content-type') || '').toLowerCase();
+        if (contentType.indexOf('application/json') !== -1) {
+            return response.json()
+                .then((data) => ({ ok: response.ok, status: response.status, data, raw: '' }))
+                .catch(() => ({ ok: response.ok, status: response.status, data: null, raw: '' }));
+        }
+        return response.text()
+            .then((raw) => {
+                let data = null;
+                if (raw) {
+                    try {
+                        data = JSON.parse(raw);
+                    } catch (err) {
+                        data = null;
+                    }
+                }
+                return { ok: response.ok, status: response.status, data, raw };
+            })
+            .catch(() => ({ ok: response.ok, status: response.status, data: null, raw: '' }));
+    }
+
+    function summarizeRawError(raw) {
+        if (!raw || typeof raw !== 'string') {
+            return '';
+        }
+        const stripped = raw.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+        if (!stripped) {
+            return '';
+        }
+        return stripped.length > 160 ? `${stripped.slice(0, 157)}...` : stripped;
     }
 
     function showSaving() {
@@ -281,7 +318,7 @@ $(document).ready(function() {
                 if (!ok || !data) {
                     return;
                 }
-                setItemsFromPayload(state, data.items || []);
+                setItemsFromPayload(state, (data && data.items) ? data.items : []);
             })
             .catch(() => {});
     }
@@ -302,10 +339,14 @@ $(document).ready(function() {
             body: formData,
             credentials: 'same-origin'
         })
-            .then((response) => response.json().then((data) => ({ ok: response.ok, data })))
-            .then(({ ok, data }) => {
+            .then((response) => parseApiResponse(response))
+            .then(({ ok, status, data, raw }) => {
                 if (!ok) {
-                    const message = data && data.error ? data.error : 'Upload failed.';
+                    let message = data && data.error ? data.error : '';
+                    if (!message) {
+                        const rawSummary = summarizeRawError(raw);
+                        message = rawSummary || `Upload failed (HTTP ${status}).`;
+                    }
                     addNotice('danger', message);
                     hideSaving();
                     return;

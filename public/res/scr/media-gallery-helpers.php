@@ -1,6 +1,27 @@
 <?php
 require_once __DIR__ . '/../../../lp-bootstrap.php';
 
+function media_gallery_ini_size_to_bytes($value): int {
+    $value = trim((string) $value);
+    if ($value === '') {
+        return 0;
+    }
+    $last = strtolower($value[strlen($value) - 1]);
+    $number = (float) $value;
+    switch ($last) {
+        case 'g':
+            $number *= 1024;
+            // no break
+        case 'm':
+            $number *= 1024;
+            // no break
+        case 'k':
+            $number *= 1024;
+            break;
+    }
+    return (int) $number;
+}
+
 function media_gallery_json_response($payload, $code = 200): void {
     http_response_code($code);
     header('Content-Type: application/json');

@@ -1,5 +1,10 @@
 ### Changelog
 
+#### v1.10.1
+- Tweaked link list display to be a bit larger.
+
+-----
+
 #### v1.10.0
 - Security fixes.
 - Fixed an issue where favicon wouldn't always update.

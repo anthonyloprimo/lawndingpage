@@ -396,7 +396,7 @@ function lawnding_render_pane_icon(array $pane): string {
         $src = function_exists('lawnding_asset_url')
             ? lawnding_asset_url('res/img/panes/' . ltrim($value, '/'))
             : 'res/img/panes/' . ltrim($value, '/');
-        return '<img src="' . htmlspecialchars($src, ENT_QUOTES, 'UTF-8') . '" alt="">';
+        return '<img class="navLinkIconImage" src="' . htmlspecialchars($src, ENT_QUOTES, 'UTF-8') . '" alt="">';
     }
     return '';
 }

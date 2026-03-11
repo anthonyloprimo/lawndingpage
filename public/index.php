@@ -443,6 +443,7 @@ $isLinksHidden = !$showLinks;
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <title><?php echo htmlspecialchars($headerData['title'] ?? ''); ?></title>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
     <script src="<?php echo htmlspecialchars(lawnding_asset_url('res/scr/no-zoom.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>

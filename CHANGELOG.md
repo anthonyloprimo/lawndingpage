@@ -4,6 +4,7 @@
 - Tweaked link list display to be a bit larger.
 - Fixed a bug where multiple mediaGallery panes being present would trigger multiple file upload prompts when trying to upload to only one gallery.
 - Fixed a bug where mediaGallery uploads would immediately fail, rendering the module useless.
+- Fixed an error where the web page title only showed the URL instead of the name of the website.
 
 -----
 

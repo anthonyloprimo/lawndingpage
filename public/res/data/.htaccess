@@ -1,2 +1,9 @@
-Deny from all
-Require all denied
+Options -Indexes
+RewriteEngine On
+
+# Block only files directly inside /res/data (top-level files).
+# Example blocked: /res/data/panes.json
+RewriteRule ^[^/]+$ - [F,L]
+
+# Block dotfiles anywhere under /res/data.
+RewriteRule (^|/)\. - [F,L]

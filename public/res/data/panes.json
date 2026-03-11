@@ -26,19 +26,6 @@
                 "json": "eventList.json"
             },
             "order": 2
-        },
-        {
-            "id": "mediaGalleryPane",
-            "name": "Media Gallery Pane",
-            "module": "mediaGallery",
-            "icon": {
-                "type": "none",
-                "value": ""
-            },
-            "data": {
-                "json": "mediaGalleryPane.json"
-            },
-            "order": 3
         }
     ]
 }

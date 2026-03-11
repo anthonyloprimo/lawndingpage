@@ -194,10 +194,10 @@ function media_gallery_update_paths(array $data, string $oldId, string $newId): 
 // Load existing header data with defaults.
 function load_header_data($headerPath) {
     $headerData = [
-        'logo' => 'res/img/logo.jpg',
-        'title' => 'Long Island Furs',
-        'subtitle' => 'A Long Island furry community encompassing Queens, Nassau County, and Suffolk County.  And Staten Island, but we do not talk about that.',
-        'backgrounds' => ['res/img/bg.jpg'],
+    'logo' => 'res/img/logo.jpg',
+        'title' => 'Title',
+        'subtitle' => 'Subtitle',
+        'backgrounds' => [],
         'backgroundSettings' => [
             'mode' => 'random_load',
             'duration' => 5

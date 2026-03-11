@@ -261,9 +261,9 @@ if ($authLinksEnabled && $authLinksState === 'authorized') {
 $headerJsonPath = lawnding_public_data_path('header.json');
 $headerData = [
     'logo' => 'res/img/logo.jpg',
-    'title' => 'Long Island Furs',
-    'subtitle' => 'A Long Island furry community encompassing Queens, Nassau County, and Suffolk County.  And Staten Island, but we do not talk about that.',
-    'backgrounds' => ['res/img/bg.jpg'],
+    'title' => 'Title',
+    'subtitle' => 'Subtitle',
+    'backgrounds' => [],
     'backgroundSettings' => [
         'mode' => 'random_load',
         'duration' => 5

@@ -119,7 +119,7 @@ function backgrounds_paths(): array {
 // Load header.json with a minimal fallback structure.
 function backgrounds_load_header(string $headerPath): array {
     $headerData = [
-        'backgrounds' => ['res/img/bg.jpg'],
+        'backgrounds' => [],
     ];
     if (is_readable($headerPath)) {
         $decoded = json_decode((string) file_get_contents($headerPath), true);

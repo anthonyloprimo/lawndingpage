@@ -6,6 +6,7 @@
 - Fixed a bug where mediaGallery uploads would immediately fail, rendering the module useless.
 - Fixed an error where the web page title only showed the URL instead of the name of the website.
 - Fixed a bug where navbar link icons did not correctly resize non-svg images.
+- Modified some default behaviors for the site config when certain data files are missing.
 
 -----
 

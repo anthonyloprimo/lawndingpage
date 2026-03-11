@@ -1,0 +1,20 @@
+{
+    "items": [
+        {
+            "id": "5175",
+            "type": "image",
+            "file": "res/data/mediaGalleryContent-mediaGalleryPane/media-5175.svg",
+            "thumb": "",
+            "title": "",
+            "order": 1
+        },
+        {
+            "id": "6608",
+            "type": "image",
+            "file": "res/data/mediaGalleryContent-mediaGalleryPane/media-6608.jpg",
+            "thumb": "",
+            "title": "",
+            "order": 2
+        }
+    ]
+}

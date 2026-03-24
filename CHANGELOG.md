@@ -1,5 +1,8 @@
 ### Changelog
 
+# IMPORTANT!  THIS CMS IS CURRENTLY BEST USED ON APACHE
+My apologies, I did not think to make note of this before.  This project utilizes `.htaccess` for a few directories.  As such, LawndingPage primarily is built for Apache servers.  Work will be made to do away with the need for those files, but no timeframe is given.  If you wish to use this on your own server, either use Apache, or be prepared to modify the code to support different file structures.  No guarantee is made.
+
 #### v1.10.1
 - Tweaked link list display to be a bit larger.
 - Fixed a bug where multiple mediaGallery panes being present would trigger multiple file upload prompts when trying to upload to only one gallery.

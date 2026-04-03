@@ -113,7 +113,26 @@ $eventsJson = json_encode([
         <div class="eventModalMeta" id="eventModalAddress"></div>
         <div class="eventModalDescription" id="eventModalDescription"></div>
         <div class="eventModalActions">
-            <button class="eventCalendarButton" type="button" id="eventModalCalendar" disabled>Save to Calendar</button>
+            <div class="eventCalendarMenu hidden" id="eventModalCalendarMenu">
+                <button
+                    class="eventCalendarButton eventCalendarToggle"
+                    type="button"
+                    id="eventModalCalendarToggle"
+                    aria-haspopup="true"
+                    aria-expanded="false"
+                    disabled
+                >
+                    Save to Calendar
+                </button>
+                <div class="eventCalendarDropdown hidden" id="eventModalCalendarDropdown" role="menu" aria-label="Calendar options">
+                    <button class="eventCalendarOption" type="button" data-calendar-provider="ics" role="menuitem">Download ICS File</button>
+                    <button class="eventCalendarOption" type="button" data-calendar-provider="google" role="menuitem">Add to Google Calendar</button>
+                    <button class="eventCalendarOption" type="button" data-calendar-provider="outlook" role="menuitem">Add to Outlook Calendar</button>
+                    <button class="eventCalendarOption" type="button" data-calendar-provider="m365" role="menuitem">Add to Microsoft 365 Calendar</button>
+                    <button class="eventCalendarOption" type="button" data-calendar-provider="yahoo" role="menuitem">Add to Yahoo! Calendar</button>
+                    <button class="eventCalendarOption" type="button" data-calendar-provider="aol" role="menuitem">Add to AOL Calendar</button>
+                </div>
+            </div>
         </div>
     </div>
 </div>

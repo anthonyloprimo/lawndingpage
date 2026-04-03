@@ -393,6 +393,71 @@
     opacity: 0.6;
     cursor: not-allowed;
 }
+
+.eventCalendarMenu {
+    position: relative;
+    align-self: flex-start;
+}
+
+.eventCalendarToggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.eventCalendarToggle::after {
+    content: "";
+    width: 0;
+    height: 0;
+    border-left: 4px solid transparent;
+    border-right: 4px solid transparent;
+    border-top: 5px solid currentColor;
+    opacity: 0.85;
+}
+
+.eventCalendarMenu.isOpen .eventCalendarToggle::after {
+    transform: rotate(180deg);
+}
+
+.eventCalendarDropdown {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    z-index: 10;
+    min-width: 240px;
+    padding: 6px;
+    border-radius: 10px;
+    border: 1px solid #FFFFFF22;
+    background: #101010;
+    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.35);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.eventModalActions .eventCalendarDropdown {
+    right: 0;
+    left: auto;
+}
+
+.eventCalendarOption {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid transparent;
+    border-radius: 7px;
+    background: transparent;
+    color: inherit;
+    text-align: left;
+    font: inherit;
+    cursor: pointer;
+}
+
+.eventCalendarOption:hover,
+.eventCalendarOption:focus-visible {
+    outline: none;
+    border-color: #FFFFFF44;
+    background: #FFFFFF14;
+}
 @media (max-width: 860px) {
     .eventSplit {
         grid-template-columns: 1fr;
@@ -449,6 +514,7 @@
     align-items: center;
     gap: 8px;
     justify-content: flex-end;
+    flex-wrap: wrap;
 }
 
 .eventModalClose {

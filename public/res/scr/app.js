@@ -577,71 +577,190 @@ function renderEventLists() {
             return out + remaining;
         }
 
-        function buildIcsContent(event) {
-            const communityName = $('#header .headline h1').text().trim() || 'LawndingPage';
-            const orgName = sanitizeId(communityName) || 'LawndingPage';
-            const name = String(event.name || '').trim() || 'Event';
-            const startDate = event.startDate || event.date || '';
-            const startTime = event.startTime || '';
-            const endDate = event.endDate || startDate;
-            const endTime = event.endTime || '';
-            if (!startDate || !startTime) {
-                return '';
-            }
-            const tzName = (event.timeZone || Intl.DateTimeFormat().resolvedOptions().timeZone || '').trim();
-            const dtStart = new Date(`${startDate}T${startTime}`);
-            const dtEnd = endTime ? new Date(`${endDate}T${endTime}`) : new Date(dtStart.getTime() + 60 * 60 * 1000);
-            if (isNaN(dtStart.getTime()) || isNaN(dtEnd.getTime())) {
-                return '';
-            }
-            const formatLocal = (date) => {
-                const pad = (num) => String(num).padStart(2, '0');
-                return `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}T${pad(date.getHours())}${pad(date.getMinutes())}${pad(date.getSeconds())}`;
-            };
-            const dtStamp = (() => {
-                const now = new Date();
-                const pad = (num) => String(num).padStart(2, '0');
-                return `${now.getUTCFullYear()}${pad(now.getUTCMonth() + 1)}${pad(now.getUTCDate())}T${pad(now.getUTCHours())}${pad(now.getUTCMinutes())}${pad(now.getUTCSeconds())}Z`;
-            })();
-            const uidName = sanitizeId(name) || sanitizeId(event.id || '') || 'event';
-            const uidDate = `${dtStart.getFullYear()}${String(dtStart.getMonth() + 1).padStart(2, '0')}${String(dtStart.getDate()).padStart(2, '0')}`;
-            const uid = `${uidName}@${orgName}-${uidDate}.lawndingpage`;
-            const prodId = `-//${orgName}//LawndingPage//EN`;
-            const lines = [
-                'BEGIN:VCALENDAR',
-                'VERSION:2.0',
-                `PRODID:${prodId}`,
-                'CALSCALE:GREGORIAN',
-                'METHOD:PUBLISH',
-                'BEGIN:VEVENT',
-                icsFold(`UID:${icsEscape(uid)}`),
-                `DTSTAMP:${dtStamp}`,
-                tzName ? `DTSTART;TZID=${tzName}:${formatLocal(dtStart)}` : `DTSTART:${formatLocal(dtStart)}`,
-                tzName ? `DTEND;TZID=${tzName}:${formatLocal(dtEnd)}` : `DTEND:${formatLocal(dtEnd)}`,
-                icsFold(`SUMMARY:${icsEscape(name)}`),
-                event.address ? icsFold(`LOCATION:${icsEscape(event.address)}`) : null,
-                event.description ? icsFold(`DESCRIPTION:${icsEscape(event.description)}`) : null,
-                'END:VEVENT',
-                'END:VCALENDAR'
-            ].filter(Boolean);
-            return lines.join('\r\n') + '\r\n';
+        function padDatePart(value) {
+            return String(value).padStart(2, '0');
         }
 
-        function downloadIcs(event) {
-            const icsContent = buildIcsContent(event);
-            if (!icsContent) {
+        function formatUtcDateTime(date) {
+            return date.getUTCFullYear() +
+                padDatePart(date.getUTCMonth() + 1) +
+                padDatePart(date.getUTCDate()) + 'T' +
+                padDatePart(date.getUTCHours()) +
+                padDatePart(date.getUTCMinutes()) +
+                padDatePart(date.getUTCSeconds()) + 'Z';
+        }
+
+        function formatOutlookLocal(date) {
+            return date.getFullYear() + '-' +
+                padDatePart(date.getMonth() + 1) + '-' +
+                padDatePart(date.getDate()) + 'T' +
+                padDatePart(date.getHours()) + ':' +
+                padDatePart(date.getMinutes()) + ':' +
+                padDatePart(date.getSeconds());
+        }
+
+        function formatDateOnly(date) {
+            return date.getFullYear() +
+                padDatePart(date.getMonth() + 1) +
+                padDatePart(date.getDate());
+        }
+
+        function makeDateFromEvent(dateText, timeText) {
+            if (!dateText || !timeText) {
+                return null;
+            }
+            const date = new Date(`${dateText}T${timeText}:00`);
+            return isNaN(date.getTime()) ? null : date;
+        }
+
+        function normalizeCalendarEvent(event) {
+            const startDate = event.startDate || event.date || '';
+            const startTime = event.startTime || '';
+            let endDate = event.endDate || '';
+            const endTime = event.endTime || '';
+            const startDt = makeDateFromEvent(startDate, startTime);
+            let endDt = null;
+
+            if (endTime && !endDate) {
+                endDate = startDate;
+            }
+            if (endDate && endTime) {
+                endDt = makeDateFromEvent(endDate, endTime);
+            }
+            if (!startDt) {
+                return null;
+            }
+            if (!endDt) {
+                endDt = new Date(startDt);
+                endDt.setHours(endDt.getHours() + 1);
+            }
+
+            return {
+                id: event.id || '',
+                name: typeof event.name === 'string' ? event.name.trim() : '',
+                address: typeof event.address === 'string' ? event.address.trim() : '',
+                description: typeof event.description === 'string' ? event.description.trim() : '',
+                startDate,
+                startTime,
+                endDate,
+                endTime,
+                timeZone: typeof event.timeZone === 'string' ? event.timeZone.trim() : '',
+                startDt,
+                endDt,
+                isAllDay: !!event.isAllDay
+            };
+        }
+
+        function buildIcsDownloadUrl(paneId, eventId) {
+            if (!paneId || !eventId) {
+                return '';
+            }
+            return `/res/scr/event-ical.php?pane=${encodeURIComponent(paneId)}&event=${encodeURIComponent(eventId)}`;
+        }
+
+        function buildGoogleUrl(event) {
+            const params = new URLSearchParams();
+            params.set('action', 'TEMPLATE');
+            if (event.isAllDay) {
+                params.set('dates', `${formatDateOnly(event.startDt)}/${formatDateOnly(event.endDt)}`);
+            } else {
+                params.set('dates', `${formatUtcDateTime(event.startDt)}/${formatUtcDateTime(event.endDt)}`);
+            }
+            params.set('details', event.description);
+            params.set('location', event.address);
+            params.set('text', event.name);
+            if (!event.isAllDay && event.timeZone) {
+                params.set('ctz', event.timeZone);
+            }
+            return `https://calendar.google.com/calendar/render?${params.toString()}`;
+        }
+
+        function buildOutlookUrl(event, host) {
+            const params = new URLSearchParams();
+            params.set('allday', event.isAllDay ? 'true' : 'false');
+            params.set('body', event.description);
+            params.set('enddt', formatOutlookLocal(event.endDt));
+            params.set('location', event.address);
+            params.set('path', '/calendar/action/compose');
+            params.set('rru', 'addevent');
+            params.set('startdt', formatOutlookLocal(event.startDt));
+            params.set('subject', event.name);
+            return `https://${host}/calendar/0/action/compose?${params.toString()}`;
+        }
+
+        function buildYahooLikeUrl(event, host) {
+            const params = new URLSearchParams();
+            params.set('desc', event.description);
+            params.set('dur', event.isAllDay ? 'allday' : 'false');
+            params.set('et', event.isAllDay ? formatDateOnly(event.endDt) : formatUtcDateTime(event.endDt));
+            params.set('in_loc', event.address);
+            params.set('st', event.isAllDay ? formatDateOnly(event.startDt) : formatUtcDateTime(event.startDt));
+            params.set('title', event.name);
+            params.set('v', '60');
+            return `https://${host}/?${params.toString()}`;
+        }
+
+        function buildCalendarActionUrl(provider, event, paneId) {
+            const normalized = normalizeCalendarEvent(event);
+            if (!normalized) {
+                return '';
+            }
+            if (provider === 'ics') {
+                return buildIcsDownloadUrl(paneId, normalized.id);
+            }
+            if (provider === 'google') {
+                return buildGoogleUrl(normalized);
+            }
+            if (provider === 'outlook') {
+                return buildOutlookUrl(normalized, 'outlook.live.com');
+            }
+            if (provider === 'm365') {
+                return buildOutlookUrl(normalized, 'outlook.office.com');
+            }
+            if (provider === 'yahoo') {
+                return buildYahooLikeUrl(normalized, 'calendar.yahoo.com');
+            }
+            if (provider === 'aol') {
+                return buildYahooLikeUrl(normalized, 'calendar.aol.com');
+            }
+            return '';
+        }
+
+        function performCalendarAction(provider, event, paneId) {
+            const url = buildCalendarActionUrl(provider, event, paneId);
+            if (!url) {
                 return;
             }
-            const fileBase = String(event.id || 'event').replace(/[^A-Za-z0-9_-]/g, '') || 'event';
-            const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = `${fileBase}.ics`;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            URL.revokeObjectURL(url);
+            if (provider === 'ics') {
+                window.location.href = url;
+                return;
+            }
+            window.open(url, '_blank', 'noopener');
+        }
+
+        function buildCalendarMenuHtml(paneId, eventId) {
+            return `
+                <div class=\"eventCalendarMenu\">
+                    <button
+                        class=\"eventCalendarButton eventCalendarToggle\"
+                        type=\"button\"
+                        data-pane-id=\"${escapeHtml(paneId)}\"
+                        data-event-id=\"${escapeHtml(eventId || '')}\"
+                        aria-haspopup=\"true\"
+                        aria-expanded=\"false\"
+                    >
+                        Save to Calendar
+                    </button>
+                    <div class=\"eventCalendarDropdown hidden\" role=\"menu\" aria-label=\"Calendar options\">
+                        <button class=\"eventCalendarOption\" type=\"button\" data-calendar-provider=\"ics\" role=\"menuitem\">Download ICS File</button>
+                        <button class=\"eventCalendarOption\" type=\"button\" data-calendar-provider=\"google\" role=\"menuitem\">Add to Google Calendar</button>
+                        <button class=\"eventCalendarOption\" type=\"button\" data-calendar-provider=\"outlook\" role=\"menuitem\">Add to Outlook Calendar</button>
+                        <button class=\"eventCalendarOption\" type=\"button\" data-calendar-provider=\"m365\" role=\"menuitem\">Add to Microsoft 365 Calendar</button>
+                        <button class=\"eventCalendarOption\" type=\"button\" data-calendar-provider=\"yahoo\" role=\"menuitem\">Add to Yahoo! Calendar</button>
+                        <button class=\"eventCalendarOption\" type=\"button\" data-calendar-provider=\"aol\" role=\"menuitem\">Add to AOL Calendar</button>
+                    </div>
+                </div>
+            `;
         }
 
         function renderEventItem(event, allowCalendar, paneId) {
@@ -649,10 +768,7 @@ function renderEventLists() {
             const details = event.descriptionHtml ? event.descriptionHtml : '';
             const address = event.address || '';
             const addressLink = address ? buildMapsUrl(address) : '';
-            const calendarLabel = 'Save to Calendar';
-            const button = allowCalendar
-                ? `<button class=\"eventCalendarButton\" type=\"button\" data-pane-id=\"${escapeHtml(paneId)}\" data-event-id=\"${escapeHtml(event.id || '')}\">${calendarLabel}</button>`
-                : '';
+            const button = allowCalendar ? buildCalendarMenuHtml(paneId, event.id || '') : '';
             const rawDescription = event.description || '';
             const truncated = truncateDescription(rawDescription);
             return `
@@ -751,8 +867,16 @@ function renderEventLists() {
         const $meta = $('#eventModalMeta');
         const $address = $('#eventModalAddress');
         const $description = $('#eventModalDescription');
-        const $calendar = $('#eventModalCalendar');
+        const $calendarMenu = $('#eventModalCalendarMenu');
+        const $calendarToggle = $('#eventModalCalendarToggle');
+        const $calendarDropdown = $('#eventModalCalendarDropdown');
         const $close = $('#eventModalClose');
+
+        function closeCalendarMenus() {
+            $('.eventCalendarMenu').removeClass('isOpen');
+            $('.eventCalendarDropdown').addClass('hidden');
+            $('.eventCalendarToggle').attr('aria-expanded', 'false');
+        }
 
         function openModal(event, allowCalendar, paneId) {
             if (!event) {
@@ -769,18 +893,23 @@ function renderEventLists() {
             }
             $description.html(event.descriptionHtml || '');
             if (allowCalendar) {
-                $calendar.prop('disabled', false).removeClass('hidden');
-                $calendar.data('pane-id', paneId || '');
-                $calendar.data('event-id', event.id || '');
+                $calendarMenu.removeClass('hidden');
+                $calendarToggle.prop('disabled', false).removeClass('hidden');
+                $calendarToggle.data('pane-id', paneId || '');
+                $calendarToggle.data('event-id', event.id || '');
             } else {
-                $calendar.prop('disabled', true).addClass('hidden');
-                $calendar.data('pane-id', '');
-                $calendar.data('event-id', '');
+                closeCalendarMenus();
+                $calendarMenu.addClass('hidden');
+                $calendarToggle.prop('disabled', true).addClass('hidden');
+                $calendarToggle.data('pane-id', '');
+                $calendarToggle.data('event-id', '');
             }
+            closeCalendarMenus();
             $overlay.removeClass('hidden');
         }
 
         function closeModal() {
+            closeCalendarMenus();
             $overlay.addClass('hidden');
         }
 
@@ -796,20 +925,40 @@ function renderEventLists() {
             openModal(match, allowCalendar, itemPaneId);
         });
 
-        $pane.off('click.eventCalendar').on('click.eventCalendar', '.eventCalendarButton', function(event) {
+        $pane.off('click.eventCalendarToggle').on('click.eventCalendarToggle', '.eventCalendarToggle', function(event) {
             event.stopPropagation();
-            const buttonEventId = $(this).data('event-id') || '';
-            if (!buttonEventId) {
-                return;
+            const $menu = $(this).closest('.eventCalendarMenu');
+            const isOpen = $menu.hasClass('isOpen');
+            closeCalendarMenus();
+            if (!isOpen) {
+                $menu.addClass('isOpen');
+                $menu.find('.eventCalendarDropdown').removeClass('hidden');
+                $(this).attr('aria-expanded', 'true');
             }
-            const match = [].concat(happening, upcoming).find((item) => item && item.id === buttonEventId);
+        });
+
+        $pane.off('click.eventCalendarOption').on('click.eventCalendarOption', '.eventCalendarOption', function(event) {
+            event.stopPropagation();
+            const provider = $(this).data('calendar-provider') || '';
+            const $menu = $(this).closest('.eventCalendarMenu');
+            const eventId = $menu.find('.eventCalendarToggle').data('event-id') || '';
+            const actionPaneId = $menu.find('.eventCalendarToggle').data('pane-id') || paneId;
+            const match = [].concat(happening, upcoming).find((item) => item && item.id === eventId);
+            closeCalendarMenus();
             if (match) {
-                downloadIcs(match);
+                performCalendarAction(provider, match, actionPaneId);
             }
         });
 
         $pane.off('click.eventAddress').on('click.eventAddress', '.eventItem a', function(event) {
             event.stopPropagation();
+        });
+
+        $(document).off('click.eventCalendarDismiss').on('click.eventCalendarDismiss', function(event) {
+            if ($(event.target).closest('.eventCalendarMenu').length || $(event.target).closest('.eventModal').length) {
+                return;
+            }
+            closeCalendarMenus();
         });
 
         $overlay.off('click.eventModalClose').on('click.eventModalClose', function(event) {
@@ -822,14 +971,26 @@ function renderEventLists() {
             closeModal();
         });
 
-        $calendar.off('click.eventCalendar').on('click.eventCalendar', function() {
-            const modalEventId = $calendar.data('event-id') || '';
-            if (!modalEventId) {
-                return;
+        $calendarToggle.off('click.eventCalendarToggle').on('click.eventCalendarToggle', function(event) {
+            event.stopPropagation();
+            const isOpen = $calendarMenu.hasClass('isOpen');
+            closeCalendarMenus();
+            if (!isOpen && !$calendarToggle.prop('disabled')) {
+                $calendarMenu.addClass('isOpen');
+                $calendarDropdown.removeClass('hidden');
+                $calendarToggle.attr('aria-expanded', 'true');
             }
+        });
+
+        $calendarDropdown.off('click.eventCalendarOption').on('click.eventCalendarOption', '.eventCalendarOption', function(event) {
+            event.stopPropagation();
+            const provider = $(this).data('calendar-provider') || '';
+            const modalEventId = $calendarToggle.data('event-id') || '';
+            const modalPaneId = $calendarToggle.data('pane-id') || paneId;
             const match = [].concat(happening, upcoming).find((item) => item && item.id === modalEventId);
+            closeCalendarMenus();
             if (match) {
-                downloadIcs(match);
+                performCalendarAction(provider, match, modalPaneId);
             }
         });
     });

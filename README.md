@@ -1,11 +1,16 @@
 # Lawnding Page
 A single-page, responsive, flatfile no-cms landing site platform for various types of online communities.
 
-The project is intended to be a bit more robust than a simple carrd site, but easy for people to work with and modify/expand on.  It's feasible to even create a simple site based off of this.
+The project is intended to be a bit more robust than a simple Linktree, but easy for people to work with and modify/expand on.  It's feasible to even create a simple site based off of this.
 
 It's created with HTML wrapped in PHP, as well as CSS and JS.
 
 Note: Inline JavaScript and inline `<style>` blocks are avoided for CSP compatibility. Runtime data is embedded in HTML data attributes and read by external JS files in `public/res/scr/`.
+
+## IMPORTANT! If you are going to develop for this CMS:
+As of now, this project has expandability to some extent through use of what I call "modules" which are what lets you have custom panes ("pages") for a site.  So for the demo on the site, there is the Links list which is a special pane, and then Welcome and Events, which are panes that use the basicText and eventList modules to run logic and display content.  The second way to expand the site will be via plugins, which are more intended to modify the site's behavior *directly*.  Modules will most likely work as-is, and I will strive to keep it that way, so no matter the theme, if you add a module, you're good to go.
+
+Plugins, on the other hand will be tricky.  Because they would add additional features to existing panes (whether or not a plugin is made in addition to a pane), there is a risk of incompatibilities with new updates.  That is especially true now, while the project is in it's infancy, and has one glaring flaw: Absolutely no API.  I suspect making plugins for this would be almost like the early days of modding Minecraft: it's going to suck, and every little thing can break every little other thing.  So while an API is planned, I want to make it abundantly clear: if you build a plugin for LPCore, either do it for the love of the game, or be prepared to stick with supporting it for the long haul and be prepared to update it when an API is properly made.  If a community gets built around this and plugins are created by others before I get a chance to build a proper API, I will aim to work with those who make plugins to make the transition as seamless as possible.
 
 ## Getting Started
 ~~After cloning the repo, drop everything in your site's root.  As long as PHP is installed, running index.php should do the trick!~~

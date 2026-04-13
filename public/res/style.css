@@ -565,12 +565,17 @@ nav {
 
 /* Footer */
 .footer {
-    font-size: 0.8rem;
+    font-size: 14pt;
     color: #FFFFFFAA;
 }
-.footer .authorLink {
+.footer a {
     display: inline;
     color: inherit;
+    font-weight: bold;
+    text-decoration: none;
+}
+.footer a:hover {
+    color: #FFFFFF;
     text-decoration: underline;
     text-underline-offset: 3px;
 }

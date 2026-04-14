@@ -776,6 +776,12 @@ if ($authRecord && !$forcePasswordChange) {
     <title>Admin Panel</title>
     <?php
         $assetBase = function_exists('lawnding_config') ? rtrim(lawnding_config('base_url', ''), '/') : '';
+        if ($assetBase === '') {
+            $scriptName = $_SERVER['SCRIPT_NAME'] ?? '';
+            if (is_string($scriptName) && str_starts_with($scriptName, '/public/')) {
+                $assetBase = '/public';
+            }
+        }
         $headerLogoPath = 'res/img/logo.jpg';
         $headerPath = function_exists('lawnding_data_path')
             ? lawnding_data_path('header.json')

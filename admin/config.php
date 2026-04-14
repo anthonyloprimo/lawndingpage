@@ -133,8 +133,9 @@ if (function_exists('lawnding_config')) {
     $assetBase = (string) lawnding_config('base_url', '');
 }
 if ($assetBase === '') {
-    // Fallback when running directly from /public and base_url is unknown.
-    if (empty($_SERVER['DOCUMENT_ROOT']) || !is_dir($_SERVER['DOCUMENT_ROOT'] . '/res')) {
+    // Fallback only when the browser is actually visiting the /public path.
+    $scriptName = $_SERVER['SCRIPT_NAME'] ?? '';
+    if (is_string($scriptName) && str_starts_with($scriptName, '/public/')) {
         $assetBase = '/public';
     }
 }

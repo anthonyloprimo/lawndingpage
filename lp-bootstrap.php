@@ -94,8 +94,26 @@ function lawnding_detect_base_url(string $publicDir): string {
     return ($dir === '/' || $dir === '.') ? '' : rtrim($dir, '/');
 }
 
+// Strip internal proxy-only prefixes from a detected public base URL.
+function lawnding_normalize_base_url(string $baseUrl): string {
+    $baseUrl = lawnding_norm_web_path($baseUrl, true);
+    if ($baseUrl === '' || $baseUrl === '/') {
+        return '';
+    }
+
+    // Hestia multitenant nginx templates internally rewrite tenant requests to
+    // /instances/<tenant>/public/... before proxying to PHP. That prefix is not
+    // browser-facing and must never appear in generated asset URLs.
+    $baseUrl = preg_replace('#^/instances/[^/]+/public(?=/|$)#', '', $baseUrl);
+    if (!is_string($baseUrl) || $baseUrl === '' || $baseUrl === '/') {
+        return '';
+    }
+
+    return rtrim($baseUrl, '/');
+}
+
 // Fill base_url based on current execution context.
-$config['base_url'] = lawnding_detect_base_url($config['public_dir']);
+$config['base_url'] = lawnding_normalize_base_url(lawnding_detect_base_url($config['public_dir']));
 
 // Allow local overrides to replace any config entries.
 $overridesFile = $config['root_dir'] . '/lp-overrides.php';

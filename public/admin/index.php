@@ -22,14 +22,32 @@ require_once $versionPath;
 header("Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'");
 header('X-Frame-Options: DENY');
 
+// Build the canonical public admin URL so redirects never expose rewritten upstream paths.
+function admin_public_url(string $path = '', bool $includeQuery = false): string {
+    $base = function_exists('lawnding_asset_url')
+        ? lawnding_asset_url('admin/')
+        : '/admin/';
+    $base = rtrim($base, '/') . '/';
+
+    $path = ltrim($path, '/');
+    $url = $path === '' ? $base : $base . $path;
+
+    if ($includeQuery) {
+        $query = $_SERVER['QUERY_STRING'] ?? '';
+        if (is_string($query) && $query !== '') {
+            $url .= '?' . $query;
+        }
+    }
+
+    return $url;
+}
+
 // Normalize /admin to /admin/ for clean relative URL behavior.
 $requestPath = parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH);
 if ($requestPath !== null && $requestPath !== '') {
     $trimmedPath = rtrim($requestPath, '/');
     if ($trimmedPath !== '' && $trimmedPath === $requestPath && str_ends_with($trimmedPath, '/admin')) {
-        $query = $_SERVER['QUERY_STRING'] ?? '';
-        $location = $requestPath . '/' . ($query !== '' ? '?' . $query : '');
-        header('Location: ' . $location, true, 301);
+        header('Location: ' . admin_public_url('', true), true, 301);
         exit;
     }
 }
@@ -170,11 +188,7 @@ function write_users_file($usersPath, $users, &$errors, $message) {
 
 // Build the admin base path used for redirects after logout.
 function admin_redirect_path() {
-    $redirectPath = rtrim(dirname($_SERVER['PHP_SELF']), '/');
-    if ($redirectPath === '') {
-        $redirectPath = '/';
-    }
-    return $redirectPath . '/';
+    return admin_public_url();
 }
 
 // Attempt to lock down users.json permissions after writes.
@@ -741,11 +755,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action !== 'logout') {
         'resetUsername' => $resetUsername,
         'resetLogoutAfterReset' => $resetLogoutAfterReset,
     ];
-    $redirectPath = $_SERVER['REQUEST_URI'] ?? '';
-    if ($redirectPath === '') {
-        $redirectPath = '/';
-    }
-    header('Location: ' . $redirectPath);
+    header('Location: ' . admin_public_url('', true));
     exit;
 }
 

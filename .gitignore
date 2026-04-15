@@ -8,3 +8,4 @@ admin/users.json
 *.oldjs
 admin/lp-tgBot.json
 admin/lp-tgMembershipCache.json
+.DS_Store

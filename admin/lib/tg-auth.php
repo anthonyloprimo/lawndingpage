@@ -4,12 +4,9 @@ require_once __DIR__ . '/tg-bot.php';
 
 function lawnding_tg_config_defaults(): array {
     return [
-        'bot_username' => 'SCRUBBED_USERNAME',
-        'bot_token' => 'SCRUBBED_TOKEN',
-        'group_ids' =>  [
-                         ['id' => 'SCRUBBED_GROUP_ID', 'content' => 'sfw'],
-                         ['id' => 'SCRUBBED_GROUP_ID', 'content' => 'nsfw'],
-        ],
+        'bot_username' => '',
+        'bot_token' => '',
+        'group_ids' => [],
         'membership_cache_ttl_minutes' => 30,
         'unauthorized_message' => 'Unable to display member links.  Join the telegram group with the link above, or contact an admin for assistance.',
         'allowed_statuses' => ['member', 'administrator', 'creator'],

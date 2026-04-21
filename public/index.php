@@ -29,6 +29,32 @@ ini_set('display_errors', '0');
 header("Content-Security-Policy: default-src 'self'; script-src 'self' https://telegram.org; style-src 'self'; img-src 'self' data: https://www.google.com https://t0.gstatic.com https://t1.gstatic.com https://t2.gstatic.com https://t3.gstatic.com; font-src 'self' data:; connect-src 'self'; frame-src https://telegram.org https://oauth.telegram.org; frame-ancestors 'none'");
 header('X-Frame-Options: DENY');
 
+// Plugin hook primitive. Plugins opt in by shipping public/plugins/<id>/init.php
+// that calls lawnding_register_hook('<point>', fn). Points fire at fixed spots
+// in the template via lawnding_run_hook('<point>', $ctx). Intentionally minimal
+// — no priorities, no filters, no deregistration. Add those only if a concrete
+// plugin needs them.
+if (!isset($GLOBALS['LAWNDING_HOOKS'])) {
+    $GLOBALS['LAWNDING_HOOKS'] = [];
+}
+function lawnding_register_hook(string $point, callable $fn): void {
+    $GLOBALS['LAWNDING_HOOKS'][$point][] = $fn;
+}
+function lawnding_run_hook(string $point, array $ctx = []): void {
+    foreach ($GLOBALS['LAWNDING_HOOKS'][$point] ?? [] as $fn) {
+        $fn($ctx);
+    }
+}
+// Endpoints-only plugins (e.g. the existing `telegram/` directory) simply have
+// no init.php and are not loaded here — their URLs are hit directly.
+$pluginInitGlob = function_exists('lawnding_public_path')
+    ? lawnding_public_path('plugins/*/init.php')
+    : __DIR__ . '/plugins/*/init.php';
+foreach (glob($pluginInitGlob) ?: [] as $_pluginInit) {
+    require_once $_pluginInit;
+}
+unset($_pluginInit, $pluginInitGlob);
+
 // Resolve a data file path using bootstrap helpers when available.
 function lawnding_public_data_path($file) {
     return function_exists('lawnding_data_path')
@@ -452,6 +478,7 @@ $isLinksHidden = !$showLinks;
     <link rel="stylesheet" href="<?php echo htmlspecialchars(lawnding_asset_url('res/style.css'), ENT_QUOTES, 'UTF-8'); ?>">
 
     <script src="<?php echo htmlspecialchars(lawnding_asset_url('res/scr/jquery-3.7.1.min.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
+    <?php lawnding_run_hook('head_assets'); ?>
     <noscript>
         <style>
             body.is-loading #header,
@@ -486,10 +513,12 @@ $isLinksHidden = !$showLinks;
                             <?php foreach ($authLinksData as $link): ?>
                                 <?php echo lawnding_render_link_item($link); ?>
                             <?php endforeach; ?>
+                            <?php lawnding_run_hook('auth_profile_area', ['state' => 'authorized', 'tgUser' => $tgUser]); ?>
                             <li class="linkItem fullWidth authLinksLogout" id="authLinksLogout">
                                 <a class="authLinkLogoutButton" href="<?php echo htmlspecialchars($tgLogoutUrl, ENT_QUOTES, 'UTF-8'); ?>">Log out</a>
                             </li>
                         <?php elseif ($authLinksState === 'unauthorized'): ?>
+                            <?php lawnding_run_hook('auth_profile_area', ['state' => 'unauthorized', 'tgUser' => $tgUser]); ?>
                             <li class="linkItem fullWidth authLinksNotice" id="authLinksNotice">
                                 <div class="link authLinkMessage">
                                     <span class="authLinkLogo authLinkLogo--warning" aria-hidden="true">

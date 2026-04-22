@@ -634,23 +634,32 @@ nav {
 }
 
 .adminNotice {
-    padding: 0.65rem 0.9rem;
+    padding: 0.65rem 2.5rem;
     border-radius: 8px;
     border: 1px solid #FFFFFF22;
     background: #FFFFFF11;
     backdrop-filter: blur(8px);
     box-shadow: 0 0 0 1px #FFFFFF22 inset, 0 1px 8px 2px #00000055;
-    font-size: 0.9rem;
+    font-size: 1.05rem;
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    justify-content: center;
     gap: 12px;
     position: relative;
     overflow: hidden;
     color: #FFFFFF;
 }
 
+.adminNoticeText {
+    flex: 1;
+    text-align: center;
+}
+
 .adminNoticeClose {
+    position: absolute;
+    right: 0.6rem;
+    top: 50%;
+    transform: translateY(-50%);
     border: 1px solid #FFFFFF44;
     border-radius: 999px;
     padding: 2px 8px;

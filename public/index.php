@@ -55,6 +55,42 @@ foreach (glob($pluginInitGlob) ?: [] as $_pluginInit) {
 }
 unset($_pluginInit, $pluginInitGlob);
 
+// Append a `?v=<mtime>` cache-busting query string to local asset URLs under
+// /res/, so admin-uploaded images (logo, backgrounds, etc.) refresh in the
+// browser the moment the underlying file changes. External URLs and paths
+// outside /res/ pass through unchanged.
+function lawnding_versioned_local_asset_url(string $rawPath): string {
+    if ($rawPath === '') {
+        return '';
+    }
+    $resolveUrl = function (string $p): string {
+        return function_exists('lawnding_asset_url') ? lawnding_asset_url($p) : $p;
+    };
+    if (preg_match('#^[a-z][a-z0-9+.-]*:#i', $rawPath) || str_starts_with($rawPath, '//')) {
+        return $rawPath;
+    }
+    $relPath = ltrim($rawPath, '/');
+    if (str_starts_with($relPath, 'public/')) {
+        $relPath = substr($relPath, strlen('public/'));
+    }
+    $resolved = $resolveUrl($rawPath);
+    if (!str_starts_with($relPath, 'res/')) {
+        return $resolved;
+    }
+    $fsPath = function_exists('lawnding_public_path')
+        ? lawnding_public_path($relPath)
+        : __DIR__ . '/' . $relPath;
+    if (!is_file($fsPath)) {
+        return $resolved;
+    }
+    $mtime = @filemtime($fsPath);
+    if (!is_int($mtime) || $mtime <= 0) {
+        return $resolved;
+    }
+    $separator = str_contains($resolved, '?') ? '&' : '?';
+    return $resolved . $separator . 'v=' . rawurlencode((string) $mtime);
+}
+
 // Resolve a data file path using bootstrap helpers when available.
 function lawnding_public_data_path($file) {
     return function_exists('lawnding_data_path')
@@ -322,14 +358,14 @@ $resolveAssetUrl = function ($path) {
     return function_exists('lawnding_asset_url') ? lawnding_asset_url($path) : $path;
 };
 $headerDataResolved = $headerData;
-$headerDataResolved['logo'] = $resolveAssetUrl($headerDataResolved['logo'] ?? '');
+$headerDataResolved['logo'] = lawnding_versioned_local_asset_url($headerData['logo'] ?? '');
 if (!empty($headerDataResolved['backgrounds']) && is_array($headerDataResolved['backgrounds'])) {
-    $headerDataResolved['backgrounds'] = array_map(function ($bg) use ($resolveAssetUrl) {
+    $headerDataResolved['backgrounds'] = array_map(function ($bg) {
         if (is_string($bg)) {
-            return $resolveAssetUrl($bg);
+            return lawnding_versioned_local_asset_url($bg);
         }
         if (is_array($bg)) {
-            $bg['url'] = $resolveAssetUrl($bg['url'] ?? '');
+            $bg['url'] = lawnding_versioned_local_asset_url($bg['url'] ?? '');
             return $bg;
         }
         return $bg;

@@ -47,10 +47,37 @@ if (empty($tgUser['id'])) {
     exit;
 }
 
+// Group membership gate. Policy: no session unless the user is in at least one
+// configured group. Force-refresh ensures we don't accept a stale cached "yes"
+// from a previous session that may have lapsed.
+$_SESSION['tg_membership_force_refresh'] = true;
+$contentLevel = lawnding_tg_user_content_level($tgConfig, $tgUser['id']);
+if ($contentLevel === '') {
+    unset($_SESSION['tg_user'], $_SESSION['tg_user_id'], $_SESSION['tg_membership_force_refresh']);
+    $rejectionText = isset($tgConfig['unauthorized_message']) && is_string($tgConfig['unauthorized_message'])
+        ? trim($tgConfig['unauthorized_message'])
+        : '';
+    if ($rejectionText === '') {
+        $rejectionText = 'Login failed: you must be a member of a Telegram group to access this site.';
+    }
+    lawnding_flash_set('warning', $rejectionText);
+    header('Location: ' . $redirectTarget, true, 302);
+    exit;
+}
+
 $_SESSION['tg_user'] = $tgUser;
 $_SESSION['tg_user_id'] = $tgUser['id'];
-$_SESSION['tg_membership_force_refresh'] = true;
 unset($_SESSION['tg_login_error']);
+
+$handle = trim((string) $tgUser['username']);
+if ($handle !== '') {
+    $displayName = '@' . $handle;
+} elseif (trim((string) $tgUser['first_name']) !== '') {
+    $displayName = trim((string) $tgUser['first_name']);
+} else {
+    $displayName = 'User #' . (int) $tgUser['id'];
+}
+lawnding_flash_set('ok', 'Logged in as ' . $displayName);
 
 header('Location: ' . $redirectTarget, true, 302);
 exit;

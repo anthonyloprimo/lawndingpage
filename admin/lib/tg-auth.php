@@ -8,7 +8,7 @@ function lawnding_tg_config_defaults(): array {
         'bot_token' => '',
         'group_ids' => [],
         'membership_cache_ttl_minutes' => 30,
-        'unauthorized_message' => 'Unable to display member links.  Join the telegram group with the link above, or contact an admin for assistance.',
+        'unauthorized_message' => 'Login failed: you must be a member of a configured Telegram group to access this site.',
         'allowed_statuses' => ['member', 'administrator', 'creator'],
     ];
 }

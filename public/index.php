@@ -256,7 +256,16 @@ $tgUserId = $tgUser['id'] ?? ($_SESSION['tg_user_id'] ?? null);
 $viewerContentLevel = '';
 if (!empty($tgUserId)) {
     $viewerContentLevel = lawnding_tg_user_content_level($tgConfig, $tgUserId);
-    if ($viewerContentLevel === 'nsfw') {
+    if ($viewerContentLevel === '') {
+        // Group membership lapsed since login. Under the "must be in a configured
+        // group" policy, drop the session entirely instead of degrading to a
+        // half-authorized state. Flash surfaces the reason on the next render.
+        session_unset();
+        session_regenerate_id(true);
+        lawnding_flash_set('warning', "You've been signed out — your access to the configured Telegram group has been revoked.");
+        $tgUser = null;
+        $tgUserId = null;
+    } elseif ($viewerContentLevel === 'nsfw') {
         $markdownGateClearance = 'nsfw';
     } elseif ($viewerContentLevel === 'sfw') {
         $markdownGateClearance = 'sfw';
@@ -491,6 +500,16 @@ $isLinksHidden = !$showLinks;
 <body class="is-loading<?php echo $isLinksOnly ? ' linksOnly' : ''; ?><?php echo $isLinksHidden ? ' linksHidden' : ''; ?>" data-header-json="<?php echo $headerDataJson; ?>">
     <!-- No-JS fallback for browsers with JavaScript disabled. -->
     <div id="noJsWarning"><noscript>This site requires JavaScript to function properly. Please enable JavaScript in your browser.</noscript></div>
+    <!-- Flash notice container (drained from $_SESSION['lp_flash']). -->
+    <div class="adminNotices" id="adminNotices">
+        <?php $flash = lawnding_flash_consume(); ?>
+        <?php if ($flash !== null): ?>
+            <div class="adminNotice adminNotice--<?php echo htmlspecialchars($flash['type'], ENT_QUOTES, 'UTF-8'); ?>">
+                <span class="adminNoticeText"><?php echo htmlspecialchars($flash['text'], ENT_QUOTES, 'UTF-8'); ?></span>
+                <button type="button" class="adminNoticeClose" aria-label="Dismiss notification">×</button>
+            </div>
+        <?php endif; ?>
+    </div>
     <!-- Header with logo and title/subtitle. -->
     <header class="header" id="header">
         <div class="logo" id="logo"></div>

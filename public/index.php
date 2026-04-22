@@ -517,6 +517,10 @@ $isLinksHidden = !$showLinks;
             <h1><?php echo htmlspecialchars($headerData['title'] ?? ''); ?></h1>
             <h2><?php echo htmlspecialchars($headerData['subtitle'] ?? ''); ?></h2>
         </div>
+        <?php lawnding_run_hook('header_auth_area', [
+            'tgUser' => $tgUser,
+            'logoutUrl' => $tgLogoutUrl,
+        ]); ?>
     </header>
     <!-- Main content panes. -->
     <div class="container" id="container">
@@ -532,23 +536,6 @@ $isLinksHidden = !$showLinks;
                             <?php foreach ($authLinksData as $link): ?>
                                 <?php echo lawnding_render_link_item($link); ?>
                             <?php endforeach; ?>
-                            <?php lawnding_run_hook('auth_profile_area', ['state' => 'authorized', 'tgUser' => $tgUser]); ?>
-                            <li class="linkItem fullWidth authLinksLogout" id="authLinksLogout">
-                                <a class="authLinkLogoutButton" href="<?php echo htmlspecialchars($tgLogoutUrl, ENT_QUOTES, 'UTF-8'); ?>">Log out</a>
-                            </li>
-                        <?php elseif ($authLinksState === 'unauthorized'): ?>
-                            <?php lawnding_run_hook('auth_profile_area', ['state' => 'unauthorized', 'tgUser' => $tgUser]); ?>
-                            <li class="linkItem fullWidth authLinksNotice" id="authLinksNotice">
-                                <div class="link authLinkMessage">
-                                    <span class="authLinkLogo authLinkLogo--warning" aria-hidden="true">
-                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" focusable="false"><path d="M13 14H11V9H13M13 18H11V16H13M1 21H23L12 2L1 21Z" /></svg>
-                                    </span>
-                                    <span class="linkLabel"><?php echo htmlspecialchars($tgBotMessage); ?></span>
-                                </div>
-                            </li>
-                            <li class="linkItem fullWidth authLinksLogout" id="authLinksLogout">
-                                <a class="authLinkLogoutButton" href="<?php echo htmlspecialchars($tgLogoutUrl, ENT_QUOTES, 'UTF-8'); ?>">Log out</a>
-                            </li>
                         <?php else: ?>
                             <li class="linkItem fullWidth authLinksLogin" id="authLinksLogin">
                                 <div class="lpTgLoginWidget">

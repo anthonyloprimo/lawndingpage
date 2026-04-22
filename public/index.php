@@ -29,6 +29,68 @@ ini_set('display_errors', '0');
 header("Content-Security-Policy: default-src 'self'; script-src 'self' https://telegram.org; style-src 'self'; img-src 'self' data: https://www.google.com https://t0.gstatic.com https://t1.gstatic.com https://t2.gstatic.com https://t3.gstatic.com; font-src 'self' data:; connect-src 'self'; frame-src https://telegram.org https://oauth.telegram.org; frame-ancestors 'none'");
 header('X-Frame-Options: DENY');
 
+// Plugin hook primitive. Plugins opt in by shipping public/plugins/<id>/init.php
+// that calls lawnding_register_hook('<point>', fn). Points fire at fixed spots
+// in the template via lawnding_run_hook('<point>', $ctx). Intentionally minimal
+// — no priorities, no filters, no deregistration. Add those only if a concrete
+// plugin needs them.
+if (!isset($GLOBALS['LAWNDING_HOOKS'])) {
+    $GLOBALS['LAWNDING_HOOKS'] = [];
+}
+function lawnding_register_hook(string $point, callable $fn): void {
+    $GLOBALS['LAWNDING_HOOKS'][$point][] = $fn;
+}
+function lawnding_run_hook(string $point, array $ctx = []): void {
+    foreach ($GLOBALS['LAWNDING_HOOKS'][$point] ?? [] as $fn) {
+        $fn($ctx);
+    }
+}
+// Endpoints-only plugins (e.g. the existing `telegram/` directory) simply have
+// no init.php and are not loaded here — their URLs are hit directly.
+$pluginInitGlob = function_exists('lawnding_public_path')
+    ? lawnding_public_path('plugins/*/init.php')
+    : __DIR__ . '/plugins/*/init.php';
+foreach (glob($pluginInitGlob) ?: [] as $_pluginInit) {
+    require_once $_pluginInit;
+}
+unset($_pluginInit, $pluginInitGlob);
+
+// Append a `?v=<mtime>` cache-busting query string to local asset URLs under
+// /res/, so admin-uploaded images (logo, backgrounds, etc.) refresh in the
+// browser the moment the underlying file changes. External URLs and paths
+// outside /res/ pass through unchanged.
+function lawnding_versioned_local_asset_url(string $rawPath): string {
+    if ($rawPath === '') {
+        return '';
+    }
+    $resolveUrl = function (string $p): string {
+        return function_exists('lawnding_asset_url') ? lawnding_asset_url($p) : $p;
+    };
+    if (preg_match('#^[a-z][a-z0-9+.-]*:#i', $rawPath) || str_starts_with($rawPath, '//')) {
+        return $rawPath;
+    }
+    $relPath = ltrim($rawPath, '/');
+    if (str_starts_with($relPath, 'public/')) {
+        $relPath = substr($relPath, strlen('public/'));
+    }
+    $resolved = $resolveUrl($rawPath);
+    if (!str_starts_with($relPath, 'res/')) {
+        return $resolved;
+    }
+    $fsPath = function_exists('lawnding_public_path')
+        ? lawnding_public_path($relPath)
+        : __DIR__ . '/' . $relPath;
+    if (!is_file($fsPath)) {
+        return $resolved;
+    }
+    $mtime = @filemtime($fsPath);
+    if (!is_int($mtime) || $mtime <= 0) {
+        return $resolved;
+    }
+    $separator = str_contains($resolved, '?') ? '&' : '?';
+    return $resolved . $separator . 'v=' . rawurlencode((string) $mtime);
+}
+
 // Resolve a data file path using bootstrap helpers when available.
 function lawnding_public_data_path($file) {
     return function_exists('lawnding_data_path')
@@ -229,8 +291,17 @@ $tgUser = isset($_SESSION['tg_user']) && is_array($_SESSION['tg_user']) ? $_SESS
 $tgUserId = $tgUser['id'] ?? ($_SESSION['tg_user_id'] ?? null);
 $viewerContentLevel = '';
 if (!empty($tgUserId)) {
-    $viewerContentLevel = lawnding_tg_user_content_level($tgConfig, $tgUserId);
-    if ($viewerContentLevel === 'nsfw') {
+    $viewerContentLevel = lawnding_tg_user_content_level($tgConfig, $tgUserId, $tgUser);
+    if ($viewerContentLevel === '') {
+        // Group membership lapsed since login. Under the "must be in a configured
+        // group" policy, drop the session entirely instead of degrading to a
+        // half-authorized state. Flash surfaces the reason on the next render.
+        session_unset();
+        session_regenerate_id(true);
+        lawnding_flash_set('warning', "You've been signed out — your access to the configured Telegram group has been revoked.");
+        $tgUser = null;
+        $tgUserId = null;
+    } elseif ($viewerContentLevel === 'nsfw') {
         $markdownGateClearance = 'nsfw';
     } elseif ($viewerContentLevel === 'sfw') {
         $markdownGateClearance = 'sfw';
@@ -287,14 +358,14 @@ $resolveAssetUrl = function ($path) {
     return function_exists('lawnding_asset_url') ? lawnding_asset_url($path) : $path;
 };
 $headerDataResolved = $headerData;
-$headerDataResolved['logo'] = $resolveAssetUrl($headerDataResolved['logo'] ?? '');
+$headerDataResolved['logo'] = lawnding_versioned_local_asset_url($headerData['logo'] ?? '');
 if (!empty($headerDataResolved['backgrounds']) && is_array($headerDataResolved['backgrounds'])) {
-    $headerDataResolved['backgrounds'] = array_map(function ($bg) use ($resolveAssetUrl) {
+    $headerDataResolved['backgrounds'] = array_map(function ($bg) {
         if (is_string($bg)) {
-            return $resolveAssetUrl($bg);
+            return lawnding_versioned_local_asset_url($bg);
         }
         if (is_array($bg)) {
-            $bg['url'] = $resolveAssetUrl($bg['url'] ?? '');
+            $bg['url'] = lawnding_versioned_local_asset_url($bg['url'] ?? '');
             return $bg;
         }
         return $bg;
@@ -452,6 +523,7 @@ $isLinksHidden = !$showLinks;
     <link rel="stylesheet" href="<?php echo htmlspecialchars(lawnding_asset_url('res/style.css'), ENT_QUOTES, 'UTF-8'); ?>">
 
     <script src="<?php echo htmlspecialchars(lawnding_asset_url('res/scr/jquery-3.7.1.min.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
+    <?php lawnding_run_hook('head_assets'); ?>
     <noscript>
         <style>
             body.is-loading #header,
@@ -464,6 +536,16 @@ $isLinksHidden = !$showLinks;
 <body class="is-loading<?php echo $isLinksOnly ? ' linksOnly' : ''; ?><?php echo $isLinksHidden ? ' linksHidden' : ''; ?>" data-header-json="<?php echo $headerDataJson; ?>">
     <!-- No-JS fallback for browsers with JavaScript disabled. -->
     <div id="noJsWarning"><noscript>This site requires JavaScript to function properly. Please enable JavaScript in your browser.</noscript></div>
+    <!-- Flash notice container (drained from $_SESSION['lp_flash']). -->
+    <div class="adminNotices" id="adminNotices">
+        <?php $flash = lawnding_flash_consume(); ?>
+        <?php if ($flash !== null): ?>
+            <div class="adminNotice adminNotice--<?php echo htmlspecialchars($flash['type'], ENT_QUOTES, 'UTF-8'); ?>">
+                <span class="adminNoticeText"><?php echo htmlspecialchars($flash['text'], ENT_QUOTES, 'UTF-8'); ?></span>
+                <button type="button" class="adminNoticeClose" aria-label="Dismiss notification">×</button>
+            </div>
+        <?php endif; ?>
+    </div>
     <!-- Header with logo and title/subtitle. -->
     <header class="header" id="header">
         <div class="logo" id="logo"></div>
@@ -471,6 +553,10 @@ $isLinksHidden = !$showLinks;
             <h1><?php echo htmlspecialchars($headerData['title'] ?? ''); ?></h1>
             <h2><?php echo htmlspecialchars($headerData['subtitle'] ?? ''); ?></h2>
         </div>
+        <?php lawnding_run_hook('header_auth_area', [
+            'tgUser' => $tgUser,
+            'logoutUrl' => $tgLogoutUrl,
+        ]); ?>
     </header>
     <!-- Main content panes. -->
     <div class="container" id="container">
@@ -486,21 +572,6 @@ $isLinksHidden = !$showLinks;
                             <?php foreach ($authLinksData as $link): ?>
                                 <?php echo lawnding_render_link_item($link); ?>
                             <?php endforeach; ?>
-                            <li class="linkItem fullWidth authLinksLogout" id="authLinksLogout">
-                                <a class="authLinkLogoutButton" href="<?php echo htmlspecialchars($tgLogoutUrl, ENT_QUOTES, 'UTF-8'); ?>">Log out</a>
-                            </li>
-                        <?php elseif ($authLinksState === 'unauthorized'): ?>
-                            <li class="linkItem fullWidth authLinksNotice" id="authLinksNotice">
-                                <div class="link authLinkMessage">
-                                    <span class="authLinkLogo authLinkLogo--warning" aria-hidden="true">
-                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" focusable="false"><path d="M13 14H11V9H13M13 18H11V16H13M1 21H23L12 2L1 21Z" /></svg>
-                                    </span>
-                                    <span class="linkLabel"><?php echo htmlspecialchars($tgBotMessage); ?></span>
-                                </div>
-                            </li>
-                            <li class="linkItem fullWidth authLinksLogout" id="authLinksLogout">
-                                <a class="authLinkLogoutButton" href="<?php echo htmlspecialchars($tgLogoutUrl, ENT_QUOTES, 'UTF-8'); ?>">Log out</a>
-                            </li>
                         <?php else: ?>
                             <li class="linkItem fullWidth authLinksLogin" id="authLinksLogin">
                                 <div class="lpTgLoginWidget">

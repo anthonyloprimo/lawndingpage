@@ -142,6 +142,37 @@ function lawnding_asset_url(?string $path = ''): string {
     return $base === '' ? '/' . $path : $base . '/' . $path;
 }
 
+// One-shot session-backed flash messages, surfaced as banner notices on the
+// next page render. Consumer is public/index.php (drains $_SESSION['lp_flash']
+// into the #adminNotices container).
+function lawnding_flash_set(string $type, string $text): void {
+    if (session_status() !== PHP_SESSION_ACTIVE) {
+        return;
+    }
+    $allowed = ['ok', 'warning', 'danger'];
+    if (!in_array($type, $allowed, true)) {
+        $type = 'ok';
+    }
+    $_SESSION['lp_flash'] = ['type' => $type, 'text' => $text];
+}
+
+function lawnding_flash_consume(): ?array {
+    if (session_status() !== PHP_SESSION_ACTIVE) {
+        return null;
+    }
+    if (!isset($_SESSION['lp_flash']) || !is_array($_SESSION['lp_flash'])) {
+        return null;
+    }
+    $flash = $_SESSION['lp_flash'];
+    unset($_SESSION['lp_flash']);
+    $type = isset($flash['type']) && is_string($flash['type']) ? $flash['type'] : 'ok';
+    $text = isset($flash['text']) && is_string($flash['text']) ? $flash['text'] : '';
+    if ($text === '') {
+        return null;
+    }
+    return ['type' => $type, 'text' => $text];
+}
+
 // Configure hardened session cookie params and start the session.
 function lawnding_init_session(): void {
     if (session_status() !== PHP_SESSION_NONE) {

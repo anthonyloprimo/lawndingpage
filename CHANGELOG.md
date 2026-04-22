@@ -3,6 +3,17 @@
 #### IMPORTANT!  THIS CMS IS CURRENTLY BEST USED ON APACHE
 My apologies, I did not think to make note of this before.  This project utilizes `.htaccess` for a few directories.  As such, LawndingPage primarily is built for Apache servers.  Work will be made to do away with the need for those files, but no timeframe is given.  If you wish to use this on your own server, either use Apache, or be prepared to modify the code to support different file structures.  No guarantee is made.
 
+#### v1.11.0
+- Telegram profile chip and log out button now live in the top-right of the page header instead of inside the links pane.  Log out is now an icon button.
+- Telegram login policy: visitors must be a member of a configured Telegram group to sign in.  Stranger logins are rejected outright instead of landing in a half-authorized state.
+- If a logged-in user loses their group membership mid-session, the next page load logs them out automatically.
+- Added top-of-screen banner notifications for login success ("Logged in as @yourhandle"), login rejection, and access revocation.  Same look and feel as the admin save banner.
+- Logo and background images now refresh immediately after admin uploads — no more hard-refreshing the browser to see the new asset.
+- The Telegram membership cache (`admin/lp-tgMembershipCache.json`) now also captures each visitor's username and first/last name on each fresh check.  This makes the cache file a usable "who has logged in recently" view — until now it only had numeric Telegram IDs.  No new admin UI yet; you can `cat` the file on the webserver to see who's there.
+- Added a small plugin hook system so plugins can extend the public page without touching core templates (`lawnding_register_hook` / `lawnding_run_hook`).  Initial hook points: `head_assets`, `header_auth_area`.
+
+-----
+
 #### v1.10.2
 - 
 

@@ -9,6 +9,7 @@ My apologies, I did not think to make note of this before.  This project utilize
 - If a logged-in user loses their group membership mid-session, the next page load logs them out automatically.
 - Added top-of-screen banner notifications for login success ("Logged in as @yourhandle"), login rejection, and access revocation.  Same look and feel as the admin save banner.
 - Logo and background images now refresh immediately after admin uploads — no more hard-refreshing the browser to see the new asset.
+- The Telegram membership cache (`admin/lp-tgMembershipCache.json`) now also captures each visitor's username and first/last name on each fresh check.  This makes the cache file a usable "who has logged in recently" view — until now it only had numeric Telegram IDs.  No new admin UI yet; you can `cat` the file on the webserver to see who's there.
 - Added a small plugin hook system so plugins can extend the public page without touching core templates (`lawnding_register_hook` / `lawnding_run_hook`).  Initial hook points: `head_assets`, `header_auth_area`.
 
 -----

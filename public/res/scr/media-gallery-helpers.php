@@ -62,40 +62,33 @@ function media_gallery_find_user(array $users, string $username): ?array {
     return null;
 }
 
+// Signature unchanged so existing callers (media-gallery-{list,replace,
+// upload,delete,thumb}.php) continue to work without edits.
 function media_gallery_require_edit_site(): array {
-    if (empty($_SESSION['auth_user'])) {
-        media_gallery_json_response(['error' => 'Unauthorized'], 401);
-    }
+    $adminAuthPath = function_exists('lawnding_admin_path')
+        ? lawnding_admin_path('auth.php')
+        : dirname(__DIR__, 3) . '/admin/auth.php';
+    require_once $adminAuthPath;
 
-    $authUser = (string) $_SESSION['auth_user'];
-    $usersPath = media_gallery_users_path();
-    $users = media_gallery_load_users($usersPath);
-    $authRecord = media_gallery_find_user($users, $authUser);
-    if (!$authRecord) {
-        media_gallery_json_response(['error' => 'Unauthorized'], 401);
-    }
-    if (!empty($authRecord['read_only']) && empty($authRecord['master'])) {
-        media_gallery_json_response(['error' => 'Forbidden'], 403);
-    }
-
-    $permissions = $authRecord['permissions'] ?? [];
-    if (!is_array($permissions)) {
-        $permissions = [];
-    }
     $allowed = media_gallery_allowed_permissions();
-    $permissions = array_values(array_intersect($permissions, $allowed));
-    $isFullAdmin = !empty($authRecord['master']) || in_array('full_admin', $permissions, true);
-    $canEditSite = $isFullAdmin || in_array('edit_site', $permissions, true);
-    if (!$canEditSite) {
+    $usersPath = media_gallery_users_path();
+    $users = lawnding_load_users_file($usersPath);
+    $tgConfig = lawnding_load_tg_config();
+
+    $identity = lawnding_resolve_admin_identity($tgConfig, $users, $allowed);
+    if (!$identity['isAuthenticated']) {
+        media_gallery_json_response(['error' => 'Unauthorized'], 401);
+    }
+    if (!$identity['context']['canEditSite']) {
         media_gallery_json_response(['error' => 'Forbidden'], 403);
     }
 
     return [
-        'authUser' => $authUser,
-        'authRecord' => $authRecord,
-        'permissions' => $permissions,
-        'isFullAdmin' => $isFullAdmin,
-        'canEditSite' => $canEditSite,
+        'authUser' => $identity['authUser'],
+        'authRecord' => $identity['authRecord'],
+        'permissions' => $identity['context']['currentPermissions'],
+        'isFullAdmin' => $identity['context']['isFullAdmin'],
+        'canEditSite' => $identity['context']['canEditSite'],
     ];
 }
 

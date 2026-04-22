@@ -44,6 +44,14 @@ ini_set('error_log', $errorLogPath);
 
 lawnding_init_session(); // Initialize PHP session storage and load existing session data.
 
+// Load centralized auth/identity helpers (shared with mutation endpoints).
+// admin/auth.php defines lawnding_resolve_admin_identity(), build_permission_context(),
+// lawnding_load_users_file(), etc.
+$adminAuthPath = function_exists('lawnding_admin_path')
+    ? lawnding_admin_path('auth.php')
+    : dirname(__DIR__, 2) . '/admin/auth.php';
+require_once $adminAuthPath;
+
 // Users file location (stored outside public web root).
 $usersPath = function_exists('lawnding_config')
     ? lawnding_config('users_path', dirname(__DIR__, 2) . '/admin/users.json')
@@ -123,11 +131,13 @@ function find_user($users, $username) {
 }
 
 // Keep only known permissions and normalize array order.
-function normalize_permissions($permissions, $allowedPermissions) {
-    if (!is_array($permissions)) {
-        return [];
+if (!function_exists('normalize_permissions')) {
+    function normalize_permissions($permissions, $allowedPermissions) {
+        if (!is_array($permissions)) {
+            return [];
+        }
+        return array_values(array_intersect($permissions, $allowedPermissions));
     }
-    return array_values(array_intersect($permissions, $allowedPermissions));
 }
 
 // Check if users.json permissions are too open or missing group read.
@@ -188,28 +198,9 @@ function enforce_users_permissions($usersPath, &$warnings) {
 }
 
 // Compute effective permissions for the current user.
-function build_permission_context($authRecord, $allowedPermissions) {
-    $isReadOnlyUser = $authRecord && !empty($authRecord['read_only']);
-    $currentPermissions = $authRecord ? normalize_permissions($authRecord['permissions'] ?? [], $allowedPermissions) : [];
-    if ($isReadOnlyUser) {
-        $currentPermissions = [];
-    }
-    $isMasterUser = $authRecord && !empty($authRecord['master']);
-    $isFullAdmin = !$isReadOnlyUser && ($isMasterUser || in_array('full_admin', $currentPermissions, true));
-    if ($isFullAdmin) {
-        $currentPermissions = $allowedPermissions;
-    }
-    return [
-        'currentPermissions' => $currentPermissions,
-        'isReadOnlyUser' => $isReadOnlyUser,
-        'isMasterUser' => $isMasterUser,
-        'isFullAdmin' => $isFullAdmin,
-        'canAddUsers' => !$isReadOnlyUser && ($isFullAdmin || in_array('add_users', $currentPermissions, true)),
-        'canEditUsers' => !$isReadOnlyUser && ($isFullAdmin || in_array('edit_users', $currentPermissions, true)),
-        'canRemoveUsers' => !$isReadOnlyUser && ($isFullAdmin || in_array('remove_users', $currentPermissions, true)),
-        'canEditSite' => !$isReadOnlyUser && ($isFullAdmin || in_array('edit_site', $currentPermissions, true)),
-    ];
-}
+// build_permission_context() now lives in admin/auth.php so mutation
+// endpoints can share it. Kept here as a no-op marker; the require_once
+// above defines the canonical version.
 
 // First-run account creation flow.
 if ($action === 'create_admin') {
@@ -278,10 +269,14 @@ if ($action === 'login') {
 }
 
 // Resolve the current authenticated user and permission flags.
-$authUser = $_SESSION['auth_user'] ?? '';
-$authRecord = $authUser !== '' ? find_user($users, $authUser) : null;
-$forcePasswordChange = $authRecord && !empty($authRecord['must_change_password']);
-$permissionContext = build_permission_context($authRecord, $allowedPermissions);
+// The resolver accepts either a bcrypt-logged-in user (from users.json),
+// a Telegram-logged-in user with admin perms from their group memberships,
+// or both (union of perms, bcrypt canonical). See admin/auth.php.
+$tgConfig = lawnding_load_tg_config();
+$identity = lawnding_resolve_admin_identity($tgConfig, $users, $allowedPermissions);
+$authUser = $identity['authUser'];
+$authRecord = $identity['authRecord'];
+$permissionContext = $identity['context'];
 $currentPermissions = $permissionContext['currentPermissions'];
 $isReadOnlyUser = $permissionContext['isReadOnlyUser'];
 $isMasterUser = $permissionContext['isMasterUser'];
@@ -290,6 +285,7 @@ $canAddUsers = $permissionContext['canAddUsers'];
 $canEditUsers = $permissionContext['canEditUsers'];
 $canRemoveUsers = $permissionContext['canRemoveUsers'];
 $canEditSite = $permissionContext['canEditSite'];
+$forcePasswordChange = $authRecord && !empty($authRecord['must_change_password']);
 if ($isReadOnlyUser) {
     $forcePasswordChange = false;
 }

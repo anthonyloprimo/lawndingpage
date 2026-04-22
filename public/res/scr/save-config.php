@@ -280,37 +280,35 @@ if ($postMaxBytes > 0 && $contentLength > $postMaxBytes) {
     respond(['error' => 'Payload too large. Please reduce image sizes and try again.'], 413);
 }
 
-// Ensure the user is authenticated before processing updates.
-if (empty($_SESSION['auth_user'])) {
-    respond(['error' => 'Unauthorized'], 401);
-}
+// Resolve identity (bcrypt + Telegram-derived). The resolver handles both
+// auth paths and surfaces a uniform context. See admin/auth.php.
+$adminAuthPath = function_exists('lawnding_admin_path')
+    ? lawnding_admin_path('auth.php')
+    : dirname(__DIR__, 3) . '/admin/auth.php';
+require_once $adminAuthPath;
 
-// Load users.json and resolve the current user's permissions.
 $allowedPermissions = ['full_admin', 'add_users', 'edit_users', 'remove_users', 'edit_site'];
 $usersPath = function_exists('lawnding_config')
     ? lawnding_config('users_path', dirname(__DIR__, 3) . '/admin/users.json')
     : dirname(__DIR__, 3) . '/admin/users.json';
-$users = load_users($usersPath);
-$authUser = $_SESSION['auth_user'];
-$authRecord = find_user($users, $authUser);
-if (!$authRecord) {
+$users = lawnding_load_users_file($usersPath);
+$tgConfig = lawnding_load_tg_config();
+
+$identity = lawnding_resolve_admin_identity($tgConfig, $users, $allowedPermissions);
+if (!$identity['isAuthenticated']) {
     respond(['error' => 'Unauthorized'], 401);
 }
-if (!empty($authRecord['read_only']) && empty($authRecord['master'])) {
+if (!$identity['context']['canEditSite']) {
     respond(['error' => 'Forbidden'], 403);
 }
 
-// Site edits require either full admin or edit_site permission.
-$permissions = $authRecord['permissions'] ?? [];
-if (!is_array($permissions)) {
-    $permissions = [];
-}
-$permissions = array_values(array_intersect($permissions, $allowedPermissions));
-$isFullAdmin = !empty($authRecord['master']) || in_array('full_admin', $permissions, true);
-$canEditSite = $isFullAdmin || in_array('edit_site', $permissions, true);
-if (!$canEditSite) {
-    respond(['error' => 'Forbidden'], 403);
-}
+// Compat locals — preserved so the rest of save-config's action handlers
+// continue to read from familiar names.
+$authUser = $identity['authUser'];
+$authRecord = $identity['authRecord'];
+$permissions = $identity['context']['currentPermissions'];
+$isFullAdmin = $identity['context']['isFullAdmin'];
+$canEditSite = $identity['context']['canEditSite'];
 
 require_csrf_token();
 

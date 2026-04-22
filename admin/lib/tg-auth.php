@@ -318,6 +318,60 @@ function lawnding_tg_user_content_level(array $tgConfig, $userId, ?array $profil
     return $authorizedLevel;
 }
 
+// Return the union of admin permissions granted by the Telegram groups the
+// user is currently a member of (per the cached membership statuses). Intended
+// for consumers that have already called lawnding_tg_user_content_level() in
+// the same request — this function is a pure cache reader and does NOT trigger
+// API calls. If the cache is cold for this user, returns [].
+function lawnding_tg_user_permissions(array $tgConfig, $userId): array {
+    if ($userId === null || $userId === '') {
+        return [];
+    }
+    $cache = lawnding_tg_cache_load();
+    $cacheKey = (string) $userId;
+    if (!isset($cache['users'][$cacheKey]) || !is_array($cache['users'][$cacheKey])) {
+        return [];
+    }
+    $entry = $cache['users'][$cacheKey];
+    if (empty($entry['authorized'])) {
+        return [];
+    }
+    $statuses = isset($entry['statuses']) && is_array($entry['statuses']) ? $entry['statuses'] : [];
+    $allowedStatuses = is_array($tgConfig['allowed_statuses'] ?? null) ? $tgConfig['allowed_statuses'] : [];
+    $groupIds = is_array($tgConfig['group_ids'] ?? null) ? $tgConfig['group_ids'] : [];
+    $eligible = lawnding_tg_eligible_permissions();
+    $merged = [];
+    foreach ($groupIds as $groupEntry) {
+        if (!is_array($groupEntry)) {
+            continue;
+        }
+        $groupId = (string) ($groupEntry['id'] ?? '');
+        if ($groupId === '') {
+            continue;
+        }
+        $status = isset($statuses[$groupId]) ? (string) $statuses[$groupId] : '';
+        if ($status === '' || !in_array($status, $allowedStatuses, true)) {
+            continue;
+        }
+        $groupPerms = isset($groupEntry['permissions']) && is_array($groupEntry['permissions'])
+            ? $groupEntry['permissions']
+            : [];
+        foreach ($groupPerms as $perm) {
+            if (!is_string($perm)) {
+                continue;
+            }
+            $perm = trim($perm);
+            if ($perm === '' || !in_array($perm, $eligible, true)) {
+                continue;
+            }
+            if (!in_array($perm, $merged, true)) {
+                $merged[] = $perm;
+            }
+        }
+    }
+    return $merged;
+}
+
 function lawnding_tg_user_authorized(array $tgConfig, $userId): bool {
     return lawnding_tg_user_content_level($tgConfig, $userId) !== '';
 }

@@ -142,7 +142,27 @@ function lawnding_render_link_item($link): string {
         . '</li>';
 }
 
-function lawnding_auth_link_allowed($link, string $userContentLevel): bool {
+function lawnding_auth_access_flags($userAccess): array {
+    if (is_array($userAccess)) {
+        return [
+            'sfw' => !empty($userAccess['sfw']),
+            'nsfw' => !empty($userAccess['nsfw']),
+        ];
+    }
+    $level = is_string($userAccess) ? strtolower(trim($userAccess)) : '';
+    if ($level === 'nsfw') {
+        return ['sfw' => true, 'nsfw' => true];
+    }
+    if ($level === 'nsfw_only') {
+        return ['sfw' => false, 'nsfw' => true];
+    }
+    if ($level === 'sfw') {
+        return ['sfw' => true, 'nsfw' => false];
+    }
+    return ['sfw' => false, 'nsfw' => false];
+}
+
+function lawnding_auth_link_allowed($link, $userAccess): bool {
     if (!is_array($link)) {
         return false;
     }
@@ -159,10 +179,11 @@ function lawnding_auth_link_allowed($link, string $userContentLevel): bool {
     if ($linkContent !== 'nsfw') {
         $linkContent = 'sfw';
     }
-    return $userContentLevel === 'nsfw' || $linkContent === 'sfw';
+    $flags = lawnding_auth_access_flags($userAccess);
+    return $linkContent === 'nsfw' ? $flags['nsfw'] : $flags['sfw'];
 }
 
-function lawnding_filter_auth_links(array $links, string $userContentLevel): array {
+function lawnding_filter_auth_links(array $links, $userAccess): array {
     $filtered = [];
     $pendingSeparator = false;
     foreach ($links as $link) {
@@ -175,7 +196,7 @@ function lawnding_filter_auth_links(array $links, string $userContentLevel): arr
             }
             continue;
         }
-        if (!lawnding_auth_link_allowed($link, $userContentLevel)) {
+        if (!lawnding_auth_link_allowed($link, $userAccess)) {
             continue;
         }
         if ($pendingSeparator) {
@@ -223,18 +244,14 @@ $logoutEndpoint = function_exists('lawnding_asset_url')
 $tgAuthUrl = lawnding_public_absolute_url($authEndpoint . '?return=' . rawurlencode($returnPath));
 $tgLogoutUrl = $logoutEndpoint . '?return=' . rawurlencode($returnPath);
 $authLinksState = 'logged_out';
-$authLinksUserLevel = '';
+$authLinksUserAccess = ['sfw' => false, 'nsfw' => false];
 $markdownGateClearance = 'none';
 $tgUser = isset($_SESSION['tg_user']) && is_array($_SESSION['tg_user']) ? $_SESSION['tg_user'] : null;
 $tgUserId = $tgUser['id'] ?? ($_SESSION['tg_user_id'] ?? null);
-$viewerContentLevel = '';
+$viewerAccess = ['sfw' => false, 'nsfw' => false];
 if (!empty($tgUserId)) {
-    $viewerContentLevel = lawnding_tg_user_content_level($tgConfig, $tgUserId);
-    if ($viewerContentLevel === 'nsfw') {
-        $markdownGateClearance = 'nsfw';
-    } elseif ($viewerContentLevel === 'sfw') {
-        $markdownGateClearance = 'sfw';
-    }
+    $viewerAccess = lawnding_tg_user_access($tgConfig, $tgUserId);
+    $markdownGateClearance = lawnding_tg_access_clearance($viewerAccess);
 }
 if ($authLinksEnabled) {
     $authLinksJsonPath = lawnding_public_data_path('authorizedLinks.json');
@@ -247,14 +264,16 @@ if ($authLinksEnabled) {
 }
 if ($authLinksEnabled) {
     if (!empty($tgUserId)) {
-        $authLinksUserLevel = $viewerContentLevel;
-        $authLinksState = $authLinksUserLevel !== '' ? 'authorized' : 'unauthorized';
+        $authLinksUserAccess = $viewerAccess;
+        $authLinksState = !empty($authLinksUserAccess['sfw']) || !empty($authLinksUserAccess['nsfw'])
+            ? 'authorized'
+            : 'unauthorized';
     } else {
         $authLinksState = 'logged_out';
     }
 }
 if ($authLinksEnabled && $authLinksState === 'authorized') {
-    $authLinksData = lawnding_filter_auth_links($authLinksData, $authLinksUserLevel);
+    $authLinksData = lawnding_filter_auth_links($authLinksData, $authLinksUserAccess);
 }
 
 // Load header configuration with defaults if missing.

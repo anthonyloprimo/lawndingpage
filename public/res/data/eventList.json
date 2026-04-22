@@ -1,16 +1,18 @@
 {
     "showPast": true,
+    "showCalendar": true,
+    "calendarDefault": true,
     "events": [
         {
-            "id": "2026-awards-ceremony-2026-04-15-19-00",
-            "name": "2026 Awards Ceremony",
-            "startDate": "2026-04-15",
+            "id": "awards-ceremony-2026-05-15-19-00",
+            "name": "Awards Ceremony",
+            "startDate": "2026-05-15",
             "startTime": "19:00",
-            "endDate": "2026-04-15",
+            "endDate": "2026-05-15",
             "endTime": "22:00",
             "timeZone": "America/New_York",
             "address": "123 Lawn Ding Page Road, Anytown, USA 12345",
-            "description": "Join us for an amazing night of food, drinks, and laughs as we announce the winners of the 2026 sales contest!"
+            "description": "Join us for an amazing night of food, drinks, and laughs as we announce the winners of the annual sales contest!"
         },
         {
             "id": "awards-ceremony-dress-rehearsal-2026-01-07-19-00",

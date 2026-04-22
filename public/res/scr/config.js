@@ -48,6 +48,35 @@ $(document).ready(function() {
         return order.map((id) => entriesById.get(id)).filter(Boolean);
     }
 
+    function parseTgUserEntries(rawValue) {
+        const lines = String(rawValue || '')
+            .split('\n')
+            .map((value) => value.trim())
+            .filter((value) => value.length > 0);
+        const order = [];
+        const entriesById = new Map();
+        lines.forEach((line) => {
+            const parts = line.split(/\s+/).filter((value) => value.length > 0);
+            if (!parts.length) {
+                return;
+            }
+            const id = parts[0];
+            if (!/^-?\d+$/.test(id)) {
+                return;
+            }
+            const content = parts[1] && /^nsfw$/i.test(parts[1]) ? 'NSFW' : 'SFW';
+            if (!entriesById.has(id)) {
+                order.push(id);
+                entriesById.set(id, { id, content });
+                return;
+            }
+            if (content === 'NSFW') {
+                entriesById.set(id, { id, content: 'NSFW' });
+            }
+        });
+        return order.map((id) => entriesById.get(id)).filter(Boolean);
+    }
+
     function setModalBackgroundState(isOpen) {
         modalBackgroundSelectors.forEach((selector) => {
             document.querySelectorAll(selector).forEach((node) => {
@@ -1190,12 +1219,20 @@ $(document).ready(function() {
         const ttl = Number.isFinite(ttlValue) && ttlValue > 0 ? ttlValue : 30;
         const message = ($('#tgBotUnauthorizedMessage').val() || '').trim();
         const groupRaw = $('#tgBotGroupIds').val() || '';
+        const whitelistRaw = $('#tgBotWhitelistUserIds').val() || '';
+        const blacklistRaw = $('#tgBotBlacklistUserIds').val() || '';
         const entries = parseTgGroupEntries(groupRaw);
+        const whitelistEntries = parseTgUserEntries(whitelistRaw);
+        const blacklistEntries = parseTgUserEntries(blacklistRaw);
         entries.sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }));
+        whitelistEntries.sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }));
+        blacklistEntries.sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }));
         return {
             bot_username: username,
             bot_token: token,
             group_ids: entries,
+            whitelist_user_ids: whitelistEntries,
+            blacklist_user_ids: blacklistEntries,
             membership_cache_ttl_minutes: ttl,
             unauthorized_message: message
         };
@@ -3084,6 +3121,8 @@ $(document).ready(function() {
             const $list = $pane.find('.eventList');
             const $payload = $pane.find('.eventListPayload');
             const $toggle = $pane.find('.eventShowPast');
+            const $showCalendar = $pane.find('.eventShowCalendar');
+            const $calendarDefault = $pane.find('.eventCalendarDefault');
 
             function getBrowserTimeZone() {
                 if (typeof Intl !== 'undefined' && Intl.DateTimeFormat) {
@@ -3189,6 +3228,8 @@ $(document).ready(function() {
                 const events = collectEvents();
                 const payload = {
                     showPast: $toggle.is(':checked'),
+                    showCalendar: $showCalendar.is(':checked'),
+                    calendarDefault: $calendarDefault.is(':checked'),
                     events
                 };
                 $payload.val(JSON.stringify(payload));
@@ -3317,7 +3358,7 @@ $(document).ready(function() {
                 });
             });
 
-            $pane.on('input change', '.eventCard input, .eventCard textarea, .eventShowPast', function() {
+            $pane.on('input change', '.eventCard input, .eventCard textarea, .eventShowPast, .eventShowCalendar, .eventCalendarDefault', function() {
                 refreshValidation();
             });
 

@@ -736,6 +736,8 @@ function normalize_tg_bot_payload($payload): array {
         'bot_username' => '',
         'bot_token' => '',
         'group_ids' => [],
+        'whitelist_user_ids' => [],
+        'blacklist_user_ids' => [],
         'membership_cache_ttl_minutes' => 30,
         'unauthorized_message' => 'Unable to display member links.  Join the telegram group with the link above, or contact an admin for assistance.',
     ];
@@ -749,6 +751,45 @@ function normalize_tg_bot_payload($payload): array {
     $ttl = $ttl > 0 ? $ttl : 30;
     $message = isset($payload['unauthorized_message']) ? trim((string) $payload['unauthorized_message']) : '';
     $message = $message !== '' ? $message : $defaults['unauthorized_message'];
+    $normalizeUserIds = function ($values): array {
+        $userIds = [];
+        $entriesById = [];
+        $userOrder = [];
+        if (!is_array($values)) {
+            return [];
+        }
+        foreach ($values as $value) {
+            $userId = '';
+            $content = 'SFW';
+            if (is_string($value)) {
+                $userId = trim($value);
+            } elseif (is_array($value)) {
+                $userId = isset($value['id']) ? trim((string) $value['id']) : '';
+                $rawContent = isset($value['content']) ? strtoupper(trim((string) $value['content'])) : 'SFW';
+                $content = $rawContent === 'NSFW' ? 'NSFW' : 'SFW';
+            }
+            if ($userId === '' || !preg_match('/^-?\d+$/', $userId)) {
+                continue;
+            }
+            if (!isset($entriesById[$userId])) {
+                $userOrder[] = $userId;
+                $entriesById[$userId] = ['id' => $userId, 'content' => $content];
+                continue;
+            }
+            if ($content === 'NSFW') {
+                $entriesById[$userId]['content'] = 'NSFW';
+            }
+        }
+        foreach ($userOrder as $userId) {
+            if (isset($entriesById[$userId])) {
+                $userIds[] = $entriesById[$userId];
+            }
+        }
+        usort($userIds, function ($a, $b) {
+            return strnatcmp((string) ($a['id'] ?? ''), (string) ($b['id'] ?? ''));
+        });
+        return $userIds;
+    };
     $groupIds = [];
     $entriesById = [];
     $groupOrder = [];
@@ -788,6 +829,8 @@ function normalize_tg_bot_payload($payload): array {
         'bot_username' => $username,
         'bot_token' => $token,
         'group_ids' => $groupIds,
+        'whitelist_user_ids' => $normalizeUserIds($payload['whitelist_user_ids'] ?? []),
+        'blacklist_user_ids' => $normalizeUserIds($payload['blacklist_user_ids'] ?? []),
         'membership_cache_ttl_minutes' => $ttl,
         'unauthorized_message' => $message,
     ];
@@ -1448,6 +1491,9 @@ if (is_array($panePayload)) {
                     ];
                 }
                 if ($moduleId === 'eventList' && $key === 'events') {
+                    $decoded['showPast'] = !empty($decoded['showPast']);
+                    $decoded['showCalendar'] = !empty($decoded['showCalendar']);
+                    $decoded['calendarDefault'] = !array_key_exists('calendarDefault', $decoded) || !empty($decoded['calendarDefault']);
                     $events = $decoded['events'] ?? [];
                     if (!is_array($events)) {
                         respond(['error' => 'Invalid events payload for pane ' . $paneId . '.'], 400);

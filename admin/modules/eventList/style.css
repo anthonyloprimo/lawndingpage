@@ -3,6 +3,23 @@
     flex-direction: column;
     height: 100%;
 }
+.eventListPaneHeader {
+    justify-content: space-between;
+    gap: 14px;
+}
+.eventListPaneIdentity {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+}
+.eventListHeaderControls {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 6px;
+    font-size: 12px;
+}
 .eventListScroll {
     flex: 1 1 auto;
     overflow: auto;
@@ -342,6 +359,229 @@
     flex-direction: column;
     gap: 14px;
 }
+.pane[data-pane-type="eventList"].eventListCalendarEnabled {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+.pane[data-pane-type="eventList"].eventListCalendarEnabled .eventListPublic {
+    flex: 1 1 auto;
+    min-height: 0;
+}
+.eventViewTabs {
+    display: flex;
+    align-items: flex-end;
+    gap: 6px;
+    margin-bottom: -14px;
+    position: relative;
+    z-index: 2;
+}
+.eventViewTab {
+    border: 1px solid #FFFFFF33;
+    border-bottom-color: #FFFFFF22;
+    border-radius: 10px 10px 0 0;
+    background: linear-gradient(180deg, #FFFFFF26, #6faed022 52%, #00000033);
+    color: inherit;
+    padding: 8px 16px;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    cursor: pointer;
+    text-shadow: 0 1px 1px #00000099;
+    box-shadow: inset 0 1px 0 #FFFFFF55, 0 3px 10px #00000022;
+}
+.eventViewTab.isActive {
+    background: linear-gradient(180deg, #FFFFFF44, #8cc7e844 52%, #FFFFFF12);
+    border-color: #FFFFFF66;
+}
+.eventViewShell.hasCalendarTabs {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+    width: 100%;
+    box-sizing: border-box;
+    border: 1px solid #FFFFFF26;
+    border-radius: 0 12px 12px 12px;
+    padding: 14px;
+    background: linear-gradient(180deg, #FFFFFF08, #00000014);
+    box-shadow: inset 0 1px 0 #FFFFFF22;
+    overflow: hidden;
+}
+.eventEventsView,
+.eventCalendarView {
+    min-height: 0;
+    overflow: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+.eventCalendarTable {
+    width: 100%;
+    max-width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+    border: 1px solid #FFFFFF26;
+    border-radius: 12px;
+    overflow: hidden;
+    background:
+        radial-gradient(circle at 20% 0%, #FFFFFF22, transparent 36%),
+        linear-gradient(180deg, #98d2ee22, #00000022);
+    box-shadow: inset 0 1px 0 #FFFFFF44, 0 8px 22px #00000022;
+}
+.eventCalendarTable th,
+.eventCalendarTable td {
+    border: 1px solid #FFFFFF22;
+}
+.eventCalendarNavRow th {
+    height: 46px;
+    padding: 7px;
+    background: linear-gradient(180deg, #FFFFFF26, #70acd62a 55%, #00000022);
+}
+.eventCalendarMonthLabel {
+    position: relative;
+}
+.eventCalendarMonthText {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 32px;
+    font-size: 17px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    text-shadow: 0 1px 2px #000000AA;
+}
+.eventCalendarTodayButton {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    min-height: 28px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    border: 1px solid #FFFFFF44;
+    background: linear-gradient(180deg, #FFFFFF33, #00000033);
+    color: inherit;
+    font: inherit;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+    box-shadow: inset 0 1px 0 #FFFFFF55, 0 2px 7px #00000033;
+}
+.eventCalendarTodayButton:hover,
+.eventCalendarTodayButton:focus-visible {
+    outline: none;
+    background: linear-gradient(180deg, #DDF6FF55, #7ec7ed44);
+    border-color: #FFFFFF88;
+}
+.eventCalendarNavButton {
+    width: 100%;
+    min-height: 32px;
+    border-radius: 8px;
+    border: 1px solid #FFFFFF44;
+    background: linear-gradient(180deg, #FFFFFF33, #00000033);
+    color: inherit;
+    cursor: pointer;
+    box-shadow: inset 0 1px 0 #FFFFFF55, 0 2px 7px #00000033;
+}
+.eventCalendarNavButton:hover,
+.eventCalendarNavButton:focus-visible {
+    outline: none;
+    background: linear-gradient(180deg, #DDF6FF55, #7ec7ed44);
+    border-color: #FFFFFF88;
+}
+.eventCalendarDayLabels th {
+    height: 26px;
+    padding: 5px 3px;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    color: #FFFFFFCC;
+    background: #00000024;
+}
+.eventCalendarCell {
+    position: relative;
+    height: auto;
+    vertical-align: top;
+    background: linear-gradient(180deg, #FFFFFF10, #00000018);
+}
+.eventCalendarCell.isToday {
+    background: linear-gradient(180deg, #CFEFFF55, #7FC6E933);
+}
+.eventCalendarDayButton {
+    display: block;
+    width: 100%;
+    height: auto;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+    text-align: left;
+}
+.eventCalendarDayButton:hover,
+.eventCalendarDayButton:focus-visible {
+    outline: none;
+    background: #FFFFFF12;
+}
+.eventCalendarCellInner {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 4 / 3;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: space-between;
+    padding: 7px;
+    box-sizing: border-box;
+}
+.eventCalendarCell.isAdjacentMonth .eventCalendarCellInner {
+    opacity: 0.5;
+}
+.eventCalendarDateNumber {
+    font-weight: 700;
+    text-shadow: 0 1px 2px #000000AA;
+}
+.eventCalendarEventBadge {
+    align-self: flex-end;
+    min-width: 30px;
+    height: 30px;
+    padding: 0 7px;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid #FDF3A8;
+    outline: 1px solid #5F4B00;
+    background: linear-gradient(180deg, #FFFF76 0%, #FFFF76 50%, #BFBF36 51%, #BFBF36 100%);
+    color: #272000;
+    font-size: 12px;
+    font-weight: 800;
+    box-shadow: inset 0 1px 0 #FFFFFFAA, 0 2px 7px #00000066;
+}
+.eventCalendarDaySection {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.eventCalendarDaySection h4 {
+    margin: 0;
+    font-size: 13px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    opacity: 0.88;
+}
+.eventCalendarDayModalBody {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    max-height: min(70vh, 620px);
+    overflow: auto;
+    padding-right: 4px;
+}
 .eventSection {
     border-top: 1px solid #FFFFFF22;
     padding-top: 12px;
@@ -435,6 +675,11 @@
     gap: 4px;
 }
 
+.eventCalendarDropdown.eventCalendarDropdownFixed {
+    position: fixed;
+    z-index: 10030;
+}
+
 .eventModalActions .eventCalendarDropdown {
     right: 0;
     left: auto;
@@ -472,6 +717,36 @@
     align-items: center;
     justify-content: center;
     z-index: 9999;
+}
+
+#eventModalOverlay {
+    z-index: 10010;
+}
+
+#eventCalendarDayModalOverlay {
+    z-index: 10000;
+}
+
+.eventCalendarToast {
+    position: fixed;
+    left: 50%;
+    top: 50%;
+    z-index: 10020;
+    transform: translate(-50%, -50%);
+    max-width: min(420px, calc(100vw - 32px));
+    border-radius: 12px;
+    border: 1px solid #FFFFFF22;
+    background: #0f0f0f;
+    padding: 18px 22px;
+    color: inherit;
+    box-shadow: inset 0 1px 0 #FFFFFF22, 0 14px 32px #00000066;
+    opacity: 1;
+    transition: opacity 450ms ease, transform 450ms ease;
+}
+
+.eventCalendarToast.isFading {
+    opacity: 0;
+    transform: translate(-50%, calc(-50% - 8px));
 }
 
 .eventModal {

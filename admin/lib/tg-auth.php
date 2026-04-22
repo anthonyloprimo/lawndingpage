@@ -7,6 +7,8 @@ function lawnding_tg_config_defaults(): array {
         'bot_username' => '',
         'bot_token' => '',
         'group_ids' => [],
+        'whitelist_user_ids' => [],
+        'blacklist_user_ids' => [],
         'membership_cache_ttl_minutes' => 30,
         'unauthorized_message' => 'Unable to display member links.  Join the telegram group with the link above, or contact an admin for assistance.',
         'allowed_statuses' => ['member', 'administrator', 'creator'],
@@ -40,6 +42,44 @@ function lawnding_tg_content_rank(string $value): int {
 
 function lawnding_tg_higher_content_level(string $left, string $right): string {
     return lawnding_tg_content_rank($right) > lawnding_tg_content_rank($left) ? $right : $left;
+}
+
+function lawnding_tg_normalize_user_scope($value, string $default = 'sfw'): string {
+    return lawnding_tg_normalize_content_level($value, $default);
+}
+
+function lawnding_tg_normalize_user_entries($values): array {
+    if (!is_array($values)) {
+        return [];
+    }
+    $order = [];
+    $entriesById = [];
+    foreach ($values as $value) {
+        $userId = '';
+        $content = 'sfw';
+        if (is_string($value) && trim($value) !== '') {
+            $userId = trim($value);
+        } elseif (is_array($value)) {
+            $userId = isset($value['id']) && is_scalar($value['id']) ? trim((string) $value['id']) : '';
+            $content = lawnding_tg_normalize_user_scope($value['content'] ?? 'sfw');
+        }
+        if ($userId === '' || !preg_match('/^-?\d+$/', $userId)) {
+            continue;
+        }
+        if (!isset($entriesById[$userId])) {
+            $order[] = $userId;
+            $entriesById[$userId] = ['id' => $userId, 'content' => $content];
+            continue;
+        }
+        $entriesById[$userId]['content'] = lawnding_tg_higher_content_level($entriesById[$userId]['content'], $content);
+    }
+    $entries = [];
+    foreach ($order as $userId) {
+        if (isset($entriesById[$userId])) {
+            $entries[] = $entriesById[$userId];
+        }
+    }
+    return $entries;
 }
 
 function lawnding_tg_normalize_group_entries($values): array {
@@ -92,6 +132,8 @@ function lawnding_load_tg_config(): array {
     $merged = array_merge($defaults, $decoded);
 
     $merged['group_ids'] = lawnding_tg_normalize_group_entries($merged['group_ids'] ?? []);
+    $merged['whitelist_user_ids'] = lawnding_tg_normalize_user_entries($merged['whitelist_user_ids'] ?? []);
+    $merged['blacklist_user_ids'] = lawnding_tg_normalize_user_entries($merged['blacklist_user_ids'] ?? []);
 
     $statuses = [];
     if (is_array($merged['allowed_statuses'] ?? null)) {
@@ -146,6 +188,8 @@ function lawnding_tg_cache_path(): string {
 
 function lawnding_tg_cache_fingerprint(array $tgConfig): string {
     $groupIds = [];
+    $whitelistUserIds = [];
+    $blacklistUserIds = [];
     if (is_array($tgConfig['group_ids'] ?? null)) {
         foreach ($tgConfig['group_ids'] as $entry) {
             if (!is_array($entry) || empty($entry['id'])) {
@@ -154,12 +198,32 @@ function lawnding_tg_cache_fingerprint(array $tgConfig): string {
             $groupIds[] = (string) $entry['id'] . ':' . strtoupper(lawnding_tg_normalize_content_level($entry['content'] ?? 'sfw'));
         }
     }
+    if (is_array($tgConfig['whitelist_user_ids'] ?? null)) {
+        foreach ($tgConfig['whitelist_user_ids'] as $entry) {
+            if (!is_array($entry) || empty($entry['id'])) {
+                continue;
+            }
+            $whitelistUserIds[] = (string) $entry['id'] . ':' . strtoupper(lawnding_tg_normalize_user_scope($entry['content'] ?? 'sfw'));
+        }
+    }
+    if (is_array($tgConfig['blacklist_user_ids'] ?? null)) {
+        foreach ($tgConfig['blacklist_user_ids'] as $entry) {
+            if (!is_array($entry) || empty($entry['id'])) {
+                continue;
+            }
+            $blacklistUserIds[] = (string) $entry['id'] . ':' . strtoupper(lawnding_tg_normalize_user_scope($entry['content'] ?? 'sfw'));
+        }
+    }
     $allowedStatuses = is_array($tgConfig['allowed_statuses'] ?? null) ? array_values($tgConfig['allowed_statuses']) : [];
     sort($groupIds, SORT_NATURAL);
+    sort($whitelistUserIds, SORT_NATURAL);
+    sort($blacklistUserIds, SORT_NATURAL);
     sort($allowedStatuses, SORT_NATURAL);
     return hash('sha256', json_encode([
         'bot_token' => (string) ($tgConfig['bot_token'] ?? ''),
         'group_ids' => $groupIds,
+        'whitelist_user_ids' => $whitelistUserIds,
+        'blacklist_user_ids' => $blacklistUserIds,
         'allowed_statuses' => $allowedStatuses,
     ]));
 }
@@ -198,12 +262,67 @@ function lawnding_tg_cache_prune(array &$cache, int $now): void {
     }
 }
 
-function lawnding_tg_user_content_level(array $tgConfig, $userId): string {
+function lawnding_tg_access_from_clearance(string $clearance): array {
+    $normalized = strtolower(trim($clearance));
+    if ($normalized === 'nsfw') {
+        return ['sfw' => true, 'nsfw' => true];
+    }
+    if ($normalized === 'nsfw_only') {
+        return ['sfw' => false, 'nsfw' => true];
+    }
+    if ($normalized === 'sfw') {
+        return ['sfw' => true, 'nsfw' => false];
+    }
+    return ['sfw' => false, 'nsfw' => false];
+}
+
+function lawnding_tg_access_clearance(array $access): string {
+    $allowSfw = !empty($access['sfw']);
+    $allowNsfw = !empty($access['nsfw']);
+    if ($allowSfw && $allowNsfw) {
+        return 'nsfw';
+    }
+    if ($allowNsfw) {
+        return 'nsfw_only';
+    }
+    if ($allowSfw) {
+        return 'sfw';
+    }
+    return 'none';
+}
+
+function lawnding_tg_user_entry_by_id(array $entries, string $userId): ?array {
+    foreach ($entries as $entry) {
+        if (is_array($entry) && isset($entry['id']) && (string) $entry['id'] === $userId) {
+            return $entry;
+        }
+    }
+    return null;
+}
+
+function lawnding_tg_apply_user_override(array &$access, ?array $entry, bool $isBlacklist): void {
+    if (!$entry) {
+        return;
+    }
+    $scope = lawnding_tg_normalize_user_scope($entry['content'] ?? 'sfw');
+    if ($scope === 'nsfw') {
+        $access['nsfw'] = !$isBlacklist;
+        return;
+    }
+    $access['sfw'] = !$isBlacklist;
+}
+
+function lawnding_tg_user_access(array $tgConfig, $userId): array {
     $token = (string) ($tgConfig['bot_token'] ?? '');
     $groupIds = is_array($tgConfig['group_ids'] ?? null) ? $tgConfig['group_ids'] : [];
+    $whitelistUserIds = is_array($tgConfig['whitelist_user_ids'] ?? null) ? $tgConfig['whitelist_user_ids'] : [];
+    $blacklistUserIds = is_array($tgConfig['blacklist_user_ids'] ?? null) ? $tgConfig['blacklist_user_ids'] : [];
     $allowedStatuses = is_array($tgConfig['allowed_statuses'] ?? null) ? $tgConfig['allowed_statuses'] : [];
-    if ($token === '' || empty($groupIds) || $userId === null || $userId === '') {
-        return '';
+    if ($userId === null || $userId === '') {
+        return ['sfw' => false, 'nsfw' => false];
+    }
+    if ($token === '' && empty($whitelistUserIds) && empty($blacklistUserIds)) {
+        return ['sfw' => false, 'nsfw' => false];
     }
     $ttlMinutes = isset($tgConfig['membership_cache_ttl_minutes']) ? (int) $tgConfig['membership_cache_ttl_minutes'] : 30;
     $ttlMinutes = $ttlMinutes > 0 ? $ttlMinutes : 30;
@@ -224,40 +343,60 @@ function lawnding_tg_user_content_level(array $tgConfig, $userId): string {
         $expiresAt = isset($cached['expires_at']) ? (int) $cached['expires_at'] : 0;
         $cachedFingerprint = isset($cached['fingerprint']) ? (string) $cached['fingerprint'] : '';
         if ($expiresAt >= $now && $cachedFingerprint === $fingerprint) {
-            if (isset($cached['content_level']) && is_string($cached['content_level'])) {
-                return lawnding_tg_normalize_content_level($cached['content_level'], '');
+            if (isset($cached['access']) && is_array($cached['access'])) {
+                return [
+                    'sfw' => !empty($cached['access']['sfw']),
+                    'nsfw' => !empty($cached['access']['nsfw']),
+                ];
             }
-            return !empty($cached['authorized']) ? 'sfw' : '';
+            if (isset($cached['content_level']) && is_string($cached['content_level'])) {
+                return lawnding_tg_access_from_clearance(lawnding_tg_normalize_content_level($cached['content_level'], ''));
+            }
+            return !empty($cached['authorized']) ? ['sfw' => true, 'nsfw' => false] : ['sfw' => false, 'nsfw' => false];
         }
     }
 
-    $bot = new TgBotClient($token);
-    $authorizedLevel = '';
+    $access = ['sfw' => false, 'nsfw' => false];
     $statuses = [];
-    foreach ($groupIds as $groupEntry) {
-        if (!is_array($groupEntry)) {
-            continue;
-        }
-        $groupId = isset($groupEntry['id']) ? (string) $groupEntry['id'] : '';
-        $groupContent = lawnding_tg_normalize_content_level($groupEntry['content'] ?? 'sfw');
-        if ($groupId === '') {
-            continue;
-        }
-        $resp = $bot->getChatMember($groupId, $userId);
-        if (!is_array($resp) || empty($resp['ok']) || !is_array($resp['result'] ?? null)) {
-            $statuses[(string) $groupId] = 'error';
-            continue;
-        }
-        $status = isset($resp['result']['status']) ? (string) $resp['result']['status'] : '';
-        $statuses[(string) $groupId] = $status !== '' ? $status : 'unknown';
-        if ($status !== '' && in_array($status, $allowedStatuses, true)) {
-            $authorizedLevel = lawnding_tg_higher_content_level($authorizedLevel, $groupContent);
+    if ($token !== '' && !empty($groupIds)) {
+        $bot = new TgBotClient($token);
+        foreach ($groupIds as $groupEntry) {
+            if (!is_array($groupEntry)) {
+                continue;
+            }
+            $groupId = isset($groupEntry['id']) ? (string) $groupEntry['id'] : '';
+            $groupContent = lawnding_tg_normalize_content_level($groupEntry['content'] ?? 'sfw');
+            if ($groupId === '') {
+                continue;
+            }
+            $resp = $bot->getChatMember($groupId, $userId);
+            if (!is_array($resp) || empty($resp['ok']) || !is_array($resp['result'] ?? null)) {
+                $statuses[(string) $groupId] = 'error';
+                continue;
+            }
+            $status = isset($resp['result']['status']) ? (string) $resp['result']['status'] : '';
+            $statuses[(string) $groupId] = $status !== '' ? $status : 'unknown';
+            if ($status !== '' && in_array($status, $allowedStatuses, true)) {
+                $access['sfw'] = true;
+                if ($groupContent === 'nsfw') {
+                    $access['nsfw'] = true;
+                }
+            }
         }
     }
+
+    $cacheKeyString = (string) $cacheKey;
+    lawnding_tg_apply_user_override($access, lawnding_tg_user_entry_by_id($whitelistUserIds, $cacheKeyString), false);
+    lawnding_tg_apply_user_override($access, lawnding_tg_user_entry_by_id($blacklistUserIds, $cacheKeyString), true);
+
+    $authorizedLevel = $access['nsfw']
+        ? 'nsfw'
+        : ($access['sfw'] ? 'sfw' : '');
 
     $cache['users'][$cacheKey] = [
-        'authorized' => $authorizedLevel !== '',
+        'authorized' => $access['sfw'] || $access['nsfw'],
         'content_level' => $authorizedLevel,
+        'access' => $access,
         'checked_at' => $now,
         'expires_at' => $now + $ttlSeconds,
         'fingerprint' => $fingerprint,
@@ -265,11 +404,16 @@ function lawnding_tg_user_content_level(array $tgConfig, $userId): string {
     ];
     lawnding_tg_cache_write($cache);
 
-    return $authorizedLevel;
+    return $access;
+}
+
+function lawnding_tg_user_content_level(array $tgConfig, $userId): string {
+    return lawnding_tg_access_clearance(lawnding_tg_user_access($tgConfig, $userId));
 }
 
 function lawnding_tg_user_authorized(array $tgConfig, $userId): bool {
-    return lawnding_tg_user_content_level($tgConfig, $userId) !== '';
+    $access = lawnding_tg_user_access($tgConfig, $userId);
+    return !empty($access['sfw']) || !empty($access['nsfw']);
 }
 
 function lawnding_tg_relative_return_path($value): string {

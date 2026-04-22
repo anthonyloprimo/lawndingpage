@@ -476,10 +476,13 @@ function renderEventLists() {
             parsed = {};
         }
         const showPast = !!parsed.showPast;
+        const showCalendar = !!parsed.showCalendar;
+        const calendarDefault = !Object.prototype.hasOwnProperty.call(parsed, 'calendarDefault') || !!parsed.calendarDefault;
         const events = Array.isArray(parsed.events) ? parsed.events : [];
         const now = new Date();
         const nowTime = now.getTime();
         const next24h = nowTime + 24 * 60 * 60 * 1000;
+        let calendarMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
         function parseEventDate(event) {
             const date = event.startDate || event.date || '';
@@ -506,6 +509,39 @@ function renderEventLists() {
                 }
             }
             return new Date(startDate.getTime() + 60 * 60 * 1000);
+        }
+
+        function startOfDay(dateObj) {
+            return new Date(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate());
+        }
+
+        function addDays(dateObj, days) {
+            return new Date(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate() + days);
+        }
+
+        function dateKey(dateObj) {
+            return dateObj.getFullYear() + '-' +
+                padDatePart(dateObj.getMonth() + 1) + '-' +
+                padDatePart(dateObj.getDate());
+        }
+
+        function formatCalendarDayTitle(dateObj) {
+            return dateObj.toLocaleDateString(undefined, {
+                weekday: 'long',
+                month: 'long',
+                day: 'numeric',
+                year: 'numeric'
+            });
+        }
+
+        function eventOverlapsDay(event, dayStart) {
+            const start = parseEventDate(event);
+            if (!start) {
+                return false;
+            }
+            const end = eventEnd(event) || start;
+            const dayEnd = addDays(dayStart, 1);
+            return start.getTime() < dayEnd.getTime() && end.getTime() > dayStart.getTime();
         }
 
         function formatDateTime(dateObj) {
@@ -835,6 +871,8 @@ function renderEventLists() {
         $pastBody.empty();
 
         const paneId = $pane.data('pane-id') || $container.attr('id') || '';
+        const allCurrentEvents = happening.concat(upcoming);
+        const calendarEvents = showPast ? happening.concat(upcoming, past) : allCurrentEvents;
 
         if (happening.length) {
             happening.forEach((event) => $happening.append(renderEventItem(event, true, paneId)));
@@ -861,6 +899,91 @@ function renderEventLists() {
             $pane.find('.eventSplit').removeClass('eventSplitSingle');
         }
 
+        function setEventView(view) {
+            const nextView = showCalendar && view === 'calendar' ? 'calendar' : 'events';
+            $pane.find('.eventViewTab').each(function() {
+                const isActive = ($(this).data('event-view') || '') === nextView;
+                $(this).toggleClass('isActive', isActive).attr('aria-selected', isActive ? 'true' : 'false');
+            });
+            $pane.find('[data-event-view-panel]').each(function() {
+                const isActive = ($(this).data('event-view-panel') || '') === nextView;
+                $(this).toggleClass('hidden', !isActive);
+            });
+        }
+
+        function getDayEvents(dayStart) {
+            return calendarEvents
+                .filter((event) => eventOverlapsDay(event, dayStart))
+                .sort((a, b) => {
+                    const aStart = parseEventDate(a);
+                    const bStart = parseEventDate(b);
+                    return (aStart ? aStart.getTime() : 0) - (bStart ? bStart.getTime() : 0);
+                });
+        }
+
+        function eventCanBeSaved(event) {
+            const end = eventEnd(event);
+            return end ? end.getTime() >= nowTime : false;
+        }
+
+        function renderCalendar() {
+            if (!showCalendar) {
+                return;
+            }
+            const $monthLabel = $pane.find('.eventCalendarMonthText');
+            const $todayButton = $pane.find('.eventCalendarTodayButton');
+            const $body = $pane.find('.eventCalendarBody');
+            if (!$monthLabel.length || !$body.length) {
+                return;
+            }
+
+            $monthLabel.text(calendarMonth.toLocaleDateString(undefined, { month: 'long', year: 'numeric' }));
+            const isCurrentMonth = calendarMonth.getFullYear() === now.getFullYear() && calendarMonth.getMonth() === now.getMonth();
+            $todayButton.toggleClass('hidden', isCurrentMonth);
+            $body.empty();
+
+            const firstOfMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1);
+            const gridStart = addDays(firstOfMonth, -firstOfMonth.getDay());
+            const todayKey = dateKey(now);
+            for (let week = 0; week < 6; week++) {
+                const $row = $('<tr></tr>');
+                for (let day = 0; day < 7; day++) {
+                    const cellDate = addDays(gridStart, week * 7 + day);
+                    const cellDayStart = startOfDay(cellDate);
+                    const key = dateKey(cellDayStart);
+                    const dayEvents = getDayEvents(cellDayStart);
+                    const inCurrentMonth = cellDate.getMonth() === calendarMonth.getMonth();
+                    const isToday = key === todayKey;
+                    const count = dayEvents.length;
+                    const countLabel = count > 99 ? '99+' : String(count);
+                    const $cell = $('<td></td>')
+                        .addClass('eventCalendarCell')
+                        .toggleClass('isAdjacentMonth', !inCurrentMonth)
+                        .toggleClass('isToday', isToday)
+                        .toggleClass('hasEvents', count > 0)
+                        .attr('data-date', key);
+                    const $button = $('<button type="button" class="eventCalendarDayButton"></button>')
+                        .attr('aria-label', `${formatCalendarDayTitle(cellDayStart)}${count ? `, ${count} event${count === 1 ? '' : 's'}` : ''}`);
+                    const $inner = $('<span class="eventCalendarCellInner"></span>');
+                    $inner.append($('<span class="eventCalendarDateNumber"></span>').text(cellDate.getDate()));
+                    if (count > 0) {
+                        $inner.append($('<span class="eventCalendarEventBadge"></span>').text(countLabel));
+                    }
+                    $button.append($inner);
+                    $cell.append($button);
+                    $row.append($cell);
+                }
+                $body.append($row);
+            }
+        }
+
+        if (showCalendar) {
+            renderCalendar();
+            setEventView(calendarDefault ? 'calendar' : 'events');
+        } else {
+            setEventView('events');
+        }
+
         // Wire modal open/close for event details.
         const $overlay = $('#eventModalOverlay');
         const $title = $('#eventModalTitle');
@@ -871,11 +994,44 @@ function renderEventLists() {
         const $calendarToggle = $('#eventModalCalendarToggle');
         const $calendarDropdown = $('#eventModalCalendarDropdown');
         const $close = $('#eventModalClose');
+        const $dayOverlay = $('#eventCalendarDayModalOverlay');
+        const $dayTitle = $('#eventCalendarDayModalTitle');
+        const $dayBody = $('#eventCalendarDayModalBody');
+        const $dayClose = $('#eventCalendarDayModalClose');
+        const $calendarToast = $('#eventCalendarToast');
+        let calendarToastTimer = null;
 
         function closeCalendarMenus() {
             $('.eventCalendarMenu').removeClass('isOpen');
-            $('.eventCalendarDropdown').addClass('hidden');
+            $('.eventCalendarDropdown')
+                .addClass('hidden')
+                .removeClass('eventCalendarDropdownFixed')
+                .removeAttr('style');
             $('.eventCalendarToggle').attr('aria-expanded', 'false');
+        }
+
+        function positionFixedCalendarDropdown($menu) {
+            const $toggle = $menu.find('.eventCalendarToggle').first();
+            const $dropdown = $menu.find('.eventCalendarDropdown').first();
+            const toggleEl = $toggle.get(0);
+            if (!toggleEl || !$dropdown.length) {
+                return;
+            }
+            const rect = toggleEl.getBoundingClientRect();
+            const viewportPadding = 12;
+            const dropdownWidth = Math.min(260, Math.max(240, window.innerWidth - viewportPadding * 2));
+            const left = Math.min(
+                Math.max(viewportPadding, rect.left),
+                window.innerWidth - dropdownWidth - viewportPadding
+            );
+            $dropdown
+                .addClass('eventCalendarDropdownFixed')
+                .css({
+                    top: `${rect.bottom + 6}px`,
+                    left: `${left}px`,
+                    width: `${dropdownWidth}px`,
+                    minWidth: `${dropdownWidth}px`
+                });
         }
 
         function openModal(event, allowCalendar, paneId) {
@@ -913,7 +1069,78 @@ function renderEventLists() {
             $overlay.addClass('hidden');
         }
 
-        $pane.off('click.eventModal').on('click.eventModal', '.eventItem', function() {
+        function closeDayModal() {
+            closeCalendarMenus();
+            $dayOverlay.addClass('hidden');
+        }
+
+        function showCalendarToast() {
+            if (!$calendarToast.length) {
+                return;
+            }
+            if (calendarToastTimer) {
+                window.clearTimeout(calendarToastTimer);
+            }
+            $calendarToast.removeClass('hidden isFading');
+            calendarToastTimer = window.setTimeout(() => {
+                $calendarToast.addClass('isFading');
+                calendarToastTimer = window.setTimeout(() => {
+                    $calendarToast.addClass('hidden').removeClass('isFading');
+                    calendarToastTimer = null;
+                }, 450);
+            }, 2200);
+        }
+
+        function renderDayEventSection(title, sectionEvents) {
+            if (!sectionEvents.length) {
+                return '';
+            }
+            return `
+                <div class=\"eventCalendarDaySection\">
+                    <h4>${escapeHtml(title)}</h4>
+                    <div class=\"eventSectionBody\">
+                        ${sectionEvents.map((event) => renderEventItem(event, eventCanBeSaved(event), paneId)).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        function openDayModal(dayStart) {
+            const dayEvents = getDayEvents(dayStart);
+            if (!dayEvents.length) {
+                showCalendarToast();
+                return;
+            }
+            const current = [];
+            const future = [];
+            const completed = [];
+            dayEvents.forEach((event) => {
+                const start = parseEventDate(event);
+                const end = eventEnd(event);
+                const startTime = start ? start.getTime() : 0;
+                const endTime = end ? end.getTime() : startTime;
+                if (startTime <= nowTime && endTime >= nowTime) {
+                    current.push(event);
+                } else if (endTime >= nowTime) {
+                    future.push(event);
+                } else {
+                    completed.push(event);
+                }
+            });
+
+            $dayTitle.text(formatCalendarDayTitle(dayStart));
+            $dayBody.html(
+                renderDayEventSection('Happening Now', current) +
+                renderDayEventSection('Upcoming', future) +
+                renderDayEventSection('Past Events', completed)
+            );
+            $dayOverlay.removeClass('hidden');
+        }
+
+        $pane.off('click.eventModal').on('click.eventModal', '.eventItem', function(event) {
+            if ($(event.target).closest('.eventCalendarMenu').length) {
+                return;
+            }
             const eventId = $(this).data('event-id') || '';
             if (!eventId) {
                 return;
@@ -923,6 +1150,30 @@ function renderEventLists() {
             const allowCalendar = happening.concat(upcoming).some((item) => item && item.id === eventId);
             const itemPaneId = $(this).data('pane-id') || paneId;
             openModal(match, allowCalendar, itemPaneId);
+        });
+
+        $pane.off('click.eventViewTab').on('click.eventViewTab', '.eventViewTab', function() {
+            setEventView($(this).data('event-view') || 'events');
+        });
+
+        $pane.off('click.eventCalendarNav').on('click.eventCalendarNav', '.eventCalendarPrev, .eventCalendarNext', function() {
+            const direction = $(this).hasClass('eventCalendarPrev') ? -1 : 1;
+            calendarMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + direction, 1);
+            renderCalendar();
+        });
+
+        $pane.off('click.eventCalendarToday').on('click.eventCalendarToday', '.eventCalendarTodayButton', function() {
+            calendarMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+            renderCalendar();
+        });
+
+        $pane.off('click.eventCalendarDay').on('click.eventCalendarDay', '.eventCalendarDayButton', function() {
+            const dateValue = $(this).closest('.eventCalendarCell').attr('data-date') || '';
+            const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateValue);
+            if (!match) {
+                return;
+            }
+            openDayModal(new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
         });
 
         $pane.off('click.eventCalendarToggle').on('click.eventCalendarToggle', '.eventCalendarToggle', function(event) {
@@ -991,6 +1242,53 @@ function renderEventLists() {
             closeCalendarMenus();
             if (match) {
                 performCalendarAction(provider, match, modalPaneId);
+            }
+        });
+
+        $dayOverlay.off('click.eventCalendarDayModalClose').on('click.eventCalendarDayModalClose', function(event) {
+            if (event.target === this) {
+                closeDayModal();
+            }
+        });
+
+        $dayClose.off('click.eventCalendarDayModalClose').on('click.eventCalendarDayModalClose', function() {
+            closeDayModal();
+        });
+
+        $dayBody.off('click.eventCalendarDayItem').on('click.eventCalendarDayItem', '.eventItem', function(event) {
+            if ($(event.target).closest('.eventCalendarMenu').length) {
+                return;
+            }
+            const eventId = $(this).data('event-id') || '';
+            if (!eventId) {
+                return;
+            }
+            const match = events.find((item) => item && item.id === eventId);
+            openModal(match, eventCanBeSaved(match), paneId);
+        });
+
+        $dayBody.off('click.eventCalendarDayToggle').on('click.eventCalendarDayToggle', '.eventCalendarToggle', function(event) {
+            event.stopPropagation();
+            const $menu = $(this).closest('.eventCalendarMenu');
+            const isOpen = $menu.hasClass('isOpen');
+            closeCalendarMenus();
+            if (!isOpen) {
+                $menu.addClass('isOpen');
+                $menu.find('.eventCalendarDropdown').removeClass('hidden');
+                positionFixedCalendarDropdown($menu);
+                $(this).attr('aria-expanded', 'true');
+            }
+        });
+
+        $dayBody.off('click.eventCalendarDayOption').on('click.eventCalendarDayOption', '.eventCalendarOption', function(event) {
+            event.stopPropagation();
+            const provider = $(this).data('calendar-provider') || '';
+            const $menu = $(this).closest('.eventCalendarMenu');
+            const eventId = $menu.find('.eventCalendarToggle').data('event-id') || '';
+            const match = events.find((item) => item && item.id === eventId);
+            closeCalendarMenus();
+            if (match && eventCanBeSaved(match)) {
+                performCalendarAction(provider, match, paneId);
             }
         });
     });

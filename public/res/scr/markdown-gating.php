@@ -3,7 +3,7 @@
 
 function lawnding_markdown_gate_normalize_clearance($clearance) {
     $level = is_string($clearance) ? strtolower(trim($clearance)) : '';
-    if ($level === 'sfw' || $level === 'nsfw') {
+    if ($level === 'sfw' || $level === 'nsfw' || $level === 'nsfw_only') {
         return $level;
     }
     return 'none';
@@ -41,7 +41,7 @@ function lawnding_markdown_gate_append(string &$out, string $chunk, int $suppres
 function lawnding_markdown_gate_parse(string $markdown, string $clearance): array {
     $clearance = lawnding_markdown_gate_normalize_clearance($clearance);
     $allowSfw = $clearance === 'sfw' || $clearance === 'nsfw';
-    $allowNsfw = $clearance === 'nsfw';
+    $allowNsfw = $clearance === 'nsfw' || $clearance === 'nsfw_only';
     $len = strlen($markdown);
     $out = '';
     $stack = [];
@@ -235,4 +235,3 @@ function lawnding_markdown_gate_apply(string $markdown, string $clearance, bool 
     }
     return $parsed;
 }
-

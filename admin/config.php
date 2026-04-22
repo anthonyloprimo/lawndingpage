@@ -207,6 +207,8 @@ $tgBotDefaults = [
     'bot_username' => '',
     'bot_token' => '',
     'group_ids' => [],
+    'whitelist_user_ids' => [],
+    'blacklist_user_ids' => [],
     'membership_cache_ttl_minutes' => 30,
     'unauthorized_message' => 'Unable to display member links.  Join the telegram group with the link above, or contact an admin for assistance.',
 ];
@@ -255,6 +257,44 @@ if (!function_exists('lawnding_admin_normalize_tg_group_entries')) {
         return $entries;
     }
 }
+if (!function_exists('lawnding_admin_normalize_tg_user_entries')) {
+    function lawnding_admin_normalize_tg_user_entries($values): array {
+        if (!is_array($values)) {
+            return [];
+        }
+        $order = [];
+        $entriesById = [];
+        foreach ($values as $value) {
+            $userId = '';
+            $content = 'SFW';
+            if (is_string($value) && trim($value) !== '') {
+                $userId = trim($value);
+            } elseif (is_array($value)) {
+                $userId = isset($value['id']) && is_scalar($value['id']) ? trim((string) $value['id']) : '';
+                $rawContent = isset($value['content']) && is_string($value['content']) ? strtoupper(trim($value['content'])) : 'SFW';
+                $content = $rawContent === 'NSFW' ? 'NSFW' : 'SFW';
+            }
+            if ($userId === '' || !preg_match('/^-?\d+$/', $userId)) {
+                continue;
+            }
+            if (!isset($entriesById[$userId])) {
+                $order[] = $userId;
+                $entriesById[$userId] = ['id' => $userId, 'content' => $content];
+                continue;
+            }
+            if ($content === 'NSFW') {
+                $entriesById[$userId]['content'] = 'NSFW';
+            }
+        }
+        $entries = [];
+        foreach ($order as $userId) {
+            if (isset($entriesById[$userId])) {
+                $entries[] = $entriesById[$userId];
+            }
+        }
+        return $entries;
+    }
+}
 $tgBotGroupIds = [];
 if (!empty($tgBotData['group_ids']) && is_array($tgBotData['group_ids'])) {
     $tgBotGroupIds = lawnding_admin_normalize_tg_group_entries($tgBotData['group_ids']);
@@ -262,6 +302,20 @@ if (!empty($tgBotData['group_ids']) && is_array($tgBotData['group_ids'])) {
 $tgBotGroupIdsText = implode("\n", array_map(function (array $entry): string {
     return $entry['id'] . ' ' . $entry['content'];
 }, $tgBotGroupIds));
+$tgBotWhitelistUserIds = [];
+if (!empty($tgBotData['whitelist_user_ids']) && is_array($tgBotData['whitelist_user_ids'])) {
+    $tgBotWhitelistUserIds = lawnding_admin_normalize_tg_user_entries($tgBotData['whitelist_user_ids']);
+}
+$tgBotWhitelistUserIdsText = implode("\n", array_map(function (array $entry): string {
+    return $entry['id'] . ' ' . $entry['content'];
+}, $tgBotWhitelistUserIds));
+$tgBotBlacklistUserIds = [];
+if (!empty($tgBotData['blacklist_user_ids']) && is_array($tgBotData['blacklist_user_ids'])) {
+    $tgBotBlacklistUserIds = lawnding_admin_normalize_tg_user_entries($tgBotData['blacklist_user_ids']);
+}
+$tgBotBlacklistUserIdsText = implode("\n", array_map(function (array $entry): string {
+    return $entry['id'] . ' ' . $entry['content'];
+}, $tgBotBlacklistUserIds));
 $webhookBase = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
 $webhookHost = $_SERVER['HTTP_HOST'] ?? 'your-domain.com';
 $webhookUrl = $webhookBase . '://' . $webhookHost . ($assetBase ?? '') . '/res/scr/tg-webhook.php';
@@ -787,6 +841,24 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
                                 <div class="authLinksFieldActions">
                                     <button class="usersButton usersWarning authLinksValidateGroupsButton" type="button">Validate Group IDs</button>
                                 </div>
+                            </label>
+                            <label class="linksConfigField" title="One user ID per line. Append SFW or NSFW after the ID. Untagged entries default to SFW.">
+                                <span class="linksConfigLabelText">
+                                    Whitelist User IDs
+                                    <span class="authLinksHelpIcon authLinksHelpInline" title="To get the user ID, go into telegram settings > general, scroll to the bottom and enable &quot;Show Peer IDs in Profile&quot;.  Then view the user you wish to add, copy the peer ID and paste it here.  One user ID per line.">
+                                        <?php echo lawnding_icon_svg('help'); ?>
+                                    </span>
+                                </span>
+                                <textarea class="linksConfigInput" id="tgBotWhitelistUserIds" rows="4" placeholder="123456789 SFW"><?php echo htmlspecialchars($tgBotWhitelistUserIdsText); ?></textarea>
+                            </label>
+                            <label class="linksConfigField" title="One user ID per line. Append SFW or NSFW after the ID. Untagged entries default to SFW.">
+                                <span class="linksConfigLabelText">
+                                    Blacklist User IDs
+                                    <span class="authLinksHelpIcon authLinksHelpInline" title="To get the user ID, go into telegram settings > general, scroll to the bottom and enable &quot;Show Peer IDs in Profile&quot;.  Then view the user you wish to add, copy the peer ID and paste it here.  One user ID per line.">
+                                        <?php echo lawnding_icon_svg('help'); ?>
+                                    </span>
+                                </span>
+                                <textarea class="linksConfigInput" id="tgBotBlacklistUserIds" rows="4" placeholder="123456789 NSFW"><?php echo htmlspecialchars($tgBotBlacklistUserIdsText); ?></textarea>
                             </label>
                             <label class="linksConfigField" title="Membership cache TTL in minutes.">
                                 <span class="linksConfigLabelText">Membership cache TTL (minutes)</span>

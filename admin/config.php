@@ -571,6 +571,14 @@ $isMasterUser = $isMasterUser ?? false;
 $isReadOnlyUser = $isReadOnlyUser ?? false;
 // Collect server-side status messages to render at top of page.
 $adminNotices = [];
+// Drain any one-shot session flash (e.g. revocation banner from the resolver)
+// into the notice list so it renders on the dashboard too.
+if (function_exists('lawnding_flash_consume')) {
+    $sessionFlash = lawnding_flash_consume();
+    if ($sessionFlash !== null) {
+        $adminNotices[] = $sessionFlash;
+    }
+}
 if (!empty($usersErrors)) {
     $adminNotices[] = ['type' => 'danger', 'text' => implode(' ', $usersErrors)];
 }

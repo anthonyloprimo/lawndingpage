@@ -835,6 +835,21 @@ if ($authRecord && !$forcePasswordChange) {
     <link rel="stylesheet" href="<?php echo htmlspecialchars($assetBase . '/res/admin.css', ENT_QUOTES, 'UTF-8'); ?>">
 </head>
 <body>
+    <?php
+    // Drain any session flash so revocation banners (e.g. from
+    // lawnding_admin_handle_tg_revocation) surface here instead of being
+    // stranded for the next public-page visit. No JS on this surface, so
+    // the close button is intentionally omitted — the banner clears on the
+    // next navigation.
+    $loginFlash = function_exists('lawnding_flash_consume') ? lawnding_flash_consume() : null;
+    ?>
+    <?php if ($loginFlash !== null): ?>
+        <div class="adminNotices" id="adminNotices">
+            <div class="adminNotice adminNotice--<?php echo htmlspecialchars($loginFlash['type'], ENT_QUOTES, 'UTF-8'); ?>">
+                <span class="adminNoticeText"><?php echo htmlspecialchars($loginFlash['text'], ENT_QUOTES, 'UTF-8'); ?></span>
+            </div>
+        </div>
+    <?php endif; ?>
     <!-- Login / first-run / password reset screen. -->
     <div class="loginWrap">
         <div class="loginPane">

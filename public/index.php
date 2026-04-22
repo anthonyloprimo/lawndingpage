@@ -291,7 +291,7 @@ $tgUser = isset($_SESSION['tg_user']) && is_array($_SESSION['tg_user']) ? $_SESS
 $tgUserId = $tgUser['id'] ?? ($_SESSION['tg_user_id'] ?? null);
 $viewerContentLevel = '';
 if (!empty($tgUserId)) {
-    $viewerContentLevel = lawnding_tg_user_content_level($tgConfig, $tgUserId);
+    $viewerContentLevel = lawnding_tg_user_content_level($tgConfig, $tgUserId, $tgUser);
     if ($viewerContentLevel === '') {
         // Group membership lapsed since login. Under the "must be in a configured
         // group" policy, drop the session entirely instead of degrading to a

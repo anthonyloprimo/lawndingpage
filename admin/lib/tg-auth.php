@@ -198,7 +198,7 @@ function lawnding_tg_cache_prune(array &$cache, int $now): void {
     }
 }
 
-function lawnding_tg_user_content_level(array $tgConfig, $userId): string {
+function lawnding_tg_user_content_level(array $tgConfig, $userId, ?array $profile = null): string {
     $token = (string) ($tgConfig['bot_token'] ?? '');
     $groupIds = is_array($tgConfig['group_ids'] ?? null) ? $tgConfig['group_ids'] : [];
     $allowedStatuses = is_array($tgConfig['allowed_statuses'] ?? null) ? $tgConfig['allowed_statuses'] : [];
@@ -255,7 +255,7 @@ function lawnding_tg_user_content_level(array $tgConfig, $userId): string {
         }
     }
 
-    $cache['users'][$cacheKey] = [
+    $entry = [
         'authorized' => $authorizedLevel !== '',
         'content_level' => $authorizedLevel,
         'checked_at' => $now,
@@ -263,6 +263,24 @@ function lawnding_tg_user_content_level(array $tgConfig, $userId): string {
         'fingerprint' => $fingerprint,
         'statuses' => $statuses,
     ];
+    // Snapshot the visitor's display profile when the caller supplies it. This
+    // is the only persistent record of *who* a numeric Telegram user_id
+    // belongs to — sessions hold names and handles only while active. Update
+    // happens on every fresh API check (which login forces via
+    // tg_membership_force_refresh), so handle/name changes filter in
+    // organically as users come back to the site.
+    if (is_array($profile)) {
+        $entry['profile'] = [
+            'username' => is_string($profile['username'] ?? null) ? trim((string) $profile['username']) : '',
+            'first_name' => is_string($profile['first_name'] ?? null) ? trim((string) $profile['first_name']) : '',
+            'last_name' => is_string($profile['last_name'] ?? null) ? trim((string) $profile['last_name']) : '',
+        ];
+    } elseif (isset($cache['users'][$cacheKey]['profile']) && is_array($cache['users'][$cacheKey]['profile'])) {
+        // No profile this round — preserve whatever was last captured so the
+        // entry doesn't degrade to an anonymous numeric ID.
+        $entry['profile'] = $cache['users'][$cacheKey]['profile'];
+    }
+    $cache['users'][$cacheKey] = $entry;
     lawnding_tg_cache_write($cache);
 
     return $authorizedLevel;

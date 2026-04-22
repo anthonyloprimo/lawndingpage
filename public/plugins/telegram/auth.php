@@ -51,7 +51,7 @@ if (empty($tgUser['id'])) {
 // configured group. Force-refresh ensures we don't accept a stale cached "yes"
 // from a previous session that may have lapsed.
 $_SESSION['tg_membership_force_refresh'] = true;
-$contentLevel = lawnding_tg_user_content_level($tgConfig, $tgUser['id']);
+$contentLevel = lawnding_tg_user_content_level($tgConfig, $tgUser['id'], $tgUser);
 if ($contentLevel === '') {
     unset($_SESSION['tg_user'], $_SESSION['tg_user_id'], $_SESSION['tg_membership_force_refresh']);
     $rejectionText = isset($tgConfig['unauthorized_message']) && is_string($tgConfig['unauthorized_message'])

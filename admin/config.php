@@ -557,7 +557,11 @@ foreach ($missingModulePanes as $moduleId => $paneList) {
 }
 
 // Permission gates and admin UI state (set by upstream controller).
-$currentUserName = $_SESSION['auth_user'] ?? '';
+// $displayName/$authUser come from admin/index.php's resolver call;
+// fall back to $_SESSION for older include paths that haven't migrated.
+$currentUserName = isset($displayName) && $displayName !== ''
+    ? $displayName
+    : ($authUser ?? ($_SESSION['auth_user'] ?? ''));
 $canAddUsers = $canAddUsers ?? true;
 $canEditUsers = $canEditUsers ?? true;
 $canRemoveUsers = $canRemoveUsers ?? true;
@@ -685,7 +689,7 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
         </div>
         <div class="headerActionStack">
             <div class="headerUserStack">
-                <div class="signedInAs"><?php echo htmlspecialchars($_SESSION['auth_user'] ?? ''); ?></div>
+                <div class="signedInAs"><?php echo htmlspecialchars($currentUserName ?? ''); ?></div>
                 <form method="post" action="">
                     <input type="hidden" name="action" value="logout">
                     <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token'] ?? ''); ?>">

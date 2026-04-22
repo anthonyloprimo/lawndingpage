@@ -218,6 +218,12 @@ if ($action === 'create_admin') {
         if ($username === '' || strlen($username) < 3 || strlen($username) > 32) {
             $errors[] = 'Username must be 3-32 characters.';
         }
+        if (str_starts_with(strtolower($username), 'tg:')) {
+            // The 'tg:' prefix is reserved for synthetic Telegram-derived
+            // sessions (admin/auth.php sentinel). Bcrypt usernames must not
+            // collide with that namespace.
+            $errors[] = 'Usernames cannot start with "tg:" (reserved).';
+        }
         if (strlen($password) < 8 || strlen($password) > 128) {
             $errors[] = 'Password must be 8-128 characters.';
         }
@@ -276,6 +282,7 @@ $tgConfig = lawnding_load_tg_config();
 $identity = lawnding_resolve_admin_identity($tgConfig, $users, $allowedPermissions);
 $authUser = $identity['authUser'];
 $authRecord = $identity['authRecord'];
+$displayName = $identity['displayName'];
 $permissionContext = $identity['context'];
 $currentPermissions = $permissionContext['currentPermissions'];
 $isReadOnlyUser = $permissionContext['isReadOnlyUser'];
@@ -288,6 +295,23 @@ $canEditSite = $permissionContext['canEditSite'];
 $forcePasswordChange = $authRecord && !empty($authRecord['must_change_password']);
 if ($isReadOnlyUser) {
     $forcePasswordChange = false;
+}
+
+// Promote a Telegram-derived session to a "logged-in admin" identity by
+// persisting the tg:<id> sentinel into $_SESSION['auth_user']. Mirrors the
+// session-fixation defense bcrypt login does at line ~273 below — fires once
+// on the first such promotion (gated on $_SESSION['tg_admin_regenerated']).
+$identityIsTgOnly = $identity['isAuthenticated']
+    && in_array('telegram', $identity['sources'], true)
+    && !in_array('bcrypt', $identity['sources'], true);
+if ($identityIsTgOnly) {
+    if (($_SESSION['auth_user'] ?? '') !== $authUser) {
+        $_SESSION['auth_user'] = $authUser;
+    }
+    if (empty($_SESSION['tg_admin_regenerated'])) {
+        session_regenerate_id(true);
+        $_SESSION['tg_admin_regenerated'] = true;
+    }
 }
 
 // Health checks for files and directories needed by the admin app.
@@ -415,6 +439,9 @@ if ($action === 'create_user') {
 
             if ($newUsername === '' || strlen($newUsername) < 3 || strlen($newUsername) > 32) {
                 $usersErrors[] = 'Username must be 3-32 characters.';
+            }
+            if (str_starts_with(strtolower($newUsername), 'tg:')) {
+                $usersErrors[] = 'Usernames cannot start with "tg:" (reserved).';
             }
             if (strlen($tempPassword) < 8 || strlen($tempPassword) > 128) {
                 $usersErrors[] = 'Temporary password must be 8-128 characters.';

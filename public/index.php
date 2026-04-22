@@ -293,12 +293,16 @@ $viewerContentLevel = '';
 if (!empty($tgUserId)) {
     $viewerContentLevel = lawnding_tg_user_content_level($tgConfig, $tgUserId, $tgUser);
     if ($viewerContentLevel === '') {
-        // Group membership lapsed since login. Under the "must be in a configured
-        // group" policy, drop the session entirely instead of degrading to a
-        // half-authorized state. Flash surfaces the reason on the next render.
-        session_unset();
-        session_regenerate_id(true);
-        lawnding_flash_set('warning', "You've been signed out — your access to the configured Telegram group has been revoked.");
+        // Group membership lapsed since login. Drop the session entirely
+        // instead of degrading to a half-authorized state, and surface a
+        // banner on the next render. Shared with the admin-side revocation
+        // path via lawnding_admin_handle_tg_revocation() in admin/auth.php
+        // so both surfaces tear down identically.
+        $adminAuthPath = function_exists('lawnding_admin_path')
+            ? lawnding_admin_path('auth.php')
+            : __DIR__ . '/../admin/auth.php';
+        require_once $adminAuthPath;
+        lawnding_admin_handle_tg_revocation();
         $tgUser = null;
         $tgUserId = null;
     } elseif ($viewerContentLevel === 'nsfw') {

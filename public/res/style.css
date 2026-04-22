@@ -619,3 +619,76 @@ nav {
             margin: 0 auto;
         }
 }
+
+/* Top-of-page notice banners (mirrors admin notice styles in config.css). */
+.adminNotices {
+    position: fixed;
+    top: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(65vw, 720px);
+    z-index: 3000;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.adminNotice {
+    padding: 0.65rem 0.9rem;
+    border-radius: 8px;
+    border: 1px solid #FFFFFF22;
+    background: #FFFFFF11;
+    backdrop-filter: blur(8px);
+    box-shadow: 0 0 0 1px #FFFFFF22 inset, 0 1px 8px 2px #00000055;
+    font-size: 0.9rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    position: relative;
+    overflow: hidden;
+    color: #FFFFFF;
+}
+
+.adminNoticeClose {
+    border: 1px solid #FFFFFF44;
+    border-radius: 999px;
+    padding: 2px 8px;
+    background: #FFFFFF22;
+    color: inherit;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.adminNoticeClose:hover {
+    border-color: #FFFFFFAA;
+    background: #FFFFFF33;
+}
+
+.adminNotice--ok {
+    border-color: #5BB9FF88;
+    background: #1C355A88;
+    --notice-accent: #5BB9FF88;
+}
+
+.adminNotice--warning {
+    border-color: #FFD97788;
+    background: #4A3B1488;
+    --notice-accent: #FFD97788;
+}
+
+.adminNotice--danger {
+    border-color: #FF6B6B88;
+    background: #4A141488;
+    --notice-accent: #FF6B6B88;
+}
+
+.adminNoticeProgress {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    height: 3px;
+    width: 100%;
+    background: var(--notice-accent, #FFFFFF55);
+    opacity: 0.9;
+}

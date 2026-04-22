@@ -1192,9 +1192,138 @@ function applyFaviconsToLinks(links, iconMap) {
     });
 }
 
+// Notice banners (mirrors the admin implementation in config.js — duplicated
+// rather than shared because the public page doesn't load config.js, and the
+// admin page has its own bootstrap/wiring around these helpers).
+function lpAddNotice(type, text, options) {
+    const $notices = $('#adminNotices');
+    if (!$notices.length) {
+        return;
+    }
+    const safeType = type || 'ok';
+    const $notice = $(`
+        <div class="adminNotice adminNotice--${safeType}">
+            <span class="adminNoticeText"></span>
+            <button type="button" class="adminNoticeClose" aria-label="Dismiss notification">×</button>
+        </div>
+    `);
+    $notice.find('.adminNoticeText').text(text);
+    $notices.append($notice);
+    const persist = options && options.persist;
+    if (safeType !== 'danger' && !persist) {
+        const timeoutMs = safeType === 'warning' ? 15000 : 5000;
+        lpScheduleNoticeTimeout($notice, timeoutMs);
+    }
+}
+
+function lpClearNoticeTimer($notice) {
+    if (!$notice || !$notice.length) {
+        return;
+    }
+    const rafId = $notice.data('noticeRafId');
+    if (rafId) {
+        cancelAnimationFrame(rafId);
+    }
+    $notice.off('mouseenter.noticeTimer');
+    $notice.off('mouseleave.noticeTimer');
+    $notice.removeData('noticeRafId');
+    $notice.removeData('noticeTimerActive');
+}
+
+function lpScheduleNoticeTimeout($notice, durationMs) {
+    if (!$notice.length || durationMs <= 0) {
+        return;
+    }
+    if ($notice.data('noticeTimerActive')) {
+        return;
+    }
+    $notice.data('noticeTimerActive', true);
+
+    let remainingMs = durationMs;
+    let startTime = Date.now();
+    let rafId = null;
+    let paused = false;
+
+    let $progress = $notice.find('.adminNoticeProgress');
+    if (!$progress.length) {
+        $progress = $('<div class="adminNoticeProgress"></div>');
+        $notice.append($progress);
+    }
+
+    function updateProgress() {
+        if (paused) {
+            return;
+        }
+        const elapsed = Date.now() - startTime;
+        const left = Math.max(remainingMs - elapsed, 0);
+        const percent = (left / durationMs) * 100;
+        $progress.css('width', `${percent}%`);
+
+        if (left <= 0) {
+            $notice.addClass('isClosing');
+            $notice.fadeOut(200, function() {
+                lpClearNoticeTimer($notice);
+                $notice.remove();
+            });
+            return;
+        }
+        rafId = requestAnimationFrame(updateProgress);
+        $notice.data('noticeRafId', rafId);
+    }
+
+    function pauseTimer() {
+        if (paused) {
+            return;
+        }
+        paused = true;
+        remainingMs = Math.max(remainingMs - (Date.now() - startTime), 0);
+        if (rafId) {
+            cancelAnimationFrame(rafId);
+            rafId = null;
+        }
+    }
+
+    function resumeTimer() {
+        if (!paused) {
+            return;
+        }
+        paused = false;
+        startTime = Date.now();
+        rafId = requestAnimationFrame(updateProgress);
+        $notice.data('noticeRafId', rafId);
+    }
+
+    $notice.on('mouseenter.noticeTimer', pauseTimer);
+    $notice.on('mouseleave.noticeTimer', resumeTimer);
+
+    rafId = requestAnimationFrame(updateProgress);
+    $notice.data('noticeRafId', rafId);
+}
+
+function lpBindNotices() {
+    $(document)
+        .off('click.adminNoticeClose')
+        .on('click.adminNoticeClose', '.adminNoticeClose', function() {
+            const $notice = $(this).closest('.adminNotice');
+            lpClearNoticeTimer($notice);
+            $notice.remove();
+        });
+    $('#adminNotices .adminNotice').each(function() {
+        const $notice = $(this);
+        if ($notice.hasClass('adminNotice--danger')) {
+            return;
+        }
+        const timeoutMs = $notice.hasClass('adminNotice--warning') ? 15000 : 5000;
+        lpScheduleNoticeTimeout($notice, timeoutMs);
+    });
+}
+
+window.lpAddNotice = lpAddNotice;
+
 // Ensure we update the layout as soon as the page loads.
 $(document).ready(function() {
     init();
+    lpBindNotices();
 });
 
 // Fade in content after all assets have loaded.

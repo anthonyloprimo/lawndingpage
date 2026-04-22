@@ -538,7 +538,10 @@ $(document).ready(function() {
                     ? window.appConfig.basePath.replace(/\/$/, '')
                     : '';
                 const url = basePath ? `${basePath}/res/scr/tg-test.php` : '/res/scr/tg-test.php';
-                fetch(url, { method: 'GET' })
+                const csrfToken = (window.appConfig && window.appConfig.csrfToken) || '';
+                const body = new URLSearchParams();
+                body.append('csrf_token', csrfToken);
+                fetch(url, { method: 'POST', body })
                     .then((resp) => resp.json())
                     .then((data) => {
                         const ok = data && data.ok;
@@ -564,10 +567,13 @@ $(document).ready(function() {
                     alert('No group IDs found. Add at least one ID and try again.');
                     return;
                 }
+                const csrfToken = (window.appConfig && window.appConfig.csrfToken) || '';
+                const body = new URLSearchParams();
+                body.append('csrf_token', csrfToken);
+                groupIds.forEach((id) => body.append('group_ids[]', id));
                 fetch(url, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ group_ids: groupIds })
+                    body
                 })
                     .then((resp) => resp.json())
                     .then((data) => {

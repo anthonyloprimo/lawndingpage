@@ -217,32 +217,59 @@ if (is_readable($tgBotPath)) {
     }
 }
 if (!function_exists('lawnding_admin_normalize_tg_group_entries')) {
+    // NOTE: this duplicates lawnding_tg_normalize_group_entries() in
+    // admin/lib/tg-auth.php. The two should be merged into a shared helper
+    // eventually; for now they share the schema and the per-group permissions
+    // allowlist (via lawnding_tg_eligible_permissions()).
     function lawnding_admin_normalize_tg_group_entries($values): array {
         if (!is_array($values)) {
             return [];
         }
+        $eligible = function_exists('lawnding_tg_eligible_permissions')
+            ? lawnding_tg_eligible_permissions()
+            : ['edit_site', 'add_users', 'edit_users', 'remove_users'];
         $order = [];
         $entriesById = [];
         foreach ($values as $value) {
             $groupId = '';
             $content = 'SFW';
+            $permissions = [];
             if (is_string($value) && trim($value) !== '') {
                 $groupId = trim($value);
             } elseif (is_array($value)) {
                 $groupId = isset($value['id']) && is_string($value['id']) ? trim($value['id']) : '';
                 $rawContent = isset($value['content']) && is_string($value['content']) ? strtoupper(trim($value['content'])) : 'SFW';
                 $content = $rawContent === 'NSFW' ? 'NSFW' : 'SFW';
+                if (isset($value['permissions']) && is_array($value['permissions'])) {
+                    foreach ($value['permissions'] as $perm) {
+                        if (!is_string($perm)) {
+                            continue;
+                        }
+                        $perm = trim($perm);
+                        if ($perm === '' || !in_array($perm, $eligible, true)) {
+                            continue;
+                        }
+                        if (!in_array($perm, $permissions, true)) {
+                            $permissions[] = $perm;
+                        }
+                    }
+                }
             }
             if ($groupId === '') {
                 continue;
             }
             if (!isset($entriesById[$groupId])) {
                 $order[] = $groupId;
-                $entriesById[$groupId] = ['id' => $groupId, 'content' => $content];
+                $entriesById[$groupId] = ['id' => $groupId, 'content' => $content, 'permissions' => $permissions];
                 continue;
             }
             if ($content === 'NSFW') {
                 $entriesById[$groupId]['content'] = 'NSFW';
+            }
+            foreach ($permissions as $perm) {
+                if (!in_array($perm, $entriesById[$groupId]['permissions'], true)) {
+                    $entriesById[$groupId]['permissions'][] = $perm;
+                }
             }
         }
         $entries = [];

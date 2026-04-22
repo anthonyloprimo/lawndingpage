@@ -42,30 +42,62 @@ function lawnding_tg_higher_content_level(string $left, string $right): string {
     return lawnding_tg_content_rank($right) > lawnding_tg_content_rank($left) ? $right : $left;
 }
 
+// Single source of truth for "which admin permissions a Telegram group is
+// allowed to grant." DO NOT add `full_admin` here — that permission and the
+// `master` flag are intentionally bcrypt-only. Adding `full_admin` would
+// silently relax the security invariant; see the project docs auth-model section.
+function lawnding_tg_eligible_permissions(): array {
+    return ['edit_site', 'add_users', 'edit_users', 'remove_users'];
+}
+
 function lawnding_tg_normalize_group_entries($values): array {
     if (!is_array($values)) {
         return [];
     }
+    $eligible = lawnding_tg_eligible_permissions();
     $order = [];
     $entriesById = [];
     foreach ($values as $value) {
         $groupId = '';
         $content = 'sfw';
+        $permissions = [];
         if (is_string($value) && trim($value) !== '') {
             $groupId = trim($value);
         } elseif (is_array($value)) {
             $groupId = isset($value['id']) && is_string($value['id']) ? trim($value['id']) : '';
             $content = lawnding_tg_normalize_content_level($value['content'] ?? 'sfw');
+            if (isset($value['permissions']) && is_array($value['permissions'])) {
+                foreach ($value['permissions'] as $perm) {
+                    if (!is_string($perm)) {
+                        continue;
+                    }
+                    $perm = trim($perm);
+                    if ($perm === '' || !in_array($perm, $eligible, true)) {
+                        // Silently drop unknowns and disallowed (e.g. full_admin)
+                        // on load — defense against hand-edited or older configs.
+                        continue;
+                    }
+                    if (!in_array($perm, $permissions, true)) {
+                        $permissions[] = $perm;
+                    }
+                }
+            }
         }
         if ($groupId === '') {
             continue;
         }
         if (!isset($entriesById[$groupId])) {
             $order[] = $groupId;
-            $entriesById[$groupId] = ['id' => $groupId, 'content' => $content];
+            $entriesById[$groupId] = ['id' => $groupId, 'content' => $content, 'permissions' => $permissions];
             continue;
         }
         $entriesById[$groupId]['content'] = lawnding_tg_higher_content_level($entriesById[$groupId]['content'], $content);
+        // Merge permissions across duplicate group entries (union).
+        foreach ($permissions as $perm) {
+            if (!in_array($perm, $entriesById[$groupId]['permissions'], true)) {
+                $entriesById[$groupId]['permissions'][] = $perm;
+            }
+        }
     }
     $entries = [];
     foreach ($order as $groupId) {

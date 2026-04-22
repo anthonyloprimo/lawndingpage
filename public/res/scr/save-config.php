@@ -737,7 +737,7 @@ function normalize_tg_bot_payload($payload): array {
         'bot_token' => '',
         'group_ids' => [],
         'membership_cache_ttl_minutes' => 30,
-        'unauthorized_message' => 'Unable to display member links.  Join the telegram group with the link above, or contact an admin for assistance.',
+        'unauthorized_message' => 'Login failed: you must be a member of a configured Telegram group to access this site.',
     ];
     if (!is_array($payload)) {
         return $defaults;
@@ -749,6 +749,13 @@ function normalize_tg_bot_payload($payload): array {
     $ttl = $ttl > 0 ? $ttl : 30;
     $message = isset($payload['unauthorized_message']) ? trim((string) $payload['unauthorized_message']) : '';
     $message = $message !== '' ? $message : $defaults['unauthorized_message'];
+    // Allowlist for per-group admin perms. Stays in sync with
+    // lawnding_tg_eligible_permissions() via tg-auth.php (loaded from the
+    // public side; this endpoint also runs after lp-bootstrap so it's available).
+    $eligiblePermissions = function_exists('lawnding_tg_eligible_permissions')
+        ? lawnding_tg_eligible_permissions()
+        : ['edit_site', 'add_users', 'edit_users', 'remove_users'];
+    $rejectedPermissions = [];
     $groupIds = [];
     $entriesById = [];
     $groupOrder = [];
@@ -756,25 +763,63 @@ function normalize_tg_bot_payload($payload): array {
         foreach ($payload['group_ids'] as $value) {
             $groupId = '';
             $content = 'SFW';
+            $permissions = [];
             if (is_string($value)) {
                 $groupId = trim($value);
             } elseif (is_array($value)) {
                 $groupId = isset($value['id']) ? trim((string) $value['id']) : '';
                 $rawContent = isset($value['content']) ? strtoupper(trim((string) $value['content'])) : 'SFW';
                 $content = $rawContent === 'NSFW' ? 'NSFW' : 'SFW';
+                if (isset($value['permissions']) && is_array($value['permissions'])) {
+                    foreach ($value['permissions'] as $perm) {
+                        if (!is_string($perm)) {
+                            continue;
+                        }
+                        $perm = trim($perm);
+                        if ($perm === '') {
+                            continue;
+                        }
+                        if (!in_array($perm, $eligiblePermissions, true)) {
+                            // Save side errors loudly (vs silent drop on load) so
+                            // admins know their input was rejected. full_admin
+                            // and the master flag are intentionally bcrypt-only.
+                            $rejectedPermissions[] = ['group' => $groupId, 'perm' => $perm];
+                            continue;
+                        }
+                        if (!in_array($perm, $permissions, true)) {
+                            $permissions[] = $perm;
+                        }
+                    }
+                }
             }
             if ($groupId === '') {
                 continue;
             }
             if (!isset($entriesById[$groupId])) {
                 $groupOrder[] = $groupId;
-                $entriesById[$groupId] = ['id' => $groupId, 'content' => $content];
+                $entriesById[$groupId] = ['id' => $groupId, 'content' => $content, 'permissions' => $permissions];
                 continue;
             }
             if ($content === 'NSFW') {
                 $entriesById[$groupId]['content'] = 'NSFW';
             }
+            foreach ($permissions as $perm) {
+                if (!in_array($perm, $entriesById[$groupId]['permissions'], true)) {
+                    $entriesById[$groupId]['permissions'][] = $perm;
+                }
+            }
         }
+    }
+    if (!empty($rejectedPermissions)) {
+        $details = array_map(function ($item) {
+            $group = $item['group'] !== '' ? $item['group'] : '(unset)';
+            return $item['perm'] . ' (group ' . $group . ')';
+        }, $rejectedPermissions);
+        respond([
+            'error' => 'Telegram bot config: the following permissions are not allowed: '
+                . implode(', ', $details)
+                . '. Eligible: ' . implode(', ', $eligiblePermissions) . '.',
+        ], 400);
     }
     foreach ($groupOrder as $groupId) {
         if (isset($entriesById[$groupId])) {

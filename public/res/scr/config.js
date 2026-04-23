@@ -22,30 +22,93 @@ $(document).ready(function() {
         }
     }
 
-    function parseTgGroupEntries(rawValue) {
-        const lines = String(rawValue || '')
-            .split('\n')
-            .map((value) => value.trim())
-            .filter((value) => value.length > 0);
+    function readTgGroupRows() {
         const order = [];
         const entriesById = new Map();
-        lines.forEach((line) => {
-            const parts = line.split(/\s+/).filter((value) => value.length > 0);
-            if (!parts.length) {
+        $('#tgBotGroupList .tgBotGroupCard').each(function() {
+            const $card = $(this);
+            const id = String($card.find('.tgBotGroupIdInput').val() || '').trim();
+            if (!id) {
                 return;
             }
-            const id = parts[0];
-            const content = parts[1] && /^nsfw$/i.test(parts[1]) ? 'NSFW' : 'SFW';
+            const isNsfw = $card.find('.tgBotGroupContentRadio[value="NSFW"]').is(':checked');
+            const content = isNsfw ? 'NSFW' : 'SFW';
+            const permissions = [];
+            $card.find('.tgBotGroupPerm:checked').each(function() {
+                const val = String($(this).val() || '').trim();
+                if (val && permissions.indexOf(val) === -1) {
+                    permissions.push(val);
+                }
+            });
             if (!entriesById.has(id)) {
                 order.push(id);
-                entriesById.set(id, { id, content });
+                entriesById.set(id, { id, content, permissions: permissions.slice() });
                 return;
             }
+            const existing = entriesById.get(id);
             if (content === 'NSFW') {
-                entriesById.set(id, { id, content: 'NSFW' });
+                existing.content = 'NSFW';
             }
+            permissions.forEach((perm) => {
+                if (existing.permissions.indexOf(perm) === -1) {
+                    existing.permissions.push(perm);
+                }
+            });
         });
         return order.map((id) => entriesById.get(id)).filter(Boolean);
+    }
+
+    let tgBotGroupRowCounter = 0;
+    function createTgBotGroupCard() {
+        const idx = ++tgBotGroupRowCounter;
+        const contentName = 'tgBotGroupContent_new_' + idx + '_' + Date.now();
+        const deleteIcon = $('#tgBotGroupDeleteIcon').html() || '';
+        return `
+            <div class="linksConfigCard tgBotGroupCard">
+                <div class="linksConfigRow">
+                    <label class="linksConfigField tgBotGroupIdField" title="Telegram group or channel ID (starts with -100 for supergroups/channels).">
+                        <span class="linksConfigLabelText">Group ID</span>
+                        <input class="linksConfigInput tgBotGroupIdInput" type="text" value="" placeholder="-1001234567890">
+                    </label>
+                    <div class="linksConfigField tgBotGroupContentField" title="Content level this group's members are authorized to view.">
+                        <span class="linksConfigLabelText">Content</span>
+                        <div class="tgBotGroupContentChoices">
+                            <label class="linksConfigCheckbox">
+                                <input type="radio" class="tgBotGroupContentRadio" name="${contentName}" value="SFW" checked>
+                                SFW
+                            </label>
+                            <label class="linksConfigCheckbox">
+                                <input type="radio" class="tgBotGroupContentRadio" name="${contentName}" value="NSFW">
+                                NSFW
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                <div class="linksConfigRow linksConfigToggles tgBotGroupPermsRow">
+                    <span class="linksConfigLabelText tgBotGroupPermsLabel">Permissions</span>
+                    <label class="linksConfigCheckbox" title="Grant this group's members permission to edit site content (header, panes, links, etc.).">
+                        <input type="checkbox" class="tgBotGroupPerm" value="edit_site">
+                        Edit site
+                    </label>
+                    <label class="linksConfigCheckbox" title="Grant this group's members permission to create new user accounts.">
+                        <input type="checkbox" class="tgBotGroupPerm" value="add_users">
+                        Add users
+                    </label>
+                    <label class="linksConfigCheckbox" title="Grant this group's members permission to edit existing user accounts.">
+                        <input type="checkbox" class="tgBotGroupPerm" value="edit_users">
+                        Edit users
+                    </label>
+                    <label class="linksConfigCheckbox" title="Grant this group's members permission to remove user accounts.">
+                        <input type="checkbox" class="tgBotGroupPerm" value="remove_users">
+                        Remove users
+                    </label>
+                    <span class="linksConfigSpacer"></span>
+                    <button class="iconButton removeTgBotGroup" type="button" aria-label="Remove group" title="Remove group">
+                        ${deleteIcon}
+                    </button>
+                </div>
+            </div>
+        `;
     }
 
     function setModalBackgroundState(isOpen) {
@@ -445,6 +508,21 @@ $(document).ready(function() {
         const $tokenToggle = $('.authLinksTokenToggle');
         const $testBot = $('.authLinksTestBotButton');
         const $validateGroups = $('.authLinksValidateGroupsButton');
+        const $groupList = $('#tgBotGroupList');
+        const $addGroupButton = $('.addTgBotGroup');
+
+        if ($groupList.length) {
+            $groupList.on('click', '.removeTgBotGroup', function() {
+                $(this).closest('.tgBotGroupCard').remove();
+            });
+        }
+        if ($addGroupButton.length && $groupList.length) {
+            $addGroupButton.on('click', function() {
+                const $newCard = $(createTgBotGroupCard());
+                $groupList.append($newCard);
+                $newCard.find('.tgBotGroupIdInput').trigger('focus');
+            });
+        }
 
         if (!$list.length) {
             return;
@@ -561,8 +639,7 @@ $(document).ready(function() {
                     ? window.appConfig.basePath.replace(/\/$/, '')
                     : '';
                 const url = basePath ? `${basePath}/res/scr/tg-validate-groups.php` : '/res/scr/tg-validate-groups.php';
-                const raw = $('#tgBotGroupIds').val() || '';
-                const groupIds = parseTgGroupEntries(raw).map((entry) => entry.id);
+                const groupIds = readTgGroupRows().map((entry) => entry.id);
                 if (!groupIds.length) {
                     alert('No group IDs found. Add at least one ID and try again.');
                     return;
@@ -1195,8 +1272,7 @@ $(document).ready(function() {
         const ttlValue = parseInt(ttlRaw, 10);
         const ttl = Number.isFinite(ttlValue) && ttlValue > 0 ? ttlValue : 30;
         const message = ($('#tgBotUnauthorizedMessage').val() || '').trim();
-        const groupRaw = $('#tgBotGroupIds').val() || '';
-        const entries = parseTgGroupEntries(groupRaw);
+        const entries = readTgGroupRows();
         entries.sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }));
         return {
             bot_username: username,

@@ -285,9 +285,6 @@ $tgBotGroupIds = [];
 if (!empty($tgBotData['group_ids']) && is_array($tgBotData['group_ids'])) {
     $tgBotGroupIds = lawnding_admin_normalize_tg_group_entries($tgBotData['group_ids']);
 }
-$tgBotGroupIdsText = implode("\n", array_map(function (array $entry): string {
-    return $entry['id'] . ' ' . $entry['content'];
-}, $tgBotGroupIds));
 $webhookBase = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
 $webhookHost = $_SERVER['HTTP_HOST'] ?? 'your-domain.com';
 $webhookUrl = $webhookBase . '://' . $webhookHost . ($assetBase ?? '') . '/res/scr/tg-webhook.php';
@@ -619,6 +616,7 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
 <body data-header-json="<?php echo $headerDataJson; ?>" data-app-config-json="<?php echo $appConfigJson; ?>">
     <div class="hidden" id="tgBotTokenToggleClosed"><?php echo lawnding_icon_svg('eye_closed'); ?></div>
     <div class="hidden" id="tgBotTokenToggleOpen"><?php echo lawnding_icon_svg('eye_open'); ?></div>
+    <div class="hidden" id="tgBotGroupDeleteIcon"><?php echo lawnding_icon_svg('delete'); ?></div>
     <!-- Runtime notices and admin alerts. -->
     <div id="noJsWarning"><noscript>This site requires JavaScript to function properly. Please enable JavaScript in your browser.</noscript></div>
     <div class="adminNotices" id="adminNotices">
@@ -814,18 +812,72 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
                                     <button class="usersButton usersWarning authLinksTestBotButton" type="button">Test bot</button>
                                 </div>
                             </label>
-                            <label class="linksConfigField" title="One group ID per line. Append SFW or NSFW after the ID.">
+                            <div class="linksConfigField tgBotGroupsField">
                                 <span class="linksConfigLabelText">
-                                    Group IDs
-                                    <span class="authLinksHelpIcon authLinksHelpInline" title="How to get the group ID: add the bot to the group(s) you want to check and enter `/lpGetGroup` in each group.  Copy the returned group ID and enter it in this text box, one ID per line.">
+                                    Groups
+                                    <span class="authLinksHelpIcon authLinksHelpInline" title="How to get the group ID: add the bot to the group(s) you want to check and enter `/lpGetGroup` in each group. Copy the returned ID into a Group ID input below, pick the content level, and tick any admin permissions you want that group's members to gain.">
                                         <?php echo lawnding_icon_svg('help'); ?>
                                     </span>
                                 </span>
-                                <textarea class="linksConfigInput" id="tgBotGroupIds" rows="4" placeholder="-1001234567890 SFW"><?php echo htmlspecialchars($tgBotGroupIdsText); ?></textarea>
+                                <div class="tgBotGroupList" id="tgBotGroupList">
+                                    <?php foreach ($tgBotGroupIds as $i => $entry): ?>
+                                        <?php
+                                            $gId = (string) ($entry['id'] ?? '');
+                                            $gContent = strtoupper((string) ($entry['content'] ?? 'SFW')) === 'NSFW' ? 'NSFW' : 'SFW';
+                                            $gPerms = is_array($entry['permissions'] ?? null) ? $entry['permissions'] : [];
+                                            $contentName = 'tgBotGroupContent_' . $i;
+                                        ?>
+                                        <div class="linksConfigCard tgBotGroupCard">
+                                            <div class="linksConfigRow">
+                                                <label class="linksConfigField tgBotGroupIdField" title="Telegram group or channel ID (starts with -100 for supergroups/channels).">
+                                                    <span class="linksConfigLabelText">Group ID</span>
+                                                    <input class="linksConfigInput tgBotGroupIdInput" type="text" value="<?php echo htmlspecialchars($gId); ?>" placeholder="-1001234567890">
+                                                </label>
+                                                <div class="linksConfigField tgBotGroupContentField" title="Content level this group's members are authorized to view.">
+                                                    <span class="linksConfigLabelText">Content</span>
+                                                    <div class="tgBotGroupContentChoices">
+                                                        <label class="linksConfigCheckbox">
+                                                            <input type="radio" class="tgBotGroupContentRadio" name="<?php echo htmlspecialchars($contentName); ?>" value="SFW" <?php echo $gContent === 'SFW' ? 'checked' : ''; ?>>
+                                                            SFW
+                                                        </label>
+                                                        <label class="linksConfigCheckbox">
+                                                            <input type="radio" class="tgBotGroupContentRadio" name="<?php echo htmlspecialchars($contentName); ?>" value="NSFW" <?php echo $gContent === 'NSFW' ? 'checked' : ''; ?>>
+                                                            NSFW
+                                                        </label>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="linksConfigRow linksConfigToggles tgBotGroupPermsRow">
+                                                <span class="linksConfigLabelText tgBotGroupPermsLabel">Permissions</span>
+                                                <label class="linksConfigCheckbox" title="Grant this group's members permission to edit site content (header, panes, links, etc.).">
+                                                    <input type="checkbox" class="tgBotGroupPerm" value="edit_site" <?php echo in_array('edit_site', $gPerms, true) ? 'checked' : ''; ?>>
+                                                    Edit site
+                                                </label>
+                                                <label class="linksConfigCheckbox" title="Grant this group's members permission to create new user accounts.">
+                                                    <input type="checkbox" class="tgBotGroupPerm" value="add_users" <?php echo in_array('add_users', $gPerms, true) ? 'checked' : ''; ?>>
+                                                    Add users
+                                                </label>
+                                                <label class="linksConfigCheckbox" title="Grant this group's members permission to edit existing user accounts.">
+                                                    <input type="checkbox" class="tgBotGroupPerm" value="edit_users" <?php echo in_array('edit_users', $gPerms, true) ? 'checked' : ''; ?>>
+                                                    Edit users
+                                                </label>
+                                                <label class="linksConfigCheckbox" title="Grant this group's members permission to remove user accounts.">
+                                                    <input type="checkbox" class="tgBotGroupPerm" value="remove_users" <?php echo in_array('remove_users', $gPerms, true) ? 'checked' : ''; ?>>
+                                                    Remove users
+                                                </label>
+                                                <span class="linksConfigSpacer"></span>
+                                                <button class="iconButton removeTgBotGroup" type="button" aria-label="Remove group" title="Remove group">
+                                                    <?php echo lawnding_icon_svg('delete'); ?>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    <?php endforeach; ?>
+                                </div>
                                 <div class="authLinksFieldActions">
+                                    <button class="usersButton addTgBotGroup" type="button">Add group</button>
                                     <button class="usersButton usersWarning authLinksValidateGroupsButton" type="button">Validate Group IDs</button>
                                 </div>
-                            </label>
+                            </div>
                             <label class="linksConfigField" title="Membership cache TTL in minutes.">
                                 <span class="linksConfigLabelText">Membership cache TTL (minutes)</span>
                                 <input class="linksConfigInput" id="tgBotCacheTtl" type="text" inputmode="numeric" value="<?php echo htmlspecialchars((string) ($tgBotData['membership_cache_ttl_minutes'] ?? 30)); ?>">

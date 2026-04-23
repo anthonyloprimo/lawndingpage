@@ -511,6 +511,41 @@ header.header {
     overflow: auto;
 }
 
+/* Telegram bot per-group config rows (id + content radios + permission checkboxes). */
+.tgBotGroupList {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 4px;
+}
+
+.tgBotGroupCard .tgBotGroupIdField {
+    flex: 1 1 160px;
+    min-width: 140px;
+}
+
+.tgBotGroupCard .tgBotGroupContentField {
+    flex: 0 0 auto;
+}
+
+.tgBotGroupContentChoices {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    padding-top: 2px;
+}
+
+.tgBotGroupPermsRow {
+    flex-wrap: wrap;
+    gap: 8px 12px;
+}
+
+.tgBotGroupPermsLabel {
+    font-weight: 600;
+    color: #FFFFFFCC;
+    margin-right: 2px;
+}
+
 @container auth-links-pane (max-width: 800px) {
     .authLinksGrid {
         flex-direction: column;

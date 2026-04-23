@@ -3,6 +3,16 @@
 #### IMPORTANT!  THIS CMS IS CURRENTLY BEST USED ON APACHE
 My apologies, I did not think to make note of this before.  This project utilizes `.htaccess` for a few directories.  As such, LawndingPage primarily is built for Apache servers.  Work will be made to do away with the need for those files, but no timeframe is given.  If you wish to use this on your own server, either use Apache, or be prepared to modify the code to support different file structures.  No guarantee is made.
 
+#### v1.12.0
+- Telegram-authenticated visitors can now earn limited admin permissions via Telegram group membership and use the existing admin UI directly — no bcrypt account required for them.  Admins configure which permissions a group grants via a new optional `permissions` array on each group entry in `admin/lp-tgBot.json` (eligible: `edit_site`, `add_users`, `edit_users`, `remove_users`).  `full_admin` and the `master` flag remain bcrypt-only.
+- Read-only bcrypt accounts stay read-only even if their Telegram identity would grant permissions (read-only wins, by design).
+- When a Telegram-derived admin loses group membership mid-session, the next admin request logs them out and shows the same yellow flash banner used for public-side revocations.
+- Admin login form now renders session flash banners (revocation notices, etc.) instead of stranding them for the next visit.
+- Security fix: `tg-test.php` and `tg-validate-groups.php` were accessible to anonymous visitors and could be used to probe the configured bot token / group IDs.  Both now require admin permission + a valid CSRF token.  No reachable abuse path on properly-configured deployments, but worth applying.
+- **Configuration note**: until a structured admin UI editor lands in a future release, per-group permissions must be set by hand-editing `admin/lp-tgBot.json` (e.g. `{"id":"-100…","content":"sfw","permissions":["edit_site"]}`).  The save flow round-trips the field, so existing perms aren't lost when admins save other settings.
+
+-----
+
 #### v1.11.0
 - Telegram profile chip and log out button now live in the top-right of the page header instead of inside the links pane.  Log out is now an icon button.
 - Telegram login policy: visitors must be a member of a configured Telegram group to sign in.  Stranger logins are rejected outright instead of landing in a half-authorized state.

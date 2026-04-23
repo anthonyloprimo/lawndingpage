@@ -3,6 +3,12 @@
 #### IMPORTANT!  THIS CMS IS CURRENTLY BEST USED ON APACHE
 My apologies, I did not think to make note of this before.  This project utilizes `.htaccess` for a few directories.  As such, LawndingPage primarily is built for Apache servers.  Work will be made to do away with the need for those files, but no timeframe is given.  If you wish to use this on your own server, either use Apache, or be prepared to modify the code to support different file structures.  No guarantee is made.
 
+#### v1.12.1
+- Telegram bot config now has a proper editor for per-group permissions.  The Group IDs textarea in the Auth Links editor is replaced with one card per group, containing a Group ID input, an SFW/NSFW selector, a checkbox for each admin permission (Edit site, Add users, Edit users, Remove users), and a remove button — plus an "Add group" button below the list.  This finishes the unified-usermodel work from v1.12.0; admins no longer need to hand-edit `admin/lp-tgBot.json` to grant permissions to a Telegram group.
+- Fixed: after a Telegram-group-revoked admin was bounced back to the admin login form, the first login attempt with bcrypt credentials was rejected with "Security token invalid" because the session's CSRF token had been wiped alongside the revoked Telegram identity.  Fresh tokens are now seeded immediately after the revocation teardown so the login form submits on the first try.
+
+-----
+
 #### v1.12.0
 - Telegram-authenticated visitors can now earn limited admin permissions via Telegram group membership and use the existing admin UI directly — no bcrypt account required for them.  Admins configure which permissions a group grants via a new optional `permissions` array on each group entry in `admin/lp-tgBot.json` (eligible: `edit_site`, `add_users`, `edit_users`, `remove_users`).  `full_admin` and the `master` flag remain bcrypt-only.
 - Read-only bcrypt accounts stay read-only even if their Telegram identity would grant permissions (read-only wins, by design).

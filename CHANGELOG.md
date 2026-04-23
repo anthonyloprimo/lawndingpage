@@ -1,11 +1,10 @@
 ### Changelog
 
-#### IMPORTANT!  THIS CMS IS CURRENTLY BEST USED ON APACHE
-My apologies, I did not think to make note of this before.  This project utilizes `.htaccess` for a few directories.  As such, LawndingPage primarily is built for Apache servers.  Work will be made to do away with the need for those files, but no timeframe is given.  If you wish to use this on your own server, either use Apache, or be prepared to modify the code to support different file structures.  No guarantee is made.
 
 #### v1.12.1
-- Added a proper editor for per-group admin permissions on Telegram groups.  The group IDs textarea in the auth links editor has been replaced with one card per group, letting you tick which admin permissions (edit site, add users, edit users, remove users) members of each group should get.  No more hand-editing the bot config file.
-- Fixed a bug where, if your Telegram admin access was revoked mid-session, the first attempt to log back in with a normal admin account failed with "Security token invalid."  The login form works on the first try now.
+- Added a proper editor for per-group admin permissions on Telegram groups.
+- Added an admin panel shortcut to the Telegram profile chip for users whose group grants admin access.
+- Fixed a bug where, if your Telegram admin access was revoked mid-session, the first attempt to log back in with a normal admin account failed with "Security token invalid." 
 
 -----
 
@@ -19,18 +18,18 @@ My apologies, I did not think to make note of this before.  This project utilize
 -----
 
 #### v1.11.0
-- Moved the Telegram profile chip and logout button to the top-right of the page header, instead of cluttering the links pane.  Logout is now a small icon button.
+- Enhanced Telegram login handling, additional info is collected incluiding user icon. Move logout button to the top-right of the page header.
 - Telegram login now requires being a member of a configured Telegram group.  If you aren't in one, the login is rejected cleanly instead of leaving you half-authenticated.
-- Fixed a bug where losing your group membership mid-session didn't log you out.  The next page load now logs you out automatically.
+- Fixed a bug where losing your group membership mid-session didn't log you out.
 - Added top-of-screen banner notifications for login success, login rejection, and access revocation.  Same look as the admin save banner.
-- Logo and background image uploads now refresh immediately after saving — no more hard-refreshing the browser to see the new image.
-- Telegram membership cache also stores each visitor's username and first/last name on each fresh check, so the cache file is a usable "who has logged in recently" view.  No new admin UI for it yet — you can check the file directly on the server.
-- Added a small plugin hook system so plugins can extend the public page without touching the core templates.  Initial hook points cover the page header and the document `<head>`.
+- Logo and background image uploads now apply global cache busting and refresh immediately after saving.
+- Telegram membership cache also stores each visitor's username and first/last name on each fresh check.
+- Added a small plugin hook system so plugins can extend the public page without touching the core templates. 
 
 -----
 
 #### v1.10.2
-- 
+- Mirrored to LIFURS repo and began development specific to that usecase. 
 
 -----
 

@@ -311,6 +311,16 @@ if (!empty($tgUserId)) {
         $markdownGateClearance = 'sfw';
     }
 }
+// Telegram-authenticated visitors whose groups grant any admin permission
+// get a shortcut button on the public header. Pure cache read — the content
+// level check above already warmed the membership cache.
+$adminShortcutUrl = '';
+if (!empty($tgUserId) && $viewerContentLevel !== '') {
+    $tgAdminPerms = lawnding_tg_user_permissions($tgConfig, $tgUserId);
+    if (!empty($tgAdminPerms)) {
+        $adminShortcutUrl = lawnding_asset_url('admin/');
+    }
+}
 if ($authLinksEnabled) {
     $authLinksJsonPath = lawnding_public_data_path('authorizedLinks.json');
     $authLinksPayload = lawnding_read_json($authLinksJsonPath, []);
@@ -560,6 +570,7 @@ $isLinksHidden = !$showLinks;
         <?php lawnding_run_hook('header_auth_area', [
             'tgUser' => $tgUser,
             'logoutUrl' => $tgLogoutUrl,
+            'adminUrl' => $adminShortcutUrl,
         ]); ?>
     </header>
     <!-- Main content panes. -->

@@ -189,6 +189,7 @@ function lawnding_footer_platform_html(): string {
     return '<a href="https://github.com/anthonyloprimo/lawndingpage" class="footerGhLink"'
         . ' rel="noopener" target="_blank" aria-label="LawndingPage on GitHub">'
         . '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"'
+        . ' width="1em" height="1em"'
         . ' class="footerGhIcon" aria-hidden="true"><path d="' . $ghPath . '"/></svg>'
         . ' GitHub</a>'
         . ' · <a href="https://lawnding.page" rel="noopener" target="_blank">lawnding.page</a>'

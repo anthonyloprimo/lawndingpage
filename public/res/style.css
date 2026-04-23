@@ -565,7 +565,7 @@ nav {
 
 /* Footer */
 .footer {
-    font-size: 14pt;
+    font-size: 9pt;
     color: #FFFFFFAA;
 }
 .footer a {
@@ -581,6 +581,13 @@ nav {
 }
 .footer .authorPlain {
     color: inherit;
+}
+.footerGhIcon {
+    width: 1em;
+    height: 1em;
+    vertical-align: -0.15em;
+    fill: currentColor;
+    margin-right: 0.25em;
 }
 
 

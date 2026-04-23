@@ -835,6 +835,16 @@ if ($authRecord && !$forcePasswordChange) {
     <link rel="stylesheet" href="<?php echo htmlspecialchars($assetBase . '/res/admin.css', ENT_QUOTES, 'UTF-8'); ?>">
 </head>
 <body>
+    <?php // DIAG (temporary) — revocation flash-banner investigation. Remove after fix. ?>
+    <pre>DIAG lp_flash:    <?php echo htmlspecialchars(var_export($_SESSION['lp_flash']    ?? '(absent)', true), ENT_QUOTES, 'UTF-8'); ?>
+
+DIAG csrf_token: <?php echo htmlspecialchars(var_export($_SESSION['csrf_token'] ?? '(absent)', true), ENT_QUOTES, 'UTF-8'); ?>
+
+DIAG tg_user_id: <?php echo htmlspecialchars(var_export($_SESSION['tg_user_id'] ?? '(absent)', true), ENT_QUOTES, 'UTF-8'); ?>
+
+DIAG auth_user:  <?php echo htmlspecialchars(var_export($_SESSION['auth_user']  ?? '(absent)', true), ENT_QUOTES, 'UTF-8'); ?>
+
+DIAG identity:   <?php echo htmlspecialchars(var_export(['isAuthenticated' => $identity['isAuthenticated'] ?? null, 'sources' => $identity['sources'] ?? null], true), ENT_QUOTES, 'UTF-8'); ?></pre>
     <?php
     // Drain any session flash so revocation banners (e.g. from
     // lawnding_admin_handle_tg_revocation) surface here instead of being

@@ -233,14 +233,14 @@ function parse_json_payload($payload, $errorMessage) {
 // Persist a JSON file with a standard encoding strategy.
 function write_json_file($path, $data, $errorMessage) {
     $encoded = json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
-    if ($encoded === false || file_put_contents($path, $encoded) === false) {
+    if ($encoded === false || file_put_contents($path, $encoded, LOCK_EX) === false) {
         respond(['error' => $errorMessage], 500);
     }
 }
 
 // Persist plain text content to disk.
 function write_text_file($path, $content, $errorMessage) {
-    if (file_put_contents($path, $content) === false) {
+    if (file_put_contents($path, $content, LOCK_EX) === false) {
         respond(['error' => $errorMessage], 500);
     }
 }
@@ -636,14 +636,16 @@ function save_pane_icon($fileArray, $paneId, $iconDir) {
     if (strpos((string) $mime, 'image/') !== 0) {
         return null;
     }
-    $ext = strtolower(pathinfo($fileArray['name'], PATHINFO_EXTENSION));
-    $ext = preg_replace('/[^a-z0-9]/i', '', $ext);
+    static $iconMimeExt = [
+        'image/jpeg' => 'jpg',
+        'image/png'  => 'png',
+        'image/gif'  => 'gif',
+        'image/webp' => 'webp',
+    ];
+    $ext = $iconMimeExt[$mime] ?? 'png';
     $base = preg_replace('/[^a-z0-9]/i', '', (string) $paneId);
     if ($base === '') {
         return null;
-    }
-    if ($ext === '') {
-        $ext = 'png';
     }
     if (!is_dir($iconDir)) {
         mkdir($iconDir, 0755, true);
@@ -668,8 +670,16 @@ function save_image($fileArray, $destName) {
     if (strpos($mime, 'image/') !== 0) {
         return null;
     }
-    $ext = strtolower(pathinfo($fileArray['name'], PATHINFO_EXTENSION));
-    $safeName = $destName ? $destName . ($ext ? '.' . $ext : '') : basename($fileArray['name']);
+    static $logoMimeExt = [
+        'image/jpeg' => 'jpg',
+        'image/png'  => 'png',
+        'image/gif'  => 'gif',
+        'image/webp' => 'webp',
+    ];
+    $ext = $logoMimeExt[$mime] ?? 'jpg';
+    $safeName = $destName
+        ? $destName . '.' . $ext
+        : preg_replace('/[^a-zA-Z0-9._-]/', '_', pathinfo($fileArray['name'], PATHINFO_FILENAME)) . '.' . $ext;
     $targetPath = $imgDir . $safeName;
     if (!move_uploaded_file($fileArray['tmp_name'], $targetPath)) {
         return null;

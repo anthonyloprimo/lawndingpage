@@ -227,7 +227,7 @@ function media_gallery_load_data(string $path): array {
 
 function media_gallery_write_data(string $path, array $payload): void {
     $encoded = json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
-    if ($encoded === false || file_put_contents($path, $encoded) === false) {
+    if ($encoded === false || file_put_contents($path, $encoded, LOCK_EX) === false) {
         media_gallery_json_response(['error' => 'Failed to write media gallery data'], 500);
     }
 }
@@ -296,7 +296,19 @@ function media_gallery_reindex_orders(array $items): array {
     return $items;
 }
 
-function media_gallery_safe_ext(string $name): string {
+function media_gallery_safe_ext(string $name, string $mime = ''): string {
+    if ($mime !== '') {
+        static $mimeExt = [
+            'image/jpeg'      => 'jpg',
+            'image/png'       => 'png',
+            'image/gif'       => 'gif',
+            'image/webp'      => 'webp',
+            'video/mp4'       => 'mp4',
+            'video/webm'      => 'webm',
+            'video/quicktime' => 'mov',
+        ];
+        return $mimeExt[$mime] ?? 'bin';
+    }
     $ext = strtolower(pathinfo($name, PATHINFO_EXTENSION));
     $ext = preg_replace('/[^a-z0-9]+/', '', $ext);
     return $ext !== '' ? $ext : 'bin';

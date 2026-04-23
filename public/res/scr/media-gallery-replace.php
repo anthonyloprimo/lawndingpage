@@ -68,7 +68,7 @@ $item = $items[$index];
 $oldFile = is_array($item) ? (string) ($item['file'] ?? '') : '';
 $absOld = media_gallery_abs_from_asset($paths['data_dir'], $oldFile);
 
-$ext = media_gallery_safe_ext((string) ($upload['name'] ?? ''));
+$ext = media_gallery_safe_ext((string) ($upload['name'] ?? ''), $mime);
 $mediaDir = media_gallery_media_dir($paths['data_dir'], $paneId);
 media_gallery_ensure_dir($mediaDir);
 $filename = 'media-' . $itemId . '.' . $ext;

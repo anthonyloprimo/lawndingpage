@@ -157,5 +157,5 @@ function write_cache(string $path, array $cache): void
         @mkdir($dir, 0755, true);
     }
 
-    file_put_contents($path, json_encode($cache));
+    file_put_contents($path, json_encode($cache), LOCK_EX);
 }

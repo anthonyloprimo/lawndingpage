@@ -582,7 +582,7 @@ nav {
 .footer .authorPlain {
     color: inherit;
 }
-.footerGhLink {
+.footer a.footerGhLink {
     display: inline-flex;
     align-items: center;
     gap: 0.25em;

@@ -44,6 +44,15 @@ ini_set('error_log', $errorLogPath);
 
 lawnding_init_session(); // Initialize PHP session storage and load existing session data.
 
+// Pick up the "arrived via public-site shortcut" marker. When the visitor
+// lands here via the Admin-panel button on the public header, we stash a
+// session flag so their eventual logout redirects them back to the public
+// site root rather than the admin login form. The flag survives admin-page
+// navigation until session destruction on logout.
+if (($_GET['from'] ?? '') === 'public') {
+    $_SESSION['logout_return_public'] = true;
+}
+
 // Load centralized auth/identity helpers (shared with mutation endpoints).
 // admin/auth.php defines lawnding_resolve_admin_identity(), build_permission_context(),
 // lawnding_load_users_file(), etc.
@@ -692,13 +701,22 @@ if ($action === 'remove_user') {
 if ($action === 'logout') {
     if (!require_csrf_token($errors)) {
     } else {
+        // Capture the "came from public site" intent before session wipe,
+        // since $_SESSION = [] below will erase the flag along with everything
+        // else. If set, route the browser back to the site's public root;
+        // otherwise keep the traditional admin-login landing.
+        $returnToPublic = !empty($_SESSION['logout_return_public']);
+        $logoutTarget = $returnToPublic
+            ? (rtrim((string) lawnding_config('base_url', ''), '/') . '/')
+            : admin_redirect_path();
+
         $_SESSION = [];
         if (ini_get('session.use_cookies')) {
             $params = session_get_cookie_params();
             setcookie(session_name(), '', time() - 42000, $params['path'], $params['domain'], $params['secure'], $params['httponly']);
         }
         session_destroy();
-        header('Location: ' . admin_redirect_path());
+        header('Location: ' . $logoutTarget);
         exit;
     }
 }

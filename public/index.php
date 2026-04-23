@@ -318,7 +318,10 @@ $adminShortcutUrl = '';
 if (!empty($tgUserId) && $viewerContentLevel !== '') {
     $tgAdminPerms = lawnding_tg_user_permissions($tgConfig, $tgUserId);
     if (!empty($tgAdminPerms)) {
-        $adminShortcutUrl = lawnding_asset_url('admin/');
+        // ?from=public is a one-shot arrival marker picked up by admin/index.php
+        // so logging out from this session returns the visitor to the public
+        // site instead of the admin login form.
+        $adminShortcutUrl = lawnding_asset_url('admin/') . '?from=public';
     }
 }
 if ($authLinksEnabled) {

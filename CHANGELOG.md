@@ -4,6 +4,7 @@
 #### v1.12.1
 - Added a proper editor for per-group admin permissions on Telegram groups.
 - Added an admin panel shortcut to the Telegram profile chip for users whose group grants admin access.
+- Logging out of the admin panel now returns you to the public site if you arrived via that shortcut, instead of dropping you on the admin login form.
 - Fixed a bug where, if your Telegram admin access was revoked mid-session, the first attempt to log back in with a normal admin account failed with "Security token invalid." 
 
 -----

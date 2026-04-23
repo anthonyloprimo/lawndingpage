@@ -31,8 +31,8 @@ $(document).ready(function() {
             if (!id) {
                 return;
             }
-            const isNsfw = $card.find('.tgBotGroupContentRadio[value="NSFW"]').is(':checked');
-            const content = isNsfw ? 'NSFW' : 'SFW';
+            const contentRaw = String($card.find('.tgBotGroupContentSelect').val() || 'SFW').toUpperCase();
+            const content = contentRaw === 'NSFW' ? 'NSFW' : 'SFW';
             const permissions = [];
             $card.find('.tgBotGroupPerm:checked').each(function() {
                 const val = String($(this).val() || '').trim();
@@ -58,57 +58,30 @@ $(document).ready(function() {
         return order.map((id) => entriesById.get(id)).filter(Boolean);
     }
 
-    let tgBotGroupRowCounter = 0;
     function createTgBotGroupCard() {
-        const idx = ++tgBotGroupRowCounter;
-        const contentName = 'tgBotGroupContent_new_' + idx + '_' + Date.now();
         const deleteIcon = $('#tgBotGroupDeleteIcon').html() || '';
         return `
-            <div class="linksConfigCard tgBotGroupCard">
-                <div class="linksConfigRow">
-                    <label class="linksConfigField tgBotGroupIdField" title="Telegram group or channel ID (starts with -100 for supergroups/channels).">
-                        <span class="linksConfigLabelText">Group ID</span>
-                        <input class="linksConfigInput tgBotGroupIdInput" type="text" value="" placeholder="-1001234567890">
-                    </label>
-                    <div class="linksConfigField tgBotGroupContentField" title="Content level this group's members are authorized to view.">
-                        <span class="linksConfigLabelText">Content</span>
-                        <div class="tgBotGroupContentChoices">
-                            <label class="linksConfigCheckbox">
-                                <input type="radio" class="tgBotGroupContentRadio" name="${contentName}" value="SFW" checked>
-                                SFW
-                            </label>
-                            <label class="linksConfigCheckbox">
-                                <input type="radio" class="tgBotGroupContentRadio" name="${contentName}" value="NSFW">
-                                NSFW
-                            </label>
-                        </div>
-                    </div>
-                </div>
-                <div class="linksConfigRow linksConfigToggles tgBotGroupPermsRow">
-                    <span class="linksConfigLabelText tgBotGroupPermsLabel">Permissions</span>
-                    <div class="tgBotGroupPermsChoices">
-                        <label class="linksConfigCheckbox" title="Grant this group's members permission to edit site content (header, panes, links, etc.).">
-                            <input type="checkbox" class="tgBotGroupPerm" value="edit_site">
-                            Edit site
-                        </label>
-                        <label class="linksConfigCheckbox" title="Grant this group's members permission to create new user accounts.">
-                            <input type="checkbox" class="tgBotGroupPerm" value="add_users">
-                            Add users
-                        </label>
-                        <label class="linksConfigCheckbox" title="Grant this group's members permission to edit existing user accounts.">
-                            <input type="checkbox" class="tgBotGroupPerm" value="edit_users">
-                            Edit users
-                        </label>
-                        <label class="linksConfigCheckbox" title="Grant this group's members permission to remove user accounts.">
-                            <input type="checkbox" class="tgBotGroupPerm" value="remove_users">
-                            Remove users
-                        </label>
-                        <span class="linksConfigSpacer"></span>
-                        <button class="iconButton removeTgBotGroup" type="button" aria-label="Remove group" title="Remove group">
-                            ${deleteIcon}
-                        </button>
-                    </div>
-                </div>
+            <div class="tgBotGroupCard">
+                <input class="linksConfigInput tgBotGroupIdInput" type="text" value="" placeholder="-1001234567890" aria-label="Group ID">
+                <select class="linksConfigInput tgBotGroupContentSelect" aria-label="Content level">
+                    <option value="SFW" selected>SFW</option>
+                    <option value="NSFW">NSFW</option>
+                </select>
+                <label class="tgBotGroupPermCell" title="Edit site content (header, panes, links).">
+                    <input type="checkbox" class="tgBotGroupPerm" value="edit_site">
+                </label>
+                <label class="tgBotGroupPermCell" title="Create new user accounts.">
+                    <input type="checkbox" class="tgBotGroupPerm" value="add_users">
+                </label>
+                <label class="tgBotGroupPermCell" title="Edit existing user accounts.">
+                    <input type="checkbox" class="tgBotGroupPerm" value="edit_users">
+                </label>
+                <label class="tgBotGroupPermCell" title="Remove user accounts.">
+                    <input type="checkbox" class="tgBotGroupPerm" value="remove_users">
+                </label>
+                <button class="iconButton removeTgBotGroup" type="button" aria-label="Remove group" title="Remove group">
+                    ${deleteIcon}
+                </button>
             </div>
         `;
     }

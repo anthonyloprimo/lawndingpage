@@ -41,21 +41,28 @@ lawnding_register_hook('header_auth_area', function (array $ctx): void {
         : '/plugins/telegramProfile/avatar.php';
 
     $logoutUrl = isset($ctx['logoutUrl']) && is_string($ctx['logoutUrl']) ? $ctx['logoutUrl'] : '';
+    $adminUrl  = isset($ctx['adminUrl'])  && is_string($ctx['adminUrl'])  ? $ctx['adminUrl']  : '';
 
     echo '<div class="tgHeaderAuth">';
-    echo   '<div class="tgHeaderChip">';
-    echo     '<img class="tgHeaderAvatar" src="'
+    echo   '<div class="tgHeaderAuthRow">';
+    echo     '<div class="tgHeaderChip">';
+    echo       '<img class="tgHeaderAvatar" src="'
         . htmlspecialchars($avatarUrl, ENT_QUOTES, 'UTF-8') . '" alt="">';
-    echo     '<span class="tgHeaderName">'
+    echo       '<span class="tgHeaderName">'
         . htmlspecialchars($name, ENT_QUOTES, 'UTF-8') . '</span>';
-    echo   '</div>';
+    echo     '</div>';
     if ($logoutUrl !== '') {
-        echo '<a class="tgHeaderLogout" href="'
+        echo   '<a class="tgHeaderLogout" href="'
             . htmlspecialchars($logoutUrl, ENT_QUOTES, 'UTF-8') . '" title="Log out" aria-label="Log out">';
-        echo   '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" focusable="false" aria-hidden="true">';
-        echo     '<path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/>';
-        echo   '</svg>';
-        echo '</a>';
+        echo     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" focusable="false" aria-hidden="true">';
+        echo       '<path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/>';
+        echo     '</svg>';
+        echo   '</a>';
+    }
+    echo   '</div>';
+    if ($adminUrl !== '') {
+        echo '<a class="tgHeaderAdmin" href="'
+            . htmlspecialchars($adminUrl, ENT_QUOTES, 'UTF-8') . '" title="Go to admin panel">Admin panel</a>';
     }
     echo '</div>';
 });

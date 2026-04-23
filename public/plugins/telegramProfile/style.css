@@ -6,9 +6,16 @@
     top: 12px;
     right: 16px;
     display: flex;
-    align-items: center;
+    flex-direction: column;
+    align-items: flex-end;
     gap: 8px;
     z-index: 10;
+}
+
+.tgHeaderAuthRow {
+    display: flex;
+    align-items: center;
+    gap: 8px;
 }
 
 .tgHeaderChip {
@@ -66,6 +73,27 @@
     width: 18px;
     height: 18px;
     fill: currentColor;
+}
+
+.tgHeaderAdmin {
+    display: inline-flex;
+    align-items: center;
+    padding: 6px 14px;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(6px);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: #fff;
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 500;
+    transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.tgHeaderAdmin:hover,
+.tgHeaderAdmin:focus-visible {
+    background: rgba(80, 160, 255, 0.4);
+    border-color: rgba(120, 180, 255, 0.6);
 }
 
 /* Mobile: hide the name to save space. */

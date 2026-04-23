@@ -217,32 +217,59 @@ if (is_readable($tgBotPath)) {
     }
 }
 if (!function_exists('lawnding_admin_normalize_tg_group_entries')) {
+    // NOTE: this duplicates lawnding_tg_normalize_group_entries() in
+    // admin/lib/tg-auth.php. The two should be merged into a shared helper
+    // eventually; for now they share the schema and the per-group permissions
+    // allowlist (via lawnding_tg_eligible_permissions()).
     function lawnding_admin_normalize_tg_group_entries($values): array {
         if (!is_array($values)) {
             return [];
         }
+        $eligible = function_exists('lawnding_tg_eligible_permissions')
+            ? lawnding_tg_eligible_permissions()
+            : ['edit_site', 'add_users', 'edit_users', 'remove_users'];
         $order = [];
         $entriesById = [];
         foreach ($values as $value) {
             $groupId = '';
             $content = 'SFW';
+            $permissions = [];
             if (is_string($value) && trim($value) !== '') {
                 $groupId = trim($value);
             } elseif (is_array($value)) {
                 $groupId = isset($value['id']) && is_string($value['id']) ? trim($value['id']) : '';
                 $rawContent = isset($value['content']) && is_string($value['content']) ? strtoupper(trim($value['content'])) : 'SFW';
                 $content = $rawContent === 'NSFW' ? 'NSFW' : 'SFW';
+                if (isset($value['permissions']) && is_array($value['permissions'])) {
+                    foreach ($value['permissions'] as $perm) {
+                        if (!is_string($perm)) {
+                            continue;
+                        }
+                        $perm = trim($perm);
+                        if ($perm === '' || !in_array($perm, $eligible, true)) {
+                            continue;
+                        }
+                        if (!in_array($perm, $permissions, true)) {
+                            $permissions[] = $perm;
+                        }
+                    }
+                }
             }
             if ($groupId === '') {
                 continue;
             }
             if (!isset($entriesById[$groupId])) {
                 $order[] = $groupId;
-                $entriesById[$groupId] = ['id' => $groupId, 'content' => $content];
+                $entriesById[$groupId] = ['id' => $groupId, 'content' => $content, 'permissions' => $permissions];
                 continue;
             }
             if ($content === 'NSFW') {
                 $entriesById[$groupId]['content'] = 'NSFW';
+            }
+            foreach ($permissions as $perm) {
+                if (!in_array($perm, $entriesById[$groupId]['permissions'], true)) {
+                    $entriesById[$groupId]['permissions'][] = $perm;
+                }
             }
         }
         $entries = [];
@@ -258,9 +285,6 @@ $tgBotGroupIds = [];
 if (!empty($tgBotData['group_ids']) && is_array($tgBotData['group_ids'])) {
     $tgBotGroupIds = lawnding_admin_normalize_tg_group_entries($tgBotData['group_ids']);
 }
-$tgBotGroupIdsText = implode("\n", array_map(function (array $entry): string {
-    return $entry['id'] . ' ' . $entry['content'];
-}, $tgBotGroupIds));
 $webhookBase = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
 $webhookHost = $_SERVER['HTTP_HOST'] ?? 'your-domain.com';
 $webhookUrl = $webhookBase . '://' . $webhookHost . ($assetBase ?? '') . '/res/scr/tg-webhook.php';
@@ -530,7 +554,11 @@ foreach ($missingModulePanes as $moduleId => $paneList) {
 }
 
 // Permission gates and admin UI state (set by upstream controller).
-$currentUserName = $_SESSION['auth_user'] ?? '';
+// $displayName/$authUser come from admin/index.php's resolver call;
+// fall back to $_SESSION for older include paths that haven't migrated.
+$currentUserName = isset($displayName) && $displayName !== ''
+    ? $displayName
+    : ($authUser ?? ($_SESSION['auth_user'] ?? ''));
 $canAddUsers = $canAddUsers ?? true;
 $canEditUsers = $canEditUsers ?? true;
 $canRemoveUsers = $canRemoveUsers ?? true;
@@ -540,6 +568,14 @@ $isMasterUser = $isMasterUser ?? false;
 $isReadOnlyUser = $isReadOnlyUser ?? false;
 // Collect server-side status messages to render at top of page.
 $adminNotices = [];
+// Drain any one-shot session flash (e.g. revocation banner from the resolver)
+// into the notice list so it renders on the dashboard too.
+if (function_exists('lawnding_flash_consume')) {
+    $sessionFlash = lawnding_flash_consume();
+    if ($sessionFlash !== null) {
+        $adminNotices[] = $sessionFlash;
+    }
+}
 if (!empty($usersErrors)) {
     $adminNotices[] = ['type' => 'danger', 'text' => implode(' ', $usersErrors)];
 }
@@ -580,6 +616,7 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
 <body data-header-json="<?php echo $headerDataJson; ?>" data-app-config-json="<?php echo $appConfigJson; ?>">
     <div class="hidden" id="tgBotTokenToggleClosed"><?php echo lawnding_icon_svg('eye_closed'); ?></div>
     <div class="hidden" id="tgBotTokenToggleOpen"><?php echo lawnding_icon_svg('eye_open'); ?></div>
+    <div class="hidden" id="tgBotGroupDeleteIcon"><?php echo lawnding_icon_svg('delete'); ?></div>
     <!-- Runtime notices and admin alerts. -->
     <div id="noJsWarning"><noscript>This site requires JavaScript to function properly. Please enable JavaScript in your browser.</noscript></div>
     <div class="adminNotices" id="adminNotices">
@@ -658,7 +695,7 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
         </div>
         <div class="headerActionStack">
             <div class="headerUserStack">
-                <div class="signedInAs"><?php echo htmlspecialchars($_SESSION['auth_user'] ?? ''); ?></div>
+                <div class="signedInAs"><?php echo htmlspecialchars($currentUserName ?? ''); ?></div>
                 <form method="post" action="">
                     <input type="hidden" name="action" value="logout">
                     <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token'] ?? ''); ?>">
@@ -775,18 +812,64 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
                                     <button class="usersButton usersWarning authLinksTestBotButton" type="button">Test bot</button>
                                 </div>
                             </label>
-                            <label class="linksConfigField" title="One group ID per line. Append SFW or NSFW after the ID.">
+                            <div class="linksConfigField tgBotGroupsField">
                                 <span class="linksConfigLabelText">
-                                    Group IDs
-                                    <span class="authLinksHelpIcon authLinksHelpInline" title="How to get the group ID: add the bot to the group(s) you want to check and enter `/lpGetGroup` in each group.  Copy the returned group ID and enter it in this text box, one ID per line.">
+                                    Groups
+                                    <span class="authLinksHelpIcon authLinksHelpInline" title="How to get the group ID: add the bot to the group(s) you want to check and enter `/lpGetGroup` in each group. Copy the returned ID into a Group ID input below, pick the content level, and tick any admin permissions you want that group's members to gain.">
                                         <?php echo lawnding_icon_svg('help'); ?>
                                     </span>
                                 </span>
-                                <textarea class="linksConfigInput" id="tgBotGroupIds" rows="4" placeholder="-1001234567890 SFW"><?php echo htmlspecialchars($tgBotGroupIdsText); ?></textarea>
+                                <div class="tgBotGroupList" id="tgBotGroupList">
+                                    <div class="tgBotGroupHeaderSuper">
+                                        <span></span>
+                                        <span></span>
+                                        <span class="tgBotGroupSuperLabel">Permissions</span>
+                                        <span></span>
+                                    </div>
+                                    <div class="tgBotGroupHeader">
+                                        <span class="tgBotGroupHeadCell tgBotGroupHeadId">Group ID</span>
+                                        <span class="tgBotGroupHeadCell tgBotGroupHeadContent">Content</span>
+                                        <span class="tgBotGroupHeadCell">Edit<br>site</span>
+                                        <span class="tgBotGroupHeadCell">Add<br>users</span>
+                                        <span class="tgBotGroupHeadCell">Edit<br>users</span>
+                                        <span class="tgBotGroupHeadCell">Rem<br>users</span>
+                                        <span class="tgBotGroupHeadCell" aria-hidden="true"></span>
+                                    </div>
+                                    <?php foreach ($tgBotGroupIds as $entry): ?>
+                                        <?php
+                                            $gId = (string) ($entry['id'] ?? '');
+                                            $gContent = strtoupper((string) ($entry['content'] ?? 'SFW')) === 'NSFW' ? 'NSFW' : 'SFW';
+                                            $gPerms = is_array($entry['permissions'] ?? null) ? $entry['permissions'] : [];
+                                        ?>
+                                        <div class="tgBotGroupCard">
+                                            <input class="linksConfigInput tgBotGroupIdInput" type="text" value="<?php echo htmlspecialchars($gId); ?>" placeholder="-1001234567890" aria-label="Group ID">
+                                            <select class="linksConfigInput tgBotGroupContentSelect" aria-label="Content level">
+                                                <option value="SFW" <?php echo $gContent === 'SFW' ? 'selected' : ''; ?>>SFW</option>
+                                                <option value="NSFW" <?php echo $gContent === 'NSFW' ? 'selected' : ''; ?>>NSFW</option>
+                                            </select>
+                                            <label class="tgBotGroupPermCell" title="Edit site content (header, panes, links).">
+                                                <input type="checkbox" class="tgBotGroupPerm" value="edit_site" <?php echo in_array('edit_site', $gPerms, true) ? 'checked' : ''; ?>>
+                                            </label>
+                                            <label class="tgBotGroupPermCell" title="Create new user accounts.">
+                                                <input type="checkbox" class="tgBotGroupPerm" value="add_users" <?php echo in_array('add_users', $gPerms, true) ? 'checked' : ''; ?>>
+                                            </label>
+                                            <label class="tgBotGroupPermCell" title="Edit existing user accounts.">
+                                                <input type="checkbox" class="tgBotGroupPerm" value="edit_users" <?php echo in_array('edit_users', $gPerms, true) ? 'checked' : ''; ?>>
+                                            </label>
+                                            <label class="tgBotGroupPermCell" title="Remove user accounts.">
+                                                <input type="checkbox" class="tgBotGroupPerm" value="remove_users" <?php echo in_array('remove_users', $gPerms, true) ? 'checked' : ''; ?>>
+                                            </label>
+                                            <button class="iconButton removeTgBotGroup" type="button" aria-label="Remove group" title="Remove group">
+                                                <?php echo lawnding_icon_svg('delete'); ?>
+                                            </button>
+                                        </div>
+                                    <?php endforeach; ?>
+                                </div>
                                 <div class="authLinksFieldActions">
+                                    <button class="usersButton addTgBotGroup" type="button">Add group</button>
                                     <button class="usersButton usersWarning authLinksValidateGroupsButton" type="button">Validate Group IDs</button>
                                 </div>
-                            </label>
+                            </div>
                             <label class="linksConfigField" title="Membership cache TTL in minutes.">
                                 <span class="linksConfigLabelText">Membership cache TTL (minutes)</span>
                                 <input class="linksConfigInput" id="tgBotCacheTtl" type="text" inputmode="numeric" value="<?php echo htmlspecialchars((string) ($tgBotData['membership_cache_ttl_minutes'] ?? 30)); ?>">

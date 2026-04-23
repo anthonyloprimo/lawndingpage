@@ -7,6 +7,10 @@ It's created with HTML wrapped in PHP, as well as CSS and JS.
 
 Note: Inline JavaScript and inline `<style>` blocks are avoided for CSP compatibility. Runtime data is embedded in HTML data attributes and read by external JS files in `public/res/scr/`.
 
+#### IMPORTANT!  THIS CMS IS CURRENTLY BEST USED ON APACHE
+My apologies, I did not think to make note of this before.  This project utilizes `.htaccess` for a few directories.  As such, LawndingPage primarily is built for Apache servers.  Work will be made to do away with the need for those files, but no timeframe is given.  If you wish to use this on your own server, either use Apache, or be prepared to modify the code to support different file structures.  No guarantee is made.
+
+
 ## IMPORTANT! If you are going to develop for this CMS:
 As of now, this project has expandability to some extent through use of what I call "modules" which are what lets you have custom panes ("pages") for a site.  So for the demo on the site, there is the Links list which is a special pane, and then Welcome and Events, which are panes that use the basicText and eventList modules to run logic and display content.  The second way to expand the site will be via plugins, which are more intended to modify the site's behavior *directly*.  Modules will most likely work as-is, and I will strive to keep it that way, so no matter the theme, if you add a module, you're good to go.
 

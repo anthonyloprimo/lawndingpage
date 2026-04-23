@@ -1,21 +1,36 @@
 ### Changelog
 
-#### IMPORTANT!  THIS CMS IS CURRENTLY BEST USED ON APACHE
-My apologies, I did not think to make note of this before.  This project utilizes `.htaccess` for a few directories.  As such, LawndingPage primarily is built for Apache servers.  Work will be made to do away with the need for those files, but no timeframe is given.  If you wish to use this on your own server, either use Apache, or be prepared to modify the code to support different file structures.  No guarantee is made.
+
+#### v1.12.1
+- Added a proper editor for per-group admin permissions on Telegram groups.
+- Added an admin panel shortcut to the Telegram profile chip for users whose group grants admin access.
+- Logging out of the admin panel now returns you to the public site if you arrived via that shortcut, instead of dropping you on the admin login form.
+- Fixed a bug where, if your Telegram admin access was revoked mid-session, the first attempt to log back in with a normal admin account failed with "Security token invalid." 
+
+-----
+
+#### v1.12.0
+- Added the ability for Telegram-authenticated visitors to earn admin permissions just by being in a configured Telegram group.  No need for a separate admin account.  Admins set per-group permissions.  Master accounts and full admin access still require a password-based admin account.
+- Read-only admin accounts stay read-only, even if the same person's Telegram identity would otherwise grant extra permissions.
+- Fixed a bug where a Telegram admin who lost their group membership mid-session could stay on the admin page until the next page load.  They now get logged out automatically with a yellow banner explaining why.
+- Fixed a bug where the admin login form didn't show revocation banners, leaving the user without context for why they got kicked.
+- Security fix: two diagnostic endpoints (for testing the bot token and validating group IDs) were reachable without logging in.  Both now require admin access.
+
+-----
 
 #### v1.11.0
-- Telegram profile chip and log out button now live in the top-right of the page header instead of inside the links pane.  Log out is now an icon button.
-- Telegram login policy: visitors must be a member of a configured Telegram group to sign in.  Stranger logins are rejected outright instead of landing in a half-authorized state.
-- If a logged-in user loses their group membership mid-session, the next page load logs them out automatically.
-- Added top-of-screen banner notifications for login success ("Logged in as @yourhandle"), login rejection, and access revocation.  Same look and feel as the admin save banner.
-- Logo and background images now refresh immediately after admin uploads — no more hard-refreshing the browser to see the new asset.
-- The Telegram membership cache (`admin/lp-tgMembershipCache.json`) now also captures each visitor's username and first/last name on each fresh check.  This makes the cache file a usable "who has logged in recently" view — until now it only had numeric Telegram IDs.  No new admin UI yet; you can `cat` the file on the webserver to see who's there.
-- Added a small plugin hook system so plugins can extend the public page without touching core templates (`lawnding_register_hook` / `lawnding_run_hook`).  Initial hook points: `head_assets`, `header_auth_area`.
+- Enhanced Telegram login handling, additional info is collected incluiding user icon. Move logout button to the top-right of the page header.
+- Telegram login now requires being a member of a configured Telegram group.  If you aren't in one, the login is rejected cleanly instead of leaving you half-authenticated.
+- Fixed a bug where losing your group membership mid-session didn't log you out.
+- Added top-of-screen banner notifications for login success, login rejection, and access revocation.  Same look as the admin save banner.
+- Logo and background image uploads now apply global cache busting and refresh immediately after saving.
+- Telegram membership cache also stores each visitor's username and first/last name on each fresh check.
+- Added a small plugin hook system so plugins can extend the public page without touching the core templates. 
 
 -----
 
 #### v1.10.2
-- 
+- Mirrored to LIFURS repo and began development specific to that usecase. 
 
 -----
 

@@ -396,8 +396,8 @@ header.header {
 }
 
 .authLinksSidebar {
-    flex: 0 0 32%;
-    min-width: 220px;
+    flex: 0 0 520px;
+    min-width: 480px;
     display: flex;
     flex-direction: column;
     gap: 10px;
@@ -509,6 +509,71 @@ header.header {
     border: 1px solid #FFFFFF22;
     border-radius: 6px;
     overflow: auto;
+}
+
+/* Telegram bot per-group config table (id + content select + 4 permission
+   checkboxes + delete, laid out in a shared grid with two header rows). */
+.tgBotGroupList {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-top: 4px;
+}
+
+.tgBotGroupHeaderSuper,
+.tgBotGroupHeader,
+.tgBotGroupCard {
+    display: grid;
+    grid-template-columns: minmax(140px, 1fr) 80px repeat(4, 1fr) 40px;
+    gap: 6px 8px;
+    align-items: center;
+}
+
+.tgBotGroupHeaderSuper {
+    margin-bottom: -2px;
+}
+
+.tgBotGroupSuperLabel {
+    grid-column: 3 / span 4;
+    text-align: center;
+    font-weight: 600;
+    color: #FFFFFFCC;
+    font-size: 12px;
+}
+
+.tgBotGroupHeader {
+    border-bottom: 1px solid #FFFFFF22;
+    padding-bottom: 4px;
+    margin-bottom: 2px;
+}
+
+.tgBotGroupHeadCell {
+    font-weight: 600;
+    color: #FFFFFFAA;
+    font-size: 11px;
+    text-align: center;
+    line-height: 1.2;
+}
+
+.tgBotGroupHeadId,
+.tgBotGroupHeadContent {
+    text-align: left;
+}
+
+.tgBotGroupCard {
+    padding: 2px 0;
+}
+
+.tgBotGroupPermCell {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+}
+
+.tgBotGroupIdInput,
+.tgBotGroupContentSelect {
+    width: 100%;
 }
 
 @container auth-links-pane (max-width: 800px) {

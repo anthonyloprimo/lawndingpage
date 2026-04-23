@@ -293,18 +293,35 @@ $viewerContentLevel = '';
 if (!empty($tgUserId)) {
     $viewerContentLevel = lawnding_tg_user_content_level($tgConfig, $tgUserId, $tgUser);
     if ($viewerContentLevel === '') {
-        // Group membership lapsed since login. Under the "must be in a configured
-        // group" policy, drop the session entirely instead of degrading to a
-        // half-authorized state. Flash surfaces the reason on the next render.
-        session_unset();
-        session_regenerate_id(true);
-        lawnding_flash_set('warning', "You've been signed out — your access to the configured Telegram group has been revoked.");
+        // Group membership lapsed since login. Drop the session entirely
+        // instead of degrading to a half-authorized state, and surface a
+        // banner on the next render. Shared with the admin-side revocation
+        // path via lawnding_admin_handle_tg_revocation() in admin/auth.php
+        // so both surfaces tear down identically.
+        $adminAuthPath = function_exists('lawnding_admin_path')
+            ? lawnding_admin_path('auth.php')
+            : __DIR__ . '/../admin/auth.php';
+        require_once $adminAuthPath;
+        lawnding_admin_handle_tg_revocation();
         $tgUser = null;
         $tgUserId = null;
     } elseif ($viewerContentLevel === 'nsfw') {
         $markdownGateClearance = 'nsfw';
     } elseif ($viewerContentLevel === 'sfw') {
         $markdownGateClearance = 'sfw';
+    }
+}
+// Telegram-authenticated visitors whose groups grant any admin permission
+// get a shortcut button on the public header. Pure cache read — the content
+// level check above already warmed the membership cache.
+$adminShortcutUrl = '';
+if (!empty($tgUserId) && $viewerContentLevel !== '') {
+    $tgAdminPerms = lawnding_tg_user_permissions($tgConfig, $tgUserId);
+    if (!empty($tgAdminPerms)) {
+        // ?from=public is a one-shot arrival marker picked up by admin/index.php
+        // so logging out from this session returns the visitor to the public
+        // site instead of the admin login form.
+        $adminShortcutUrl = lawnding_asset_url('admin/') . '?from=public';
     }
 }
 if ($authLinksEnabled) {
@@ -556,6 +573,7 @@ $isLinksHidden = !$showLinks;
         <?php lawnding_run_hook('header_auth_area', [
             'tgUser' => $tgUser,
             'logoutUrl' => $tgLogoutUrl,
+            'adminUrl' => $adminShortcutUrl,
         ]); ?>
     </header>
     <!-- Main content panes. -->

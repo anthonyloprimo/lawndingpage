@@ -44,6 +44,23 @@ ini_set('error_log', $errorLogPath);
 
 lawnding_init_session(); // Initialize PHP session storage and load existing session data.
 
+// Pick up the "arrived via public-site shortcut" marker. When the visitor
+// lands here via the Admin-panel button on the public header, we stash a
+// session flag so their eventual logout redirects them back to the public
+// site root rather than the admin login form. The flag survives admin-page
+// navigation until session destruction on logout.
+if (($_GET['from'] ?? '') === 'public') {
+    $_SESSION['logout_return_public'] = true;
+}
+
+// Load centralized auth/identity helpers (shared with mutation endpoints).
+// admin/auth.php defines lawnding_resolve_admin_identity(), build_permission_context(),
+// lawnding_load_users_file(), etc.
+$adminAuthPath = function_exists('lawnding_admin_path')
+    ? lawnding_admin_path('auth.php')
+    : dirname(__DIR__, 2) . '/admin/auth.php';
+require_once $adminAuthPath;
+
 // Users file location (stored outside public web root).
 $usersPath = function_exists('lawnding_config')
     ? lawnding_config('users_path', dirname(__DIR__, 2) . '/admin/users.json')
@@ -123,11 +140,13 @@ function find_user($users, $username) {
 }
 
 // Keep only known permissions and normalize array order.
-function normalize_permissions($permissions, $allowedPermissions) {
-    if (!is_array($permissions)) {
-        return [];
+if (!function_exists('normalize_permissions')) {
+    function normalize_permissions($permissions, $allowedPermissions) {
+        if (!is_array($permissions)) {
+            return [];
+        }
+        return array_values(array_intersect($permissions, $allowedPermissions));
     }
-    return array_values(array_intersect($permissions, $allowedPermissions));
 }
 
 // Check if users.json permissions are too open or missing group read.
@@ -188,28 +207,9 @@ function enforce_users_permissions($usersPath, &$warnings) {
 }
 
 // Compute effective permissions for the current user.
-function build_permission_context($authRecord, $allowedPermissions) {
-    $isReadOnlyUser = $authRecord && !empty($authRecord['read_only']);
-    $currentPermissions = $authRecord ? normalize_permissions($authRecord['permissions'] ?? [], $allowedPermissions) : [];
-    if ($isReadOnlyUser) {
-        $currentPermissions = [];
-    }
-    $isMasterUser = $authRecord && !empty($authRecord['master']);
-    $isFullAdmin = !$isReadOnlyUser && ($isMasterUser || in_array('full_admin', $currentPermissions, true));
-    if ($isFullAdmin) {
-        $currentPermissions = $allowedPermissions;
-    }
-    return [
-        'currentPermissions' => $currentPermissions,
-        'isReadOnlyUser' => $isReadOnlyUser,
-        'isMasterUser' => $isMasterUser,
-        'isFullAdmin' => $isFullAdmin,
-        'canAddUsers' => !$isReadOnlyUser && ($isFullAdmin || in_array('add_users', $currentPermissions, true)),
-        'canEditUsers' => !$isReadOnlyUser && ($isFullAdmin || in_array('edit_users', $currentPermissions, true)),
-        'canRemoveUsers' => !$isReadOnlyUser && ($isFullAdmin || in_array('remove_users', $currentPermissions, true)),
-        'canEditSite' => !$isReadOnlyUser && ($isFullAdmin || in_array('edit_site', $currentPermissions, true)),
-    ];
-}
+// build_permission_context() now lives in admin/auth.php so mutation
+// endpoints can share it. Kept here as a no-op marker; the require_once
+// above defines the canonical version.
 
 // First-run account creation flow.
 if ($action === 'create_admin') {
@@ -226,6 +226,12 @@ if ($action === 'create_admin') {
 
         if ($username === '' || strlen($username) < 3 || strlen($username) > 32) {
             $errors[] = 'Username must be 3-32 characters.';
+        }
+        if (str_starts_with(strtolower($username), 'tg:')) {
+            // The 'tg:' prefix is reserved for synthetic Telegram-derived
+            // sessions (admin/auth.php sentinel). Bcrypt usernames must not
+            // collide with that namespace.
+            $errors[] = 'Usernames cannot start with "tg:" (reserved).';
         }
         if (strlen($password) < 8 || strlen($password) > 128) {
             $errors[] = 'Password must be 8-128 characters.';
@@ -278,10 +284,15 @@ if ($action === 'login') {
 }
 
 // Resolve the current authenticated user and permission flags.
-$authUser = $_SESSION['auth_user'] ?? '';
-$authRecord = $authUser !== '' ? find_user($users, $authUser) : null;
-$forcePasswordChange = $authRecord && !empty($authRecord['must_change_password']);
-$permissionContext = build_permission_context($authRecord, $allowedPermissions);
+// The resolver accepts either a bcrypt-logged-in user (from users.json),
+// a Telegram-logged-in user with admin perms from their group memberships,
+// or both (union of perms, bcrypt canonical). See admin/auth.php.
+$tgConfig = lawnding_load_tg_config();
+$identity = lawnding_resolve_admin_identity($tgConfig, $users, $allowedPermissions);
+$authUser = $identity['authUser'];
+$authRecord = $identity['authRecord'];
+$displayName = $identity['displayName'];
+$permissionContext = $identity['context'];
 $currentPermissions = $permissionContext['currentPermissions'];
 $isReadOnlyUser = $permissionContext['isReadOnlyUser'];
 $isMasterUser = $permissionContext['isMasterUser'];
@@ -290,8 +301,26 @@ $canAddUsers = $permissionContext['canAddUsers'];
 $canEditUsers = $permissionContext['canEditUsers'];
 $canRemoveUsers = $permissionContext['canRemoveUsers'];
 $canEditSite = $permissionContext['canEditSite'];
+$forcePasswordChange = $authRecord && !empty($authRecord['must_change_password']);
 if ($isReadOnlyUser) {
     $forcePasswordChange = false;
+}
+
+// Promote a Telegram-derived session to a "logged-in admin" identity by
+// persisting the tg:<id> sentinel into $_SESSION['auth_user']. Mirrors the
+// session-fixation defense bcrypt login does at line ~273 below — fires once
+// on the first such promotion (gated on $_SESSION['tg_admin_regenerated']).
+$identityIsTgOnly = $identity['isAuthenticated']
+    && in_array('telegram', $identity['sources'], true)
+    && !in_array('bcrypt', $identity['sources'], true);
+if ($identityIsTgOnly) {
+    if (($_SESSION['auth_user'] ?? '') !== $authUser) {
+        $_SESSION['auth_user'] = $authUser;
+    }
+    if (empty($_SESSION['tg_admin_regenerated'])) {
+        session_regenerate_id(true);
+        $_SESSION['tg_admin_regenerated'] = true;
+    }
 }
 
 // Health checks for files and directories needed by the admin app.
@@ -419,6 +448,9 @@ if ($action === 'create_user') {
 
             if ($newUsername === '' || strlen($newUsername) < 3 || strlen($newUsername) > 32) {
                 $usersErrors[] = 'Username must be 3-32 characters.';
+            }
+            if (str_starts_with(strtolower($newUsername), 'tg:')) {
+                $usersErrors[] = 'Usernames cannot start with "tg:" (reserved).';
             }
             if (strlen($tempPassword) < 8 || strlen($tempPassword) > 128) {
                 $usersErrors[] = 'Temporary password must be 8-128 characters.';
@@ -669,13 +701,22 @@ if ($action === 'remove_user') {
 if ($action === 'logout') {
     if (!require_csrf_token($errors)) {
     } else {
+        // Capture the "came from public site" intent before session wipe,
+        // since $_SESSION = [] below will erase the flag along with everything
+        // else. If set, route the browser back to the site's public root;
+        // otherwise keep the traditional admin-login landing.
+        $returnToPublic = !empty($_SESSION['logout_return_public']);
+        $logoutTarget = $returnToPublic
+            ? (rtrim((string) lawnding_config('base_url', ''), '/') . '/')
+            : admin_redirect_path();
+
         $_SESSION = [];
         if (ini_get('session.use_cookies')) {
             $params = session_get_cookie_params();
             setcookie(session_name(), '', time() - 42000, $params['path'], $params['domain'], $params['secure'], $params['httponly']);
         }
         session_destroy();
-        header('Location: ' . admin_redirect_path());
+        header('Location: ' . $logoutTarget);
         exit;
     }
 }
@@ -812,6 +853,21 @@ if ($authRecord && !$forcePasswordChange) {
     <link rel="stylesheet" href="<?php echo htmlspecialchars($assetBase . '/res/admin.css', ENT_QUOTES, 'UTF-8'); ?>">
 </head>
 <body>
+    <?php
+    // Drain any session flash so revocation banners (e.g. from
+    // lawnding_admin_handle_tg_revocation) surface here instead of being
+    // stranded for the next public-page visit. No JS on this surface, so
+    // the close button is intentionally omitted — the banner clears on the
+    // next navigation.
+    $loginFlash = function_exists('lawnding_flash_consume') ? lawnding_flash_consume() : null;
+    ?>
+    <?php if ($loginFlash !== null): ?>
+        <div class="adminNotices" id="adminNotices">
+            <div class="adminNotice adminNotice--<?php echo htmlspecialchars($loginFlash['type'], ENT_QUOTES, 'UTF-8'); ?>">
+                <span class="adminNoticeText"><?php echo htmlspecialchars($loginFlash['text'], ENT_QUOTES, 'UTF-8'); ?></span>
+            </div>
+        </div>
+    <?php endif; ?>
     <!-- Login / first-run / password reset screen. -->
     <div class="loginWrap">
         <div class="loginPane">

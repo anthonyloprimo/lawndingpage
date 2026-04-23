@@ -536,14 +536,21 @@ header.header {
 }
 
 .tgBotGroupPermsRow {
-    flex-wrap: wrap;
-    gap: 8px 12px;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
 }
 
 .tgBotGroupPermsLabel {
     font-weight: 600;
     color: #FFFFFFCC;
-    margin-right: 2px;
+}
+
+.tgBotGroupPermsChoices {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 12px;
+    align-items: center;
 }
 
 @container auth-links-pane (max-width: 800px) {

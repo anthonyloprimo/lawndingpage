@@ -849,26 +849,28 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
                                             </div>
                                             <div class="linksConfigRow linksConfigToggles tgBotGroupPermsRow">
                                                 <span class="linksConfigLabelText tgBotGroupPermsLabel">Permissions</span>
-                                                <label class="linksConfigCheckbox" title="Grant this group's members permission to edit site content (header, panes, links, etc.).">
-                                                    <input type="checkbox" class="tgBotGroupPerm" value="edit_site" <?php echo in_array('edit_site', $gPerms, true) ? 'checked' : ''; ?>>
-                                                    Edit site
-                                                </label>
-                                                <label class="linksConfigCheckbox" title="Grant this group's members permission to create new user accounts.">
-                                                    <input type="checkbox" class="tgBotGroupPerm" value="add_users" <?php echo in_array('add_users', $gPerms, true) ? 'checked' : ''; ?>>
-                                                    Add users
-                                                </label>
-                                                <label class="linksConfigCheckbox" title="Grant this group's members permission to edit existing user accounts.">
-                                                    <input type="checkbox" class="tgBotGroupPerm" value="edit_users" <?php echo in_array('edit_users', $gPerms, true) ? 'checked' : ''; ?>>
-                                                    Edit users
-                                                </label>
-                                                <label class="linksConfigCheckbox" title="Grant this group's members permission to remove user accounts.">
-                                                    <input type="checkbox" class="tgBotGroupPerm" value="remove_users" <?php echo in_array('remove_users', $gPerms, true) ? 'checked' : ''; ?>>
-                                                    Remove users
-                                                </label>
-                                                <span class="linksConfigSpacer"></span>
-                                                <button class="iconButton removeTgBotGroup" type="button" aria-label="Remove group" title="Remove group">
-                                                    <?php echo lawnding_icon_svg('delete'); ?>
-                                                </button>
+                                                <div class="tgBotGroupPermsChoices">
+                                                    <label class="linksConfigCheckbox" title="Grant this group's members permission to edit site content (header, panes, links, etc.).">
+                                                        <input type="checkbox" class="tgBotGroupPerm" value="edit_site" <?php echo in_array('edit_site', $gPerms, true) ? 'checked' : ''; ?>>
+                                                        Edit site
+                                                    </label>
+                                                    <label class="linksConfigCheckbox" title="Grant this group's members permission to create new user accounts.">
+                                                        <input type="checkbox" class="tgBotGroupPerm" value="add_users" <?php echo in_array('add_users', $gPerms, true) ? 'checked' : ''; ?>>
+                                                        Add users
+                                                    </label>
+                                                    <label class="linksConfigCheckbox" title="Grant this group's members permission to edit existing user accounts.">
+                                                        <input type="checkbox" class="tgBotGroupPerm" value="edit_users" <?php echo in_array('edit_users', $gPerms, true) ? 'checked' : ''; ?>>
+                                                        Edit users
+                                                    </label>
+                                                    <label class="linksConfigCheckbox" title="Grant this group's members permission to remove user accounts.">
+                                                        <input type="checkbox" class="tgBotGroupPerm" value="remove_users" <?php echo in_array('remove_users', $gPerms, true) ? 'checked' : ''; ?>>
+                                                        Remove users
+                                                    </label>
+                                                    <span class="linksConfigSpacer"></span>
+                                                    <button class="iconButton removeTgBotGroup" type="button" aria-label="Remove group" title="Remove group">
+                                                        <?php echo lawnding_icon_svg('delete'); ?>
+                                                    </button>
+                                                </div>
                                             </div>
                                         </div>
                                     <?php endforeach; ?>

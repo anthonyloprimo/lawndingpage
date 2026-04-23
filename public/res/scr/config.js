@@ -86,26 +86,28 @@ $(document).ready(function() {
                 </div>
                 <div class="linksConfigRow linksConfigToggles tgBotGroupPermsRow">
                     <span class="linksConfigLabelText tgBotGroupPermsLabel">Permissions</span>
-                    <label class="linksConfigCheckbox" title="Grant this group's members permission to edit site content (header, panes, links, etc.).">
-                        <input type="checkbox" class="tgBotGroupPerm" value="edit_site">
-                        Edit site
-                    </label>
-                    <label class="linksConfigCheckbox" title="Grant this group's members permission to create new user accounts.">
-                        <input type="checkbox" class="tgBotGroupPerm" value="add_users">
-                        Add users
-                    </label>
-                    <label class="linksConfigCheckbox" title="Grant this group's members permission to edit existing user accounts.">
-                        <input type="checkbox" class="tgBotGroupPerm" value="edit_users">
-                        Edit users
-                    </label>
-                    <label class="linksConfigCheckbox" title="Grant this group's members permission to remove user accounts.">
-                        <input type="checkbox" class="tgBotGroupPerm" value="remove_users">
-                        Remove users
-                    </label>
-                    <span class="linksConfigSpacer"></span>
-                    <button class="iconButton removeTgBotGroup" type="button" aria-label="Remove group" title="Remove group">
-                        ${deleteIcon}
-                    </button>
+                    <div class="tgBotGroupPermsChoices">
+                        <label class="linksConfigCheckbox" title="Grant this group's members permission to edit site content (header, panes, links, etc.).">
+                            <input type="checkbox" class="tgBotGroupPerm" value="edit_site">
+                            Edit site
+                        </label>
+                        <label class="linksConfigCheckbox" title="Grant this group's members permission to create new user accounts.">
+                            <input type="checkbox" class="tgBotGroupPerm" value="add_users">
+                            Add users
+                        </label>
+                        <label class="linksConfigCheckbox" title="Grant this group's members permission to edit existing user accounts.">
+                            <input type="checkbox" class="tgBotGroupPerm" value="edit_users">
+                            Edit users
+                        </label>
+                        <label class="linksConfigCheckbox" title="Grant this group's members permission to remove user accounts.">
+                            <input type="checkbox" class="tgBotGroupPerm" value="remove_users">
+                            Remove users
+                        </label>
+                        <span class="linksConfigSpacer"></span>
+                        <button class="iconButton removeTgBotGroup" type="button" aria-label="Remove group" title="Remove group">
+                            ${deleteIcon}
+                        </button>
+                    </div>
                 </div>
             </div>
         `;

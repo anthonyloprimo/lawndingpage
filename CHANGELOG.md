@@ -4,29 +4,28 @@
 My apologies, I did not think to make note of this before.  This project utilizes `.htaccess` for a few directories.  As such, LawndingPage primarily is built for Apache servers.  Work will be made to do away with the need for those files, but no timeframe is given.  If you wish to use this on your own server, either use Apache, or be prepared to modify the code to support different file structures.  No guarantee is made.
 
 #### v1.12.1
-- Telegram bot config now has a proper editor for per-group permissions.  The Group IDs textarea in the Auth Links editor is replaced with one card per group, containing a Group ID input, an SFW/NSFW selector, a checkbox for each admin permission (Edit site, Add users, Edit users, Remove users), and a remove button — plus an "Add group" button below the list.  This finishes the unified-usermodel work from v1.12.0; admins no longer need to hand-edit `admin/lp-tgBot.json` to grant permissions to a Telegram group.
-- Fixed: after a Telegram-group-revoked admin was bounced back to the admin login form, the first login attempt with bcrypt credentials was rejected with "Security token invalid" because the session's CSRF token had been wiped alongside the revoked Telegram identity.  Fresh tokens are now seeded immediately after the revocation teardown so the login form submits on the first try.
+- Added a proper editor for per-group admin permissions on Telegram groups.  The group IDs textarea in the auth links editor has been replaced with one card per group, letting you tick which admin permissions (edit site, add users, edit users, remove users) members of each group should get.  No more hand-editing the bot config file.
+- Fixed a bug where, if your Telegram admin access was revoked mid-session, the first attempt to log back in with a normal admin account failed with "Security token invalid."  The login form works on the first try now.
 
 -----
 
 #### v1.12.0
-- Telegram-authenticated visitors can now earn limited admin permissions via Telegram group membership and use the existing admin UI directly — no bcrypt account required for them.  Admins configure which permissions a group grants via a new optional `permissions` array on each group entry in `admin/lp-tgBot.json` (eligible: `edit_site`, `add_users`, `edit_users`, `remove_users`).  `full_admin` and the `master` flag remain bcrypt-only.
-- Read-only bcrypt accounts stay read-only even if their Telegram identity would grant permissions (read-only wins, by design).
-- When a Telegram-derived admin loses group membership mid-session, the next admin request logs them out and shows the same yellow flash banner used for public-side revocations.
-- Admin login form now renders session flash banners (revocation notices, etc.) instead of stranding them for the next visit.
-- Security fix: `tg-test.php` and `tg-validate-groups.php` were accessible to anonymous visitors and could be used to probe the configured bot token / group IDs.  Both now require admin permission + a valid CSRF token.  No reachable abuse path on properly-configured deployments, but worth applying.
-- **Configuration note**: until a structured admin UI editor lands in a future release, per-group permissions must be set by hand-editing `admin/lp-tgBot.json` (e.g. `{"id":"-100…","content":"sfw","permissions":["edit_site"]}`).  The save flow round-trips the field, so existing perms aren't lost when admins save other settings.
+- Added the ability for Telegram-authenticated visitors to earn admin permissions just by being in a configured Telegram group.  No need for a separate admin account.  Admins set per-group permissions.  Master accounts and full admin access still require a password-based admin account.
+- Read-only admin accounts stay read-only, even if the same person's Telegram identity would otherwise grant extra permissions.
+- Fixed a bug where a Telegram admin who lost their group membership mid-session could stay on the admin page until the next page load.  They now get logged out automatically with a yellow banner explaining why.
+- Fixed a bug where the admin login form didn't show revocation banners, leaving the user without context for why they got kicked.
+- Security fix: two diagnostic endpoints (for testing the bot token and validating group IDs) were reachable without logging in.  Both now require admin access.
 
 -----
 
 #### v1.11.0
-- Telegram profile chip and log out button now live in the top-right of the page header instead of inside the links pane.  Log out is now an icon button.
-- Telegram login policy: visitors must be a member of a configured Telegram group to sign in.  Stranger logins are rejected outright instead of landing in a half-authorized state.
-- If a logged-in user loses their group membership mid-session, the next page load logs them out automatically.
-- Added top-of-screen banner notifications for login success ("Logged in as @yourhandle"), login rejection, and access revocation.  Same look and feel as the admin save banner.
-- Logo and background images now refresh immediately after admin uploads — no more hard-refreshing the browser to see the new asset.
-- The Telegram membership cache (`admin/lp-tgMembershipCache.json`) now also captures each visitor's username and first/last name on each fresh check.  This makes the cache file a usable "who has logged in recently" view — until now it only had numeric Telegram IDs.  No new admin UI yet; you can `cat` the file on the webserver to see who's there.
-- Added a small plugin hook system so plugins can extend the public page without touching core templates (`lawnding_register_hook` / `lawnding_run_hook`).  Initial hook points: `head_assets`, `header_auth_area`.
+- Moved the Telegram profile chip and logout button to the top-right of the page header, instead of cluttering the links pane.  Logout is now a small icon button.
+- Telegram login now requires being a member of a configured Telegram group.  If you aren't in one, the login is rejected cleanly instead of leaving you half-authenticated.
+- Fixed a bug where losing your group membership mid-session didn't log you out.  The next page load now logs you out automatically.
+- Added top-of-screen banner notifications for login success, login rejection, and access revocation.  Same look as the admin save banner.
+- Logo and background image uploads now refresh immediately after saving — no more hard-refreshing the browser to see the new image.
+- Telegram membership cache also stores each visitor's username and first/last name on each fresh check, so the cache file is a usable "who has logged in recently" view.  No new admin UI for it yet — you can check the file directly on the server.
+- Added a small plugin hook system so plugins can extend the public page without touching the core templates.  Initial hook points cover the page header and the document `<head>`.
 
 -----
 

@@ -130,6 +130,13 @@ function lawnding_admin_handle_tg_revocation(): void {
             "You've been signed out — your access to the configured Telegram group has been revoked."
         );
     }
+    // session_unset() above wiped $_SESSION['csrf_token']. Seed a fresh one so
+    // the login form rendered on this same request has a non-empty hidden
+    // input; otherwise the user's first login attempt post-revocation 403s
+    // with "Security token invalid."
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+    }
 }
 
 // Empty identity — returned when no valid auth is present.

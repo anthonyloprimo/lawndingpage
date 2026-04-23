@@ -582,12 +582,16 @@ nav {
 .footer .authorPlain {
     color: inherit;
 }
+.footerGhLink {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25em;
+}
 .footerGhIcon {
     width: 1em;
     height: 1em;
-    vertical-align: -0.15em;
     fill: currentColor;
-    margin-right: 0.25em;
+    flex-shrink: 0;
 }
 
 

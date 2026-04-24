@@ -1170,9 +1170,6 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
             <h3>SELECT A PANE</h3>
             <p>Select a pane from the navbar below.</p>
         </div>
-        <div class="pane glassConvex" id="changelog">
-            <?php echo $changelog; ?>
-        </div>
     </div>
     <!-- Bottom navigation for pane switching. -->
     <nav>
@@ -1208,8 +1205,6 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
                     <button class="paneManageButton" type="button" aria-label="Pane Management" title="Pane Management">Pane Management</button>
                 </li>
             <?php endif; ?>
-            <li class="navSeparator" aria-hidden="true"></li>
-            <li><a class="navLink" href="#" data-pane="changelog" aria-label="Changelog" title="Changelog"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><title>Changelog</title><path d="M13,9H18.5L13,3.5V9M6,2H14L20,8V20A2,2 0 0,1 18,22H6C4.89,22 4,21.1 4,20V4C4,2.89 4.89,2 6,2M6.12,15.5L9.86,19.24L11.28,17.83L8.95,15.5L11.28,13.17L9.86,11.76L6.12,15.5M17.28,15.5L13.54,11.76L12.12,13.17L14.45,15.5L12.12,17.83L13.54,19.24L17.28,15.5Z" /></svg></a></li>
             </ul>
             <div class="navBarFadeLayer" aria-hidden="true">
                 <div class="navBarFade navBarFadeLeft"></div>
@@ -1429,6 +1424,18 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
         </div>
     </div>
     <script src="<?php echo htmlspecialchars($assetBase . '/res/scr/admin-data.js', ENT_QUOTES, 'UTF-8'); ?>"></script>
+    <div class="changelogModal" id="changelogModal" role="dialog" aria-modal="true" aria-label="Changelog" hidden>
+        <div class="changelogModalBackdrop"></div>
+        <div class="changelogModalInner">
+            <div class="changelogModalHeader">
+                <span>Changelog</span>
+                <button class="changelogModalClose" type="button" aria-label="Close changelog">✕</button>
+            </div>
+            <div class="changelogModalBody changelogContent">
+                <?php echo $changelog; ?>
+            </div>
+        </div>
+    </div>
     <script src="<?php echo htmlspecialchars($assetBase . '/res/scr/app.js', ENT_QUOTES, 'UTF-8'); ?>"></script>
     <script src="<?php echo htmlspecialchars($assetBase . '/res/scr/config.js', ENT_QUOTES, 'UTF-8'); ?>"></script>
 </body>

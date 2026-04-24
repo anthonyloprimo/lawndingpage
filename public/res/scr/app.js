@@ -1320,10 +1320,38 @@ function lpBindNotices() {
 
 window.lpAddNotice = lpAddNotice;
 
+// Changelog modal
+function lpOpenChangelog() {
+    var $modal = $('#changelogModal');
+    if (!$modal.length) { return; }
+    $modal.removeAttr('hidden');
+    $modal.find('.changelogModalClose').focus();
+}
+
+function lpCloseChangelog() {
+    $('#changelogModal').attr('hidden', '');
+}
+
+function lpBindChangelog() {
+    $(document).on('click.changelog', '[data-changelog-trigger]', function(e) {
+        e.preventDefault();
+        lpOpenChangelog();
+    });
+    $(document).on('click.changelog', '.changelogModalClose, .changelogModalBackdrop', function() {
+        lpCloseChangelog();
+    });
+    $(document).on('keydown.changelog', function(e) {
+        if (e.key === 'Escape' && $('#changelogModal:not([hidden])').length) {
+            lpCloseChangelog();
+        }
+    });
+}
+
 // Ensure we update the layout as soon as the page loads.
 $(document).ready(function() {
     init();
     lpBindNotices();
+    lpBindChangelog();
 });
 
 // Fade in content after all assets have loaded.

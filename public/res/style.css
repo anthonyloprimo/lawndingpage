@@ -601,42 +601,62 @@ nav {
 }
 
 
-/* Changelog page */
-.changelogPageBody {
-    overflow-y: auto;
-    height: auto;
-}
-.changelogPageWrap {
-    max-width: 860px;
-    margin: 0 auto;
-    padding: 2rem 1rem 3rem;
-    display: flex;
-    flex-direction: column;
-    gap: 1.5rem;
-    width: 100%;
-}
-.changelogPageHeader {
+/* Changelog modal */
+.changelogModal {
+    position: fixed;
+    inset: 0;
+    z-index: 200;
     display: flex;
     align-items: center;
-    gap: 1.5rem;
+    justify-content: center;
+    padding: 1rem;
 }
-.changelogBackLink {
-    font-size: 0.9rem;
-    opacity: 0.7;
-    white-space: nowrap;
-    text-decoration: none;
+.changelogModal[hidden] {
+    display: none;
 }
-.changelogBackLink:hover {
-    opacity: 1;
-    text-decoration: underline;
-    text-underline-offset: 3px;
+.changelogModalBackdrop {
+    position: absolute;
+    inset: 0;
+    background: #00000077;
+    backdrop-filter: blur(4px);
 }
-.changelogPageTitle {
-    font-size: 1.4rem;
+.changelogModalInner {
+    position: relative;
+    width: 100%;
+    max-width: 720px;
+    max-height: 80dvh;
+    display: flex;
+    flex-direction: column;
+    border-radius: 12px;
+    backdrop-filter: blur(12px);
+    background-color: #00000088;
+    box-shadow: 0 0 0 1px #FFFFFF22 inset, 0 0 0 1px #00000055, 0 8px 32px #00000088;
+}
+.changelogModalHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.875rem 1.25rem;
+    border-bottom: 1px solid #FFFFFF22;
     font-weight: bold;
+    flex-shrink: 0;
 }
-.changelogContent {
-    padding: 1.5rem 2rem;
+.changelogModalClose {
+    line-height: 1;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    opacity: 0.6;
+    cursor: pointer;
+}
+.changelogModalClose:hover {
+    opacity: 1;
+    background: #FFFFFF22;
+}
+.changelogModalBody {
+    overflow-y: auto;
+    padding: 1.25rem 1.5rem;
+    flex: 1;
+    min-height: 0;
     line-height: 1.6;
 }
 .changelogContent h1,

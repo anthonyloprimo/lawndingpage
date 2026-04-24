@@ -194,7 +194,7 @@ function lawnding_footer_platform_html(): string {
         . ' GitHub</a>'
         . '<span class="footerSep"> · </span><a href="https://lawnding.page" rel="noopener" target="_blank">lawnding.page</a>'
         . $version
-        . ' <a href="' . htmlspecialchars(lawnding_asset_url('changelog.php'), ENT_QUOTES, 'UTF-8') . '">[CHANGELOG]</a>';
+        . ' <a href="#" data-changelog-trigger>[CHANGELOG]</a>';
 }
 
 // Configure hardened session cookie params and start the session.

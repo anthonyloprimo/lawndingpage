@@ -687,6 +687,29 @@ $isLinksHidden = !$showLinks;
             <?php echo lawnding_footer_platform_html(); ?><span class="footerSep"> · </span>Background image by <span class="authorPlain"></span><a class="authorLink hidden" href="" rel="noopener" target="_blank"><span class="authorName"></span></a>.
         </div>
     </nav>
+    <?php
+    if (!class_exists('Parsedown')) {
+        require_once lawnding_public_path('res/scr/Parsedown.php');
+    }
+    $changelogMdPath = lawnding_config('root_dir', dirname(dirname(__DIR__))) . '/CHANGELOG.md';
+    $changelogHtml = '';
+    if (is_readable($changelogMdPath)) {
+        $clParser = new Parsedown();
+        $changelogHtml = $clParser->text((string) file_get_contents($changelogMdPath));
+    }
+    ?>
+    <div class="changelogModal" id="changelogModal" role="dialog" aria-modal="true" aria-label="Changelog" hidden>
+        <div class="changelogModalBackdrop"></div>
+        <div class="changelogModalInner">
+            <div class="changelogModalHeader">
+                <span>Changelog</span>
+                <button class="changelogModalClose" type="button" aria-label="Close changelog">✕</button>
+            </div>
+            <div class="changelogModalBody changelogContent">
+                <?php echo $changelogHtml; ?>
+            </div>
+        </div>
+    </div>
     <script src="<?php echo htmlspecialchars(lawnding_asset_url('res/scr/public-data.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
     <script src="<?php echo htmlspecialchars(lawnding_asset_url('res/scr/app.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
 </body>

@@ -652,7 +652,9 @@ function save_pane_icon($fileArray, $paneId, $iconDir) {
     }
     $filename = $base . '.' . $ext;
     $targetPath = rtrim($iconDir, '/\\') . '/' . $filename;
-    if (!move_uploaded_file($fileArray['tmp_name'], $targetPath)) {
+    $resized = function_exists('lawnding_gd_resize_image')
+        && lawnding_gd_resize_image($fileArray['tmp_name'], $targetPath, 256, 256);
+    if (!$resized && !move_uploaded_file($fileArray['tmp_name'], $targetPath)) {
         return null;
     }
     return $filename;
@@ -681,7 +683,9 @@ function save_image($fileArray, $destName) {
         ? $destName . '.' . $ext
         : preg_replace('/[^a-zA-Z0-9._-]/', '_', pathinfo($fileArray['name'], PATHINFO_FILENAME)) . '.' . $ext;
     $targetPath = $imgDir . $safeName;
-    if (!move_uploaded_file($fileArray['tmp_name'], $targetPath)) {
+    $resized = function_exists('lawnding_gd_resize_image')
+        && lawnding_gd_resize_image($fileArray['tmp_name'], $targetPath, 256, 256);
+    if (!$resized && !move_uploaded_file($fileArray['tmp_name'], $targetPath)) {
         return null;
     }
     return 'res/img/' . $safeName;
@@ -1633,4 +1637,8 @@ if (is_array($tgBotData)) {
 }
 
 // All operations succeeded.
-respond(['status' => 'ok']);
+$saveResponse = ['status' => 'ok'];
+if (!extension_loaded('gd')) {
+    $saveResponse['gd_unavailable'] = true;
+}
+respond($saveResponse);

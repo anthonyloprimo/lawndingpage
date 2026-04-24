@@ -71,11 +71,15 @@ media_gallery_ensure_dir($mediaDir);
 $filename = 'media-' . $newId . '.' . $ext;
 $targetPath = rtrim($mediaDir, '/\\') . '/' . $filename;
 
-if (!move_uploaded_file($upload['tmp_name'], $targetPath)) {
+$isVideo = strpos($mime, 'video/') === 0;
+$resized = !$isVideo
+    && function_exists('lawnding_gd_resize_image')
+    && lawnding_gd_resize_image($upload['tmp_name'], $targetPath, 1920, 10000);
+if (!$resized && !move_uploaded_file($upload['tmp_name'], $targetPath)) {
     media_gallery_json_response(['error' => 'Upload failed. Please try again.'], 400);
 }
 
-$type = strpos($mime, 'video/') === 0 ? 'video' : 'image';
+$type = $isVideo ? 'video' : 'image';
 $relativePath = 'res/data/mediaGalleryContent-' . $paneId . '/' . $filename;
 
 $maxOrder = 0;
@@ -101,7 +105,11 @@ $items = media_gallery_reindex_orders($items);
 $data['items'] = $items;
 media_gallery_write_data($jsonPath, $data);
 
-media_gallery_json_response([
+$uploadResponse = [
     'items' => media_gallery_build_payload($items),
     'id' => $newId,
-]);
+];
+if (!extension_loaded('gd')) {
+    $uploadResponse['gd_unavailable'] = true;
+}
+media_gallery_json_response($uploadResponse);

@@ -4,6 +4,7 @@ $(document).ready(function() {
     const steps = buildTutorialSteps();
     let currentStep = 0;
     let pendingLogoFile = null;
+    let gdNoticeShown = false;
     let linkCounter = $('#linksConfig .linksConfigCard').length;
     let authLinkCounter = $('#authLinksConfig .authLinksConfigCard').length;
     let initialSnapshot = null;
@@ -1011,6 +1012,10 @@ $(document).ready(function() {
                 renderBackgrounds(data.backgrounds || []);
                 initialSnapshot.backgrounds = getBackgroundsData();
                 addAdminNotice('ok', 'Background uploaded.');
+                if (data.gd_unavailable && !gdNoticeShown) {
+                    gdNoticeShown = true;
+                    addAdminNotice('ok', 'For better performance, install the PHP GD extension on your server.');
+                }
                 hideSavingOverlay();
             })
             .catch((error) => {
@@ -1115,6 +1120,10 @@ $(document).ready(function() {
                 success: function(resp) {
                     console.log('Save successful', resp);
                     addAdminNotice('ok', 'Changes saved.');
+                    if (resp && resp.gd_unavailable && !gdNoticeShown) {
+                        gdNoticeShown = true;
+                        addAdminNotice('ok', 'For better performance, install the PHP GD extension on your server.');
+                    }
                     let refreshPromise = Promise.resolve();
                     if (typeof window.refreshEventListUIs === 'function') {
                         window.refreshEventListUIs();

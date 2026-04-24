@@ -10,6 +10,8 @@ $(document).ready(function() {
     }
     window.__mediaGalleryAdminInitialized = true;
 
+    let gdNoticeShown = false;
+
     const basePath = window.appConfig && typeof window.appConfig.basePath === 'string'
         ? window.appConfig.basePath.replace(/\/$/, '')
         : '';
@@ -353,6 +355,10 @@ $(document).ready(function() {
                 }
                 setItemsFromPayload(state, data.items || []);
                 addNotice('ok', 'Media uploaded.');
+                if (data.gd_unavailable && !gdNoticeShown) {
+                    gdNoticeShown = true;
+                    addNotice('ok', 'For better performance, install the PHP GD extension on your server.');
+                }
                 hideSaving();
             })
             .catch(() => {
@@ -389,6 +395,10 @@ $(document).ready(function() {
                 setItemsFromPayload(state, data.items || []);
                 openModal(state, itemId);
                 addNotice('ok', 'Media updated.');
+                if (data.gd_unavailable && !gdNoticeShown) {
+                    gdNoticeShown = true;
+                    addNotice('ok', 'For better performance, install the PHP GD extension on your server.');
+                }
                 hideSaving();
             })
             .catch(() => {

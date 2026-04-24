@@ -31,8 +31,8 @@ if (($upload['error'] ?? UPLOAD_ERR_OK) !== UPLOAD_ERR_OK) {
 if (!is_uploaded_file($upload['tmp_name'] ?? '')) {
     media_gallery_json_response(['error' => 'Invalid upload.'], 400);
 }
-$appUploadMaxBytes = 2 * 1024 * 1024;
-$appUploadMaxLabel = '2MB';
+$appUploadMaxBytes = 5 * 1024 * 1024;
+$appUploadMaxLabel = '5MB';
 if (($upload['size'] ?? 0) > $appUploadMaxBytes) {
     media_gallery_json_response(['error' => 'Upload too large. Media must be under ' . $appUploadMaxLabel . '.'], 413);
 }

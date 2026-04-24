@@ -192,8 +192,10 @@ function lawnding_footer_platform_html(): string {
         . ' width="1em" height="1em"'
         . ' class="footerGhIcon" aria-hidden="true"><path d="' . $ghPath . '"/></svg>'
         . ' GitHub</a>'
-        . ' · <a href="https://lawnding.page" rel="noopener" target="_blank">lawnding.page</a>'
-        . $version;
+        . '<span class="footerSep"> · </span><a href="https://lawnding.page" rel="noopener" target="_blank">lawnding.page</a>'
+        . $version
+        . ' <a href="https://github.com/anthonyloprimo/lawndingpage/blob/main/CHANGELOG.md"'
+        . ' rel="noopener" target="_blank">[CHANGELOG]</a>';
 }
 
 // Configure hardened session cookie params and start the session.

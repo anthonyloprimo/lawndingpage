@@ -567,6 +567,12 @@ nav {
 .footer {
     font-size: 9pt;
     color: #FFFFFFAA;
+    width: 100%;
+    text-align: center;
+}
+.footerSep {
+    padding: 0 0.6em;
+    opacity: 0.5;
 }
 .footer a {
     display: inline;

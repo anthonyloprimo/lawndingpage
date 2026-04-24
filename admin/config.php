@@ -1212,7 +1212,7 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
             </div>
         </div>
         <div class="footer">
-            <?php echo lawnding_footer_platform_html(); ?>.
+            <?php echo lawnding_footer_platform_html(); ?><span class="footerSep"> · </span>Background image by <span class="authorPlain"></span><a class="authorLink hidden" href="" rel="noopener" target="_blank"><span class="authorName"></span></a>.
         </div>
     </nav>
     <!-- Modal overlays for user actions and confirmations. -->

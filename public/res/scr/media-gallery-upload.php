@@ -26,7 +26,8 @@ if (!$upload || !is_array($upload)) {
 if (($upload['error'] ?? UPLOAD_ERR_OK) !== UPLOAD_ERR_OK) {
     $error = $upload['error'] ?? UPLOAD_ERR_OK;
     if ($error === UPLOAD_ERR_INI_SIZE || $error === UPLOAD_ERR_FORM_SIZE) {
-        media_gallery_json_response(['error' => 'Upload too large. Media must be under 5MB.'], 413);
+        $phpLimit = ini_get('upload_max_filesize');
+        media_gallery_json_response(['error' => 'Upload too large. Your server\'s PHP limit is ' . $phpLimit . ' — increase upload_max_filesize in php.ini.'], 413);
     }
     media_gallery_json_response(['error' => 'Upload failed. Please try again.'], 400);
 }

@@ -1769,13 +1769,13 @@ $(document).ready(function() {
                 <div class="bgConfigRow" data-current-url="${escapeHtml(url)}" data-author-url="${escapeHtml(authorUrl)}" data-index="${index}">
                     <div class="bgThumbWrap ${isEmpty ? 'empty' : ''}"${sizeAttr}>
                         <img class="bgThumb" src="${escapeHtml(displayUrl)}" alt="Background preview">
-                        <button class="bgChange" type="button">Change</button>
                     </div>
                     <input class="bgAuthorInput" type="text" name="bgAuthor[]" value="${escapeHtml(author)}" placeholder="Author">
                     <input class="bgAuthorUrlInput" type="text" name="bgAuthorUrl[]" value="${escapeHtml(authorUrl)}" placeholder="URL">
                     <div class="bgRowActions">
                         <button class="moveUpLink iconButton" type="button" title="Move background up" aria-label="Move background up">${moveUpIcon}</button>
                         <button class="moveDownLink iconButton" type="button" title="Move background down" aria-label="Move background down">${moveDownIcon}</button>
+                        <button class="bgChange iconButton" type="button" title="Change background image" aria-label="Change background image">Change</button>
                         <button class="deleteBackground usersDanger iconButton" type="button" aria-label="Delete background" title="Remove this background">${deleteIcon}</button>
                     </div>
                 </div>

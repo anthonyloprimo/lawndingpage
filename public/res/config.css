@@ -1142,14 +1142,11 @@ button:disabled {
 }
 
 .bgChange {
-    position: absolute;
-    bottom: 4px;
-    right: 4px;
-    padding: 3px 6px;
-    font-size: 0.7rem;
-    border: 1px solid #FFFFFF99;
+    padding: 3px 8px;
+    font-size: 0.75rem;
+    border: 1px solid #FFFFFF55;
     border-radius: 4px;
-    background: #000000AA;
+    background: transparent;
     color: inherit;
 }
 

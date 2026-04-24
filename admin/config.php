@@ -133,8 +133,9 @@ if (function_exists('lawnding_config')) {
     $assetBase = (string) lawnding_config('base_url', '');
 }
 if ($assetBase === '') {
-    // Fallback when running directly from /public and base_url is unknown.
-    if (empty($_SERVER['DOCUMENT_ROOT']) || !is_dir($_SERVER['DOCUMENT_ROOT'] . '/res')) {
+    // Fallback only when the browser is actually visiting the /public path.
+    $scriptName = $_SERVER['SCRIPT_NAME'] ?? '';
+    if (is_string($scriptName) && str_starts_with($scriptName, '/public/')) {
         $assetBase = '/public';
     }
 }
@@ -329,12 +330,12 @@ $tgBotWhitelistUserIds = [];
 if (!empty($tgBotData['whitelist_user_ids']) && is_array($tgBotData['whitelist_user_ids'])) {
     $tgBotWhitelistUserIds = lawnding_admin_normalize_tg_user_entries($tgBotData['whitelist_user_ids']);
 }
-$tgBotWhitelistText = implode("\n", array_map(fn(array $e): string => $e['id'] . ' ' . $e['content'], $tgBotWhitelistUserIds));
+$tgBotWhitelistUserIdsText = implode("\n", array_map(fn(array $e): string => $e['id'] . ' ' . $e['content'], $tgBotWhitelistUserIds));
 $tgBotBlacklistUserIds = [];
 if (!empty($tgBotData['blacklist_user_ids']) && is_array($tgBotData['blacklist_user_ids'])) {
     $tgBotBlacklistUserIds = lawnding_admin_normalize_tg_user_entries($tgBotData['blacklist_user_ids']);
 }
-$tgBotBlacklistText = implode("\n", array_map(fn(array $e): string => $e['id'] . ' ' . $e['content'], $tgBotBlacklistUserIds));
+$tgBotBlacklistUserIdsText = implode("\n", array_map(fn(array $e): string => $e['id'] . ' ' . $e['content'], $tgBotBlacklistUserIds));
 $webhookBase = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
 $webhookHost = $_SERVER['HTTP_HOST'] ?? 'your-domain.com';
 $webhookUrl = $webhookBase . '://' . $webhookHost . ($assetBase ?? '') . '/res/scr/tg-webhook.php';
@@ -930,11 +931,11 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
                             </label>
                             <label class="linksConfigField" title="One user ID per line. Append SFW or NSFW after the ID. Grants access regardless of group membership.">
                                 <span class="linksConfigLabelText">Whitelist User IDs</span>
-                                <textarea class="linksConfigInput" id="tgBotWhitelistUserIds" rows="4" placeholder="123456789 SFW"><?php echo htmlspecialchars($tgBotWhitelistText); ?></textarea>
+                                <textarea class="linksConfigInput" id="tgBotWhitelistUserIds" rows="4" placeholder="123456789 SFW"><?php echo htmlspecialchars($tgBotWhitelistUserIdsText); ?></textarea>
                             </label>
                             <label class="linksConfigField" title="One user ID per line. Append SFW or NSFW after the ID. Denies access regardless of group membership.">
                                 <span class="linksConfigLabelText">Blacklist User IDs</span>
-                                <textarea class="linksConfigInput" id="tgBotBlacklistUserIds" rows="4" placeholder="123456789 NSFW"><?php echo htmlspecialchars($tgBotBlacklistText); ?></textarea>
+                                <textarea class="linksConfigInput" id="tgBotBlacklistUserIds" rows="4" placeholder="123456789 NSFW"><?php echo htmlspecialchars($tgBotBlacklistUserIdsText); ?></textarea>
                             </label>
                             <div class="authLinksHelpBlock">
                                 <p><strong>Bot setup</strong></p>

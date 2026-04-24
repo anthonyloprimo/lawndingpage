@@ -336,6 +336,11 @@ function lawnding_tg_apply_user_override(array &$access, ?array $entry, bool $is
         return;
     }
     $access['sfw'] = !$isBlacklist;
+    // Denying SFW must also deny NSFW — NSFW requires SFW as a prerequisite, so
+    // leaving nsfw:true here would let a blacklisted user bypass via lawnding_tg_access_clearance().
+    if ($isBlacklist) {
+        $access['nsfw'] = false;
+    }
 }
 
 // Core membership check. Returns {sfw, nsfw} boolean flags for the given user.

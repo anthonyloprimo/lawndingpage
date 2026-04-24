@@ -1111,7 +1111,7 @@ button:disabled {
     justify-content: center;
     position: relative;
 }
-.bgThumbWrap[data-size-info]:hover::after {
+.bgThumbWrap[data-size-info]::after {
     content: attr(data-size-info);
     white-space: pre;
     position: absolute;
@@ -1124,6 +1124,12 @@ button:disabled {
     line-height: 1.4;
     padding: 3px 5px;
     pointer-events: none;
+    opacity: 0;
+    transition: opacity 0s 0s;
+}
+.bgThumbWrap[data-size-info]:hover::after {
+    opacity: 1;
+    transition: opacity 0s 1s;
 }
 .bgThumbWrap.empty {
     border: 1px dashed #FFFFFF55;

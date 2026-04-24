@@ -42,7 +42,7 @@
     overflow: hidden;
 }
 
-.mediaGalleryThumbButton[data-size-info]:hover::after {
+.mediaGalleryThumbButton[data-size-info]::after {
     content: attr(data-size-info);
     white-space: pre;
     position: absolute;
@@ -55,6 +55,12 @@
     line-height: 1.5;
     padding: 4px 6px;
     pointer-events: none;
+    opacity: 0;
+    transition: opacity 0s 0s;
+}
+.mediaGalleryThumbButton[data-size-info]:hover::after {
+    opacity: 1;
+    transition: opacity 0s 1s;
 }
 
 .mediaGalleryItem.isVideo .mediaGalleryThumbButton::before {

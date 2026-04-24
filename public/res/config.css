@@ -1235,7 +1235,7 @@ button:disabled {
     max-width: 100%;
     padding: 6px 8px;
     border-radius: 4px;
-    border: 1px solid #FFFFFF33;
+    border: none;
     background: #00000033;
     color: inherit;
 }

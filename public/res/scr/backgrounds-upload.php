@@ -53,7 +53,7 @@ if (($upload['error'] ?? UPLOAD_ERR_OK) !== UPLOAD_ERR_OK) {
     $error = $upload['error'] ?? UPLOAD_ERR_OK;
     if ($error === UPLOAD_ERR_INI_SIZE || $error === UPLOAD_ERR_FORM_SIZE) {
         $phpLimit = ini_get('upload_max_filesize');
-        backgrounds_json_response(['error' => 'Upload too large. Your server\'s PHP limit is ' . $phpLimit . ' — increase upload_max_filesize in php.ini.'], 413);
+        backgrounds_json_response(['error' => 'Upload too large. Your server\'s PHP limit is ' . $phpLimit . 'B — increase upload_max_filesize in php.ini.'], 413);
     }
     backgrounds_json_response(['error' => 'Upload failed. Please try again.'], 400);
 }

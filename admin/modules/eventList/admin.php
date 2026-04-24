@@ -39,6 +39,8 @@ if (!is_array($decoded)) {
     $decoded = [];
 }
 $showPast = !empty($decoded['showPast']);
+$showCalendar = !empty($decoded['showCalendar']);
+$calendarDefault = !array_key_exists('calendarDefault', $decoded) || !empty($decoded['calendarDefault']);
 $events = $decoded['events'] ?? [];
 if (!is_array($events)) {
     $events = [];
@@ -65,15 +67,27 @@ if (!empty($paneData) && is_array($paneData)) {
 $dataHint = $dataFiles ? 'saves to ' . implode(', ', $dataFiles) : '';
 ?>
 <div class="pane glassConvex eventListPane" id="<?php echo htmlspecialchars($paneId); ?>" data-pane-type="eventList">
-    <div class="paneHeader">
-        <button class="paneIconButton" type="button" data-pane-id="<?php echo htmlspecialchars($paneId); ?>" aria-label="Edit pane icon">
-            <span class="paneIconPreview"><?php echo $iconHtml; ?></span>
-        </button>
-        <div class="paneHeaderTitle">
-            <span class="paneTitle"><?php echo htmlspecialchars($paneName); ?></span>
-            <?php if ($dataHint !== ''): ?>
-                <span class="paneDataHint"><?php echo htmlspecialchars('(' . $dataHint . ')'); ?></span>
-            <?php endif; ?>
+    <div class="paneHeader eventListPaneHeader">
+        <div class="eventListPaneIdentity">
+            <button class="paneIconButton" type="button" data-pane-id="<?php echo htmlspecialchars($paneId); ?>" aria-label="Edit pane icon">
+                <span class="paneIconPreview"><?php echo $iconHtml; ?></span>
+            </button>
+            <div class="paneHeaderTitle">
+                <span class="paneTitle"><?php echo htmlspecialchars($paneName); ?></span>
+                <?php if ($dataHint !== ''): ?>
+                    <span class="paneDataHint"><?php echo htmlspecialchars('(' . $dataHint . ')'); ?></span>
+                <?php endif; ?>
+            </div>
+        </div>
+        <div class="eventListHeaderControls">
+            <label class="eventListToggle">
+                <input type="checkbox" class="eventShowCalendar" <?php echo $showCalendar ? 'checked' : ''; ?>>
+                Toggle calendar view
+            </label>
+            <label class="eventListToggle">
+                <input type="checkbox" class="eventCalendarDefault" <?php echo $calendarDefault ? 'checked' : ''; ?>>
+                Make calendar the default view
+            </label>
         </div>
     </div>
 

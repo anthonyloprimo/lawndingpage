@@ -37,6 +37,8 @@ if (!is_array($decoded)) {
     $decoded = [];
 }
 $showPast = !empty($decoded['showPast']);
+$showCalendar = !empty($decoded['showCalendar']);
+$calendarDefault = !array_key_exists('calendarDefault', $decoded) || !empty($decoded['calendarDefault']);
 $events = $decoded['events'] ?? [];
 if (!is_array($events)) {
     $events = [];
@@ -80,23 +82,65 @@ if (!empty($events)) {
 // Output data for front-end rendering/sorting.
 $eventsJson = json_encode([
     'showPast' => $showPast,
+    'showCalendar' => $showCalendar,
+    'calendarDefault' => $calendarDefault,
     'events' => $events,
 ], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
 ?>
-<div class="pane glassConvex" id="<?php echo htmlspecialchars($paneId); ?>" data-pane-type="eventList">
+<div class="pane glassConvex<?php echo $showCalendar ? ' eventListCalendarEnabled' : ''; ?>" id="<?php echo htmlspecialchars($paneId); ?>" data-pane-type="eventList">
     <div class="eventListPublic" data-pane-id="<?php echo htmlspecialchars($paneId); ?>">
-        <div class="eventSection">
-            <h3>HAPPENING NOW</h3>
-            <div class="eventSectionBody eventHappening"></div>
-        </div>
-        <div class="eventSection eventSplit">
-            <div class="eventColumn eventUpcoming">
-                <h3>UPCOMING EVENTS</h3>
-                <div class="eventSectionBody"></div>
+        <?php if ($showCalendar): ?>
+            <div class="eventViewTabs" role="tablist" aria-label="Event views">
+                <button class="eventViewTab" type="button" data-event-view="calendar" role="tab" aria-selected="false">CALENDAR</button>
+                <button class="eventViewTab" type="button" data-event-view="events" role="tab" aria-selected="false">EVENTS</button>
             </div>
-            <div class="eventColumn eventPast">
-                <h3>PAST EVENTS</h3>
-                <div class="eventSectionBody"></div>
+        <?php endif; ?>
+        <div class="eventViewShell<?php echo $showCalendar ? ' hasCalendarTabs' : ''; ?>">
+            <?php if ($showCalendar): ?>
+                <div class="eventCalendarView" data-event-view-panel="calendar" role="tabpanel">
+                    <table class="eventCalendarTable" aria-label="Event calendar">
+                        <thead>
+                            <tr class="eventCalendarNavRow">
+                                <th colspan="1">
+                                    <button class="eventCalendarNavButton eventCalendarPrev" type="button" aria-label="Previous month">&lt;</button>
+                                </th>
+                                <th colspan="5" class="eventCalendarMonthLabel">
+                                    <span class="eventCalendarMonthText"></span>
+                                    <button class="eventCalendarTodayButton hidden" type="button">Today</button>
+                                </th>
+                                <th colspan="1">
+                                    <button class="eventCalendarNavButton eventCalendarNext" type="button" aria-label="Next month">&gt;</button>
+                                </th>
+                            </tr>
+                            <tr class="eventCalendarDayLabels">
+                                <th>SUN</th>
+                                <th>MON</th>
+                                <th>TUE</th>
+                                <th>WED</th>
+                                <th>THU</th>
+                                <th>FRI</th>
+                                <th>SAT</th>
+                            </tr>
+                        </thead>
+                        <tbody class="eventCalendarBody"></tbody>
+                    </table>
+                </div>
+            <?php endif; ?>
+            <div class="eventEventsView" data-event-view-panel="events" role="tabpanel">
+                <div class="eventSection">
+                    <h3>HAPPENING NOW</h3>
+                    <div class="eventSectionBody eventHappening"></div>
+                </div>
+                <div class="eventSection eventSplit">
+                    <div class="eventColumn eventUpcoming">
+                        <h3>UPCOMING EVENTS</h3>
+                        <div class="eventSectionBody"></div>
+                    </div>
+                    <div class="eventColumn eventPast">
+                        <h3>PAST EVENTS</h3>
+                        <div class="eventSectionBody"></div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -135,4 +179,18 @@ $eventsJson = json_encode([
             </div>
         </div>
     </div>
+</div>
+
+<div class="eventModalOverlay hidden" id="eventCalendarDayModalOverlay">
+    <div class="eventModal eventCalendarDayModal" role="dialog" aria-modal="true" aria-labelledby="eventCalendarDayModalTitle">
+        <div class="eventModalHeader">
+            <div class="eventModalTitle" id="eventCalendarDayModalTitle"></div>
+            <button class="eventModalClose" type="button" id="eventCalendarDayModalClose">Close</button>
+        </div>
+        <div class="eventCalendarDayModalBody" id="eventCalendarDayModalBody"></div>
+    </div>
+</div>
+
+<div class="eventCalendarToast hidden" id="eventCalendarToast" role="status" aria-live="polite">
+    No events scheduled for this day!
 </div>

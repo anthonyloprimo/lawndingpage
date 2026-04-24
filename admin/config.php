@@ -1299,10 +1299,8 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
     <?php lawnding_modal_open('bgDeleteModal', 'Delete background image?'); ?>
         <p class="usersHint">This will remove the image from the list and delete the file from disk.</p>
         <div class="userModalActions">
+            <button class="usersButton usersDanger" id="bgDeleteConfirm" type="button" data-modal-confirm="true">Confirm</button>
             <button class="usersButton userModalClose" type="button">Cancel</button>
-            <button class="usersButton usersDanger iconButton" id="bgDeleteConfirm" type="button" aria-label="Delete background" title="Remove this background" data-modal-confirm="true">
-                <?php echo lawnding_icon_svg('delete'); ?>
-            </button>
         </div>
     <?php lawnding_modal_close(); ?>
 

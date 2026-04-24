@@ -478,11 +478,11 @@ function renderEventLists() {
         const showPast = !!parsed.showPast;
         const showCalendar = !!parsed.showCalendar;
         const calendarDefault = !Object.prototype.hasOwnProperty.call(parsed, 'calendarDefault') || !!parsed.calendarDefault;
-        let calendarMonth = new Date(now.getFullYear(), now.getMonth(), 1);
         const events = Array.isArray(parsed.events) ? parsed.events : [];
         const now = new Date();
         const nowTime = now.getTime();
         const next24h = nowTime + 24 * 60 * 60 * 1000;
+        let calendarMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
         function parseEventDate(event) {
             const date = event.startDate || event.date || '';

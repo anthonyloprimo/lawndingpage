@@ -206,6 +206,8 @@ $tgBotDefaults = [
     'bot_username' => '',
     'bot_token' => '',
     'group_ids' => [],
+    'whitelist_user_ids' => [],
+    'blacklist_user_ids' => [],
     'membership_cache_ttl_minutes' => 30,
     'unauthorized_message' => 'Unable to display member links.  Join the telegram group with the link above, or contact an admin for assistance.',
 ];
@@ -285,6 +287,54 @@ $tgBotGroupIds = [];
 if (!empty($tgBotData['group_ids']) && is_array($tgBotData['group_ids'])) {
     $tgBotGroupIds = lawnding_admin_normalize_tg_group_entries($tgBotData['group_ids']);
 }
+if (!function_exists('lawnding_admin_normalize_tg_user_entries')) {
+    function lawnding_admin_normalize_tg_user_entries($values): array {
+        if (!is_array($values)) {
+            return [];
+        }
+        $order = [];
+        $entriesById = [];
+        foreach ($values as $value) {
+            $userId = '';
+            $content = 'SFW';
+            if (is_string($value) && trim($value) !== '') {
+                $userId = trim($value);
+            } elseif (is_array($value)) {
+                $userId = isset($value['id']) && is_scalar($value['id']) ? trim((string) $value['id']) : '';
+                $rawContent = isset($value['content']) && is_string($value['content']) ? strtoupper(trim($value['content'])) : 'SFW';
+                $content = $rawContent === 'NSFW' ? 'NSFW' : 'SFW';
+            }
+            if ($userId === '' || !preg_match('/^-?\d+$/', $userId)) {
+                continue;
+            }
+            if (!isset($entriesById[$userId])) {
+                $order[] = $userId;
+                $entriesById[$userId] = ['id' => $userId, 'content' => $content];
+                continue;
+            }
+            if ($content === 'NSFW') {
+                $entriesById[$userId]['content'] = 'NSFW';
+            }
+        }
+        $entries = [];
+        foreach ($order as $userId) {
+            if (isset($entriesById[$userId])) {
+                $entries[] = $entriesById[$userId];
+            }
+        }
+        return $entries;
+    }
+}
+$tgBotWhitelistUserIds = [];
+if (!empty($tgBotData['whitelist_user_ids']) && is_array($tgBotData['whitelist_user_ids'])) {
+    $tgBotWhitelistUserIds = lawnding_admin_normalize_tg_user_entries($tgBotData['whitelist_user_ids']);
+}
+$tgBotWhitelistText = implode("\n", array_map(fn(array $e): string => $e['id'] . ' ' . $e['content'], $tgBotWhitelistUserIds));
+$tgBotBlacklistUserIds = [];
+if (!empty($tgBotData['blacklist_user_ids']) && is_array($tgBotData['blacklist_user_ids'])) {
+    $tgBotBlacklistUserIds = lawnding_admin_normalize_tg_user_entries($tgBotData['blacklist_user_ids']);
+}
+$tgBotBlacklistText = implode("\n", array_map(fn(array $e): string => $e['id'] . ' ' . $e['content'], $tgBotBlacklistUserIds));
 $webhookBase = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
 $webhookHost = $_SERVER['HTTP_HOST'] ?? 'your-domain.com';
 $webhookUrl = $webhookBase . '://' . $webhookHost . ($assetBase ?? '') . '/res/scr/tg-webhook.php';
@@ -877,6 +927,14 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
                             <label class="linksConfigField" title="Displayed when a user is not authorized.">
                                 <span class="linksConfigLabelText">Unauthorized message</span>
                                 <textarea class="linksConfigInput" id="tgBotUnauthorizedMessage" rows="4"><?php echo htmlspecialchars((string) ($tgBotData['unauthorized_message'] ?? $tgBotDefaults['unauthorized_message'])); ?></textarea>
+                            </label>
+                            <label class="linksConfigField" title="One user ID per line. Append SFW or NSFW after the ID. Grants access regardless of group membership.">
+                                <span class="linksConfigLabelText">Whitelist User IDs</span>
+                                <textarea class="linksConfigInput" id="tgBotWhitelistUserIds" rows="4" placeholder="123456789 SFW"><?php echo htmlspecialchars($tgBotWhitelistText); ?></textarea>
+                            </label>
+                            <label class="linksConfigField" title="One user ID per line. Append SFW or NSFW after the ID. Denies access regardless of group membership.">
+                                <span class="linksConfigLabelText">Blacklist User IDs</span>
+                                <textarea class="linksConfigInput" id="tgBotBlacklistUserIds" rows="4" placeholder="123456789 NSFW"><?php echo htmlspecialchars($tgBotBlacklistText); ?></textarea>
                             </label>
                             <div class="authLinksHelpBlock">
                                 <p><strong>Bot setup</strong></p>

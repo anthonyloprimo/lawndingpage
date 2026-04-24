@@ -61,15 +61,15 @@ if (!$upload || !is_array($upload)) {
 if (($upload['error'] ?? UPLOAD_ERR_OK) !== UPLOAD_ERR_OK) {
     $error = $upload['error'] ?? UPLOAD_ERR_OK;
     if ($error === UPLOAD_ERR_INI_SIZE || $error === UPLOAD_ERR_FORM_SIZE) {
-        media_gallery_json_response(['error' => 'Upload too large. Media must be under 2MB.'], 413);
+        media_gallery_json_response(['error' => 'Upload too large. Media must be under 5MB.'], 413);
     }
     media_gallery_json_response(['error' => 'Upload failed. Please try again.'], 400);
 }
 if (!is_uploaded_file($upload['tmp_name'] ?? '')) {
     media_gallery_json_response(['error' => 'Invalid upload.'], 400);
 }
-if (($upload['size'] ?? 0) > (2 * 1024 * 1024)) {
-    media_gallery_json_response(['error' => 'Upload too large. Media must be under 2MB.'], 413);
+if (($upload['size'] ?? 0) > (5 * 1024 * 1024)) {
+    media_gallery_json_response(['error' => 'Upload too large. Media must be under 5MB.'], 413);
 }
 
 $finfo = finfo_open(FILEINFO_MIME_TYPE);

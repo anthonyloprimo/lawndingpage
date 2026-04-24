@@ -65,7 +65,7 @@ if (!is_array($items)) {
 $existingIds = media_gallery_collect_ids($items);
 $newId = media_gallery_generate_id($existingIds);
 
-$ext = media_gallery_safe_ext((string) ($upload['name'] ?? ''));
+$ext = media_gallery_safe_ext((string) ($upload['name'] ?? ''), $mime);
 $mediaDir = media_gallery_media_dir($paths['data_dir'], $paneId);
 media_gallery_ensure_dir($mediaDir);
 $filename = 'media-' . $newId . '.' . $ext;

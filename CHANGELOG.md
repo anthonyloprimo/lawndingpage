@@ -1,6 +1,16 @@
 ### Changelog
 
 
+#### v1.12.2
+- Added a changelog popup to the site footer — click [CHANGELOG] to read version history without leaving the page.
+- Added GitHub and lawnding.page links to the site footer with a smaller font and wider spacing between groups.
+- Fixed a security gap where uploaded files retained their original filename extension instead of one derived from the file's actual content type.
+- Added file-write locking to all JSON and text write operations to prevent data corruption under concurrent saves.
+- Blocked direct browser access to files under the media gallery data directory.
+- Added execution protection to the image upload directory.
+
+-----
+
 #### v1.12.1
 - Added a proper editor for per-group admin permissions on Telegram groups.
 - Added an admin panel shortcut to the Telegram profile chip for users whose group grants admin access.

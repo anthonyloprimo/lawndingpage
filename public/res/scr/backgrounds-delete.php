@@ -66,7 +66,7 @@ $backgroundsRaw = array_values($backgroundsRaw);
 $headerData['backgrounds'] = $backgroundsRaw;
 
 $headerJson = json_encode($headerData, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
-if ($headerJson === false || file_put_contents($headerPath, $headerJson) === false) {
+if ($headerJson === false || file_put_contents($headerPath, $headerJson, LOCK_EX) === false) {
     backgrounds_json_response(['error' => 'Failed to write header data'], 500);
 }
 

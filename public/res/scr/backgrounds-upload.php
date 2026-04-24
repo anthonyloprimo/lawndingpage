@@ -76,8 +76,16 @@ function save_image($fileArray, $destName, $imgDir) {
     if (strpos($mime, 'image/') !== 0) {
         return null;
     }
-    $ext = strtolower(pathinfo($fileArray['name'], PATHINFO_EXTENSION));
-    $safeName = $destName ? $destName . ($ext ? '.' . $ext : '') : basename($fileArray['name']);
+    static $mimeExt = [
+        'image/jpeg' => 'jpg',
+        'image/png'  => 'png',
+        'image/gif'  => 'gif',
+        'image/webp' => 'webp',
+    ];
+    $ext = $mimeExt[$mime] ?? 'jpg';
+    $safeName = $destName
+        ? $destName . '.' . $ext
+        : preg_replace('/[^a-zA-Z0-9._-]/', '_', pathinfo($fileArray['name'], PATHINFO_FILENAME)) . '.' . $ext;
     $targetPath = $imgDir . $safeName;
     if (!move_uploaded_file($fileArray['tmp_name'], $targetPath)) {
         return null;
@@ -103,7 +111,7 @@ $headerData['backgrounds'][] = [
 
 // Persist updated header.json.
 $headerJson = json_encode($headerData, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
-if ($headerJson === false || file_put_contents($headerPath, $headerJson) === false) {
+if ($headerJson === false || file_put_contents($headerPath, $headerJson, LOCK_EX) === false) {
     backgrounds_json_response(['error' => 'Failed to write header data'], 500);
 }
 

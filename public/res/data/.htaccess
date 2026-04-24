@@ -1,9 +1,10 @@
 Options -Indexes
 RewriteEngine On
 
-# Block only files directly inside /res/data (top-level files).
-# Example blocked: /res/data/panes.json
-RewriteRule ^[^/]+$ - [F,L]
+# Block all direct file requests anywhere under /res/data (including subdirectories
+# such as mediaGalleryContent-<paneId>/ where uploaded media lands).
+RewriteCond %{REQUEST_FILENAME} -f
+RewriteRule ^ - [F,L]
 
 # Block dotfiles anywhere under /res/data.
 RewriteRule (^|/)\. - [F,L]

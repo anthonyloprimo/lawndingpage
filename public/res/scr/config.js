@@ -3664,3 +3664,9 @@ $(document).ready(function() {
         ];
     }
 });
+
+// Footer [CHANGELOG] link — navigate to the admin changelog pane.
+$(document).on('click', '[data-changelog-trigger]', function(e) {
+    e.preventDefault();
+    $('.navLink[data-pane="changelog"]').trigger('click');
+});

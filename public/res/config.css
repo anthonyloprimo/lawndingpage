@@ -1239,6 +1239,10 @@ button:disabled {
     background: #00000033;
     color: inherit;
 }
+.bgConfigOptionSelect option {
+    background: #1e1e1e;
+    color: #ffffff;
+}
 .bgConfigOptionDuration {
     display: flex;
     flex-direction: column;

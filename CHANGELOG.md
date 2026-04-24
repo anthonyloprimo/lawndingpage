@@ -1,6 +1,12 @@
 ### Changelog
 
 
+#### v1.12.3
+- Added a calendar grid view to the Event List pane. Admins can enable it per-pane and choose whether it opens by default. Includes month navigation, a day-detail popup, and a toast when a selected day has no events.
+- Added Telegram allowlist and denylist fields to the bot configuration. Allowlisted user IDs gain access regardless of group membership; denylisted IDs are denied regardless.
+
+-----
+
 #### v1.12.2
 - Added a changelog popup to the site footer — click [CHANGELOG] to read version history without leaving the page.
 - Added GitHub and lawnding.page links to the site footer with a smaller font and wider spacing between groups.

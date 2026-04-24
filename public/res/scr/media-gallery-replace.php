@@ -77,6 +77,7 @@ media_gallery_ensure_dir($mediaDir);
 $filename = 'media-' . $itemId . '.' . $ext;
 $targetPath = rtrim($mediaDir, '/\\') . '/' . $filename;
 
+$originalSize = (int) ($upload['size'] ?? 0);
 $isVideo = strpos($mime, 'video/') === 0;
 $resized = !$isVideo
     && function_exists('lawnding_gd_resize_image')
@@ -84,6 +85,7 @@ $resized = !$isVideo
 if (!$resized && !move_uploaded_file($upload['tmp_name'], $targetPath)) {
     media_gallery_json_response(['error' => 'Upload failed. Please try again.'], 400);
 }
+$savedSize = is_file($targetPath) ? (int) filesize($targetPath) : $originalSize;
 
 if ($absOld && is_readable($absOld)) {
     unlink($absOld);
@@ -92,8 +94,10 @@ if ($absOld && is_readable($absOld)) {
 $type = $isVideo ? 'video' : 'image';
 $relativePath = 'res/data/mediaGalleryContent-' . $paneId . '/' . $filename;
 
-$items[$index]['file'] = media_gallery_normalize_asset_path($relativePath);
-$items[$index]['type'] = $type;
+$items[$index]['file']          = media_gallery_normalize_asset_path($relativePath);
+$items[$index]['type']          = $type;
+$items[$index]['original_size'] = $originalSize;
+$items[$index]['saved_size']    = $savedSize;
 
 $items = media_gallery_reindex_orders($items);
 $data['items'] = $items;

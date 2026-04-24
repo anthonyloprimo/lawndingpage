@@ -38,6 +38,23 @@
     background-position: center;
     background-repeat: no-repeat;
     border: 1px solid #ffffff22;
+    position: relative;
+    overflow: hidden;
+}
+
+.mediaGalleryThumbButton[data-size-info]:hover::after {
+    content: attr(data-size-info);
+    white-space: pre;
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: rgba(0, 0, 0, 0.72);
+    color: #fff;
+    font-size: 0.68rem;
+    line-height: 1.5;
+    padding: 4px 6px;
+    pointer-events: none;
 }
 
 .mediaGalleryItem.isVideo .mediaGalleryThumbButton::before {

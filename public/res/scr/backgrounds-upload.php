@@ -97,19 +97,24 @@ function save_image($fileArray, $destName, $imgDir) {
 }
 
 // Persist the upload and bail on invalid files.
+$originalSize = (int) ($upload['size'] ?? 0);
 $saved = save_image($upload, null, $imgDir);
 if (!$saved) {
     backgrounds_json_response(['error' => 'Invalid image upload.'], 400);
 }
+$savedPath = $imgDir . basename($saved);
+$savedSize = is_file($savedPath) ? (int) filesize($savedPath) : $originalSize;
 
 // Append the new background record to header.json data.
 if (empty($headerData['backgrounds']) || !is_array($headerData['backgrounds'])) {
     $headerData['backgrounds'] = [];
 }
 $headerData['backgrounds'][] = [
-    'url' => $saved,
-    'author' => '',
-    'authorUrl' => '',
+    'url'           => $saved,
+    'author'        => '',
+    'authorUrl'     => '',
+    'original_size' => $originalSize,
+    'saved_size'    => $savedSize,
 ];
 
 // Persist updated header.json.

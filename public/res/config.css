@@ -1111,6 +1111,20 @@ button:disabled {
     justify-content: center;
     position: relative;
 }
+.bgThumbWrap[data-size-info]:hover::after {
+    content: attr(data-size-info);
+    white-space: pre;
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: rgba(0, 0, 0, 0.72);
+    color: #fff;
+    font-size: 0.6rem;
+    line-height: 1.4;
+    padding: 3px 5px;
+    pointer-events: none;
+}
 .bgThumbWrap.empty {
     border: 1px dashed #FFFFFF55;
     background: #00000055;

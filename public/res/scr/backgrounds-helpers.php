@@ -193,11 +193,13 @@ function backgrounds_build_payload(array $backgroundsRaw): array {
         }
         $url = backgrounds_normalize_asset_path($url);
         $backgrounds[] = [
-            'url' => $url,
-            'author' => $author,
-            'authorUrl' => $authorUrl ?: '',
-            'displayUrl' => backgrounds_make_asset_url($url),
-            'index' => $index,
+            'url'           => $url,
+            'author'        => $author,
+            'authorUrl'     => $authorUrl ?: '',
+            'displayUrl'    => backgrounds_make_asset_url($url),
+            'index'         => $index,
+            'original_size' => isset($bg['original_size']) ? (int) $bg['original_size'] : 0,
+            'saved_size'    => isset($bg['saved_size']) ? (int) $bg['saved_size'] : 0,
         ];
     }
     return $backgrounds;

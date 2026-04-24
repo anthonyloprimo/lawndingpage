@@ -1323,11 +1323,22 @@ if (is_array($backgroundsData)) {
                 ];
             }
         } elseif ($existingUrl) {
-            $newBackgrounds[] = [
-                'url' => normalize_asset_path($existingUrl),
-                'author' => $author,
-                'authorUrl' => $authorUrl,
-            ];
+            $normalizedUrl = normalize_asset_path($existingUrl);
+            $entry = ['url' => $normalizedUrl, 'author' => $author, 'authorUrl' => $authorUrl];
+            // Preserve size data stored on upload by looking up the existing record.
+            $existing = $headerData['backgrounds'] ?? [];
+            foreach ($existing as $existingBg) {
+                if (is_array($existingBg) && ($existingBg['url'] ?? '') === $normalizedUrl) {
+                    if (isset($existingBg['original_size'])) {
+                        $entry['original_size'] = (int) $existingBg['original_size'];
+                    }
+                    if (isset($existingBg['saved_size'])) {
+                        $entry['saved_size'] = (int) $existingBg['saved_size'];
+                    }
+                    break;
+                }
+            }
+            $newBackgrounds[] = $entry;
         }
     }
 }

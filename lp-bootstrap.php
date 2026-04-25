@@ -269,6 +269,25 @@ function lawnding_gd_resize_image(string $srcPath, string $destPath, int $maxW, 
     return file_put_contents($destPath, $out, LOCK_EX) !== false;
 }
 
+// App-level upload cap. Single source of truth for both server-side
+// enforcement (in upload endpoints) and the UI label rendered in
+// admin module templates. PHP's upload_max_filesize / post_max_size
+// can still cap below this; their lower value wins.
+function lawnding_app_upload_max_bytes(): int {
+    return 5 * 1024 * 1024;
+}
+
+function lawnding_app_upload_max_label(): string {
+    $bytes = lawnding_app_upload_max_bytes();
+    if ($bytes >= 1024 * 1024) {
+        return (int) ($bytes / (1024 * 1024)) . 'MB';
+    }
+    if ($bytes >= 1024) {
+        return (int) ($bytes / 1024) . 'KB';
+    }
+    return $bytes . 'B';
+}
+
 // Detect whether the current request should be treated as HTTPS.
 // Checks common proxy headers so the Secure cookie flag is set correctly
 // when running behind an SSL-terminating reverse proxy.

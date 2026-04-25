@@ -328,8 +328,16 @@ $(document).ready(function() {
     }
 
     function refreshFromServer(state) {
-        const url = buildUrl(`media-gallery-list.php?paneId=${encodeURIComponent(state.paneId)}`);
-        return fetch(url, { credentials: 'same-origin' })
+        const formData = new FormData();
+        formData.append('paneId', state.paneId);
+        if (csrfToken) {
+            formData.append('csrf_token', csrfToken);
+        }
+        return fetch(buildUrl('media-gallery-list.php'), {
+            method: 'POST',
+            body: formData,
+            credentials: 'same-origin'
+        })
             .then((response) => response.json().then((data) => ({ ok: response.ok, data })))
             .then(({ ok, data }) => {
                 if (!ok || !data) {

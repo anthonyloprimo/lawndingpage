@@ -2216,8 +2216,17 @@ $(document).ready(function() {
                     reserved.delete(pane.id.toLowerCase());
                 }
             });
-            const ids = panesState.map((pane) => pane.id);
-            const duplicates = ids.filter((id, idx) => id && ids.indexOf(id) !== idx);
+            const seen = new Set();
+            const duplicates = new Set();
+            panesState.forEach((pane) => {
+                const id = pane.id;
+                if (!id) return;
+                if (seen.has(id)) {
+                    duplicates.add(id);
+                } else {
+                    seen.add(id);
+                }
+            });
             let isValid = true;
             $('.paneManageName').removeClass('isInvalid');
             panesState.forEach((pane, index) => {
@@ -2225,7 +2234,7 @@ $(document).ready(function() {
                 if (!pane.name || !pane.id) {
                     invalid = true;
                 }
-                if (duplicates.includes(pane.id)) {
+                if (duplicates.has(pane.id)) {
                     invalid = true;
                 }
                 if (pane.id && reserved.has(pane.id.toLowerCase())) {

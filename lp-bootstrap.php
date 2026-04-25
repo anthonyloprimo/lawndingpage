@@ -221,6 +221,54 @@ function lawnding_footer_platform_html(): string {
         . ' <a href="#" data-changelog-trigger>[CHANGELOG]</a>';
 }
 
+// Resize an uploaded image using GD if the image exceeds the given dimensions.
+// Returns true when the image was written to $destPath (resized or already within
+// limits). Returns false if GD is unavailable or the operation failed — callers
+// must fall back to move_uploaded_file() so the upload always succeeds.
+function lawnding_gd_resize_image(string $srcPath, string $destPath, int $maxW, int $maxH): bool {
+    if (!extension_loaded('gd')) {
+        return false;
+    }
+    $bytes = file_get_contents($srcPath);
+    if ($bytes === false) {
+        return false;
+    }
+    $src = @imagecreatefromstring($bytes);
+    if (!$src) {
+        return false;
+    }
+    $origW = imagesx($src);
+    $origH = imagesy($src);
+    if ($origW <= $maxW && $origH <= $maxH) {
+        // Already within limits — write as-is so the caller doesn't need move_uploaded_file.
+        imagedestroy($src);
+        return file_put_contents($destPath, $bytes, LOCK_EX) !== false;
+    }
+    $ratio = min($maxW / $origW, $maxH / $origH);
+    $newW  = (int) round($origW * $ratio);
+    $newH  = (int) round($origH * $ratio);
+    $dst = imagescale($src, $newW, $newH, IMG_BICUBIC);
+    imagedestroy($src);
+    if (!$dst) {
+        return false;
+    }
+    $ext = strtolower(pathinfo($destPath, PATHINFO_EXTENSION));
+    ob_start();
+    $ok = match ($ext) {
+        'jpg', 'jpeg' => imagejpeg($dst, null, 85),
+        'webp'        => imagewebp($dst, null, 85),
+        'png'         => imagepng($dst),
+        'gif'         => imagegif($dst),
+        default       => false,
+    };
+    $out = ob_get_clean();
+    imagedestroy($dst);
+    if (!$ok || $out === false || $out === '') {
+        return false;
+    }
+    return file_put_contents($destPath, $out, LOCK_EX) !== false;
+}
+
 // Detect whether the current request should be treated as HTTPS.
 // Checks common proxy headers so the Secure cookie flag is set correctly
 // when running behind an SSL-terminating reverse proxy.

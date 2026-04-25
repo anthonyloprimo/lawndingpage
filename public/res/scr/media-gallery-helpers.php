@@ -339,14 +339,16 @@ function media_gallery_build_payload(array $items): array {
         $file = isset($item['file']) ? (string) $item['file'] : '';
         $thumb = isset($item['thumb']) ? (string) $item['thumb'] : '';
         $output[] = [
-            'id' => isset($item['id']) ? (string) $item['id'] : '',
-            'type' => isset($item['type']) ? (string) $item['type'] : 'image',
-            'file' => $file,
-            'thumb' => $thumb,
-            'title' => isset($item['title']) ? (string) $item['title'] : '',
-            'order' => isset($item['order']) ? (int) $item['order'] : 0,
-            'displayFile' => media_gallery_make_asset_url($file),
-            'displayThumb' => $thumb !== '' ? media_gallery_make_asset_url($thumb) : '',
+            'id'            => isset($item['id']) ? (string) $item['id'] : '',
+            'type'          => isset($item['type']) ? (string) $item['type'] : 'image',
+            'file'          => $file,
+            'thumb'         => $thumb,
+            'title'         => isset($item['title']) ? (string) $item['title'] : '',
+            'order'         => isset($item['order']) ? (int) $item['order'] : 0,
+            'original_size' => isset($item['original_size']) ? (int) $item['original_size'] : 0,
+            'saved_size'    => isset($item['saved_size']) ? (int) $item['saved_size'] : 0,
+            'displayFile'   => media_gallery_make_asset_url($file),
+            'displayThumb'  => $thumb !== '' ? media_gallery_make_asset_url($thumb) : '',
         ];
     }
     return $output;

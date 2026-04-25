@@ -1111,6 +1111,26 @@ button:disabled {
     justify-content: center;
     position: relative;
 }
+.bgThumbWrap[data-size-info]::after {
+    content: attr(data-size-info);
+    white-space: pre;
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: rgba(0, 0, 0, 0.72);
+    color: #fff;
+    font-size: 0.6rem;
+    line-height: 1.4;
+    padding: 3px 5px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0s 0s;
+}
+.bgThumbWrap[data-size-info]:hover::after {
+    opacity: 1;
+    transition: opacity 0s 1s;
+}
 .bgThumbWrap.empty {
     border: 1px dashed #FFFFFF55;
     background: #00000055;
@@ -1128,14 +1148,11 @@ button:disabled {
 }
 
 .bgChange {
-    position: absolute;
-    bottom: 4px;
-    right: 4px;
-    padding: 3px 6px;
-    font-size: 0.7rem;
-    border: 1px solid #FFFFFF99;
+    padding: 3px 8px;
+    font-size: 0.75rem;
+    border: 1px solid #FFFFFF55;
     border-radius: 4px;
-    background: #000000AA;
+    background: transparent;
     color: inherit;
 }
 
@@ -1218,9 +1235,13 @@ button:disabled {
     max-width: 100%;
     padding: 6px 8px;
     border-radius: 4px;
-    border: 1px solid #FFFFFF33;
+    border: none;
     background: #00000033;
     color: inherit;
+}
+.bgConfigOptionSelect option {
+    background: #1e1e1e;
+    color: #ffffff;
 }
 .bgConfigOptionDuration {
     display: flex;

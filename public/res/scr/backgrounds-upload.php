@@ -52,7 +52,8 @@ if (!$upload || !is_array($upload)) {
 if (($upload['error'] ?? UPLOAD_ERR_OK) !== UPLOAD_ERR_OK) {
     $error = $upload['error'] ?? UPLOAD_ERR_OK;
     if ($error === UPLOAD_ERR_INI_SIZE || $error === UPLOAD_ERR_FORM_SIZE) {
-        backgrounds_json_response(['error' => 'Upload too large. Images must be under 2MB.'], 413);
+        $phpLimit = ini_get('upload_max_filesize');
+        backgrounds_json_response(['error' => 'Upload too large. Your server\'s PHP limit is ' . $phpLimit . 'B — increase upload_max_filesize in php.ini.'], 413);
     }
     backgrounds_json_response(['error' => 'Upload failed. Please try again.'], 400);
 }
@@ -87,26 +88,33 @@ function save_image($fileArray, $destName, $imgDir) {
         ? $destName . '.' . $ext
         : preg_replace('/[^a-zA-Z0-9._-]/', '_', pathinfo($fileArray['name'], PATHINFO_FILENAME)) . '.' . $ext;
     $targetPath = $imgDir . $safeName;
-    if (!move_uploaded_file($fileArray['tmp_name'], $targetPath)) {
+    $resized = function_exists('lawnding_gd_resize_image')
+        && lawnding_gd_resize_image($fileArray['tmp_name'], $targetPath, 1920, 10000);
+    if (!$resized && !move_uploaded_file($fileArray['tmp_name'], $targetPath)) {
         return null;
     }
     return 'res/img/' . $safeName;
 }
 
 // Persist the upload and bail on invalid files.
+$originalSize = (int) ($upload['size'] ?? 0);
 $saved = save_image($upload, null, $imgDir);
 if (!$saved) {
     backgrounds_json_response(['error' => 'Invalid image upload.'], 400);
 }
+$savedPath = $imgDir . basename($saved);
+$savedSize = is_file($savedPath) ? (int) filesize($savedPath) : $originalSize;
 
 // Append the new background record to header.json data.
 if (empty($headerData['backgrounds']) || !is_array($headerData['backgrounds'])) {
     $headerData['backgrounds'] = [];
 }
 $headerData['backgrounds'][] = [
-    'url' => $saved,
-    'author' => '',
-    'authorUrl' => '',
+    'url'           => $saved,
+    'author'        => '',
+    'authorUrl'     => '',
+    'original_size' => $originalSize,
+    'saved_size'    => $savedSize,
 ];
 
 // Persist updated header.json.
@@ -122,4 +130,8 @@ if (!is_array($backgroundsRaw)) {
 }
 
 $backgrounds = backgrounds_build_payload($backgroundsRaw);
-backgrounds_json_response(['backgrounds' => $backgrounds]);
+$response = ['backgrounds' => $backgrounds];
+if (!extension_loaded('gd')) {
+    $response['gd_unavailable'] = true;
+}
+backgrounds_json_response($response);

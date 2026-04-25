@@ -319,7 +319,8 @@ foreach ($_FILES as $upload) {
     }
     $error = $upload['error'] ?? UPLOAD_ERR_OK;
     if ($error === UPLOAD_ERR_INI_SIZE || $error === UPLOAD_ERR_FORM_SIZE) {
-        respond(['error' => 'Upload too large. Images must be under 2MB.'], 413);
+        $phpLimit = ini_get('upload_max_filesize');
+        respond(['error' => 'Upload too large. Your server\'s PHP limit is ' . $phpLimit . 'B — increase upload_max_filesize in php.ini.'], 413);
     }
     if ($error !== UPLOAD_ERR_OK) {
         respond(['error' => 'Upload failed. Please try again.'], 400);
@@ -652,7 +653,9 @@ function save_pane_icon($fileArray, $paneId, $iconDir) {
     }
     $filename = $base . '.' . $ext;
     $targetPath = rtrim($iconDir, '/\\') . '/' . $filename;
-    if (!move_uploaded_file($fileArray['tmp_name'], $targetPath)) {
+    $resized = function_exists('lawnding_gd_resize_image')
+        && lawnding_gd_resize_image($fileArray['tmp_name'], $targetPath, 256, 256);
+    if (!$resized && !move_uploaded_file($fileArray['tmp_name'], $targetPath)) {
         return null;
     }
     return $filename;
@@ -681,7 +684,9 @@ function save_image($fileArray, $destName) {
         ? $destName . '.' . $ext
         : preg_replace('/[^a-zA-Z0-9._-]/', '_', pathinfo($fileArray['name'], PATHINFO_FILENAME)) . '.' . $ext;
     $targetPath = $imgDir . $safeName;
-    if (!move_uploaded_file($fileArray['tmp_name'], $targetPath)) {
+    $resized = function_exists('lawnding_gd_resize_image')
+        && lawnding_gd_resize_image($fileArray['tmp_name'], $targetPath, 256, 256);
+    if (!$resized && !move_uploaded_file($fileArray['tmp_name'], $targetPath)) {
         return null;
     }
     return 'res/img/' . $safeName;
@@ -1318,11 +1323,22 @@ if (is_array($backgroundsData)) {
                 ];
             }
         } elseif ($existingUrl) {
-            $newBackgrounds[] = [
-                'url' => normalize_asset_path($existingUrl),
-                'author' => $author,
-                'authorUrl' => $authorUrl,
-            ];
+            $normalizedUrl = normalize_asset_path($existingUrl);
+            $entry = ['url' => $normalizedUrl, 'author' => $author, 'authorUrl' => $authorUrl];
+            // Preserve size data stored on upload by looking up the existing record.
+            $existing = $headerData['backgrounds'] ?? [];
+            foreach ($existing as $existingBg) {
+                if (is_array($existingBg) && ($existingBg['url'] ?? '') === $normalizedUrl) {
+                    if (isset($existingBg['original_size'])) {
+                        $entry['original_size'] = (int) $existingBg['original_size'];
+                    }
+                    if (isset($existingBg['saved_size'])) {
+                        $entry['saved_size'] = (int) $existingBg['saved_size'];
+                    }
+                    break;
+                }
+            }
+            $newBackgrounds[] = $entry;
         }
     }
 }
@@ -1633,4 +1649,8 @@ if (is_array($tgBotData)) {
 }
 
 // All operations succeeded.
-respond(['status' => 'ok']);
+$saveResponse = ['status' => 'ok'];
+if (!extension_loaded('gd')) {
+    $saveResponse['gd_unavailable'] = true;
+}
+respond($saveResponse);

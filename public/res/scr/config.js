@@ -4,6 +4,15 @@ $(document).ready(function() {
     const steps = buildTutorialSteps();
     let currentStep = 0;
     let pendingLogoFile = null;
+    let gdNoticeShown = false;
+
+    function formatBytes(bytes) {
+        if (!bytes || bytes <= 0) { return '0 B'; }
+        const units = ['B', 'KB', 'MB', 'GB'];
+        const i = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+        const val = bytes / Math.pow(1024, i);
+        return (i === 0 ? val : val.toFixed(1)) + ' ' + units[i];
+    }
     let linkCounter = $('#linksConfig .linksConfigCard').length;
     let authLinkCounter = $('#authLinksConfig .authLinksConfigCard').length;
     let initialSnapshot = null;
@@ -1011,6 +1020,10 @@ $(document).ready(function() {
                 renderBackgrounds(data.backgrounds || []);
                 initialSnapshot.backgrounds = getBackgroundsData();
                 addAdminNotice('ok', 'Background uploaded.');
+                if (data.gd_unavailable && !gdNoticeShown) {
+                    gdNoticeShown = true;
+                    addAdminNotice('ok', 'For better performance, install the PHP GD extension on your server.');
+                }
                 hideSavingOverlay();
             })
             .catch((error) => {
@@ -1115,6 +1128,10 @@ $(document).ready(function() {
                 success: function(resp) {
                     console.log('Save successful', resp);
                     addAdminNotice('ok', 'Changes saved.');
+                    if (resp && resp.gd_unavailable && !gdNoticeShown) {
+                        gdNoticeShown = true;
+                        addAdminNotice('ok', 'For better performance, install the PHP GD extension on your server.');
+                    }
                     let refreshPromise = Promise.resolve();
                     if (typeof window.refreshEventListUIs === 'function') {
                         window.refreshEventListUIs();
@@ -1742,18 +1759,23 @@ $(document).ready(function() {
             const displayUrl = bg && typeof bg.displayUrl === 'string' ? bg.displayUrl : url;
             const author = bg && typeof bg.author === 'string' ? bg.author : '';
             const authorUrl = bg && typeof bg.authorUrl === 'string' ? bg.authorUrl : '';
+            const originalSize = bg && parseInt(bg.original_size, 10) > 0 ? parseInt(bg.original_size, 10) : 0;
+            const savedSize = bg && parseInt(bg.saved_size, 10) > 0 ? parseInt(bg.saved_size, 10) : 0;
+            const sizeAttr = originalSize > 0
+                ? ` data-size-info="Original: ${formatBytes(originalSize)}\nResized:  ${formatBytes(savedSize)}"`
+                : '';
             const isEmpty = !displayUrl;
             const row = `
                 <div class="bgConfigRow" data-current-url="${escapeHtml(url)}" data-author-url="${escapeHtml(authorUrl)}" data-index="${index}">
-                    <div class="bgThumbWrap ${isEmpty ? 'empty' : ''}">
+                    <div class="bgThumbWrap ${isEmpty ? 'empty' : ''}"${sizeAttr}>
                         <img class="bgThumb" src="${escapeHtml(displayUrl)}" alt="Background preview">
-                        <button class="bgChange" type="button">Change</button>
                     </div>
                     <input class="bgAuthorInput" type="text" name="bgAuthor[]" value="${escapeHtml(author)}" placeholder="Author">
                     <input class="bgAuthorUrlInput" type="text" name="bgAuthorUrl[]" value="${escapeHtml(authorUrl)}" placeholder="URL">
                     <div class="bgRowActions">
                         <button class="moveUpLink iconButton" type="button" title="Move background up" aria-label="Move background up">${moveUpIcon}</button>
                         <button class="moveDownLink iconButton" type="button" title="Move background down" aria-label="Move background down">${moveDownIcon}</button>
+                        <button class="bgChange iconButton" type="button" title="Change background image" aria-label="Change background image">Change</button>
                         <button class="deleteBackground usersDanger iconButton" type="button" aria-label="Delete background" title="Remove this background">${deleteIcon}</button>
                     </div>
                 </div>

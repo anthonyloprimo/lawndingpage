@@ -23,15 +23,18 @@ if (!$upload || !is_array($upload)) {
 if (($upload['error'] ?? UPLOAD_ERR_OK) !== UPLOAD_ERR_OK) {
     $error = $upload['error'] ?? UPLOAD_ERR_OK;
     if ($error === UPLOAD_ERR_INI_SIZE || $error === UPLOAD_ERR_FORM_SIZE) {
-        media_gallery_json_response(['error' => 'Upload too large. Media must be under 2MB.'], 413);
+        $phpLimit = ini_get('upload_max_filesize');
+        media_gallery_json_response(['error' => 'Upload too large. Your server\'s PHP limit is ' . $phpLimit . 'B — increase upload_max_filesize in php.ini.'], 413);
     }
     media_gallery_json_response(['error' => 'Upload failed. Please try again.'], 400);
 }
 if (!is_uploaded_file($upload['tmp_name'] ?? '')) {
     media_gallery_json_response(['error' => 'Invalid upload.'], 400);
 }
-if (($upload['size'] ?? 0) > (2 * 1024 * 1024)) {
-    media_gallery_json_response(['error' => 'Upload too large. Media must be under 2MB.'], 413);
+$appUploadMaxBytes = 5 * 1024 * 1024;
+$appUploadMaxLabel = '5MB';
+if (($upload['size'] ?? 0) > $appUploadMaxBytes) {
+    media_gallery_json_response(['error' => 'Upload too large. Media must be under ' . $appUploadMaxLabel . '.'], 413);
 }
 
 $finfo = finfo_open(FILEINFO_MIME_TYPE);
@@ -74,24 +77,34 @@ media_gallery_ensure_dir($mediaDir);
 $filename = 'media-' . $itemId . '.' . $ext;
 $targetPath = rtrim($mediaDir, '/\\') . '/' . $filename;
 
-if (!move_uploaded_file($upload['tmp_name'], $targetPath)) {
+$originalSize = (int) ($upload['size'] ?? 0);
+$isVideo = strpos($mime, 'video/') === 0;
+$resized = !$isVideo
+    && function_exists('lawnding_gd_resize_image')
+    && lawnding_gd_resize_image($upload['tmp_name'], $targetPath, 1920, 10000);
+if (!$resized && !move_uploaded_file($upload['tmp_name'], $targetPath)) {
     media_gallery_json_response(['error' => 'Upload failed. Please try again.'], 400);
 }
+$savedSize = is_file($targetPath) ? (int) filesize($targetPath) : $originalSize;
 
 if ($absOld && is_readable($absOld)) {
     unlink($absOld);
 }
 
-$type = strpos($mime, 'video/') === 0 ? 'video' : 'image';
+$type = $isVideo ? 'video' : 'image';
 $relativePath = 'res/data/mediaGalleryContent-' . $paneId . '/' . $filename;
 
-$items[$index]['file'] = media_gallery_normalize_asset_path($relativePath);
-$items[$index]['type'] = $type;
+$items[$index]['file']          = media_gallery_normalize_asset_path($relativePath);
+$items[$index]['type']          = $type;
+$items[$index]['original_size'] = $originalSize;
+$items[$index]['saved_size']    = $savedSize;
 
 $items = media_gallery_reindex_orders($items);
 $data['items'] = $items;
 media_gallery_write_data($jsonPath, $data);
 
-media_gallery_json_response([
-    'items' => media_gallery_build_payload($items)
-]);
+$replaceResponse = ['items' => media_gallery_build_payload($items)];
+if (!extension_loaded('gd')) {
+    $replaceResponse['gd_unavailable'] = true;
+}
+media_gallery_json_response($replaceResponse);

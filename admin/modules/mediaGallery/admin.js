@@ -10,6 +10,8 @@ $(document).ready(function() {
     }
     window.__mediaGalleryAdminInitialized = true;
 
+    let gdNoticeShown = false;
+
     const basePath = window.appConfig && typeof window.appConfig.basePath === 'string'
         ? window.appConfig.basePath.replace(/\/$/, '')
         : '';
@@ -99,6 +101,14 @@ $(document).ready(function() {
         }
     }
 
+    function formatBytes(bytes) {
+        if (!bytes || bytes <= 0) { return '0 B'; }
+        const units = ['B', 'KB', 'MB', 'GB'];
+        const i = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+        const val = bytes / Math.pow(1024, i);
+        return (i === 0 ? val : val.toFixed(1)) + ' ' + units[i];
+    }
+
     function normalizeItems(items) {
         if (!Array.isArray(items)) {
             return [];
@@ -111,7 +121,9 @@ $(document).ready(function() {
                 file: String(safe.file || ''),
                 thumb: String(safe.thumb || ''),
                 title: String(safe.title || ''),
-                order: Number.isFinite(Number(safe.order)) ? Number(safe.order) : 0
+                order: Number.isFinite(Number(safe.order)) ? Number(safe.order) : 0,
+                original_size: parseInt(safe.original_size, 10) || 0,
+                saved_size:    parseInt(safe.saved_size,    10) || 0
             };
         }).filter((item) => item.id !== '');
     }
@@ -164,6 +176,11 @@ $(document).ready(function() {
             const thumbUrl = getThumbUrl(item);
             if (thumbUrl) {
                 $thumb.css('background-image', `url('${thumbUrl}')`);
+            }
+            if (item.type === 'image' && item.original_size > 0) {
+                const sizeLabel = 'Original: ' + formatBytes(item.original_size)
+                    + '\nResized:  ' + formatBytes(item.saved_size);
+                $thumb.attr('data-size-info', sizeLabel);
             }
             const $actions = $(
                 '<div class="mediaGalleryItemActions">'
@@ -353,6 +370,10 @@ $(document).ready(function() {
                 }
                 setItemsFromPayload(state, data.items || []);
                 addNotice('ok', 'Media uploaded.');
+                if (data.gd_unavailable && !gdNoticeShown) {
+                    gdNoticeShown = true;
+                    addNotice('ok', 'For better performance, install the PHP GD extension on your server.');
+                }
                 hideSaving();
             })
             .catch(() => {
@@ -389,6 +410,10 @@ $(document).ready(function() {
                 setItemsFromPayload(state, data.items || []);
                 openModal(state, itemId);
                 addNotice('ok', 'Media updated.');
+                if (data.gd_unavailable && !gdNoticeShown) {
+                    gdNoticeShown = true;
+                    addNotice('ok', 'For better performance, install the PHP GD extension on your server.');
+                }
                 hideSaving();
             })
             .catch(() => {

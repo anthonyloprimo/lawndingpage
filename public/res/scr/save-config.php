@@ -312,7 +312,11 @@ $canEditSite = $identity['context']['canEditSite'];
 
 require_csrf_token();
 
-// Validate file uploads (size and PHP error codes).
+// Validate file uploads (size and PHP error codes). Enforces the app-level
+// upload cap on every $_FILES entry — covers pane icon uploads, logo, and
+// any future upload field added to this endpoint without per-field code.
+$appUploadMaxBytes = lawnding_app_upload_max_bytes();
+$appUploadMaxLabel = lawnding_app_upload_max_label();
 foreach ($_FILES as $upload) {
     if (!is_array($upload)) {
         continue;
@@ -324,6 +328,9 @@ foreach ($_FILES as $upload) {
     }
     if ($error !== UPLOAD_ERR_OK) {
         respond(['error' => 'Upload failed. Please try again.'], 400);
+    }
+    if ((int) ($upload['size'] ?? 0) > $appUploadMaxBytes) {
+        respond(['error' => 'Upload too large. Files must be under ' . $appUploadMaxLabel . '.'], 413);
     }
 }
 
@@ -965,8 +972,18 @@ if ($action === 'pane_management') {
         } elseif ($iconType === 'file') {
             $iconValue = basename($iconValue);
         } else {
-            $iconType = 'none';
-            $iconValue = '';
+            // No icon picked by the admin. Fall back to the module's
+            // default_icon from its manifest so newly-created panes
+            // show up on the navbar with a sensible icon out of the
+            // box. Admin can overwrite later in the pane icon editor.
+            $defaultIcon = lawnding_module_default_icon($moduleId);
+            if ($defaultIcon !== '' && is_safe_svg($defaultIcon)) {
+                $iconType = 'svg';
+                $iconValue = $defaultIcon;
+            } else {
+                $iconType = 'none';
+                $iconValue = '';
+            }
         }
 
         $dataFiles = [];

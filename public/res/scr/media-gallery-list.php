@@ -3,10 +3,11 @@ require_once __DIR__ . '/../../../lp-bootstrap.php';
 require_once __DIR__ . '/media-gallery-helpers.php';
 lawnding_init_session();
 
-media_gallery_require_method('GET');
+media_gallery_require_method('POST');
 media_gallery_require_edit_site();
+media_gallery_require_csrf();
 
-$paneId = $_GET['paneId'] ?? '';
+$paneId = $_POST['paneId'] ?? '';
 if (!is_string($paneId) || $paneId === '' || !media_gallery_is_valid_pane_id($paneId)) {
     media_gallery_json_response(['error' => 'Invalid pane id.'], 400);
 }

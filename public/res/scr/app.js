@@ -157,13 +157,28 @@ function init() {
     // Render event list panes (public view).
     renderEventLists();
 
+    // rAF-coalesce: collapse rapid-fire calls to one per animation frame.
+    // Used to wrap resize/scroll handlers so a fast drag-resize or scroll
+    // burst doesn't run the same layout work 60+ times per second.
+    function rafCoalesce(fn) {
+        let queued = 0;
+        return function () {
+            if (queued) return;
+            queued = requestAnimationFrame(() => {
+                queued = 0;
+                fn();
+            });
+        };
+    }
+
     // Lock layout height to the visible viewport on iOS Safari.
     setAppHeight();
-    window.addEventListener('resize', setAppHeight);
-    window.addEventListener('orientationchange', setAppHeight);
+    const onAppHeightChange = rafCoalesce(setAppHeight);
+    window.addEventListener('resize', onAppHeightChange);
+    window.addEventListener('orientationchange', onAppHeightChange);
     if (window.visualViewport) {
-        window.visualViewport.addEventListener('resize', setAppHeight);
-        window.visualViewport.addEventListener('scroll', setAppHeight);
+        window.visualViewport.addEventListener('resize', onAppHeightChange);
+        window.visualViewport.addEventListener('scroll', onAppHeightChange);
     }
 
     // Wire up nav clicks to drive pane switching in SPA style.
@@ -183,11 +198,12 @@ function init() {
         updateNavActiveState();
     });
 
-    $('#navBar').on('scroll', updateNavBarFades);
-    window.addEventListener('resize', updateNavBarFades);
+    const onNavBarFades = rafCoalesce(updateNavBarFades);
+    $('#navBar').on('scroll', onNavBarFades);
+    window.addEventListener('resize', onNavBarFades);
 
     // Any time the window is resized, check to see if we're still in the same mode or not.
-    $(window).on('resize', function() {
+    const onWindowResize = rafCoalesce(function() {
         // Check the mode we're in.
         const newMode = getMode();
         // Only update the layout if the mode actually changed.
@@ -210,6 +226,7 @@ function init() {
 
         updateNavBarLayout();
     });
+    $(window).on('resize', onWindowResize);
 }
 
 // Apply layout: show/hide panes depending on the active mode and pane.

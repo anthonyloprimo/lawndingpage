@@ -3,6 +3,7 @@
   "name": "Media Gallery Pane",
   "version": "1.0.0",
   "description": "Image and video gallery with lightbox viewing.",
+  "preview": "mediaGallery.svg",
   "data_files": [
     { "type": "json", "pattern": "{paneId}.json" }
   ],

@@ -372,7 +372,7 @@ $(document).ready(function() {
                         const rawSummary = summarizeRawError(raw);
                         message = rawSummary || `Upload failed (HTTP ${status}).`;
                     }
-                    addNotice('danger', message);
+                    addNotice(status === 413 ? 'warning' : 'danger', message);
                     hideSaving();
                     return;
                 }
@@ -407,11 +407,11 @@ $(document).ready(function() {
             body: formData,
             credentials: 'same-origin'
         })
-            .then((response) => response.json().then((data) => ({ ok: response.ok, data })))
-            .then(({ ok, data }) => {
+            .then((response) => response.json().then((data) => ({ ok: response.ok, status: response.status, data })))
+            .then(({ ok, status, data }) => {
                 if (!ok) {
                     const message = data && data.error ? data.error : 'Upload failed.';
-                    addNotice('danger', message);
+                    addNotice(status === 413 ? 'warning' : 'danger', message);
                     hideSaving();
                     return;
                 }
@@ -447,11 +447,11 @@ $(document).ready(function() {
             body: formData,
             credentials: 'same-origin'
         })
-            .then((response) => response.json().then((data) => ({ ok: response.ok, data })))
-            .then(({ ok, data }) => {
+            .then((response) => response.json().then((data) => ({ ok: response.ok, status: response.status, data })))
+            .then(({ ok, status, data }) => {
                 if (!ok) {
                     const message = data && data.error ? data.error : 'Thumbnail upload failed.';
-                    addNotice('danger', message);
+                    addNotice(status === 413 ? 'warning' : 'danger', message);
                     hideSaving();
                     return;
                 }

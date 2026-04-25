@@ -312,7 +312,11 @@ $canEditSite = $identity['context']['canEditSite'];
 
 require_csrf_token();
 
-// Validate file uploads (size and PHP error codes).
+// Validate file uploads (size and PHP error codes). Enforces the app-level
+// upload cap on every $_FILES entry — covers pane icon uploads, logo, and
+// any future upload field added to this endpoint without per-field code.
+$appUploadMaxBytes = lawnding_app_upload_max_bytes();
+$appUploadMaxLabel = lawnding_app_upload_max_label();
 foreach ($_FILES as $upload) {
     if (!is_array($upload)) {
         continue;
@@ -324,6 +328,9 @@ foreach ($_FILES as $upload) {
     }
     if ($error !== UPLOAD_ERR_OK) {
         respond(['error' => 'Upload failed. Please try again.'], 400);
+    }
+    if ((int) ($upload['size'] ?? 0) > $appUploadMaxBytes) {
+        respond(['error' => 'Upload too large. Files must be under ' . $appUploadMaxLabel . '.'], 413);
     }
 }
 

@@ -58,6 +58,13 @@ if (($upload['error'] ?? UPLOAD_ERR_OK) !== UPLOAD_ERR_OK) {
     backgrounds_json_response(['error' => 'Upload failed. Please try again.'], 400);
 }
 
+// Enforce the app-level upload cap on top of any PHP ini limits.
+$appUploadMaxBytes = lawnding_app_upload_max_bytes();
+$appUploadMaxLabel = lawnding_app_upload_max_label();
+if ((int) ($upload['size'] ?? 0) > $appUploadMaxBytes) {
+    backgrounds_json_response(['error' => 'Upload too large. Image must be under ' . $appUploadMaxLabel . '.'], 413);
+}
+
 // Resolve the target directories and header.json location.
 $paths = backgrounds_paths();
 $imgDir = $paths['img_dir'];

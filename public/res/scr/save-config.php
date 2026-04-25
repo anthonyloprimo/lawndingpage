@@ -965,8 +965,18 @@ if ($action === 'pane_management') {
         } elseif ($iconType === 'file') {
             $iconValue = basename($iconValue);
         } else {
-            $iconType = 'none';
-            $iconValue = '';
+            // No icon picked by the admin. Fall back to the module's
+            // default_icon from its manifest so newly-created panes
+            // show up on the navbar with a sensible icon out of the
+            // box. Admin can overwrite later in the pane icon editor.
+            $defaultIcon = lawnding_module_default_icon($moduleId);
+            if ($defaultIcon !== '' && is_safe_svg($defaultIcon)) {
+                $iconType = 'svg';
+                $iconValue = $defaultIcon;
+            } else {
+                $iconType = 'none';
+                $iconValue = '';
+            }
         }
 
         $dataFiles = [];

@@ -466,25 +466,35 @@ function lawnding_is_safe_svg(?string $svg): bool {
 }
 
 // Render pane icon from panes.json (SVG string or uploaded file reference).
+// Falls back to the module manifest's default_icon when the pane has no
+// icon set, so panes created before this fallback existed (or any pane
+// the admin hasn't manually iconified) still render with a sensible icon
+// on the navbar.
 function lawnding_render_pane_icon(array $pane): string {
     $icon = $pane['icon'] ?? [];
-    if (!is_array($icon)) {
-        return '';
-    }
-    $type = $icon['type'] ?? '';
-    if ($type === 'svg') {
-        $svg = $icon['value'] ?? '';
-        return lawnding_is_safe_svg($svg) ? $svg : '';
-    }
-    if ($type === 'file') {
-        $value = $icon['value'] ?? '';
-        if (!is_string($value) || $value === '') {
-            return '';
+    if (is_array($icon)) {
+        $type = $icon['type'] ?? '';
+        if ($type === 'svg') {
+            $svg = $icon['value'] ?? '';
+            if (is_string($svg) && $svg !== '' && lawnding_is_safe_svg($svg)) {
+                return $svg;
+            }
+        } elseif ($type === 'file') {
+            $value = $icon['value'] ?? '';
+            if (is_string($value) && $value !== '') {
+                $src = function_exists('lawnding_asset_url')
+                    ? lawnding_asset_url('res/img/panes/' . ltrim($value, '/'))
+                    : 'res/img/panes/' . ltrim($value, '/');
+                return '<img class="navLinkIconImage" src="' . htmlspecialchars($src, ENT_QUOTES, 'UTF-8') . '" alt="">';
+            }
         }
-        $src = function_exists('lawnding_asset_url')
-            ? lawnding_asset_url('res/img/panes/' . ltrim($value, '/'))
-            : 'res/img/panes/' . ltrim($value, '/');
-        return '<img class="navLinkIconImage" src="' . htmlspecialchars($src, ENT_QUOTES, 'UTF-8') . '" alt="">';
+    }
+    $moduleId = $pane['module'] ?? '';
+    if (is_string($moduleId) && $moduleId !== '') {
+        $default = lawnding_module_default_icon($moduleId);
+        if ($default !== '' && lawnding_is_safe_svg($default)) {
+            return $default;
+        }
     }
     return '';
 }

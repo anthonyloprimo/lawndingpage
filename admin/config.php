@@ -462,21 +462,27 @@ $isSafeSvg = function (?string $svg): bool {
 
 $renderPaneIcon = function (array $pane) use ($makeAssetUrl, $isSafeSvg): string {
     $icon = $pane['icon'] ?? [];
-    if (!is_array($icon)) {
-        return '';
-    }
-    $type = $icon['type'] ?? '';
-    if ($type === 'svg') {
-        $svg = $icon['value'] ?? '';
-        return $isSafeSvg($svg) ? $svg : '';
-    }
-    if ($type === 'file') {
-        $value = $icon['value'] ?? '';
-        if (!is_string($value) || $value === '') {
-            return '';
+    if (is_array($icon)) {
+        $type = $icon['type'] ?? '';
+        if ($type === 'svg') {
+            $svg = $icon['value'] ?? '';
+            if (is_string($svg) && $svg !== '' && $isSafeSvg($svg)) {
+                return $svg;
+            }
+        } elseif ($type === 'file') {
+            $value = $icon['value'] ?? '';
+            if (is_string($value) && $value !== '') {
+                $src = $makeAssetUrl('res/img/panes/' . ltrim($value, '/'));
+                return '<img class="navLinkIconImage" src="' . htmlspecialchars($src, ENT_QUOTES, 'UTF-8') . '" alt="">';
+            }
         }
-        $src = $makeAssetUrl('res/img/panes/' . ltrim($value, '/'));
-        return '<img class="navLinkIconImage" src="' . htmlspecialchars($src, ENT_QUOTES, 'UTF-8') . '" alt="">';
+    }
+    $moduleId = $pane['module'] ?? '';
+    if (is_string($moduleId) && $moduleId !== '') {
+        $default = lawnding_module_default_icon($moduleId);
+        if ($default !== '' && $isSafeSvg($default)) {
+            return $default;
+        }
     }
     return '';
 };

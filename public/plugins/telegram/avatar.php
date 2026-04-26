@@ -43,7 +43,7 @@ foreach ($allowedHosts as $allowed) {
     }
 }
 if (!$hostAllowed) {
-    error_log('telegramProfile/avatar.php: rejected photo_url host: ' . $host);
+    error_log('plugins/telegram/avatar.php: rejected photo_url host: ' . $host);
     lawnding_tgprofile_serve_fallback();
 }
 

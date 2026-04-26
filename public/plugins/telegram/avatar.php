@@ -66,10 +66,12 @@ if (!is_file($cachePath) || (time() - (int) @filemtime($cachePath)) > $maxAgeSec
     ]);
     $bytes = @file_get_contents($photoUrl, false, $ctx);
     if (!is_string($bytes) || strlen($bytes) < 64) {
+        error_log('plugins/telegram/avatar.php: fetch from ' . $host . ' failed (got ' . (is_string($bytes) ? strlen($bytes) . ' bytes' : gettype($bytes)) . ')');
         lawnding_tgprofile_serve_fallback();
     }
     $tmp = $cachePath . '.tmp';
     if (file_put_contents($tmp, $bytes, LOCK_EX) === false) {
+        error_log('plugins/telegram/avatar.php: cache write failed at ' . $tmp . ' — check directory permissions for the web-server user');
         lawnding_tgprofile_serve_fallback();
     }
     rename($tmp, $cachePath);

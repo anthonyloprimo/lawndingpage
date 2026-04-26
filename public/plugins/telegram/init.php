@@ -12,8 +12,8 @@ if (!function_exists('lawnding_register_hook')) {
 
 lawnding_register_hook('head_assets', function (): void {
     $href = function_exists('lawnding_asset_url')
-        ? lawnding_asset_url('plugins/telegramProfile/style.css')
-        : '/plugins/telegramProfile/style.css';
+        ? lawnding_asset_url('plugins/telegram/style.css')
+        : '/plugins/telegram/style.css';
     echo '<link rel="stylesheet" href="'
         . htmlspecialchars($href, ENT_QUOTES, 'UTF-8')
         . '">';
@@ -37,8 +37,8 @@ lawnding_register_hook('header_auth_area', function (array $ctx): void {
     }
 
     $avatarUrl = function_exists('lawnding_asset_url')
-        ? lawnding_asset_url('plugins/telegramProfile/avatar.php')
-        : '/plugins/telegramProfile/avatar.php';
+        ? lawnding_asset_url('plugins/telegram/avatar.php')
+        : '/plugins/telegram/avatar.php';
 
     $logoutUrl = isset($ctx['logoutUrl']) && is_string($ctx['logoutUrl']) ? $ctx['logoutUrl'] : '';
     $adminUrl  = isset($ctx['adminUrl'])  && is_string($ctx['adminUrl'])  ? $ctx['adminUrl']  : '';

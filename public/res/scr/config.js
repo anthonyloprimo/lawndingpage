@@ -1010,10 +1010,10 @@ $(document).ready(function() {
             credentials: 'same-origin'
         })
             .then((response) => response.json().then((data) => ({ ok: response.ok, status: response.status, data })))
-            .then(({ ok, data }) => {
+            .then(({ ok, status, data }) => {
                 if (!ok) {
                     const message = data && data.error ? data.error : 'Background upload failed.';
-                    addAdminNotice('danger', message);
+                    addAdminNotice(status === 413 ? 'warning' : 'danger', message);
                     hideSavingOverlay();
                     return;
                 }
@@ -3499,8 +3499,10 @@ $(document).ready(function() {
         $notices.append($notice);
 
         const persist = options && options.persist;
-        if (safeType !== 'danger' && !persist) {
-            const timeoutMs = safeType === 'warning' ? 15000 : 5000;
+        if (!persist) {
+            const timeoutMs = safeType === 'danger' ? 30000
+                : safeType === 'warning' ? 15000
+                : 5000;
             scheduleNoticeTimeout($notice, timeoutMs);
         }
     }

@@ -18,6 +18,12 @@ $parsedownPath = function_exists('lawnding_public_path')
     : __DIR__ . '/../public/res/scr/Parsedown.php';
 require $parsedownPath;
 
+// Telegram normalization helpers (group/user entry dedup, content-level merge).
+// Loaded transitively today via admin/auth.php in callers, but make the
+// dependency explicit here since the admin config UI consumes these helpers
+// directly to render the bot config pane.
+require_once __DIR__ . '/lib/tg-auth.php';
+
 // Helper for data file lookups that works with or without bootstrap helpers.
 $dataPath = function (string $file): string {
     return function_exists('lawnding_data_path')
@@ -219,123 +225,26 @@ if (is_readable($tgBotPath)) {
         $tgBotData = array_merge($tgBotDefaults, $decoded);
     }
 }
-if (!function_exists('lawnding_admin_normalize_tg_group_entries')) {
-    // NOTE: this duplicates lawnding_tg_normalize_group_entries() in
-    // admin/lib/tg-auth.php. The two should be merged into a shared helper
-    // eventually; for now they share the schema and the per-group permissions
-    // allowlist (via lawnding_tg_eligible_permissions()).
-    function lawnding_admin_normalize_tg_group_entries($values): array {
-        if (!is_array($values)) {
-            return [];
-        }
-        $eligible = function_exists('lawnding_tg_eligible_permissions')
-            ? lawnding_tg_eligible_permissions()
-            : ['edit_site', 'add_users', 'edit_users', 'remove_users'];
-        $order = [];
-        $entriesById = [];
-        foreach ($values as $value) {
-            $groupId = '';
-            $content = 'SFW';
-            $permissions = [];
-            if (is_string($value) && trim($value) !== '') {
-                $groupId = trim($value);
-            } elseif (is_array($value)) {
-                $groupId = isset($value['id']) && is_string($value['id']) ? trim($value['id']) : '';
-                $rawContent = isset($value['content']) && is_string($value['content']) ? strtoupper(trim($value['content'])) : 'SFW';
-                $content = $rawContent === 'NSFW' ? 'NSFW' : 'SFW';
-                if (isset($value['permissions']) && is_array($value['permissions'])) {
-                    foreach ($value['permissions'] as $perm) {
-                        if (!is_string($perm)) {
-                            continue;
-                        }
-                        $perm = trim($perm);
-                        if ($perm === '' || !in_array($perm, $eligible, true)) {
-                            continue;
-                        }
-                        if (!in_array($perm, $permissions, true)) {
-                            $permissions[] = $perm;
-                        }
-                    }
-                }
-            }
-            if ($groupId === '') {
-                continue;
-            }
-            if (!isset($entriesById[$groupId])) {
-                $order[] = $groupId;
-                $entriesById[$groupId] = ['id' => $groupId, 'content' => $content, 'permissions' => $permissions];
-                continue;
-            }
-            if ($content === 'NSFW') {
-                $entriesById[$groupId]['content'] = 'NSFW';
-            }
-            foreach ($permissions as $perm) {
-                if (!in_array($perm, $entriesById[$groupId]['permissions'], true)) {
-                    $entriesById[$groupId]['permissions'][] = $perm;
-                }
-            }
-        }
-        $entries = [];
-        foreach ($order as $groupId) {
-            if (isset($entriesById[$groupId])) {
-                $entries[] = $entriesById[$groupId];
-            }
-        }
-        return $entries;
-    }
-}
+// Normalize group + whitelist/blacklist entries via the canonical helpers in
+// admin/lib/tg-auth.php (loaded near the top of this file). The helpers return
+// content levels in lowercase ('sfw'/'nsfw') per the documented schema; the
+// group rendering below already uppercases for display, and the whitelist/
+// blacklist textareas explicitly uppercase via strtoupper for user-visible
+// formatting consistent with the placeholder text.
 $tgBotGroupIds = [];
 if (!empty($tgBotData['group_ids']) && is_array($tgBotData['group_ids'])) {
-    $tgBotGroupIds = lawnding_admin_normalize_tg_group_entries($tgBotData['group_ids']);
-}
-if (!function_exists('lawnding_admin_normalize_tg_user_entries')) {
-    function lawnding_admin_normalize_tg_user_entries($values): array {
-        if (!is_array($values)) {
-            return [];
-        }
-        $order = [];
-        $entriesById = [];
-        foreach ($values as $value) {
-            $userId = '';
-            $content = 'SFW';
-            if (is_string($value) && trim($value) !== '') {
-                $userId = trim($value);
-            } elseif (is_array($value)) {
-                $userId = isset($value['id']) && is_scalar($value['id']) ? trim((string) $value['id']) : '';
-                $rawContent = isset($value['content']) && is_string($value['content']) ? strtoupper(trim($value['content'])) : 'SFW';
-                $content = $rawContent === 'NSFW' ? 'NSFW' : 'SFW';
-            }
-            if ($userId === '' || !preg_match('/^-?\d+$/', $userId)) {
-                continue;
-            }
-            if (!isset($entriesById[$userId])) {
-                $order[] = $userId;
-                $entriesById[$userId] = ['id' => $userId, 'content' => $content];
-                continue;
-            }
-            if ($content === 'NSFW') {
-                $entriesById[$userId]['content'] = 'NSFW';
-            }
-        }
-        $entries = [];
-        foreach ($order as $userId) {
-            if (isset($entriesById[$userId])) {
-                $entries[] = $entriesById[$userId];
-            }
-        }
-        return $entries;
-    }
+    $tgBotGroupIds = lawnding_tg_normalize_group_entries($tgBotData['group_ids']);
 }
 $tgBotWhitelistUserIds = [];
 if (!empty($tgBotData['whitelist_user_ids']) && is_array($tgBotData['whitelist_user_ids'])) {
-    $tgBotWhitelistUserIds = lawnding_admin_normalize_tg_user_entries($tgBotData['whitelist_user_ids']);
+    $tgBotWhitelistUserIds = lawnding_tg_normalize_user_entries($tgBotData['whitelist_user_ids']);
 }
-$tgBotWhitelistUserIdsText = implode("\n", array_map(fn(array $e): string => $e['id'] . ' ' . $e['content'], $tgBotWhitelistUserIds));
+$tgBotWhitelistUserIdsText = implode("\n", array_map(fn(array $e): string => $e['id'] . ' ' . strtoupper($e['content']), $tgBotWhitelistUserIds));
 $tgBotBlacklistUserIds = [];
 if (!empty($tgBotData['blacklist_user_ids']) && is_array($tgBotData['blacklist_user_ids'])) {
-    $tgBotBlacklistUserIds = lawnding_admin_normalize_tg_user_entries($tgBotData['blacklist_user_ids']);
+    $tgBotBlacklistUserIds = lawnding_tg_normalize_user_entries($tgBotData['blacklist_user_ids']);
 }
-$tgBotBlacklistUserIdsText = implode("\n", array_map(fn(array $e): string => $e['id'] . ' ' . $e['content'], $tgBotBlacklistUserIds));
+$tgBotBlacklistUserIdsText = implode("\n", array_map(fn(array $e): string => $e['id'] . ' ' . strtoupper($e['content']), $tgBotBlacklistUserIds));
 $webhookBase = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
 $webhookHost = $_SERVER['HTTP_HOST'] ?? 'your-domain.com';
 $webhookUrl = $webhookBase . '://' . $webhookHost . ($assetBase ?? '') . '/res/scr/tg-webhook.php';

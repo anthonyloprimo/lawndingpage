@@ -599,7 +599,7 @@ $(document).ready(function() {
                 const basePath = window.appConfig && typeof window.appConfig.basePath === 'string'
                     ? window.appConfig.basePath.replace(/\/$/, '')
                     : '';
-                const url = basePath ? `${basePath}/res/scr/tg-test.php` : '/res/scr/tg-test.php';
+                const url = basePath ? `${basePath}/plugins/telegram/test.php` : '/plugins/telegram/test.php';
                 const csrfToken = (window.appConfig && window.appConfig.csrfToken) || '';
                 const body = new URLSearchParams();
                 body.append('csrf_token', csrfToken);
@@ -622,7 +622,7 @@ $(document).ready(function() {
                 const basePath = window.appConfig && typeof window.appConfig.basePath === 'string'
                     ? window.appConfig.basePath.replace(/\/$/, '')
                     : '';
-                const url = basePath ? `${basePath}/res/scr/tg-validate-groups.php` : '/res/scr/tg-validate-groups.php';
+                const url = basePath ? `${basePath}/plugins/telegram/validate-groups.php` : '/plugins/telegram/validate-groups.php';
                 const groupIds = readTgGroupRows().map((entry) => entry.id);
                 if (!groupIds.length) {
                     alert('No group IDs found. Add at least one ID and try again.');

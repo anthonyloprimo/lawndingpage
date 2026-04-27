@@ -21,6 +21,11 @@ function diag_tail_respond($payload, int $code = 200): void {
 // "First Last (tg:<id>)" when the membership cache has profile data. Bcrypt
 // usernames pass through unchanged (they're already human-readable). Returns
 // the original value when no profile is available.
+//
+// Delegates name formatting to lawnding_format_tg_display_name() from
+// admin/auth.php. Passes null for the id arg so it doesn't fall back to
+// "User #<id>" — we want the bare sentinel in that case so we don't render
+// the numeric id twice.
 function diag_format_who($who, array $tgProfiles) {
     if (!is_string($who) || $who === '') {
         return $who;
@@ -32,14 +37,8 @@ function diag_format_who($who, array $tgProfiles) {
     if (!is_array($profile)) {
         return $who;
     }
-    $username = isset($profile['username']) ? trim((string) $profile['username']) : '';
-    $first    = isset($profile['first_name']) ? trim((string) $profile['first_name']) : '';
-    $last     = isset($profile['last_name'])  ? trim((string) $profile['last_name'])  : '';
-    if ($username !== '') {
-        $name = '@' . $username;
-    } elseif ($first !== '') {
-        $name = $first . ($last !== '' ? ' ' . $last : '');
-    } else {
+    $name = lawnding_format_tg_display_name($profile, null);
+    if ($name === '') {
         return $who;
     }
     return $name . ' (' . $who . ')';

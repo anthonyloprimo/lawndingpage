@@ -1,6 +1,11 @@
 ### Changelog
 
 
+#### v1.12.4
+- Fixed a bug where red error banners on the public site stayed onscreen until manually dismissed, instead of fading out after 30 seconds like they do in the admin panel.
+
+-----
+
 #### v1.12.3
 - Added a calendar grid view to the Event List pane. Admins can enable it per-pane and choose whether it opens by default. Includes month navigation, a day-detail popup, and a toast when a selected day has no events.
 - Added Telegram allowlist and denylist fields to the bot configuration. Allowlisted user IDs gain access regardless of group membership; denylisted IDs are denied regardless.

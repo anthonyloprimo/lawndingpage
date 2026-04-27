@@ -721,6 +721,7 @@ $isLinksHidden = !$showLinks;
         </div>
     </div>
     <script src="<?php echo htmlspecialchars(lawnding_asset_url('res/scr/public-data.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
+    <script src="<?php echo htmlspecialchars(lawnding_asset_url('res/scr/notice-core.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
     <script src="<?php echo htmlspecialchars(lawnding_asset_url('res/scr/app.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
 </body>
 </html>

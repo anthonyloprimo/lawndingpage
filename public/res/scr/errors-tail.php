@@ -17,6 +17,34 @@ function diag_tail_respond($payload, int $code = 200): void {
     exit;
 }
 
+// Map a tg:<id> sentinel in an entry's `who` field to "@handle (tg:<id>)" or
+// "First Last (tg:<id>)" when the membership cache has profile data. Bcrypt
+// usernames pass through unchanged (they're already human-readable). Returns
+// the original value when no profile is available.
+function diag_format_who($who, array $tgProfiles) {
+    if (!is_string($who) || $who === '') {
+        return $who;
+    }
+    if (!preg_match('/^tg:(\d+)$/', $who, $m)) {
+        return $who;
+    }
+    $profile = $tgProfiles[$m[1]]['profile'] ?? null;
+    if (!is_array($profile)) {
+        return $who;
+    }
+    $username = isset($profile['username']) ? trim((string) $profile['username']) : '';
+    $first    = isset($profile['first_name']) ? trim((string) $profile['first_name']) : '';
+    $last     = isset($profile['last_name'])  ? trim((string) $profile['last_name'])  : '';
+    if ($username !== '') {
+        $name = '@' . $username;
+    } elseif ($first !== '') {
+        $name = $first . ($last !== '' ? ' ' . $last : '');
+    } else {
+        return $who;
+    }
+    return $name . ' (' . $who . ')';
+}
+
 $allowedPermissions = ['full_admin', 'add_users', 'edit_users', 'remove_users', 'edit_site'];
 $tgConfig = lawnding_load_tg_config();
 $users = lawnding_load_users_file(lawnding_config('users_path'));
@@ -58,6 +86,17 @@ if (is_readable($logPath)) {
 
 // Newest first for the viewer.
 $entries = array_reverse($entries);
+
+// Enrich any tg:<id> sentinels in `who` fields with the cached display name.
+// Single cache load amortized across all entries in this response.
+$tgCache = function_exists('lawnding_tg_cache_load') ? lawnding_tg_cache_load() : ['users' => []];
+$tgProfiles = is_array($tgCache['users'] ?? null) ? $tgCache['users'] : [];
+foreach ($entries as &$entry) {
+    if (isset($entry['who'])) {
+        $entry['who'] = diag_format_who($entry['who'], $tgProfiles);
+    }
+}
+unset($entry);
 
 diag_tail_respond([
     'entries' => $entries,

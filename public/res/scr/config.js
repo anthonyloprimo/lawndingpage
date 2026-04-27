@@ -269,6 +269,23 @@ $(document).ready(function() {
         startTutorial();
     });
 
+    // Notice banners — admin-side thin wrapper around the shared manager in
+    // notice-core.js. The public site (app.js) has its own wrapper using the
+    // same factory. skipActionBearing is admin-only: banners that contain a
+    // form or button stay onscreen until the user dismisses them, so a save
+    // dialog isn't yanked away mid-interaction.
+    //
+    // Initialized BEFORE the bind* sequence below because bindAdminNotices()
+    // references noticeManager — a TDZ error there silently halted init in
+    // earlier code, leaving initialSnapshot null and breaking the save flow.
+    const noticeManager = window.lpNoticeFactory({ skipActionBearing: true });
+
+    function addAdminNotice(type, text, options) {
+        return noticeManager.add(type, text, options);
+    }
+
+    window.addAdminNotice = addAdminNotice;
+
     bindLinksControls();
     bindAuthLinksControls();
     bindBackgroundControls();
@@ -3482,19 +3499,6 @@ $(document).ready(function() {
 
         $targets.prop('disabled', true);
     }
-
-    // Notice banners — admin-side thin wrapper around the shared manager in
-    // notice-core.js. The public site (app.js) has its own wrapper using the
-    // same factory. skipActionBearing is admin-only: banners that contain a
-    // form or button stay onscreen until the user dismisses them, so a save
-    // dialog isn't yanked away mid-interaction.
-    const noticeManager = window.lpNoticeFactory({ skipActionBearing: true });
-
-    function addAdminNotice(type, text, options) {
-        return noticeManager.add(type, text, options);
-    }
-
-    window.addAdminNotice = addAdminNotice;
 
     function escapeHtml(value) {
         return String(value)

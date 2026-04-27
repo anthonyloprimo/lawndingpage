@@ -7,6 +7,10 @@ if (!is_readable($bootstrapPath)) {
     $bootstrapPath = __DIR__ . '/../../../lp-bootstrap.php';
 }
 require_once $bootstrapPath;
+// Suppress error display in the response. Errors are captured to
+// admin/errors.jsonl via the bootstrap-registered handler and surfaced in
+// the Diagnostics admin section, never echoed into HTML.
+ini_set('display_errors', '0');
 // Prevent stale HTML/PHP responses from being cached.
 $cacheHeadersPath = function_exists('lawnding_public_path')
     ? lawnding_public_path('res/scr/cache_headers.php')
@@ -52,13 +56,10 @@ if ($requestPath !== null && $requestPath !== '') {
     }
 }
 
-// Resolve admin root and configure error logging to admin/errors.txt.
+// Admin root used by the health checks below.
 $adminRoot = function_exists('lawnding_config')
     ? lawnding_config('admin_dir', dirname(__DIR__, 2) . '/admin')
     : dirname(__DIR__, 2) . '/admin';
-$errorLogPath = $adminRoot . '/errors.txt';
-ini_set('log_errors', '1');
-ini_set('error_log', $errorLogPath);
 
 lawnding_init_session(); // Initialize PHP session storage and load existing session data.
 
@@ -180,9 +181,9 @@ function users_permissions_needs_fix($usersPath) {
     return ($mode & 0037) !== 0 || (($mode & 0070) === 0);
 }
 
-// Append a warning with a pointer to errors.txt for detail.
+// Append a warning with a pointer to the Diagnostics view for detail.
 function add_health_warning(&$warnings, $message) {
-    $warnings[] = $message . ' Check errors.txt for more information.';
+    $warnings[] = $message . ' Check the Diagnostics view for more information.';
 }
 
 // Validate CSRF token and append to the provided errors array on failure.
@@ -289,6 +290,10 @@ if ($action === 'login') {
             $user = find_user($users, $username);
             if (!$user || !password_verify($password, $user['password_hash'] ?? '')) {
                 $errors[] = 'Username/password incorrect.';
+                lawnding_log_event('info', 'login_failed', [
+                    'attempted_username' => $username,
+                    'user_exists' => $user !== null,
+                ]);
             } else {
                 session_regenerate_id(true); // Prevent session fixation by rotating the ID on login.
                 $_SESSION['auth_user'] = $user['username']; // Store the authenticated user in the session.
@@ -338,16 +343,11 @@ if ($identityIsTgOnly) {
 }
 
 // Health checks for files and directories needed by the admin app.
-if (!file_exists($errorLogPath)) {
-    if (is_dir($adminRoot) && is_writable($adminRoot)) {
-        @touch($errorLogPath);
-    }
-    if (!file_exists($errorLogPath)) {
-        add_health_warning($usersWarnings, 'Health check: Unable to create errors.txt in the admin directory.');
-    }
-}
-if (file_exists($errorLogPath) && !is_writable($errorLogPath)) {
-    add_health_warning($usersWarnings, 'Health check: errors.txt is not writable.');
+$errorsLogPath = lawnding_logs_path();
+if (!is_dir($adminRoot) || !is_writable($adminRoot)) {
+    add_health_warning($usersWarnings, 'Health check: admin directory is not writable; runtime errors cannot be captured.');
+} elseif (file_exists($errorsLogPath) && !is_writable($errorsLogPath)) {
+    add_health_warning($usersWarnings, 'Health check: errors.jsonl is not writable.');
 }
 
 if (PHP_VERSION_ID < 80000) {

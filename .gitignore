@@ -2,7 +2,8 @@
 TODO.md
 docs/plans/
 lp-overrides-template.php
-admin/errors.txt
+admin/errors.jsonl
+admin/errors.jsonl.1
 admin/users.json
 *.oldphp
 *.oldcss

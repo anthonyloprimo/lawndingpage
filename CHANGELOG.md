@@ -1,6 +1,12 @@
 ### Changelog
 
 
+#### v1.12.5
+- Added a Diagnostics section to the admin panel — admins with edit permission can browse recent runtime errors with severity color coding, click-to-expand details, an optional 5-second auto-refresh, and a clear-all button. Captures errors from both the public page and the admin flow.
+- The legacy admin/errors.txt file is no longer written — the new Diagnostics view replaces it. If you have an existing errors.txt on your server, you can delete it manually.
+
+-----
+
 #### v1.12.4
 - Fixed a bug where red error banners on the public site stayed onscreen until manually dismissed, instead of fading out after 30 seconds like they do in the admin panel.
 

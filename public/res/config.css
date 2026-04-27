@@ -1768,3 +1768,149 @@ button:disabled {
 .bgConfigRow > .iconButton {
     justify-self: end;
 }
+
+/* DIAGNOSTICS pane — admin runtime-error viewer. */
+.diagnosticsToolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+    margin: 8px 0 12px 0;
+}
+.diagnosticsToggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+}
+.diagnosticsToolbar button {
+    padding: 4px 10px;
+    background: #00000033;
+    color: #FFFFFFEE;
+    border: 1px solid #FFFFFF55;
+    border-radius: 4px;
+    cursor: pointer;
+    font: inherit;
+}
+.diagnosticsToolbar button:hover {
+    background: #77777733;
+    border-color: #FFFFFFBB;
+}
+.diagnosticsClear {
+    margin-left: auto;
+}
+.diagnosticsStatus {
+    font-size: 0.85em;
+    opacity: 0.75;
+}
+.diagnosticsViewer {
+    max-height: 60vh;
+    overflow-y: auto;
+    border: 1px solid #FFFFFF22;
+    border-radius: 4px;
+    background: #00000022;
+}
+.diagnosticsEmpty {
+    padding: 16px;
+    margin: 0;
+    text-align: center;
+    opacity: 0.6;
+}
+.diagnosticsList {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+.diagnosticsRow {
+    border-bottom: 1px solid #FFFFFF11;
+}
+.diagnosticsRow:last-child {
+    border-bottom: none;
+}
+.diagnosticsRowSummary {
+    display: grid;
+    grid-template-columns: 180px 60px 60px 1fr;
+    gap: 8px;
+    align-items: center;
+    width: 100%;
+    padding: 6px 10px;
+    background: transparent;
+    color: inherit;
+    border: none;
+    border-left: 4px solid transparent;
+    text-align: left;
+    cursor: pointer;
+    font: inherit;
+    font-size: 0.9em;
+}
+.diagnosticsRowSummary:hover {
+    background: #FFFFFF0A;
+}
+.diagnosticsRowTs {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.85em;
+    opacity: 0.75;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.diagnosticsRowSev {
+    text-transform: uppercase;
+    font-weight: 600;
+    font-size: 0.75em;
+    letter-spacing: 0.05em;
+}
+.diagnosticsRowSrc {
+    opacity: 0.7;
+    font-size: 0.85em;
+}
+.diagnosticsRowMsg {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.diagnosticsRowDetail {
+    padding: 8px 14px 12px 18px;
+    background: #00000033;
+    font-size: 0.85em;
+}
+.diagnosticsRowMessage {
+    margin: 0 0 8px 0;
+    padding: 8px;
+    background: #00000044;
+    border-radius: 3px;
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.95em;
+}
+.diagnosticsRowField {
+    margin: 2px 0;
+    opacity: 0.85;
+    word-break: break-all;
+}
+/* Severity color coding: red border for errors, amber for warnings, neutral for info/debug. */
+.diagnosticsRow--error > .diagnosticsRowSummary {
+    border-left-color: #E55353;
+}
+.diagnosticsRow--error .diagnosticsRowSev {
+    color: #E55353;
+}
+.diagnosticsRow--warn > .diagnosticsRowSummary {
+    border-left-color: #E0B547;
+}
+.diagnosticsRow--warn .diagnosticsRowSev {
+    color: #E0B547;
+}
+.diagnosticsRow--info > .diagnosticsRowSummary {
+    border-left-color: #5C9DD6;
+}
+.diagnosticsRow--info .diagnosticsRowSev {
+    color: #5C9DD6;
+}
+.diagnosticsRow--debug > .diagnosticsRowSummary {
+    border-left-color: #888888;
+}
+.diagnosticsRow--debug .diagnosticsRowSev {
+    color: #999999;
+}

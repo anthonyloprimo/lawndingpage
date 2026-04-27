@@ -41,16 +41,15 @@
             .replace(/'/g, '&#039;');
     }
 
-    function shortSummary(entry) {
+    function summaryLine(entry) {
         var raw = entry.msg || entry.event || '';
         if (typeof raw !== 'string') {
             raw = String(raw);
         }
-        raw = raw.replace(/\s+/g, ' ').trim();
-        if (raw.length > 80) {
-            raw = raw.substring(0, 80) + '…';
-        }
-        return raw;
+        // Collapse whitespace so multi-line stack traces don't break the row
+        // layout. Visual truncation at the pane edge is handled by the CSS
+        // (text-overflow: ellipsis + white-space: nowrap on .diagnosticsRowMsg).
+        return raw.replace(/\s+/g, ' ').trim();
     }
 
     function severityClass(sev) {
@@ -76,7 +75,7 @@
             var sev = e.sev || 'info';
             var src = e.src || '';
             var ts = e.ts || '';
-            var summary = shortSummary(e);
+            var summary = summaryLine(e);
             var fullMsg = e.msg ? String(e.msg) : '';
             var detailParts = [];
             if (e.event) {

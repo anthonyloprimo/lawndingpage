@@ -1140,15 +1140,12 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
                     <span>Auto-refresh (5s)</span>
                 </label>
                 <button type="button" class="diagnosticsRefresh" id="diagnosticsRefresh">Refresh now</button>
-                <button type="button" class="diagnosticsClear" id="diagnosticsClear">Clear all</button>
                 <span class="diagnosticsStatus" id="diagnosticsStatus" aria-live="polite"></span>
             </div>
             <div
                 id="diagnosticsViewer"
                 class="diagnosticsViewer"
                 data-tail-url="<?php echo htmlspecialchars(lawnding_asset_url('res/scr/errors-tail.php'), ENT_QUOTES, 'UTF-8'); ?>"
-                data-clear-url="<?php echo htmlspecialchars(lawnding_asset_url('res/scr/errors-clear.php'), ENT_QUOTES, 'UTF-8'); ?>"
-                data-csrf-token="<?php echo htmlspecialchars($_SESSION['csrf_token'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
             >
                 <p class="diagnosticsEmpty">No entries loaded yet.</p>
             </div>

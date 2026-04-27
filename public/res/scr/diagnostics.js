@@ -15,12 +15,9 @@
     }
 
     var tailUrl = viewer.getAttribute('data-tail-url') || '';
-    var clearUrl = viewer.getAttribute('data-clear-url') || '';
-    var csrfToken = viewer.getAttribute('data-csrf-token') || '';
     var statusEl = document.getElementById('diagnosticsStatus');
     var autoToggle = document.getElementById('diagnosticsAutoRefresh');
     var refreshBtn = document.getElementById('diagnosticsRefresh');
-    var clearBtn = document.getElementById('diagnosticsClear');
 
     var POLL_INTERVAL_MS = 5000;
     var pollTimer = null;
@@ -163,37 +160,6 @@
             });
     }
 
-    function clearAll() {
-        if (!clearUrl) {
-            return;
-        }
-        if (!confirm('Clear all diagnostic entries? This cannot be undone.')) {
-            return;
-        }
-        var body = new URLSearchParams();
-        body.set('csrf_token', csrfToken);
-        setStatus('Clearing…');
-        fetch(clearUrl, {
-            method: 'POST',
-            credentials: 'same-origin',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: body.toString(),
-        })
-            .then(function (r) {
-                if (!r.ok) {
-                    throw new Error('HTTP ' + r.status);
-                }
-                return r.json();
-            })
-            .then(function () {
-                setStatus('Cleared.');
-                fetchTail();
-            })
-            .catch(function (err) {
-                setStatus('Clear failed: ' + (err && err.message ? err.message : 'request failed'));
-            });
-    }
-
     function isPaneActive() {
         var pane = document.getElementById('diagnostics');
         if (!pane) {
@@ -244,9 +210,6 @@
         refreshBtn.addEventListener('click', function () {
             fetchTail();
         });
-    }
-    if (clearBtn) {
-        clearBtn.addEventListener('click', clearAll);
     }
     document.addEventListener('visibilitychange', function () {
         if (!document.hidden && autoToggle && autoToggle.checked && isPaneActive()) {

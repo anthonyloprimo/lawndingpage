@@ -1796,10 +1796,8 @@ button:disabled {
     background: #77777733;
     border-color: #FFFFFFBB;
 }
-.diagnosticsClear {
-    margin-left: auto;
-}
 .diagnosticsStatus {
+    margin-left: auto;
     font-size: 0.85em;
     opacity: 0.75;
 }

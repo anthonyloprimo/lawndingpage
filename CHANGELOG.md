@@ -2,7 +2,7 @@
 
 
 #### v1.12.5
-- Added a Diagnostics section to the admin panel — admins with edit permission can browse recent runtime errors with severity color coding, click-to-expand details, an optional 5-second auto-refresh, and a clear-all button. Captures errors from both the public page and the admin flow.
+- Added a Diagnostics section to the admin panel — admins with edit permission can browse recent runtime errors with severity color coding, click-to-expand details, and an optional 5-second auto-refresh. Captures errors from both the public page and the admin flow. Old entries roll off automatically once the log file gets large.
 - The legacy admin/errors.txt file is no longer written — the new Diagnostics view replaces it. If you have an existing errors.txt on your server, you can delete it manually.
 
 -----

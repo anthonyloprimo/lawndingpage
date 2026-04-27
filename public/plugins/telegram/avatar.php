@@ -33,7 +33,7 @@ $photoUrl = (string) $tgUser['photo_url'];
 $host = strtolower((string) (parse_url($photoUrl, PHP_URL_HOST) ?? ''));
 
 // Telegram serves avatar URLs from a handful of hosts; log rejections so drift
-// is visible in errors.txt rather than silently broken.
+// is visible in the admin Diagnostics view rather than silently broken.
 $allowedHosts = ['t.me', 'telegram.org', 'cdn.telegram.org', 'telesco.pe'];
 $hostAllowed = false;
 foreach ($allowedHosts as $allowed) {

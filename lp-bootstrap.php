@@ -197,6 +197,157 @@ function lawnding_flash_consume(): ?array {
     return ['type' => $type, 'text' => $text];
 }
 
+// Append-only error/event log used by the admin Diagnostics view.
+// JSONL format (one entry per line) so multi-line PHP error messages don't
+// fragment the file the way they would in CSV. Lives outside the webroot at
+// admin/errors.jsonl. Replaces the legacy admin/errors.txt as of v1.12.5.
+
+if (!function_exists('lawnding_logs_path')) {
+    function lawnding_logs_path(): string {
+        return lawnding_admin_path('errors.jsonl');
+    }
+}
+
+if (!function_exists('lawnding_logs_rotate_path')) {
+    function lawnding_logs_rotate_path(): string {
+        return lawnding_admin_path('errors.jsonl.1');
+    }
+}
+
+if (!function_exists('lawnding_logs_max_bytes')) {
+    function lawnding_logs_max_bytes(): int {
+        return 5 * 1024 * 1024;
+    }
+}
+
+if (!function_exists('lawnding_logs_append')) {
+    // Append a single entry to the JSONL log. Auto-rotates when the file
+    // exceeds lawnding_logs_max_bytes(). Best-effort and silent on failure
+    // because callers may run from PHP's own error handler — re-triggering
+    // error reporting from inside an error handler risks infinite loops.
+    function lawnding_logs_append(array $entry): void {
+        $path = lawnding_logs_path();
+        $dir = dirname($path);
+        if (!is_dir($dir) || !is_writable($dir)) {
+            return;
+        }
+        if (is_file($path) && @filesize($path) >= lawnding_logs_max_bytes()) {
+            @rename($path, lawnding_logs_rotate_path());
+        }
+        $line = json_encode($entry, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        if ($line === false) {
+            return;
+        }
+        $created = !is_file($path);
+        if (@file_put_contents($path, $line . "\n", FILE_APPEND | LOCK_EX) === false) {
+            return;
+        }
+        if ($created) {
+            @chmod($path, 0640);
+        }
+    }
+}
+
+if (!function_exists('lawnding_log_event')) {
+    // Log an application-level event. Use this when surfacing a condition
+    // PHP's error handler wouldn't normally catch — e.g. a TG group
+    // revocation or a failed login attempt. Severity is one of
+    // 'error', 'warn', 'info', 'debug'.
+    function lawnding_log_event(string $severity, string $event, array $context = []): void {
+        lawnding_logs_append([
+            'ts'    => date('c'),
+            'sev'   => $severity,
+            'src'   => 'app',
+            'event' => $event,
+            'ctx'   => $context,
+            'uri'   => $_SERVER['REQUEST_URI'] ?? null,
+            'who'   => $_SESSION['auth_user'] ?? null,
+        ]);
+    }
+}
+
+if (!function_exists('lawnding_logs_php_severity_name')) {
+    function lawnding_logs_php_severity_name(int $errno): string {
+        return match (true) {
+            (bool) ($errno & (E_ERROR | E_USER_ERROR | E_RECOVERABLE_ERROR
+                            | E_CORE_ERROR | E_COMPILE_ERROR | E_PARSE)) => 'error',
+            (bool) ($errno & (E_WARNING | E_USER_WARNING
+                            | E_CORE_WARNING | E_COMPILE_WARNING))      => 'warn',
+            default                                                      => 'info',
+        };
+    }
+}
+
+if (!function_exists('lawnding_logs_should_capture')) {
+    function lawnding_logs_should_capture(int $errno): bool {
+        // Capture E_WARNING and above; skip the noise floor (notices,
+        // deprecations, strict). Sub-threshold errors fall through to PHP's
+        // default error_log destination (typically the system log).
+        $captured = E_ERROR | E_WARNING | E_PARSE
+                  | E_CORE_ERROR | E_CORE_WARNING
+                  | E_COMPILE_ERROR | E_COMPILE_WARNING
+                  | E_USER_ERROR | E_USER_WARNING
+                  | E_RECOVERABLE_ERROR;
+        return ($errno & $captured) !== 0;
+    }
+}
+
+if (!function_exists('lawnding_logs_register_handlers')) {
+    function lawnding_logs_register_handlers(): void {
+        static $registered = false;
+        if ($registered) {
+            return;
+        }
+        $registered = true;
+
+        set_error_handler(function (int $errno, string $msg, string $file, int $line): bool {
+            if (!(error_reporting() & $errno)) {
+                return false;
+            }
+            if (!lawnding_logs_should_capture($errno)) {
+                return false;
+            }
+            lawnding_logs_append([
+                'ts'    => date('c'),
+                'sev'   => lawnding_logs_php_severity_name($errno),
+                'src'   => 'php',
+                'event' => 'php_error',
+                'msg'   => $msg,
+                'file'  => $file,
+                'line'  => $line,
+                'uri'   => $_SERVER['REQUEST_URI'] ?? null,
+                'who'   => $_SESSION['auth_user'] ?? null,
+            ]);
+            return true;
+        });
+
+        register_shutdown_function(function (): void {
+            $err = error_get_last();
+            if (!$err) {
+                return;
+            }
+            $fatalMask = E_ERROR | E_PARSE | E_CORE_ERROR | E_COMPILE_ERROR;
+            if (!($err['type'] & $fatalMask)) {
+                return;
+            }
+            lawnding_logs_append([
+                'ts'    => date('c'),
+                'sev'   => 'error',
+                'src'   => 'php',
+                'event' => 'fatal',
+                'msg'   => $err['message'] ?? '',
+                'file'  => $err['file'] ?? '',
+                'line'  => (int) ($err['line'] ?? 0),
+                'uri'   => $_SERVER['REQUEST_URI'] ?? null,
+                'who'   => $_SESSION['auth_user'] ?? null,
+            ]);
+        });
+    }
+}
+
+// Activate handlers for the rest of the request. Idempotent.
+lawnding_logs_register_handlers();
+
 // Return the shared platform-credit HTML for the page footer: GitHub link with
 // inline-SVG mark, lawnding.page link, and version string. Both the public page
 // and admin panel echo this and append their own page-specific suffix.

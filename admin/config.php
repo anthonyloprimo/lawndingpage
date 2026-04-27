@@ -65,6 +65,7 @@ function lawnding_icon_svg(string $name): string {
         'changelog' => 'M13,9H18.5L13,3.5V9M6,2H14L20,8V20A2,2 0 0,1 18,22H6C4.89,22 4,21.1 4,20V4C4,2.89 4.89,2 6,2M6.12,15.5L9.86,19.24L11.28,17.83L8.95,15.5L11.28,13.17L9.86,11.76L6.12,15.5M17.28,15.5L13.54,11.76L12.12,13.17L14.45,15.5L12.12,17.83L13.54,19.24L17.28,15.5Z',
         'eye_open' => 'M12,9A3,3 0 0,0 9,12A3,3 0 0,0 12,15A3,3 0 0,0 15,12A3,3 0 0,0 12,9M12,17A5,5 0 0,1 7,12A5,5 0 0,1 12,7A5,5 0 0,1 17,12A5,5 0 0,1 12,17M12,4.5C7,4.5 2.73,7.61 1,12C2.73,16.39 7,19.5 12,19.5C17,19.5 21.27,16.39 23,12C21.27,7.61 17,4.5 12,4.5Z',
         'eye_closed' => 'M12 17.5C8.2 17.5 4.8 15.4 3.2 12H1C2.7 16.4 7 19.5 12 19.5S21.3 16.4 23 12H20.8C19.2 15.4 15.8 17.5 12 17.5Z',
+        'diagnostics' => 'M13,14H11V9H13M13,18H11V16H13M1,21H23L12,2L1,21Z',
     ];
 
     if (!isset($paths[$name])) {
@@ -1128,6 +1129,46 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
                 </div>
             </div>
         </div>
+        <?php // Diagnostics: tail recent runtime errors captured from the site. Gated on edit_site. ?>
+        <?php if (!empty($canEditSite)): ?>
+        <div class="pane glassConvex" id="diagnostics">
+            <h3>DIAGNOSTICS</h3>
+            <p class="paneHint">Recent runtime errors captured from the site. Useful when something on the public page or the admin flow misbehaves.</p>
+            <div class="diagnosticsToolbar">
+                <label class="diagnosticsToggle">
+                    <input type="checkbox" id="diagnosticsAutoRefresh">
+                    <span>Auto-refresh (5s)</span>
+                </label>
+                <button type="button" class="diagnosticsRefresh" id="diagnosticsRefresh">Refresh now</button>
+                <div class="diagnosticsSevFilters" role="group" aria-label="Filter by severity">
+                    <label class="diagnosticsSevFilter">
+                        <input type="checkbox" data-sev="error" checked>
+                        <span class="diagnosticsSevLabel diagnosticsSevLabel--error">Error</span>
+                    </label>
+                    <label class="diagnosticsSevFilter">
+                        <input type="checkbox" data-sev="warn" checked>
+                        <span class="diagnosticsSevLabel diagnosticsSevLabel--warn">Warn</span>
+                    </label>
+                    <label class="diagnosticsSevFilter">
+                        <input type="checkbox" data-sev="info" checked>
+                        <span class="diagnosticsSevLabel diagnosticsSevLabel--info">Info</span>
+                    </label>
+                    <label class="diagnosticsSevFilter">
+                        <input type="checkbox" data-sev="debug" checked>
+                        <span class="diagnosticsSevLabel diagnosticsSevLabel--debug">Debug</span>
+                    </label>
+                </div>
+                <span class="diagnosticsStatus" id="diagnosticsStatus" aria-live="polite"></span>
+            </div>
+            <div
+                id="diagnosticsViewer"
+                class="diagnosticsViewer"
+                data-tail-url="<?php echo htmlspecialchars(lawnding_asset_url('res/scr/errors-tail.php'), ENT_QUOTES, 'UTF-8'); ?>"
+            >
+                <p class="diagnosticsEmpty">No entries loaded yet.</p>
+            </div>
+        </div>
+        <?php endif; ?>
         <?php // Render each dynamic pane using its module admin template. ?>
         <?php foreach ($panes as $pane): ?>
             <?php
@@ -1151,6 +1192,9 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
             <ul class="navBar glassConcave" id="navBar">
             <li><a class="navLink" href="#" data-pane="users" aria-label="Users" title="User Management"><?php echo lawnding_icon_svg('users'); ?></a></li>
             <li><a class="navLink" href="#" data-pane="bg" aria-label="Backgrounds" title="Edit Random Background Images"><?php echo lawnding_icon_svg('backgrounds'); ?></a></li>
+            <?php if (!empty($canEditSite)): ?>
+            <li><a class="navLink" href="#" data-pane="diagnostics" aria-label="Diagnostics" title="Diagnostics — recent runtime errors"><?php echo lawnding_icon_svg('diagnostics'); ?></a></li>
+            <?php endif; ?>
             <li class="navSeparator" aria-hidden="true"></li>
             <li><a class="navLink" href="#" data-pane="links" aria-label="Links" title="Links"><?php echo lawnding_icon_svg('links'); ?></a></li>
             <li class="authLinksNavItem<?php echo $authLinksEnabled ? '' : ' isHidden'; ?>"><a class="navLink<?php echo $authLinksEnabled ? '' : ' hidden'; ?>" href="#" data-pane="authLinks" aria-label="Authorized Links" title="Authorized Links"><?php echo lawnding_icon_svg('auth_links'); ?></a></li>
@@ -1411,5 +1455,6 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
     <script src="<?php echo htmlspecialchars($assetBase . '/res/scr/notice-core.js', ENT_QUOTES, 'UTF-8'); ?>"></script>
     <script src="<?php echo htmlspecialchars($assetBase . '/res/scr/app.js', ENT_QUOTES, 'UTF-8'); ?>"></script>
     <script src="<?php echo htmlspecialchars($assetBase . '/res/scr/config.js', ENT_QUOTES, 'UTF-8'); ?>"></script>
+    <script src="<?php echo htmlspecialchars($assetBase . '/res/scr/diagnostics.js', ENT_QUOTES, 'UTF-8'); ?>"></script>
 </body>
 </html>

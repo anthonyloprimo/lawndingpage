@@ -120,6 +120,14 @@ function lawnding_format_tg_display_name(?array $tgUser, $tgUserId): string {
 // group membership has lapsed. Mirrors the public-side revocation in
 // public/index.php so both surfaces use the same shape of teardown.
 function lawnding_admin_handle_tg_revocation(): void {
+    // Capture the identity before session_unset() wipes it so the log entry
+    // can name who was revoked, not just "an anonymous request happened."
+    $revokedTgUserId = $_SESSION['tg_user_id'] ?? null;
+    if (function_exists('lawnding_log_event')) {
+        lawnding_log_event('warn', 'tg_revoked', [
+            'tg_user_id' => $revokedTgUserId,
+        ]);
+    }
     if (session_status() === PHP_SESSION_ACTIVE) {
         session_unset();
         session_regenerate_id(true);

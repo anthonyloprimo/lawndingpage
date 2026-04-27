@@ -3483,28 +3483,15 @@ $(document).ready(function() {
         $targets.prop('disabled', true);
     }
 
-    function addAdminNotice(type, text, options) {
-        const $notices = $('#adminNotices');
-        if (!$notices.length) {
-            return;
-        }
-        const safeType = type || 'ok';
-        const $notice = $(`
-            <div class="adminNotice adminNotice--${safeType}">
-                <span class="adminNoticeText"></span>
-                <button type="button" class="adminNoticeClose" aria-label="Dismiss notification">×</button>
-            </div>
-        `);
-        $notice.find('.adminNoticeText').text(text);
-        $notices.append($notice);
+    // Notice banners — admin-side thin wrapper around the shared manager in
+    // notice-core.js. The public site (app.js) has its own wrapper using the
+    // same factory. skipActionBearing is admin-only: banners that contain a
+    // form or button stay onscreen until the user dismisses them, so a save
+    // dialog isn't yanked away mid-interaction.
+    const noticeManager = window.lpNoticeFactory({ skipActionBearing: true });
 
-        const persist = options && options.persist;
-        if (!persist) {
-            const timeoutMs = safeType === 'danger' ? 30000
-                : safeType === 'warning' ? 15000
-                : 5000;
-            scheduleNoticeTimeout($notice, timeoutMs);
-        }
+    function addAdminNotice(type, text, options) {
+        return noticeManager.add(type, text, options);
     }
 
     window.addAdminNotice = addAdminNotice;
@@ -3529,123 +3516,8 @@ $(document).ready(function() {
     window.showSavingOverlay = showSavingOverlay;
     window.hideSavingOverlay = hideSavingOverlay;
 
-    function noticeHasAction($notice) {
-        if (!$notice || !$notice.length) {
-            return false;
-        }
-        return $notice.find('form, button:not(.adminNoticeClose), input[type="submit"], input[type="button"]').length > 0;
-    }
-
     function bindAdminNotices() {
-        $(document)
-            .off('click.adminNoticeClose')
-            .on('click.adminNoticeClose', '.adminNoticeClose', function() {
-            const $notice = $(this).closest('.adminNotice');
-            clearNoticeTimer($notice);
-            $notice.remove();
-        });
-        $('#adminNotices .adminNotice').each(function() {
-            const $notice = $(this);
-            if ($notice.data('persist')) {
-                return;
-            }
-            if ($notice.hasClass('adminNotice--danger')) {
-                return;
-            }
-            if (noticeHasAction($notice)) {
-                return;
-            }
-            const timeoutMs = $notice.hasClass('adminNotice--warning') ? 15000 : 5000;
-            scheduleNoticeTimeout($notice, timeoutMs);
-        });
-    }
-
-    function scheduleNoticeTimeout($notice, durationMs) {
-        if (!$notice.length || durationMs <= 0) {
-            return;
-        }
-        if ($notice.data('noticeTimerActive')) {
-            return;
-        }
-        $notice.data('noticeTimerActive', true);
-
-        let remainingMs = durationMs;
-        let startTime = Date.now();
-        let rafId = null;
-        let paused = false;
-
-        let $progress = $notice.find('.adminNoticeProgress');
-        if (!$progress.length) {
-            $progress = $('<div class="adminNoticeProgress"></div>');
-            $notice.append($progress);
-        }
-
-        function updateProgress() {
-            if (paused) {
-                return;
-            }
-            const elapsed = Date.now() - startTime;
-            const left = Math.max(remainingMs - elapsed, 0);
-            const percent = (left / durationMs) * 100;
-            $progress.css('width', `${percent}%`);
-
-            if (left <= 0) {
-                $notice.addClass('isClosing');
-                $notice.fadeOut(200, function() {
-                    clearNoticeTimer($notice);
-                    $notice.remove();
-                });
-                return;
-            }
-            rafId = requestAnimationFrame(updateProgress);
-            $notice.data('noticeRafId', rafId);
-        }
-
-        function pauseTimer() {
-            if (paused) {
-                return;
-            }
-            paused = true;
-            remainingMs = Math.max(remainingMs - (Date.now() - startTime), 0);
-            if (rafId) {
-                cancelAnimationFrame(rafId);
-                rafId = null;
-            }
-        }
-
-        function resumeTimer() {
-            if (!paused) {
-                return;
-            }
-            paused = false;
-            startTime = Date.now();
-            rafId = requestAnimationFrame(updateProgress);
-            $notice.data('noticeRafId', rafId);
-        }
-
-        $notice.on('mouseenter.noticeTimer', pauseTimer);
-        $notice.on('mouseleave.noticeTimer', resumeTimer);
-
-        rafId = requestAnimationFrame(updateProgress);
-        $notice.data('noticeRafId', rafId);
-        $notice.data('noticePause', pauseTimer);
-        $notice.data('noticeResume', resumeTimer);
-    }
-
-    function clearNoticeTimer($notice) {
-        if (!$notice || !$notice.length) {
-            return;
-        }
-        const rafId = $notice.data('noticeRafId');
-        if (rafId) {
-            cancelAnimationFrame(rafId);
-        }
-        $notice.off('mouseenter.noticeTimer');
-        $notice.off('mouseleave.noticeTimer');
-        $notice.removeData('noticeRafId');
-        $notice.removeData('noticeTimerActive');
-        $notice.removeData('noticePause');
-        $notice.removeData('noticeResume');
+        return noticeManager.bind();
     }
 
     function updateEditSitePermissionFromUsers() {

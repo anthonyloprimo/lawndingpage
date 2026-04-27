@@ -18,10 +18,13 @@
     var statusEl = document.getElementById('diagnosticsStatus');
     var autoToggle = document.getElementById('diagnosticsAutoRefresh');
     var refreshBtn = document.getElementById('diagnosticsRefresh');
+    var sevFilterEls = document.querySelectorAll('.diagnosticsSevFilter input[type=checkbox]');
 
     var POLL_INTERVAL_MS = 5000;
     var pollTimer = null;
     var inFlight = false;
+    var lastEntries = [];
+    var lastFetchStamp = '';
 
     function setStatus(text) {
         if (statusEl) {
@@ -60,13 +63,65 @@
         return 'diagnosticsRow--' + s;
     }
 
-    function renderEmpty() {
-        viewer.innerHTML = '<p class="diagnosticsEmpty">No entries to show.</p>';
+    function renderEmpty(message) {
+        viewer.innerHTML = '<p class="diagnosticsEmpty">' + escapeHtml(message || 'No entries to show.') + '</p>';
+    }
+
+    // Read the four filter checkboxes' state. Severities not represented by a
+    // checkbox default to "shown" (forward-compat for any future severity).
+    function getActiveSeverities() {
+        var active = {};
+        for (var i = 0; i < sevFilterEls.length; i++) {
+            var sev = sevFilterEls[i].getAttribute('data-sev');
+            if (sev) {
+                active[sev] = sevFilterEls[i].checked;
+            }
+        }
+        return active;
+    }
+
+    function isEntryVisible(entry, active) {
+        var sev = (entry.sev || 'info').toLowerCase();
+        if (!(sev in active)) {
+            return true;
+        }
+        return active[sev] === true;
+    }
+
+    function applyFiltersAndRender() {
+        var active = getActiveSeverities();
+        var visible = [];
+        for (var i = 0; i < lastEntries.length; i++) {
+            if (isEntryVisible(lastEntries[i], active)) {
+                visible.push(lastEntries[i]);
+            }
+        }
+        renderEntries(visible);
+        updateStatusForFilter(visible.length, lastEntries.length);
+    }
+
+    function updateStatusForFilter(visibleCount, totalCount) {
+        if (!lastFetchStamp) {
+            return;
+        }
+        var suffix;
+        if (visibleCount === totalCount) {
+            suffix = '(' + totalCount + (totalCount === 1 ? ' entry)' : ' entries)');
+        } else {
+            suffix = '(showing ' + visibleCount + ' of ' + totalCount + ')';
+        }
+        setStatus('Updated ' + lastFetchStamp + ' ' + suffix);
     }
 
     function renderEntries(entries) {
         if (!entries || entries.length === 0) {
-            renderEmpty();
+            // Distinguish "nothing fetched" from "everything filtered out" so
+            // the user knows whether to widen filters vs. wait for new errors.
+            if (lastEntries.length === 0) {
+                renderEmpty('No entries to show.');
+            } else {
+                renderEmpty('No entries match the current filters.');
+            }
             return;
         }
         var html = '<ul class="diagnosticsList">';
@@ -147,9 +202,9 @@
                 return r.json();
             })
             .then(function (data) {
-                renderEntries(data.entries || []);
-                var stamp = new Date().toLocaleTimeString();
-                setStatus('Updated ' + stamp + ' (' + (data.count || 0) + ' entries)');
+                lastEntries = Array.isArray(data.entries) ? data.entries : [];
+                lastFetchStamp = new Date().toLocaleTimeString();
+                applyFiltersAndRender();
             })
             .catch(function (err) {
                 setStatus('Error: ' + (err && err.message ? err.message : 'load failed'));
@@ -209,6 +264,11 @@
         refreshBtn.addEventListener('click', function () {
             fetchTail();
         });
+    }
+    // Severity filter checkboxes — toggling re-renders the cached fetch
+    // batch, no network call. Filtering is purely a display-time operation.
+    for (var fi = 0; fi < sevFilterEls.length; fi++) {
+        sevFilterEls[fi].addEventListener('change', applyFiltersAndRender);
     }
     document.addEventListener('visibilitychange', function () {
         if (!document.hidden && autoToggle && autoToggle.checked && isPaneActive()) {

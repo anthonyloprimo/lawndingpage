@@ -1140,6 +1140,24 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
                     <span>Auto-refresh (5s)</span>
                 </label>
                 <button type="button" class="diagnosticsRefresh" id="diagnosticsRefresh">Refresh now</button>
+                <div class="diagnosticsSevFilters" role="group" aria-label="Filter by severity">
+                    <label class="diagnosticsSevFilter">
+                        <input type="checkbox" data-sev="error" checked>
+                        <span class="diagnosticsSevLabel diagnosticsSevLabel--error">Error</span>
+                    </label>
+                    <label class="diagnosticsSevFilter">
+                        <input type="checkbox" data-sev="warn" checked>
+                        <span class="diagnosticsSevLabel diagnosticsSevLabel--warn">Warn</span>
+                    </label>
+                    <label class="diagnosticsSevFilter">
+                        <input type="checkbox" data-sev="info" checked>
+                        <span class="diagnosticsSevLabel diagnosticsSevLabel--info">Info</span>
+                    </label>
+                    <label class="diagnosticsSevFilter">
+                        <input type="checkbox" data-sev="debug" checked>
+                        <span class="diagnosticsSevLabel diagnosticsSevLabel--debug">Debug</span>
+                    </label>
+                </div>
                 <span class="diagnosticsStatus" id="diagnosticsStatus" aria-live="polite"></span>
             </div>
             <div

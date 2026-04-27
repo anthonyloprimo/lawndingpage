@@ -1796,6 +1796,31 @@ button:disabled {
     background: #77777733;
     border-color: #FFFFFFBB;
 }
+.diagnosticsSevFilters {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding-left: 4px;
+    border-left: 1px solid #FFFFFF22;
+    margin-left: 4px;
+}
+.diagnosticsSevFilter {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+    font-size: 0.9em;
+}
+.diagnosticsSevLabel {
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.75em;
+    letter-spacing: 0.05em;
+}
+.diagnosticsSevLabel--error { color: #E55353; }
+.diagnosticsSevLabel--warn  { color: #E0B547; }
+.diagnosticsSevLabel--info  { color: #5C9DD6; }
+.diagnosticsSevLabel--debug { color: #999999; }
 .diagnosticsStatus {
     margin-left: auto;
     font-size: 0.85em;

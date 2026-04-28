@@ -1,22 +1,14 @@
 <?php
 // Telegram webhook handler for LawndingPage bot commands.
 require_once __DIR__ . '/../../../lp-bootstrap.php';
+$tgAuthPath = function_exists('lawnding_admin_path')
+    ? lawnding_admin_path('lib/tg-auth.php')
+    : __DIR__ . '/../../../admin/lib/tg-auth.php';
+require_once $tgAuthPath;
 
 header('Content-Type: application/json');
 
-function load_tg_bot_config(): array {
-    $adminDir = function_exists('lawnding_config')
-        ? lawnding_config('admin_dir', dirname(__DIR__, 3) . '/admin')
-        : dirname(__DIR__, 3) . '/admin';
-    $path = rtrim($adminDir, '/\\') . '/lp-tgBot.json';
-    if (!is_readable($path)) {
-        return [];
-    }
-    $decoded = json_decode(file_get_contents($path), true);
-    return is_array($decoded) ? $decoded : [];
-}
-
-$config = load_tg_bot_config();
+$config = lawnding_load_tg_config();
 $token = isset($config['bot_token']) ? trim((string) $config['bot_token']) : '';
 if ($token === '') {
     echo json_encode(['ok' => false, 'description' => 'Bot token missing']);

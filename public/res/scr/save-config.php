@@ -14,28 +14,6 @@ function respond($payload, $code = 200) {
     exit;
 }
 
-// Convert ini size strings like "2M" into bytes for comparisons.
-function ini_size_to_bytes($value) {
-    $value = trim((string) $value);
-    if ($value === '') {
-        return 0;
-    }
-    $last = strtolower($value[strlen($value) - 1]);
-    $number = (float) $value;
-    switch ($last) {
-        case 'g':
-            $number *= 1024;
-            // no break
-        case 'm':
-            $number *= 1024;
-            // no break
-        case 'k':
-            $number *= 1024;
-            break;
-    }
-    return (int) $number;
-}
-
 // Read users.json into an array (empty on failure).
 function load_users($usersPath) {
     if (!is_readable($usersPath)) {
@@ -268,7 +246,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 
 // Fail fast when the overall POST payload exceeds the PHP limit.
-$postMaxBytes = ini_size_to_bytes(ini_get('post_max_size'));
+$postMaxBytes = lawnding_ini_size_to_bytes(ini_get('post_max_size'));
 $contentLength = isset($_SERVER['CONTENT_LENGTH']) ? (int) $_SERVER['CONTENT_LENGTH'] : 0;
 if ($postMaxBytes > 0 && $contentLength > $postMaxBytes) {
     error_log('save-config.php: payload too large (' . $contentLength . ' bytes, limit ' . $postMaxBytes . ' bytes).');
@@ -581,22 +559,6 @@ function is_valid_pane_id($value) {
 
 // Save a pane icon file upload under res/img/panes with a stable filename.
 function save_pane_icon($fileArray, $paneId, $iconDir) {
-    if (!isset($fileArray['tmp_name']) || !is_uploaded_file($fileArray['tmp_name'])) {
-        return null;
-    }
-    $finfo = finfo_open(FILEINFO_MIME_TYPE);
-    $mime = finfo_file($finfo, $fileArray['tmp_name']);
-    finfo_close($finfo);
-    if (strpos((string) $mime, 'image/') !== 0) {
-        return null;
-    }
-    static $iconMimeExt = [
-        'image/jpeg' => 'jpg',
-        'image/png'  => 'png',
-        'image/gif'  => 'gif',
-        'image/webp' => 'webp',
-    ];
-    $ext = $iconMimeExt[$mime] ?? 'png';
     $base = preg_replace('/[^a-z0-9]/i', '', (string) $paneId);
     if ($base === '') {
         return null;
@@ -604,45 +566,18 @@ function save_pane_icon($fileArray, $paneId, $iconDir) {
     if (!is_dir($iconDir)) {
         mkdir($iconDir, 0755, true);
     }
-    $filename = $base . '.' . $ext;
-    $targetPath = rtrim($iconDir, '/\\') . '/' . $filename;
-    $resized = function_exists('lawnding_gd_resize_image')
-        && lawnding_gd_resize_image($fileArray['tmp_name'], $targetPath, 256, 256);
-    if (!$resized && !move_uploaded_file($fileArray['tmp_name'], $targetPath)) {
-        return null;
-    }
-    return $filename;
+    $result = lawnding_validate_and_save_image($fileArray, $iconDir, $base, 256, 256, lawnding_image_mime_map());
+    return $result['ok'] ? $result['filename'] : null;
 }
 
 // Validate and save an uploaded image; returns relative path.
 function save_image($fileArray, $destName) {
     global $imgDir;
-    if (!isset($fileArray['tmp_name']) || !is_uploaded_file($fileArray['tmp_name'])) {
+    $result = lawnding_validate_and_save_image($fileArray, $imgDir, $destName, 256, 256, lawnding_image_mime_map());
+    if (!$result['ok']) {
         return null;
     }
-    $finfo = finfo_open(FILEINFO_MIME_TYPE);
-    $mime = finfo_file($finfo, $fileArray['tmp_name']);
-    finfo_close($finfo);
-    if (strpos($mime, 'image/') !== 0) {
-        return null;
-    }
-    static $logoMimeExt = [
-        'image/jpeg' => 'jpg',
-        'image/png'  => 'png',
-        'image/gif'  => 'gif',
-        'image/webp' => 'webp',
-    ];
-    $ext = $logoMimeExt[$mime] ?? 'jpg';
-    $safeName = $destName
-        ? $destName . '.' . $ext
-        : preg_replace('/[^a-zA-Z0-9._-]/', '_', pathinfo($fileArray['name'], PATHINFO_FILENAME)) . '.' . $ext;
-    $targetPath = $imgDir . $safeName;
-    $resized = function_exists('lawnding_gd_resize_image')
-        && lawnding_gd_resize_image($fileArray['tmp_name'], $targetPath, 256, 256);
-    if (!$resized && !move_uploaded_file($fileArray['tmp_name'], $targetPath)) {
-        return null;
-    }
-    return 'res/img/' . $safeName;
+    return 'res/img/' . $result['filename'];
 }
 
 // Gather POST data and JSON payloads.

@@ -10,30 +10,7 @@ header('Content-Type: application/json');
 // Endpoint accepts POST only.
 backgrounds_require_method('POST');
 
-// Convert ini size strings like "2M" into bytes.
-function ini_size_to_bytes($value) {
-    $value = trim((string) $value);
-    if ($value === '') {
-        return 0;
-    }
-    $last = strtolower($value[strlen($value) - 1]);
-    $number = (float) $value;
-    switch ($last) {
-        case 'g':
-            $number *= 1024;
-            // no break
-        case 'm':
-            $number *= 1024;
-            // no break
-        case 'k':
-            $number *= 1024;
-            break;
-    }
-    return (int) $number;
-}
-
-// Fail fast when the overall POST payload exceeds the PHP limit.
-$postMaxBytes = ini_size_to_bytes(ini_get('post_max_size'));
+$postMaxBytes = lawnding_ini_size_to_bytes(ini_get('post_max_size'));
 $contentLength = isset($_SERVER['CONTENT_LENGTH']) ? (int) $_SERVER['CONTENT_LENGTH'] : 0;
 if ($postMaxBytes > 0 && $contentLength > $postMaxBytes) {
     error_log('backgrounds-upload.php: payload too large (' . $contentLength . ' bytes, limit ' . $postMaxBytes . ' bytes).');
@@ -58,13 +35,6 @@ if (($upload['error'] ?? UPLOAD_ERR_OK) !== UPLOAD_ERR_OK) {
     backgrounds_json_response(['error' => 'Upload failed. Please try again.'], 400);
 }
 
-// Enforce the app-level upload cap on top of any PHP ini limits.
-$appUploadMaxBytes = lawnding_app_upload_max_bytes();
-$appUploadMaxLabel = lawnding_app_upload_max_label();
-if ((int) ($upload['size'] ?? 0) > $appUploadMaxBytes) {
-    backgrounds_json_response(['error' => 'Upload too large. Image must be under ' . $appUploadMaxLabel . '.'], 413);
-}
-
 // Resolve the target directories and header.json location.
 $paths = backgrounds_paths();
 $imgDir = $paths['img_dir'];
@@ -73,43 +43,14 @@ $headerPath = $paths['header_path'];
 // Load header.json with a minimal fallback structure.
 $headerData = backgrounds_load_header($headerPath);
 
-// Save a validated image file into res/img and return its relative path.
-function save_image($fileArray, $destName, $imgDir) {
-    if (!isset($fileArray['tmp_name']) || !is_uploaded_file($fileArray['tmp_name'])) {
-        return null;
-    }
-    $finfo = finfo_open(FILEINFO_MIME_TYPE);
-    $mime = finfo_file($finfo, $fileArray['tmp_name']);
-    finfo_close($finfo);
-    if (strpos($mime, 'image/') !== 0) {
-        return null;
-    }
-    static $mimeExt = [
-        'image/jpeg' => 'jpg',
-        'image/png'  => 'png',
-        'image/gif'  => 'gif',
-        'image/webp' => 'webp',
-    ];
-    $ext = $mimeExt[$mime] ?? 'jpg';
-    $safeName = $destName
-        ? $destName . '.' . $ext
-        : preg_replace('/[^a-zA-Z0-9._-]/', '_', pathinfo($fileArray['name'], PATHINFO_FILENAME)) . '.' . $ext;
-    $targetPath = $imgDir . $safeName;
-    $resized = function_exists('lawnding_gd_resize_image')
-        && lawnding_gd_resize_image($fileArray['tmp_name'], $targetPath, 1920, 10000);
-    if (!$resized && !move_uploaded_file($fileArray['tmp_name'], $targetPath)) {
-        return null;
-    }
-    return 'res/img/' . $safeName;
-}
-
-// Persist the upload and bail on invalid files.
+// Validate and save the uploaded image.
 $originalSize = (int) ($upload['size'] ?? 0);
-$saved = save_image($upload, null, $imgDir);
-if (!$saved) {
-    backgrounds_json_response(['error' => 'Invalid image upload.'], 400);
+$result = lawnding_validate_and_save_image($upload, $imgDir, null, 1920, 10000, lawnding_image_mime_map());
+if (!$result['ok']) {
+    backgrounds_json_response(['error' => $result['error']], 400);
 }
-$savedPath = $imgDir . basename($saved);
+$saved = 'res/img/' . $result['filename'];
+$savedPath = $imgDir . $result['filename'];
 $savedSize = is_file($savedPath) ? (int) filesize($savedPath) : $originalSize;
 
 // Append the new background record to header.json data.

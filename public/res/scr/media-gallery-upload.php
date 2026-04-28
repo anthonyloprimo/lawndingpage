@@ -5,7 +5,7 @@ lawnding_init_session();
 
 media_gallery_require_method('POST');
 
-$postMaxBytes = media_gallery_ini_size_to_bytes(ini_get('post_max_size'));
+$postMaxBytes = lawnding_ini_size_to_bytes(ini_get('post_max_size'));
 $contentLength = isset($_SERVER['CONTENT_LENGTH']) ? (int) $_SERVER['CONTENT_LENGTH'] : 0;
 if ($postMaxBytes > 0 && $contentLength > $postMaxBytes) {
     media_gallery_json_response(['error' => 'Payload too large. Please reduce image sizes and try again.'], 413);

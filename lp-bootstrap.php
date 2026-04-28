@@ -558,6 +558,57 @@ function lawnding_gd_resize_image(string $srcPath, string $destPath, int $maxW, 
     return file_put_contents($destPath, $out, LOCK_EX) !== false;
 }
 
+// Standard image MIME→extension map shared across upload endpoints.
+function lawnding_image_mime_map(): array {
+    return [
+        'image/jpeg' => 'jpg',
+        'image/png'  => 'png',
+        'image/gif'  => 'gif',
+        'image/webp' => 'webp',
+    ];
+}
+
+// Validate and save an uploaded image. Combines the duplicated pipeline of
+// is_uploaded_file, finfo MIME validation, MIME→ext derivation, GD resize,
+// and move_uploaded_file fallback. The $allowedMimes parameter is a map of
+// MIME type → file extension (use lawnding_image_mime_map() for image-only
+// uploads, or add video entries for media gallery).
+function lawnding_validate_and_save_image(
+    array $file,
+    string $destDir,
+    ?string $destName,
+    int $maxW,
+    int $maxH,
+    array $allowedMimes
+): array {
+    if (!isset($file['tmp_name']) || !is_uploaded_file($file['tmp_name'])) {
+        return ['ok' => false, 'error' => 'No file uploaded.'];
+    }
+    $uploadSize = (int) ($file['size'] ?? 0);
+    if ($uploadSize > lawnding_app_upload_max_bytes()) {
+        return ['ok' => false, 'error' => 'Upload too large. Image must be under ' . lawnding_app_upload_max_label() . '.'];
+    }
+    $finfo = finfo_open(FILEINFO_MIME_TYPE);
+    $mime = finfo_file($finfo, $file['tmp_name']);
+    finfo_close($finfo);
+    if (!is_string($mime) || !isset($allowedMimes[$mime])) {
+        return ['ok' => false, 'error' => 'Invalid file type.'];
+    }
+    $ext = $allowedMimes[$mime];
+    if ($destName !== null && $destName !== '') {
+        $safeName = $destName . '.' . $ext;
+    } else {
+        $safeName = preg_replace('/[^a-zA-Z0-9._-]/', '_', pathinfo($file['name'], PATHINFO_FILENAME)) . '.' . $ext;
+    }
+    $targetPath = rtrim($destDir, '/\\') . '/' . $safeName;
+    $resized = function_exists('lawnding_gd_resize_image')
+        && lawnding_gd_resize_image($file['tmp_name'], $targetPath, $maxW, $maxH);
+    if (!$resized && !move_uploaded_file($file['tmp_name'], $targetPath)) {
+        return ['ok' => false, 'error' => 'Failed to save uploaded file.'];
+    }
+    return ['ok' => true, 'filename' => $safeName];
+}
+
 // App-level upload cap. Single source of truth for both server-side
 // enforcement (in upload endpoints) and the UI label rendered in
 // admin module templates. PHP's upload_max_filesize / post_max_size

@@ -147,26 +147,6 @@ if ($assetBase === '') {
 }
 $assetBase = rtrim($assetBase, '/');
 
-// Normalize asset URLs for config values that may be relative to /res.
-$makeAssetUrl = function ($path) use ($assetBase) {
-    if (!is_string($path) || $path === '') {
-        return $path;
-    }
-    if (preg_match('#^https?://#i', $path)) {
-        return $path;
-    }
-    if (str_starts_with($path, $assetBase . '/')) {
-        return $path;
-    }
-    if (str_starts_with($path, '/res/')) {
-        return $assetBase . $path;
-    }
-    if (str_starts_with($path, 'res/')) {
-        return $assetBase !== '' ? $assetBase . '/' . $path : '/' . $path;
-    }
-    return $path;
-};
-
 // Load changelog markdown from the project root (read-only pane).
 $Parsedown = new Parsedown();
 $rootDir = function_exists('lawnding_config')
@@ -271,14 +251,14 @@ if ($backgroundDuration <= 0) {
 }
 // Build a display-ready version with asset URLs resolved.
 $headerDataDisplay = $headerData;
-$headerDataDisplay['logo'] = $makeAssetUrl($headerDataDisplay['logo'] ?? '');
+$headerDataDisplay['logo'] = lawnding_make_asset_url($headerDataDisplay['logo'] ?? '');
 if (!empty($headerDataDisplay['backgrounds']) && is_array($headerDataDisplay['backgrounds'])) {
-    $headerDataDisplay['backgrounds'] = array_map(function ($bg) use ($makeAssetUrl) {
+    $headerDataDisplay['backgrounds'] = array_map(function ($bg) {
         if (is_string($bg)) {
-            return $makeAssetUrl($bg);
+            return lawnding_make_asset_url($bg);
         }
         if (is_array($bg)) {
-            $bg['url'] = $makeAssetUrl($bg['url'] ?? '');
+            $bg['url'] = lawnding_make_asset_url($bg['url'] ?? '');
             return $bg;
         }
         return $bg;
@@ -298,7 +278,7 @@ if (!empty($headerData['backgrounds']) && is_array($headerData['backgrounds'])) 
 }
 
 
-$renderPaneIcon = function (array $pane) use ($makeAssetUrl): string {
+$renderPaneIcon = function (array $pane): string {
     $icon = $pane['icon'] ?? [];
     if (is_array($icon)) {
         $type = $icon['type'] ?? '';
@@ -310,7 +290,7 @@ $renderPaneIcon = function (array $pane) use ($makeAssetUrl): string {
         } elseif ($type === 'file') {
             $value = $icon['value'] ?? '';
             if (is_string($value) && $value !== '') {
-                $src = $makeAssetUrl('res/img/panes/' . ltrim($value, '/'));
+                $src = lawnding_make_asset_url('res/img/panes/' . ltrim($value, '/'));
                 return '<img class="navLinkIconImage" src="' . htmlspecialchars($src, ENT_QUOTES, 'UTF-8') . '" alt="">';
             }
         }
@@ -1012,7 +992,7 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
                                 $bgAuthor = $bg['author'] ?? '';
                                 $bgAuthorUrl = $bg['authorUrl'] ?? '';
                             }
-                            $bgDisplayUrl = $makeAssetUrl($bgUrl);
+                            $bgDisplayUrl = lawnding_make_asset_url($bgUrl);
                             $isEmptyBg = empty($bgUrl);
                         ?>
                         <div class="bgConfigRow" data-current-url="<?php echo htmlspecialchars($bgUrl); ?>" data-author-url="<?php echo htmlspecialchars($bgAuthorUrl); ?>">

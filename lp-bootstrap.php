@@ -224,6 +224,86 @@ function lawnding_read_json($path, array $fallback = []) {
     return is_array($decoded) ? $decoded : $fallback;
 }
 
+// Resolve the URL prefix for served assets. Combines lawnding_config('base_url')
+// with two legacy fallback heuristics that fire when base_url isn't detected:
+// SCRIPT_NAME starting with '/public/', or DOCUMENT_ROOT not having a sibling
+// 'res' dir. Either heuristic catches the case of an Apache vhost rooted at
+// the repo root rather than at public/. Returns the rtrim'd base ('' for
+// site-root, '/some/prefix' otherwise). Used internally by
+// lawnding_make_asset_url; admin entrypoints that need the value for inline
+// HTML (script/link tags) can read it directly.
+function lawnding_asset_base_url(): string {
+    $base = function_exists('lawnding_config')
+        ? (string) lawnding_config('base_url', '')
+        : '';
+    if ($base === '') {
+        $scriptName = $_SERVER['SCRIPT_NAME'] ?? '';
+        if (is_string($scriptName) && str_starts_with($scriptName, '/public/')) {
+            $base = '/public';
+        } elseif (empty($_SERVER['DOCUMENT_ROOT']) || !is_dir($_SERVER['DOCUMENT_ROOT'] . '/res')) {
+            $base = '/public';
+        }
+    }
+    return rtrim($base, '/');
+}
+
+// Take a stored asset path (possibly relative `res/...`, absolute `/res/...`,
+// legacy `public/res/...`, or an external URL) and produce a browser-accessible
+// URL. Idempotent: a path already prefixed with the configured base URL passes
+// through unchanged. External URLs (http://, https://) pass through. The
+// inverse (URL back to storage form) is lawnding_normalize_asset_path.
+function lawnding_make_asset_url($path) {
+    if (!is_string($path) || $path === '') {
+        return $path;
+    }
+    if (preg_match('#^https?://#i', $path)) {
+        return $path;
+    }
+    $assetBase = lawnding_asset_base_url();
+    if ($assetBase !== '' && str_starts_with($path, $assetBase . '/')) {
+        return $path;
+    }
+    if (str_starts_with($path, '/res/')) {
+        return $assetBase . $path;
+    }
+    if (str_starts_with($path, 'res/')) {
+        return $assetBase !== '' ? $assetBase . '/' . $path : '/' . $path;
+    }
+    if (str_starts_with($path, 'public/res/')) {
+        $trimmed = substr($path, strlen('public/'));
+        return $assetBase !== '' ? $assetBase . '/' . $trimmed : '/' . $trimmed;
+    }
+    return $path;
+}
+
+// Normalize an asset path back to its `res/...` storage form, regardless of
+// whether it's stored as a URL with the base URL prefixed or with a `public/`
+// prefix or as a bare relative path. Inverse of lawnding_make_asset_url, used
+// at write boundaries (save-config) so panes.json / header.json store paths
+// in a consistent shape independent of the deployment's base URL.
+function lawnding_normalize_asset_path($path) {
+    if (!is_string($path) || $path === '') {
+        return $path;
+    }
+    if (preg_match('#^https?://#i', $path)) {
+        return $path;
+    }
+    $trimmed = ltrim($path, '/');
+    $baseUrl = function_exists('lawnding_config')
+        ? trim((string) lawnding_config('base_url', ''), '/')
+        : '';
+    if ($baseUrl !== '' && str_starts_with($trimmed, $baseUrl . '/res/')) {
+        return substr($trimmed, strlen($baseUrl) + 1);
+    }
+    if (str_starts_with($trimmed, 'public/res/')) {
+        return substr($trimmed, strlen('public/'));
+    }
+    if (str_starts_with($trimmed, 'res/')) {
+        return $trimmed;
+    }
+    return $path;
+}
+
 // One-shot session-backed flash messages, surfaced as banner notices on the
 // next page render. Consumer is public/index.php (drains $_SESSION['lp_flash']
 // into the #adminNotices container).

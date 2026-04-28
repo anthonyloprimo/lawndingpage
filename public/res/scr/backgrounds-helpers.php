@@ -114,60 +114,6 @@ function backgrounds_load_header(string $headerPath): array {
     return array_merge(['backgrounds' => []], lawnding_read_json($headerPath));
 }
 
-// Normalize stored asset paths into res/... form for consistent matching.
-function backgrounds_normalize_asset_path($path) {
-    if (!is_string($path) || $path === '') {
-        return $path;
-    }
-    if (preg_match('#^https?://#i', $path)) {
-        return $path;
-    }
-    $trimmed = ltrim($path, '/');
-    $baseUrl = function_exists('lawnding_config')
-        ? trim((string) lawnding_config('base_url', ''), '/')
-        : '';
-    if ($baseUrl !== '' && str_starts_with($trimmed, $baseUrl . '/res/')) {
-        return substr($trimmed, strlen($baseUrl) + 1);
-    }
-    if (str_starts_with($trimmed, 'public/res/')) {
-        return substr($trimmed, strlen('public/'));
-    }
-    if (str_starts_with($trimmed, 'res/')) {
-        return $trimmed;
-    }
-    return $path;
-}
-
-// Build a displayable URL for the UI preview.
-function backgrounds_make_asset_url($path) {
-    if (!is_string($path) || $path === '') {
-        return $path;
-    }
-    if (preg_match('#^https?://#i', $path)) {
-        return $path;
-    }
-    $assetBase = '';
-    if (function_exists('lawnding_config')) {
-        $assetBase = (string) lawnding_config('base_url', '');
-    }
-    if ($assetBase === '') {
-        if (empty($_SERVER['DOCUMENT_ROOT']) || !is_dir($_SERVER['DOCUMENT_ROOT'] . '/res')) {
-            $assetBase = '/public';
-        }
-    }
-    $assetBase = rtrim($assetBase, '/');
-    if (str_starts_with($path, $assetBase . '/')) {
-        return $path;
-    }
-    if (str_starts_with($path, '/res/')) {
-        return $assetBase . $path;
-    }
-    if (str_starts_with($path, 'res/')) {
-        return $assetBase !== '' ? $assetBase . '/' . $path : '/' . $path;
-    }
-    return $path;
-}
-
 // Convert raw backgrounds into a normalized payload for the UI.
 function backgrounds_build_payload(array $backgroundsRaw): array {
     $backgrounds = [];
@@ -182,12 +128,12 @@ function backgrounds_build_payload(array $backgroundsRaw): array {
             $author = $bg['author'] ?? '';
             $authorUrl = $bg['authorUrl'] ?? '';
         }
-        $url = backgrounds_normalize_asset_path($url);
+        $url = lawnding_normalize_asset_path($url);
         $backgrounds[] = [
             'url'           => $url,
             'author'        => $author,
             'authorUrl'     => $authorUrl ?: '',
-            'displayUrl'    => backgrounds_make_asset_url($url),
+            'displayUrl'    => lawnding_make_asset_url($url),
             'index'         => $index,
             'original_size' => isset($bg['original_size']) ? (int) $bg['original_size'] : 0,
             'saved_size'    => isset($bg['saved_size']) ? (int) $bg['saved_size'] : 0,

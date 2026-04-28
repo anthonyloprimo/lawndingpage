@@ -73,7 +73,10 @@ function lawnding_icon_svg(string $name): string {
     }
 
     $path = htmlspecialchars($paths[$name], ENT_QUOTES, 'UTF-8');
-    return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="' . $path . '" /></svg>';
+    // Decorative-by-default: every consumer wraps the icon in a button or link
+    // that already provides an accessible name. aria-hidden prevents screen
+    // readers from announcing the icon as a redundant element.
+    return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="' . $path . '" /></svg>';
 }
 
 // Shared modal wrapper to reduce repeated markup.
@@ -577,8 +580,17 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+    <?php
+        $adminPageTitleSiteName = isset($headerDataDisplay['title']) && is_string($headerDataDisplay['title'])
+            ? trim($headerDataDisplay['title'])
+            : '';
+        $adminPageTitle = $adminPageTitleSiteName !== ''
+            ? 'Admin Panel — ' . $adminPageTitleSiteName
+            : 'Admin Panel';
+    ?>
+    <title><?php echo htmlspecialchars($adminPageTitle, ENT_QUOTES, 'UTF-8'); ?></title>
     <?php // Deprecated: site-version.js cache-busting is no longer loaded. ?>
-    
+
     <link rel="icon" href="<?php echo htmlspecialchars($faviconHref, ENT_QUOTES, 'UTF-8'); ?>">
     <link rel="stylesheet" href="<?php echo htmlspecialchars($assetBase . '/res/style.css', ENT_QUOTES, 'UTF-8'); ?>">
     <link rel="stylesheet" href="<?php echo htmlspecialchars($assetBase . '/res/config.css', ENT_QUOTES, 'UTF-8'); ?>">
@@ -586,6 +598,8 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
     <script src="<?php echo htmlspecialchars($assetBase . '/res/scr/jquery-3.7.1.min.js', ENT_QUOTES, 'UTF-8'); ?>"></script>
 </head>
 <body data-header-json="<?php echo $headerDataJson; ?>" data-app-config-json="<?php echo $appConfigJson; ?>">
+    <!-- Keyboard skip target — reveals on focus, jumps past header + tools. -->
+    <a class="skipLink" href="#container">Skip to main content</a>
     <div class="hidden" id="tgBotTokenToggleClosed"><?php echo lawnding_icon_svg('eye_closed'); ?></div>
     <div class="hidden" id="tgBotTokenToggleOpen"><?php echo lawnding_icon_svg('eye_open'); ?></div>
     <div class="hidden" id="tgBotGroupDeleteIcon"><?php echo lawnding_icon_svg('delete'); ?></div>
@@ -685,7 +699,7 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
         </div>
     </header>
     <!-- Main admin panes (links, users, backgrounds, content). -->
-    <div class="container" id="container">
+    <main class="container" id="container">
         <div class="pane glassConvex alwaysShow" id="links">
             <h3>LINKS</h3>
             <div class="linksConfig" id="linksConfig">
@@ -1190,7 +1204,7 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
             <h3>SELECT A PANE</h3>
             <p>Select a pane from the navbar below.</p>
         </div>
-    </div>
+    </main>
     <!-- Bottom navigation for pane switching. -->
     <nav>
         <div class="navBarWrap" id="navBarWrap">

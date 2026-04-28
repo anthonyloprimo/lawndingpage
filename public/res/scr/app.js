@@ -1460,15 +1460,23 @@ function lpBindNotices() {
 window.lpAddNotice = lpAddNotice;
 
 // Changelog modal
+var lpChangelogLastFocused = null;
+
 function lpOpenChangelog() {
     var $modal = $('#changelogModal');
     if (!$modal.length) { return; }
+    // Remember the trigger so focus can return to it on close.
+    lpChangelogLastFocused = document.activeElement;
     $modal.removeAttr('hidden');
     $modal.find('.changelogModalClose').focus();
 }
 
 function lpCloseChangelog() {
     $('#changelogModal').attr('hidden', '');
+    if (lpChangelogLastFocused && typeof lpChangelogLastFocused.focus === 'function') {
+        lpChangelogLastFocused.focus();
+    }
+    lpChangelogLastFocused = null;
 }
 
 function lpBindChangelog() {

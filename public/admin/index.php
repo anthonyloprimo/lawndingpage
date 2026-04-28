@@ -884,8 +884,10 @@ if ($authRecord && !$forcePasswordChange) {
             </div>
         </div>
     <?php endif; ?>
+    <!-- Keyboard skip target — reveals on focus, jumps past notices to the form. -->
+    <a class="skipLink" href="#loginWrap">Skip to login form</a>
     <!-- Login / first-run / password reset screen. -->
-    <div class="loginWrap">
+    <div class="loginWrap" id="loginWrap">
         <div class="loginPane">
             <?php if ($forcePasswordChange): ?>
                 <div class="notice">
@@ -902,21 +904,23 @@ if ($authRecord && !$forcePasswordChange) {
 
             <div class="pane glassConvex">
                 <h3>ADMIN PANEL</h3>
-            <!-- Status messages for the login screen. -->
+            <!-- Status messages for the login screen.
+                 role="alert" / role="status" so screen readers announce the
+                 message even though it appears on a fresh page render. -->
             <?php if (count($errors) > 0): ?>
-                <div class="message error">
+                <div class="message error" role="alert">
                     <?php echo htmlspecialchars(implode(' ', $errors)); ?>
                 </div>
             <?php elseif ($success): ?>
-                <div class="message success">
+                <div class="message success" role="status">
                     <?php echo htmlspecialchars($success); ?>
                 </div>
             <?php elseif ($passwordChangeSuccess): ?>
-                <div class="message success">
+                <div class="message success" role="status">
                     <?php echo htmlspecialchars($passwordChangeSuccess); ?>
                 </div>
             <?php elseif (!empty($usersWarnings)): ?>
-                <div class="message error">
+                <div class="message error" role="alert">
                     <?php echo htmlspecialchars(implode(' ', $usersWarnings)); ?>
                 </div>
             <?php endif; ?>

@@ -100,7 +100,8 @@ The admin panel will appear similar to the site, with a few extra buttons in the
 From there, you can add links, edit the title and subtitle of the page, the logo, add other users, remove them, add and remove background images, and modify the text contents of each page.  Once you're done editing the pages, click the "Save All Changes" button.  Once you see the confirmation message at the top of the screen, go back to your web page and the changes should be instant.
 
 TODO: Add a proper write-up for the admin health check warnings and what they mean.
-TODO: Add guidance on checking `admin/errors.txt` for troubleshooting.
+
+For troubleshooting, the admin panel includes a **Diagnostics** section that any admin with edit permission can open from the navbar. It shows recent runtime errors with severity color coding and click-to-expand details. Errors are captured automatically from both the public site and the admin flow.
 
 ## Overview
 LawndingPage uses a straightforward system to display content, known as "panes".

@@ -89,15 +89,22 @@ $eventsJson = json_encode([
 ?>
 <div class="pane glassConvex<?php echo $showCalendar ? ' eventListCalendarEnabled' : ''; ?>" id="<?php echo htmlspecialchars($paneId); ?>" data-pane-type="eventList">
     <div class="eventListPublic" data-pane-id="<?php echo htmlspecialchars($paneId); ?>">
+        <?php
+            // Tab/tabpanel ids must be unique per pane on the page.
+            $eventTabIdCalendar  = 'eventTab-calendar-' . $paneId;
+            $eventTabIdEvents    = 'eventTab-events-' . $paneId;
+            $eventPanelIdCalendar = 'eventPanel-calendar-' . $paneId;
+            $eventPanelIdEvents   = 'eventPanel-events-' . $paneId;
+        ?>
         <?php if ($showCalendar): ?>
             <div class="eventViewTabs" role="tablist" aria-label="Event views">
-                <button class="eventViewTab" type="button" data-event-view="calendar" role="tab" aria-selected="false">CALENDAR</button>
-                <button class="eventViewTab" type="button" data-event-view="events" role="tab" aria-selected="false">EVENTS</button>
+                <button class="eventViewTab" type="button" id="<?php echo htmlspecialchars($eventTabIdCalendar); ?>" data-event-view="calendar" role="tab" aria-selected="false" aria-controls="<?php echo htmlspecialchars($eventPanelIdCalendar); ?>">CALENDAR</button>
+                <button class="eventViewTab" type="button" id="<?php echo htmlspecialchars($eventTabIdEvents); ?>" data-event-view="events" role="tab" aria-selected="false" aria-controls="<?php echo htmlspecialchars($eventPanelIdEvents); ?>">EVENTS</button>
             </div>
         <?php endif; ?>
         <div class="eventViewShell<?php echo $showCalendar ? ' hasCalendarTabs' : ''; ?>">
             <?php if ($showCalendar): ?>
-                <div class="eventCalendarView" data-event-view-panel="calendar" role="tabpanel">
+                <div class="eventCalendarView" id="<?php echo htmlspecialchars($eventPanelIdCalendar); ?>" data-event-view-panel="calendar" role="tabpanel" aria-labelledby="<?php echo htmlspecialchars($eventTabIdCalendar); ?>" tabindex="0">
                     <table class="eventCalendarTable" aria-label="Event calendar">
                         <thead>
                             <tr class="eventCalendarNavRow">
@@ -126,7 +133,7 @@ $eventsJson = json_encode([
                     </table>
                 </div>
             <?php endif; ?>
-            <div class="eventEventsView" data-event-view-panel="events" role="tabpanel">
+            <div class="eventEventsView" <?php if ($showCalendar): ?>id="<?php echo htmlspecialchars($eventPanelIdEvents); ?>" aria-labelledby="<?php echo htmlspecialchars($eventTabIdEvents); ?>" tabindex="0" <?php endif; ?>data-event-view-panel="events" role="tabpanel">
                 <div class="eventSection">
                     <h3>HAPPENING NOW</h3>
                     <div class="eventSectionBody eventHappening"></div>

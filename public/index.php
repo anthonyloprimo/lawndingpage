@@ -162,7 +162,10 @@ function lawnding_icon_svg(string $name): string {
     }
 
     $path = htmlspecialchars($paths[$name], ENT_QUOTES, 'UTF-8');
-    return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="' . $path . '" /></svg>';
+    // Decorative-by-default: every consumer wraps the icon in a button or link
+    // that already provides an accessible name. aria-hidden prevents screen
+    // readers from announcing the icon as a redundant element.
+    return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="' . $path . '" /></svg>';
 }
 
 // Render a single link list item (link or separator).
@@ -561,6 +564,8 @@ $isLinksHidden = !$showLinks;
     </noscript>
 </head>
 <body class="is-loading<?php echo $isLinksOnly ? ' linksOnly' : ''; ?><?php echo $isLinksHidden ? ' linksHidden' : ''; ?>" data-header-json="<?php echo $headerDataJson; ?>">
+    <!-- Keyboard skip target — reveals on focus, jumps past the header. -->
+    <a class="skipLink" href="#container">Skip to main content</a>
     <!-- No-JS fallback for browsers with JavaScript disabled. -->
     <div id="noJsWarning"><noscript>This site requires JavaScript to function properly. Please enable JavaScript in your browser.</noscript></div>
     <!-- Flash notice container (drained from $_SESSION['lp_flash']). -->
@@ -588,7 +593,7 @@ $isLinksHidden = !$showLinks;
         ]); ?>
     </header>
     <!-- Main content panes. -->
-    <div class="container" id="container">
+    <main class="container" id="container">
         <?php if ($showLinks): ?>
             <div class="pane glassConvex alwaysShow" id="links">
                 <h3>LINKS</h3>
@@ -633,7 +638,7 @@ $isLinksHidden = !$showLinks;
             }
             ?>
         <?php endforeach; ?>
-    </div>
+    </main>
     <!-- Bottom navigation for pane switching and footer credits. -->
     <nav>
         <div class="navBarWrap" id="navBarWrap">

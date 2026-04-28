@@ -86,7 +86,10 @@
                 }
                 if (lightboxImage) {
                     lightboxImage.src = item.file;
-                    lightboxImage.alt = item.title || '';
+                    // Fall back to the filename when no caption — better than
+                    // empty alt for a content image. Only goes empty if both
+                    // are missing (which shouldn't happen since file is required).
+                    lightboxImage.alt = item.title || item.file || '';
                 }
             }
             if (caption) {

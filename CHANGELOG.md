@@ -1,6 +1,18 @@
 ### Changelog
 
 
+#### v1.12.7
+- Added a "Skip to main content" link that appears at the top of every page when you press Tab. Lets keyboard users jump past the header and navigation in one keystroke.
+- The admin panel browser tab now shows a proper page title with your site name (was previously blank).
+- The main content area of the public site and admin panel now uses the proper landmark element, so screen readers can jump straight to it.
+- Event List calendar and events tabs are now properly labelled for screen readers.
+- Media gallery lightbox images now get descriptive alt text (uses the item's title, falls back to the filename when no title is set).
+- Login screen error and success messages now announce themselves to screen readers.
+- Closing the changelog popup returns focus to the link you opened it from, instead of dropping you at the top of the page.
+- Decorative icons in buttons and navigation are no longer announced redundantly by screen readers.
+
+-----
+
 #### v1.12.6
 - Notices on the public site and admin panel now announce themselves to screen readers when they appear. Save success, login errors, and other feedback that previously only showed visually are now spoken.
 - Modals now announce their title when opened, instead of just announcing "dialog".

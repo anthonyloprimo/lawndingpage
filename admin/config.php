@@ -82,10 +82,15 @@ function lawnding_modal_open(string $id, string $title, array $options = []): vo
     $extraClass = $options['extra_class'] ?? '';
     $ariaHidden = $options['aria_hidden'] ?? ($isOpen ? 'false' : 'true');
     $class = trim('userModalOverlay' . ($isOpen ? ' isOpen' : '') . ($extraClass ? ' ' . $extraClass : ''));
+    // Pair the dialog with its title via aria-labelledby so screen readers
+    // announce the modal's purpose, not just "dialog".
+    $titleId = $id . '-title';
 
-    echo '<div class="' . htmlspecialchars($class) . '" id="' . htmlspecialchars($id) . '" role="dialog" aria-modal="true" aria-hidden="' . htmlspecialchars($ariaHidden) . '">';
+    echo '<div class="' . htmlspecialchars($class) . '" id="' . htmlspecialchars($id)
+        . '" role="dialog" aria-modal="true" aria-hidden="' . htmlspecialchars($ariaHidden)
+        . '" aria-labelledby="' . htmlspecialchars($titleId) . '">';
     echo '<div class="userModal glassConcave">';
-    echo '<h4>' . htmlspecialchars($title) . '</h4>';
+    echo '<h4 id="' . htmlspecialchars($titleId) . '">' . htmlspecialchars($title) . '</h4>';
 }
 
 // Close the shared modal wrapper.
@@ -586,9 +591,9 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
     <div class="hidden" id="tgBotGroupDeleteIcon"><?php echo lawnding_icon_svg('delete'); ?></div>
     <!-- Runtime notices and admin alerts. -->
     <div id="noJsWarning"><noscript>This site requires JavaScript to function properly. Please enable JavaScript in your browser.</noscript></div>
-    <div class="adminNotices" id="adminNotices">
+    <div class="adminNotices" id="adminNotices" aria-live="polite" aria-atomic="true">
         <?php foreach ($adminNotices as $notice): ?>
-            <div class="adminNotice adminNotice--<?php echo htmlspecialchars($notice['type']); ?>">
+            <div class="adminNotice adminNotice--<?php echo htmlspecialchars($notice['type']); ?>"<?php echo $notice['type'] === 'danger' ? ' role="alert"' : ''; ?>>
                 <span class="adminNoticeText"><?php echo htmlspecialchars($notice['text']); ?></span>
                 <button type="button" class="adminNoticeClose" aria-label="Dismiss notification">×</button>
             </div>
@@ -815,16 +820,16 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
                                                 <option value="NSFW" <?php echo $gContent === 'NSFW' ? 'selected' : ''; ?>>NSFW</option>
                                             </select>
                                             <label class="tgBotGroupPermCell" title="Edit site content (header, panes, links).">
-                                                <input type="checkbox" class="tgBotGroupPerm" value="edit_site" <?php echo in_array('edit_site', $gPerms, true) ? 'checked' : ''; ?>>
+                                                <input type="checkbox" class="tgBotGroupPerm" value="edit_site" aria-label="Edit site" <?php echo in_array('edit_site', $gPerms, true) ? 'checked' : ''; ?>>
                                             </label>
                                             <label class="tgBotGroupPermCell" title="Create new user accounts.">
-                                                <input type="checkbox" class="tgBotGroupPerm" value="add_users" <?php echo in_array('add_users', $gPerms, true) ? 'checked' : ''; ?>>
+                                                <input type="checkbox" class="tgBotGroupPerm" value="add_users" aria-label="Add users" <?php echo in_array('add_users', $gPerms, true) ? 'checked' : ''; ?>>
                                             </label>
                                             <label class="tgBotGroupPermCell" title="Edit existing user accounts.">
-                                                <input type="checkbox" class="tgBotGroupPerm" value="edit_users" <?php echo in_array('edit_users', $gPerms, true) ? 'checked' : ''; ?>>
+                                                <input type="checkbox" class="tgBotGroupPerm" value="edit_users" aria-label="Edit users" <?php echo in_array('edit_users', $gPerms, true) ? 'checked' : ''; ?>>
                                             </label>
                                             <label class="tgBotGroupPermCell" title="Remove user accounts.">
-                                                <input type="checkbox" class="tgBotGroupPerm" value="remove_users" <?php echo in_array('remove_users', $gPerms, true) ? 'checked' : ''; ?>>
+                                                <input type="checkbox" class="tgBotGroupPerm" value="remove_users" aria-label="Remove users" <?php echo in_array('remove_users', $gPerms, true) ? 'checked' : ''; ?>>
                                             </label>
                                             <button class="iconButton removeTgBotGroup" type="button" aria-label="Remove group" title="Remove group">
                                                 <?php echo lawnding_icon_svg('delete'); ?>

@@ -878,8 +878,8 @@ if ($authRecord && !$forcePasswordChange) {
     $loginFlash = function_exists('lawnding_flash_consume') ? lawnding_flash_consume() : null;
     ?>
     <?php if ($loginFlash !== null): ?>
-        <div class="adminNotices" id="adminNotices">
-            <div class="adminNotice adminNotice--<?php echo htmlspecialchars($loginFlash['type'], ENT_QUOTES, 'UTF-8'); ?>">
+        <div class="adminNotices" id="adminNotices" aria-live="polite" aria-atomic="true">
+            <div class="adminNotice adminNotice--<?php echo htmlspecialchars($loginFlash['type'], ENT_QUOTES, 'UTF-8'); ?>"<?php echo $loginFlash['type'] === 'danger' ? ' role="alert"' : ''; ?>>
                 <span class="adminNoticeText"><?php echo htmlspecialchars($loginFlash['text'], ENT_QUOTES, 'UTF-8'); ?></span>
             </div>
         </div>

@@ -40,8 +40,11 @@
                 return;
             }
             var safeType = type || 'ok';
+            // Danger notices get role="alert" so screen readers announce them
+            // assertively. ok/warning ride the container's aria-live="polite".
+            var roleAttr = safeType === 'danger' ? ' role="alert"' : '';
             var $notice = $(
-                '<div class="adminNotice adminNotice--' + safeType + '">' +
+                '<div class="adminNotice adminNotice--' + safeType + '"' + roleAttr + '>' +
                 '<span class="adminNoticeText"></span>' +
                 '<button type="button" class="adminNoticeClose" aria-label="Dismiss notification">×</button>' +
                 '</div>'

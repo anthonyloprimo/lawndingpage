@@ -69,14 +69,7 @@ $_SESSION['tg_user'] = $tgUser;
 $_SESSION['tg_user_id'] = $tgUser['id'];
 unset($_SESSION['tg_login_error']);
 
-$handle = trim((string) $tgUser['username']);
-if ($handle !== '') {
-    $displayName = '@' . $handle;
-} elseif (trim((string) $tgUser['first_name']) !== '') {
-    $displayName = trim((string) $tgUser['first_name']);
-} else {
-    $displayName = 'User #' . (int) $tgUser['id'];
-}
+$displayName = lawnding_format_tg_display_name($tgUser, $tgUser['id']);
 lawnding_flash_set('ok', 'Logged in as ' . $displayName);
 
 header('Location: ' . $redirectTarget, true, 302);

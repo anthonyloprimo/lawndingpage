@@ -508,6 +508,24 @@ function lawnding_tg_user_permissions(array $tgConfig, $userId): array {
     return $merged;
 }
 
+// Format a display-friendly name for a Telegram identity.
+// Prefers @handle, falls back to first+last, then to "User #<id>".
+function lawnding_format_tg_display_name(?array $tgUser, $tgUserId): string {
+    $handle = is_array($tgUser) && isset($tgUser['username']) ? trim((string) $tgUser['username']) : '';
+    if ($handle !== '') {
+        return '@' . $handle;
+    }
+    $first = is_array($tgUser) && isset($tgUser['first_name']) ? trim((string) $tgUser['first_name']) : '';
+    $last  = is_array($tgUser) && isset($tgUser['last_name'])  ? trim((string) $tgUser['last_name'])  : '';
+    if ($first !== '') {
+        return $first . ($last !== '' ? ' ' . $last : '');
+    }
+    if ($tgUserId !== null && $tgUserId !== '') {
+        return 'User #' . (int) $tgUserId;
+    }
+    return '';
+}
+
 function lawnding_tg_user_authorized(array $tgConfig, $userId): bool {
     $access = lawnding_tg_user_access($tgConfig, $userId);
     return !empty($access['sfw']) || !empty($access['nsfw']);

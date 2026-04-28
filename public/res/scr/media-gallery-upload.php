@@ -99,7 +99,7 @@ foreach ($items as $item) {
 $items[] = [
     'id'            => $newId,
     'type'          => $type,
-    'file'          => media_gallery_normalize_asset_path($relativePath),
+    'file'          => lawnding_normalize_asset_path($relativePath),
     'thumb'         => '',
     'title'         => '',
     'order'         => $maxOrder + 1,

@@ -93,7 +93,7 @@ if ($absOld && is_readable($absOld)) {
 $type = $isVideo ? 'video' : 'image';
 $relativePath = 'res/data/mediaGalleryContent-' . $paneId . '/' . $filename;
 
-$items[$index]['file']          = media_gallery_normalize_asset_path($relativePath);
+$items[$index]['file']          = lawnding_normalize_asset_path($relativePath);
 $items[$index]['type']          = $type;
 $items[$index]['original_size'] = $originalSize;
 $items[$index]['saved_size']    = $savedSize;

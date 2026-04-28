@@ -119,62 +119,6 @@ function media_gallery_paths(): array {
     ];
 }
 
-function media_gallery_make_asset_url($path) {
-    if (!is_string($path) || $path === '') {
-        return $path;
-    }
-    if (preg_match('#^https?://#i', $path)) {
-        return $path;
-    }
-    $assetBase = '';
-    if (function_exists('lawnding_config')) {
-        $assetBase = (string) lawnding_config('base_url', '');
-    }
-    if ($assetBase === '') {
-        if (empty($_SERVER['DOCUMENT_ROOT']) || !is_dir($_SERVER['DOCUMENT_ROOT'] . '/res')) {
-            $assetBase = '/public';
-        }
-    }
-    $assetBase = rtrim($assetBase, '/');
-    if (str_starts_with($path, $assetBase . '/')) {
-        return $path;
-    }
-    if (str_starts_with($path, '/res/')) {
-        return $assetBase . $path;
-    }
-    if (str_starts_with($path, 'res/')) {
-        return $assetBase !== '' ? $assetBase . '/' . $path : '/' . $path;
-    }
-    if (str_starts_with($path, 'public/res/')) {
-        $trimmed = substr($path, strlen('public/'));
-        return $assetBase !== '' ? $assetBase . '/' . $trimmed : '/' . $trimmed;
-    }
-    return $path;
-}
-
-function media_gallery_normalize_asset_path($path) {
-    if (!is_string($path) || $path === '') {
-        return $path;
-    }
-    if (preg_match('#^https?://#i', $path)) {
-        return $path;
-    }
-    $trimmed = ltrim($path, '/');
-    $baseUrl = function_exists('lawnding_config')
-        ? trim((string) lawnding_config('base_url', ''), '/')
-        : '';
-    if ($baseUrl !== '' && str_starts_with($trimmed, $baseUrl . '/res/')) {
-        return substr($trimmed, strlen($baseUrl) + 1);
-    }
-    if (str_starts_with($trimmed, 'public/res/')) {
-        return substr($trimmed, strlen('public/'));
-    }
-    if (str_starts_with($trimmed, 'res/')) {
-        return $trimmed;
-    }
-    return $path;
-}
-
 function media_gallery_is_valid_pane_id(string $paneId): bool {
     return $paneId !== '' && preg_match('/^[a-zA-Z0-9]+$/', $paneId) === 1;
 }
@@ -306,7 +250,7 @@ function media_gallery_abs_from_asset(string $dataDir, string $path): ?string {
     if ($path === '' || preg_match('#^https?://#i', $path)) {
         return null;
     }
-    $normalized = media_gallery_normalize_asset_path($path);
+    $normalized = lawnding_normalize_asset_path($path);
     if (!is_string($normalized)) {
         return null;
     }
@@ -335,8 +279,8 @@ function media_gallery_build_payload(array $items): array {
             'order'         => isset($item['order']) ? (int) $item['order'] : 0,
             'original_size' => isset($item['original_size']) ? (int) $item['original_size'] : 0,
             'saved_size'    => isset($item['saved_size']) ? (int) $item['saved_size'] : 0,
-            'displayFile'   => media_gallery_make_asset_url($file),
-            'displayThumb'  => $thumb !== '' ? media_gallery_make_asset_url($thumb) : '',
+            'displayFile'   => lawnding_make_asset_url($file),
+            'displayThumb'  => $thumb !== '' ? lawnding_make_asset_url($thumb) : '',
         ];
     }
     return $output;

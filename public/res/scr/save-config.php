@@ -365,33 +365,9 @@ if ($backgroundDurationRaw !== null) {
     $backgroundDuration = $durationValue > 0 ? $durationValue : 5;
 }
 
-// Normalize stored asset paths into res/... form for consistent matching.
-function normalize_asset_path($path) {
-    if (!is_string($path) || $path === '') {
-        return $path;
-    }
-    if (preg_match('#^https?://#i', $path)) {
-        return $path;
-    }
-    $trimmed = ltrim($path, '/');
-    $baseUrl = function_exists('lawnding_config')
-        ? trim((string) lawnding_config('base_url', ''), '/')
-        : '';
-    if ($baseUrl !== '' && str_starts_with($trimmed, $baseUrl . '/res/')) {
-        return substr($trimmed, strlen($baseUrl) + 1);
-    }
-    if (str_starts_with($trimmed, 'public/res/')) {
-        return substr($trimmed, strlen('public/'));
-    }
-    if (str_starts_with($trimmed, 'res/')) {
-        return $trimmed;
-    }
-    return $path;
-}
-
 // Resolve a local logo path under res/img; returns null for non-local or unsafe paths.
 function resolve_local_logo_path($assetPath, $imgDir) {
-    $normalized = normalize_asset_path($assetPath);
+    $normalized = lawnding_normalize_asset_path($assetPath);
     if (!is_string($normalized) || $normalized === '') {
         return null;
     }
@@ -417,8 +393,8 @@ function resolve_local_logo_path($assetPath, $imgDir) {
 
 // Remove the previously configured logo file when a new logo path replaces it.
 function remove_replaced_logo_file($previousLogo, $newLogo, $imgDir) {
-    $previousNormalized = normalize_asset_path($previousLogo);
-    $newNormalized = normalize_asset_path($newLogo);
+    $previousNormalized = lawnding_normalize_asset_path($previousLogo);
+    $newNormalized = lawnding_normalize_asset_path($newLogo);
     if (!is_string($previousNormalized) || $previousNormalized === '') {
         return;
     }
@@ -1310,7 +1286,7 @@ if (is_array($backgroundsData)) {
                 ];
             }
         } elseif ($existingUrl) {
-            $normalizedUrl = normalize_asset_path($existingUrl);
+            $normalizedUrl = lawnding_normalize_asset_path($existingUrl);
             $entry = ['url' => $normalizedUrl, 'author' => $author, 'authorUrl' => $authorUrl];
             // Preserve size data stored on upload by looking up the existing record.
             $existing = $headerData['backgrounds'] ?? [];
@@ -1339,7 +1315,7 @@ if (is_array($backgroundAuthors)) {
             continue;
         }
         $index = isset($entry['index']) ? (int) $entry['index'] : null;
-        $url = normalize_asset_path($entry['url'] ?? '');
+        $url = lawnding_normalize_asset_path($entry['url'] ?? '');
         $author = $entry['author'] ?? '';
         $authorUrl = $entry['authorUrl'] ?? '';
         $authorUrl = is_string($authorUrl) ? trim($authorUrl) : '';
@@ -1613,7 +1589,7 @@ if ($backgroundMode !== null || $backgroundDuration !== null) {
 }
 
 if ($headerChanged) {
-    $headerData['logo'] = normalize_asset_path($headerData['logo'] ?? '');
+    $headerData['logo'] = lawnding_normalize_asset_path($headerData['logo'] ?? '');
     write_json_file($headerPath, $headerData, 'Failed to write header data');
 }
 if (is_array($linksOut)) {

@@ -28,28 +28,12 @@ $adminAuthPath = function_exists('lawnding_admin_path')
     : dirname(__DIR__, 3) . '/admin/auth.php';
 require_once $adminAuthPath;
 
-$allowedPermissions = ['full_admin', 'add_users', 'edit_users', 'remove_users', 'edit_site'];
-$usersPath = function_exists('lawnding_config')
-    ? lawnding_config('users_path', dirname(__DIR__, 3) . '/admin/users.json')
-    : dirname(__DIR__, 3) . '/admin/users.json';
-$users = lawnding_load_users_file($usersPath);
 $tgConfig = lawnding_load_tg_config();
 
-$identity = lawnding_resolve_admin_identity($tgConfig, $users, $allowedPermissions);
-if (!$identity['isAuthenticated']) {
-    tg_validate_respond(['ok' => false, 'description' => 'Unauthorized.'], 401);
-}
-if (!$identity['context']['canEditSite']) {
-    tg_validate_respond(['ok' => false, 'description' => 'Forbidden.'], 403);
-}
-
-// CSRF check.
-$sessionToken = $_SESSION['csrf_token'] ?? '';
-$postedToken = $_POST['csrf_token'] ?? '';
-if (!is_string($sessionToken) || $sessionToken === '' || !is_string($postedToken) || $postedToken === ''
-    || !hash_equals($sessionToken, $postedToken)) {
-    tg_validate_respond(['ok' => false, 'description' => 'Invalid CSRF token.'], 403);
-}
+lawnding_require_admin_mutation(
+    null,
+    function ($msg, $code) { tg_validate_respond(['ok' => false, 'description' => $msg . '.'], $code); }
+);
 
 $token = isset($tgConfig['bot_token']) ? trim((string) $tgConfig['bot_token']) : '';
 if ($token === '') {

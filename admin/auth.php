@@ -272,3 +272,58 @@ function lawnding_resolve_admin_identity(array $tgConfig, array $users, array $a
         'context' => $merged,
     ];
 }
+
+// Shared admin mutation gate — replace the ~18-line preamble duplicated
+// across save-config.php, markdown-preview.php, validate-groups.php, and
+// test.php. Resolves identity, gates on authentication + a named permission
+// (default canEditSite), enforces CSRF on POST, and returns the identity array
+// so callers can extract compat locals (authUser, authRecord, etc.).
+//
+// $errorFn is a callable(string $message, int $httpCode) that the caller
+// provides to format site-specific error responses. If null, a plain JSON
+// ['error' => $message] response with the given status code is emitted.
+function lawnding_require_admin_mutation(
+    ?array $allowedPermissions = null,
+    ?callable $errorFn = null,
+    string $requiredPerm = 'canEditSite'
+): array {
+    if ($allowedPermissions === null) {
+        $allowedPermissions = ['full_admin', 'add_users', 'edit_users', 'remove_users', 'edit_site'];
+    }
+    if ($errorFn === null) {
+        $errorFn = static function (string $msg, int $code): void {
+            http_response_code($code);
+            header('Content-Type: application/json');
+            echo json_encode(['error' => $msg]);
+            exit;
+        };
+    }
+
+    $usersPath = function_exists('lawnding_config')
+        ? lawnding_config('users_path', dirname(__DIR__) . '/admin/users.json')
+        : dirname(__DIR__) . '/admin/users.json';
+    $users = lawnding_load_users_file($usersPath);
+    $tgConfig = lawnding_load_tg_config();
+
+    $identity = lawnding_resolve_admin_identity($tgConfig, $users, $allowedPermissions);
+
+    if (!$identity['isAuthenticated']) {
+        $errorFn('Unauthorized', 401);
+    }
+    if (!$identity['context'][$requiredPerm]) {
+        $errorFn('Forbidden', 403);
+    }
+
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        $sessionToken = $_SESSION['csrf_token'] ?? '';
+        $postedToken = $_POST['csrf_token'] ?? '';
+        if (!is_string($sessionToken) || $sessionToken === ''
+            || !is_string($postedToken) || $postedToken === ''
+            || !hash_equals($sessionToken, $postedToken)
+        ) {
+            $errorFn('Security token invalid', 403);
+        }
+    }
+
+    return $identity;
+}

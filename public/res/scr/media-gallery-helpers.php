@@ -14,53 +14,20 @@ function media_gallery_require_method(string $method): void {
     }
 }
 
-function media_gallery_allowed_permissions(): array {
-    return ['full_admin', 'add_users', 'edit_users', 'remove_users', 'edit_site'];
-}
-
-function media_gallery_users_path(): string {
-    return function_exists('lawnding_config')
-        ? lawnding_config('users_path', dirname(__DIR__, 3) . '/admin/users.json')
-        : dirname(__DIR__, 3) . '/admin/users.json';
-}
-
-function media_gallery_load_users(string $usersPath): array {
-    if (!is_readable($usersPath)) {
-        return [];
-    }
-    $decoded = json_decode((string) file_get_contents($usersPath), true);
-    return is_array($decoded) ? $decoded : [];
-}
-
-function media_gallery_find_user(array $users, string $username): ?array {
-    foreach ($users as $user) {
-        if (is_array($user) && ($user['username'] ?? '') === $username) {
-            return $user;
-        }
-    }
-    return null;
-}
-
 // Signature unchanged so existing callers (media-gallery-{list,replace,
-// upload,delete,thumb}.php) continue to work without edits.
+// upload,delete,thumb}.php) continue to work without edits. CSRF is
+// handled inside the shared gate for POST requests; GET endpoints (list,
+// thumb) skip it.
 function media_gallery_require_edit_site(): array {
     $adminAuthPath = function_exists('lawnding_admin_path')
         ? lawnding_admin_path('auth.php')
         : dirname(__DIR__, 3) . '/admin/auth.php';
     require_once $adminAuthPath;
 
-    $allowed = media_gallery_allowed_permissions();
-    $usersPath = media_gallery_users_path();
-    $users = lawnding_load_users_file($usersPath);
-    $tgConfig = lawnding_load_tg_config();
-
-    $identity = lawnding_resolve_admin_identity($tgConfig, $users, $allowed);
-    if (!$identity['isAuthenticated']) {
-        media_gallery_json_response(['error' => 'Unauthorized'], 401);
-    }
-    if (!$identity['context']['canEditSite']) {
-        media_gallery_json_response(['error' => 'Forbidden'], 403);
-    }
+    $identity = lawnding_require_admin_mutation(
+        null,
+        function ($msg, $code) { media_gallery_json_response(['error' => $msg], $code); }
+    );
 
     return [
         'authUser' => $identity['authUser'],
@@ -69,17 +36,6 @@ function media_gallery_require_edit_site(): array {
         'isFullAdmin' => $identity['context']['isFullAdmin'],
         'canEditSite' => $identity['context']['canEditSite'],
     ];
-}
-
-function media_gallery_require_csrf(): void {
-    $sessionToken = $_SESSION['csrf_token'] ?? '';
-    $postedToken = $_POST['csrf_token'] ?? '';
-    if (!is_string($sessionToken) || $sessionToken === '' || !is_string($postedToken) || $postedToken === '') {
-        media_gallery_json_response(['error' => 'Forbidden'], 403);
-    }
-    if (!hash_equals($sessionToken, $postedToken)) {
-        media_gallery_json_response(['error' => 'Forbidden'], 403);
-    }
 }
 
 function media_gallery_paths(): array {

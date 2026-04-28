@@ -5,7 +5,6 @@ lawnding_init_session();
 
 media_gallery_require_method('POST');
 media_gallery_require_edit_site();
-media_gallery_require_csrf();
 
 $paneId = $_POST['paneId'] ?? '';
 $itemId = $_POST['itemId'] ?? '';

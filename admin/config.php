@@ -316,39 +316,6 @@ if (!empty($headerData['backgrounds']) && is_array($headerData['backgrounds'])) 
     $backgrounds = $headerData['backgrounds'];
 }
 
-// Load pane instances for dynamic module rendering.
-$loadPanes = function (string $path): array {
-    if (!is_readable($path)) {
-        return [];
-    }
-    $decoded = json_decode(file_get_contents($path), true);
-    if (!is_array($decoded) || !isset($decoded['panes']) || !is_array($decoded['panes'])) {
-        return [];
-    }
-    return $decoded['panes'];
-};
-
-$sortPanes = function (array $panes): array {
-    $indexed = [];
-    foreach ($panes as $index => $pane) {
-        if (is_array($pane)) {
-            $pane['_index'] = $index;
-            $indexed[] = $pane;
-        }
-    }
-    usort($indexed, function ($a, $b) {
-        $orderA = isset($a['order']) ? (int) $a['order'] : PHP_INT_MAX;
-        $orderB = isset($b['order']) ? (int) $b['order'] : PHP_INT_MAX;
-        if ($orderA === $orderB) {
-            return ($a['_index'] ?? 0) <=> ($b['_index'] ?? 0);
-        }
-        return $orderA <=> $orderB;
-    });
-    foreach ($indexed as &$pane) {
-        unset($pane['_index']);
-    }
-    return $indexed;
-};
 
 $isSafeSvg = function (?string $svg): bool {
     if (!is_string($svg) || $svg === '') {
@@ -411,7 +378,7 @@ if ($panesSchemaValid) {
         $migrationMode = 'ok';
     }
 }
-$panes = $sortPanes($loadPanes($panesPath));
+$panes = lawnding_sort_panes(lawnding_load_panes($panesPath));
 $paneIds = array_values(array_filter(array_map(function ($pane) {
     return is_array($pane) ? ($pane['id'] ?? '') : '';
 }, $panes), function ($value) {

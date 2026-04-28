@@ -34,13 +34,13 @@ if (!is_array($backgroundsRaw)) {
 }
 
 // Find and remove the target background (by index or URL match).
-$normalizedUrl = backgrounds_normalize_asset_path($url);
+$normalizedUrl = lawnding_normalize_asset_path($url);
 $removed = false;
 
 if ($index !== null && isset($backgroundsRaw[$index])) {
     $target = $backgroundsRaw[$index];
     $targetUrl = is_array($target) ? ($target['url'] ?? '') : (is_string($target) ? $target : '');
-    if (backgrounds_normalize_asset_path($targetUrl) === $normalizedUrl) {
+    if (lawnding_normalize_asset_path($targetUrl) === $normalizedUrl) {
         unset($backgroundsRaw[$index]);
         $removed = true;
     }
@@ -49,7 +49,7 @@ if ($index !== null && isset($backgroundsRaw[$index])) {
 if (!$removed) {
     foreach ($backgroundsRaw as $key => $bg) {
         $targetUrl = is_array($bg) ? ($bg['url'] ?? '') : (is_string($bg) ? $bg : '');
-        if (backgrounds_normalize_asset_path($targetUrl) === $normalizedUrl) {
+        if (lawnding_normalize_asset_path($targetUrl) === $normalizedUrl) {
             unset($backgroundsRaw[$key]);
             $removed = true;
             break;
@@ -75,7 +75,7 @@ if (str_starts_with($normalizedUrl, 'res/img/')) {
     $stillUsed = false;
     foreach ($backgroundsRaw as $bg) {
         $bgUrl = is_array($bg) ? ($bg['url'] ?? '') : (is_string($bg) ? $bg : '');
-        if (backgrounds_normalize_asset_path($bgUrl) === $normalizedUrl) {
+        if (lawnding_normalize_asset_path($bgUrl) === $normalizedUrl) {
             $stillUsed = true;
             break;
         }

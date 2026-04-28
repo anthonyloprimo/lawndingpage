@@ -100,7 +100,7 @@ if ($absOldThumb && is_readable($absOldThumb)) {
 }
 
 $relativePath = 'res/data/mediaGalleryContent-' . $paneId . '/' . $filename;
-$items[$index]['thumb'] = media_gallery_normalize_asset_path($relativePath);
+$items[$index]['thumb'] = lawnding_normalize_asset_path($relativePath);
 
 $items = media_gallery_reindex_orders($items);
 $data['items'] = $items;

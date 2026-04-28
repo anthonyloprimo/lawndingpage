@@ -77,16 +77,16 @@ $(document).ready(function() {
                     <option value="NSFW">NSFW</option>
                 </select>
                 <label class="tgBotGroupPermCell" title="Edit site content (header, panes, links).">
-                    <input type="checkbox" class="tgBotGroupPerm" value="edit_site">
+                    <input type="checkbox" class="tgBotGroupPerm" value="edit_site" aria-label="Edit site">
                 </label>
                 <label class="tgBotGroupPermCell" title="Create new user accounts.">
-                    <input type="checkbox" class="tgBotGroupPerm" value="add_users">
+                    <input type="checkbox" class="tgBotGroupPerm" value="add_users" aria-label="Add users">
                 </label>
                 <label class="tgBotGroupPermCell" title="Edit existing user accounts.">
-                    <input type="checkbox" class="tgBotGroupPerm" value="edit_users">
+                    <input type="checkbox" class="tgBotGroupPerm" value="edit_users" aria-label="Edit users">
                 </label>
                 <label class="tgBotGroupPermCell" title="Remove user accounts.">
-                    <input type="checkbox" class="tgBotGroupPerm" value="remove_users">
+                    <input type="checkbox" class="tgBotGroupPerm" value="remove_users" aria-label="Remove users">
                 </label>
                 <button class="iconButton removeTgBotGroup" type="button" aria-label="Remove group" title="Remove group">
                     ${deleteIcon}

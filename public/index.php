@@ -564,10 +564,11 @@ $isLinksHidden = !$showLinks;
     <!-- No-JS fallback for browsers with JavaScript disabled. -->
     <div id="noJsWarning"><noscript>This site requires JavaScript to function properly. Please enable JavaScript in your browser.</noscript></div>
     <!-- Flash notice container (drained from $_SESSION['lp_flash']). -->
-    <div class="adminNotices" id="adminNotices">
+    <!-- aria-live: notices added/replaced here are announced by screen readers. -->
+    <div class="adminNotices" id="adminNotices" aria-live="polite" aria-atomic="true">
         <?php $flash = lawnding_flash_consume(); ?>
         <?php if ($flash !== null): ?>
-            <div class="adminNotice adminNotice--<?php echo htmlspecialchars($flash['type'], ENT_QUOTES, 'UTF-8'); ?>">
+            <div class="adminNotice adminNotice--<?php echo htmlspecialchars($flash['type'], ENT_QUOTES, 'UTF-8'); ?>"<?php echo $flash['type'] === 'danger' ? ' role="alert"' : ''; ?>>
                 <span class="adminNoticeText"><?php echo htmlspecialchars($flash['text'], ENT_QUOTES, 'UTF-8'); ?></span>
                 <button type="button" class="adminNoticeClose" aria-label="Dismiss notification">×</button>
             </div>

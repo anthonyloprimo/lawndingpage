@@ -1,6 +1,13 @@
 ### Changelog
 
 
+#### v1.12.6
+- Notices on the public site and admin panel now announce themselves to screen readers when they appear. Save success, login errors, and other feedback that previously only showed visually are now spoken.
+- Modals now announce their title when opened, instead of just announcing "dialog".
+- Telegram permission checkboxes (Edit site, Add users, Edit users, Remove users) now identify which permission they toggle for screen reader users.
+
+-----
+
 #### v1.12.5
 - Added a Diagnostics section to the admin panel — admins with edit permission can browse recent runtime errors with severity color coding, click-to-expand details, and an optional 5-second auto-refresh. Captures errors from both the public page and the admin flow. Old entries roll off automatically once the log file gets large.
 - The legacy admin/errors.txt file is no longer written — the new Diagnostics view replaces it. If you have an existing errors.txt on your server, you can delete it manually.

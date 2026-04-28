@@ -344,7 +344,7 @@ $tgBotPath = $paths['admin_dir'] . '/lp-tgBot.json';
 $headerData = load_header_data($headerPath);
 
 // Load pane configuration for save map and reserved IDs.
-$panes = load_panes_config($panesPath);
+$panes = lawnding_load_panes($panesPath);
 $paneIds = array_values(array_filter(array_map(function ($pane) {
     return is_array($pane) ? ($pane['id'] ?? '') : '';
 }, $panes), function ($value) {
@@ -495,17 +495,6 @@ function is_reserved_link_id($value, array $extra = []) {
     return in_array($value, $reserved, true);
 }
 
-// Load panes.json and return pane list (empty on invalid/missing).
-function load_panes_config($path) {
-    if (!is_readable($path)) {
-        return [];
-    }
-    $decoded = json_decode(file_get_contents($path), true);
-    if (!is_array($decoded) || !isset($decoded['panes']) || !is_array($decoded['panes'])) {
-        return [];
-    }
-    return $decoded['panes'];
-}
 
 // Load a module manifest by ID from admin/modules/<id>/<id>.json.
 function load_module_manifest($modulesDir, $moduleId) {

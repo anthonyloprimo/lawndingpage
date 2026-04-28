@@ -166,6 +166,54 @@ function lawnding_asset_url(?string $path = ''): string {
     return $base === '' ? '/' . $path : $base . '/' . $path;
 }
 
+// Append a `?v=<mtime>` cache-busting query string to local asset URLs under
+// /res/, so admin-uploaded images (logo, backgrounds, etc.) refresh in the
+// browser the moment the underlying file changes. External URLs and paths
+// outside /res/ pass through unchanged.
+function lawnding_versioned_local_asset_url(string $rawPath): string {
+    if ($rawPath === '') {
+        return '';
+    }
+    $resolveUrl = function (string $p): string {
+        return function_exists('lawnding_asset_url') ? lawnding_asset_url($p) : $p;
+    };
+    if (preg_match('#^[a-z][a-z0-9+.-]*:#i', $rawPath) || str_starts_with($rawPath, '//')) {
+        return $rawPath;
+    }
+    $relPath = ltrim($rawPath, '/');
+    if (str_starts_with($relPath, 'public/')) {
+        $relPath = substr($relPath, strlen('public/'));
+    }
+    $resolved = $resolveUrl($rawPath);
+    if (!str_starts_with($relPath, 'res/')) {
+        return $resolved;
+    }
+    $fsPath = function_exists('lawnding_public_path')
+        ? lawnding_public_path($relPath)
+        : __DIR__ . '/' . $relPath;
+    if (!is_file($fsPath)) {
+        return $resolved;
+    }
+    $mtime = @filemtime($fsPath);
+    if (!is_int($mtime) || $mtime <= 0) {
+        return $resolved;
+    }
+    $separator = str_contains($resolved, '?') ? '&' : '?';
+    return $resolved . $separator . 'v=' . rawurlencode((string) $mtime);
+}
+
+// Decode a JSON file into an array; otherwise return the fallback. Canonical
+// reader for the project's flat-file JSON storage — endpoint scripts and
+// helpers should call this rather than reimplement the
+// is_readable + file_get_contents + json_decode + is_array dance locally.
+function lawnding_read_json($path, array $fallback = []) {
+    if (!is_readable($path)) {
+        return $fallback;
+    }
+    $decoded = json_decode(file_get_contents($path), true);
+    return is_array($decoded) ? $decoded : $fallback;
+}
+
 // One-shot session-backed flash messages, surfaced as banner notices on the
 // next page render. Consumer is public/index.php (drains $_SESSION['lp_flash']
 // into the #adminNotices container).
@@ -439,6 +487,30 @@ function lawnding_app_upload_max_label(): string {
     return $bytes . 'B';
 }
 
+// Convert a php.ini size shorthand (e.g. "2M", "512K", "1G") to bytes. Used by
+// upload endpoints to reconcile our app-level cap with the lower of
+// upload_max_filesize / post_max_size from PHP's runtime config.
+function lawnding_ini_size_to_bytes($value): int {
+    $value = trim((string) $value);
+    if ($value === '') {
+        return 0;
+    }
+    $last = strtolower($value[strlen($value) - 1]);
+    $number = (float) $value;
+    switch ($last) {
+        case 'g':
+            $number *= 1024;
+            // no break
+        case 'm':
+            $number *= 1024;
+            // no break
+        case 'k':
+            $number *= 1024;
+            break;
+    }
+    return (int) $number;
+}
+
 // Look up a module's default_icon (an SVG string) from its manifest.
 // Used by the pane-icon renderer as a fallback when panes.json has no
 // icon set, and by save-config.php to pre-populate newly-created panes
@@ -464,6 +536,60 @@ function lawnding_module_default_icon(string $moduleId): string {
     }
     $icon = $manifest['default_icon'] ?? '';
     return $cache[$moduleId] = is_string($icon) ? $icon : '';
+}
+
+// Load pane instances from panes.json. Returns the raw pane array or [] when
+// the file is missing or malformed. Caller typically pipes through
+// lawnding_sort_panes() before rendering.
+function lawnding_load_panes(string $path): array {
+    if (!is_readable($path)) {
+        return [];
+    }
+    $decoded = json_decode(file_get_contents($path), true);
+    if (!is_array($decoded) || !isset($decoded['panes']) || !is_array($decoded['panes'])) {
+        return [];
+    }
+    return $decoded['panes'];
+}
+
+// Sort panes by explicit order while preserving original order as tie-breaker.
+function lawnding_sort_panes(array $panes): array {
+    $indexed = [];
+    foreach ($panes as $index => $pane) {
+        if (is_array($pane)) {
+            $pane['_index'] = $index;
+            $indexed[] = $pane;
+        }
+    }
+    usort($indexed, function ($a, $b) {
+        $orderA = isset($a['order']) ? (int) $a['order'] : PHP_INT_MAX;
+        $orderB = isset($b['order']) ? (int) $b['order'] : PHP_INT_MAX;
+        if ($orderA === $orderB) {
+            return ($a['_index'] ?? 0) <=> ($b['_index'] ?? 0);
+        }
+        return $orderA <=> $orderB;
+    });
+    foreach ($indexed as &$pane) {
+        unset($pane['_index']);
+    }
+    return $indexed;
+}
+
+// Minimal SVG sanitizer to block scripts and inline event handlers. Intentionally
+// not exhaustive — admin-authored SVG is trusted; this gate exists to catch
+// the obvious XSS shapes (`<script>` tags, on*= attributes) so they don't
+// leak through panes.json into the public navbar render.
+function lawnding_is_safe_svg(?string $svg): bool {
+    if (!is_string($svg) || $svg === '') {
+        return false;
+    }
+    if (stripos($svg, '<script') !== false) {
+        return false;
+    }
+    if (preg_match('/\\son[a-z]+\\s*=\\s*["\']?/i', $svg)) {
+        return false;
+    }
+    return true;
 }
 
 // Detect whether the current request should be treated as HTTPS.

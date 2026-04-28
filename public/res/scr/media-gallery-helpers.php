@@ -180,13 +180,7 @@ function media_gallery_is_valid_pane_id(string $paneId): bool {
 }
 
 function media_gallery_load_panes(string $panesPath): array {
-    if (!is_readable($panesPath)) {
-        return [];
-    }
-    $decoded = json_decode((string) file_get_contents($panesPath), true);
-    if (!is_array($decoded)) {
-        return [];
-    }
+    $decoded = lawnding_read_json($panesPath);
     $panes = $decoded['panes'] ?? $decoded;
     return is_array($panes) ? $panes : [];
 }
@@ -212,13 +206,7 @@ function media_gallery_pane_json_file(array $pane, string $paneId): string {
 }
 
 function media_gallery_load_data(string $path): array {
-    if (!is_readable($path)) {
-        return ['items' => []];
-    }
-    $decoded = json_decode((string) file_get_contents($path), true);
-    if (!is_array($decoded)) {
-        return ['items' => []];
-    }
+    $decoded = lawnding_read_json($path, ['items' => []]);
     if (!isset($decoded['items']) || !is_array($decoded['items'])) {
         $decoded['items'] = [];
     }

@@ -111,16 +111,7 @@ function backgrounds_paths(): array {
 
 // Load header.json with a minimal fallback structure.
 function backgrounds_load_header(string $headerPath): array {
-    $headerData = [
-        'backgrounds' => [],
-    ];
-    if (is_readable($headerPath)) {
-        $decoded = json_decode((string) file_get_contents($headerPath), true);
-        if (is_array($decoded)) {
-            $headerData = array_merge($headerData, $decoded);
-        }
-    }
-    return $headerData;
+    return array_merge(['backgrounds' => []], lawnding_read_json($headerPath));
 }
 
 // Normalize stored asset paths into res/... form for consistent matching.

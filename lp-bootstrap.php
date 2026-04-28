@@ -169,16 +169,27 @@ function lawnding_asset_url(?string $path = ''): string {
 // Append a `?v=<mtime>` cache-busting query string to local asset URLs under
 // /res/, so admin-uploaded images (logo, backgrounds, etc.) refresh in the
 // browser the moment the underlying file changes. External URLs and paths
-// outside /res/ pass through unchanged.
-function lawnding_versioned_local_asset_url(string $rawPath): string {
+// outside /res/ fall back to $fallbackToken (typically SITE_VERSION) when
+// provided — this is what the favicon uses so cache-busting still works for
+// externally-hosted favicon URLs. Pass '' to suppress the fallback (existing
+// logo/background callers do this — they only want mtime versioning, no
+// SITE_VERSION fallback for non-local paths).
+function lawnding_versioned_local_asset_url(string $rawPath, string $fallbackToken = ''): string {
     if ($rawPath === '') {
         return '';
     }
+    $appendVersion = static function (string $url, string $token): string {
+        if ($token === '') {
+            return $url;
+        }
+        $separator = str_contains($url, '?') ? '&' : '?';
+        return $url . $separator . 'v=' . rawurlencode($token);
+    };
     $resolveUrl = function (string $p): string {
         return function_exists('lawnding_asset_url') ? lawnding_asset_url($p) : $p;
     };
     if (preg_match('#^[a-z][a-z0-9+.-]*:#i', $rawPath) || str_starts_with($rawPath, '//')) {
-        return $rawPath;
+        return $appendVersion($rawPath, $fallbackToken);
     }
     $relPath = ltrim($rawPath, '/');
     if (str_starts_with($relPath, 'public/')) {
@@ -186,20 +197,19 @@ function lawnding_versioned_local_asset_url(string $rawPath): string {
     }
     $resolved = $resolveUrl($rawPath);
     if (!str_starts_with($relPath, 'res/')) {
-        return $resolved;
+        return $appendVersion($resolved, $fallbackToken);
     }
     $fsPath = function_exists('lawnding_public_path')
         ? lawnding_public_path($relPath)
         : __DIR__ . '/' . $relPath;
     if (!is_file($fsPath)) {
-        return $resolved;
+        return $appendVersion($resolved, $fallbackToken);
     }
     $mtime = @filemtime($fsPath);
     if (!is_int($mtime) || $mtime <= 0) {
-        return $resolved;
+        return $appendVersion($resolved, $fallbackToken);
     }
-    $separator = str_contains($resolved, '?') ? '&' : '?';
-    return $resolved . $separator . 'v=' . rawurlencode((string) $mtime);
+    return $appendVersion($resolved, (string) $mtime);
 }
 
 // Decode a JSON file into an array; otherwise return the fallback. Canonical

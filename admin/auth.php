@@ -21,11 +21,7 @@ require_once __DIR__ . '/lib/tg-auth.php';
 
 // Load and decode users.json. Returns the raw array or [] on failure.
 function lawnding_load_users_file(string $usersPath): array {
-    if (!is_readable($usersPath)) {
-        return [];
-    }
-    $decoded = json_decode((string) file_get_contents($usersPath), true);
-    return is_array($decoded) ? $decoded : [];
+    return lawnding_read_json($usersPath);
 }
 
 // Find a user record in a loaded users.json array by exact username match.

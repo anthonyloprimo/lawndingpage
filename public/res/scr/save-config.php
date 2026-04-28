@@ -203,12 +203,7 @@ function load_header_data($headerPath) {
             'duration' => 5
         ]
     ];
-    if (is_readable($headerPath)) {
-        $decoded = json_decode(file_get_contents($headerPath), true);
-        if (is_array($decoded)) {
-            $headerData = array_merge($headerData, $decoded);
-        }
-    }
+    $headerData = array_merge($headerData, lawnding_read_json($headerPath));
     if (empty($headerData['backgroundSettings']) || !is_array($headerData['backgroundSettings'])) {
         $headerData['backgroundSettings'] = [
             'mode' => 'random_load',

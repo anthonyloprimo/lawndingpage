@@ -36,15 +36,6 @@ $readFile = function (string $path, string $fallback = ''): string {
     return is_readable($path) ? (string) file_get_contents($path) : $fallback;
 };
 
-// Read JSON and return an array; if missing/invalid, return the fallback.
-$readJson = function (string $path, array $fallback = []): array {
-    if (!is_readable($path)) {
-        return $fallback;
-    }
-    $decoded = json_decode((string) file_get_contents($path), true);
-    return is_array($decoded) ? $decoded : $fallback;
-};
-
 // Render a shared SVG icon by name to avoid inline duplication.
 function lawnding_icon_svg(string $name): string {
     static $paths = [
@@ -187,7 +178,7 @@ $changelog = $Parsedown->text($changelogMarkdown);
 
 // Load link list configuration (JSON structure used by the editor).
 $linksJsonPath = $dataPath('links.json');
-$linksPayload = $readJson($linksJsonPath, []);
+$linksPayload = lawnding_read_json($linksJsonPath);
 $linksSettings = ['show_links' => true, 'auth_links' => false];
 $linksData = [];
 if (is_array($linksPayload) && array_key_exists('links', $linksPayload)) {
@@ -204,7 +195,7 @@ if (is_array($linksPayload) && array_key_exists('links', $linksPayload)) {
 
 // Load authorized links configuration (same structure as links.json).
 $authLinksJsonPath = $dataPath('authorizedLinks.json');
-$authLinksPayload = $readJson($authLinksJsonPath, []);
+$authLinksPayload = lawnding_read_json($authLinksJsonPath);
 $authLinksData = [];
 if (is_array($authLinksPayload) && array_key_exists('links', $authLinksPayload)) {
     $authLinksData = is_array($authLinksPayload['links']) ? $authLinksPayload['links'] : [];
@@ -227,13 +218,7 @@ $tgBotDefaults = [
     'membership_cache_ttl_minutes' => 30,
     'unauthorized_message' => 'Unable to display member links.  Join the telegram group with the link above, or contact an admin for assistance.',
 ];
-$tgBotData = $tgBotDefaults;
-if (is_readable($tgBotPath)) {
-    $decoded = json_decode((string) file_get_contents($tgBotPath), true);
-    if (is_array($decoded)) {
-        $tgBotData = array_merge($tgBotDefaults, $decoded);
-    }
-}
+$tgBotData = array_merge($tgBotDefaults, lawnding_read_json($tgBotPath));
 // Normalize group + whitelist/blacklist entries via the canonical helpers in
 // admin/lib/tg-auth.php (loaded near the top of this file). The helpers return
 // content levels in lowercase ('sfw'/'nsfw') per the documented schema; the
@@ -270,7 +255,7 @@ $headerDefaults = [
         'duration' => 5
     ]
 ];
-$headerData = array_merge($headerDefaults, $readJson($headerJsonPath, []));
+$headerData = array_merge($headerDefaults, lawnding_read_json($headerJsonPath));
 if (empty($headerData['backgroundSettings']) || !is_array($headerData['backgroundSettings'])) {
     $headerData['backgroundSettings'] = $headerDefaults['backgroundSettings'];
 }
@@ -410,12 +395,10 @@ $panesPath = $dataPath('panes.json');
 $panesSchemaValid = false;
 $panesSchemaVersion = null;
 $paneSchemaTarget = defined('PANE_SCHEMA_VERSION') ? PANE_SCHEMA_VERSION : 1;
-if (is_readable($panesPath)) {
-    $raw = json_decode(file_get_contents($panesPath), true);
-    if (is_array($raw) && isset($raw['schema_version']) && isset($raw['panes']) && is_array($raw['panes'])) {
-        $panesSchemaValid = true;
-        $panesSchemaVersion = (int) $raw['schema_version'];
-    }
+$raw = lawnding_read_json($panesPath);
+if (isset($raw['schema_version'], $raw['panes']) && is_array($raw['panes'])) {
+    $panesSchemaValid = true;
+    $panesSchemaVersion = (int) $raw['schema_version'];
 }
 $needsMigration = !$panesSchemaValid || $panesSchemaVersion !== $paneSchemaTarget;
 $migrationMode = 'missing';
@@ -450,11 +433,8 @@ if (is_dir($modulesDir)) {
             continue;
         }
         $manifestPath = rtrim($modulesDir, '/\\') . '/' . $entry . '/' . $entry . '.json';
-        if (!is_readable($manifestPath)) {
-            continue;
-        }
-        $manifest = json_decode(file_get_contents($manifestPath), true);
-        if (!is_array($manifest)) {
+        $manifest = lawnding_read_json($manifestPath);
+        if (empty($manifest)) {
             continue;
         }
         $id = $manifest['id'] ?? $entry;

@@ -151,14 +151,7 @@ function lawnding_load_tg_config(): array {
         ? lawnding_config('admin_dir', dirname(__DIR__))
         : dirname(__DIR__);
     $path = rtrim((string) $adminDir, '/\\') . '/lp-tgBot.json';
-    if (!is_readable($path)) {
-        return $defaults;
-    }
-    $decoded = json_decode((string) file_get_contents($path), true);
-    if (!is_array($decoded)) {
-        return $defaults;
-    }
-    $merged = array_merge($defaults, $decoded);
+    $merged = array_merge($defaults, lawnding_read_json($path));
 
     $merged['group_ids'] = lawnding_tg_normalize_group_entries($merged['group_ids'] ?? []);
     $merged['whitelist_user_ids'] = lawnding_tg_normalize_user_entries($merged['whitelist_user_ids'] ?? []);
@@ -258,12 +251,8 @@ function lawnding_tg_cache_fingerprint(array $tgConfig): string {
 }
 
 function lawnding_tg_cache_load(): array {
-    $path = lawnding_tg_cache_path();
-    if (!is_readable($path)) {
-        return ['users' => []];
-    }
-    $decoded = json_decode((string) file_get_contents($path), true);
-    if (!is_array($decoded) || !is_array($decoded['users'] ?? null)) {
+    $decoded = lawnding_read_json(lawnding_tg_cache_path());
+    if (!is_array($decoded['users'] ?? null)) {
         return ['users' => []];
     }
     return ['users' => $decoded['users']];

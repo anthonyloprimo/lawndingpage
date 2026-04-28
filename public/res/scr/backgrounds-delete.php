@@ -12,7 +12,6 @@ backgrounds_require_method('POST');
 
 // Require auth and edit_site permission.
 backgrounds_require_edit_site();
-backgrounds_require_csrf();
 
 // Expected request data.
 $url = isset($_POST['url']) ? (string) $_POST['url'] : '';

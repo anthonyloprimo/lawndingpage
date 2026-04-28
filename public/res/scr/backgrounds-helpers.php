@@ -15,58 +15,20 @@ function backgrounds_require_method(string $method): void {
     }
 }
 
-// Allowed admin permissions used across the admin UI.
-function backgrounds_allowed_permissions(): array {
-    return ['full_admin', 'add_users', 'edit_users', 'remove_users', 'edit_site'];
-}
-
-// Resolve the users.json path using bootstrap config when available.
-function backgrounds_users_path(): string {
-    return function_exists('lawnding_config')
-        ? lawnding_config('users_path', dirname(__DIR__, 3) . '/admin/users.json')
-        : dirname(__DIR__, 3) . '/admin/users.json';
-}
-
-// Load users.json into an array (empty on failure).
-function backgrounds_load_users(string $usersPath): array {
-    if (!is_readable($usersPath)) {
-        return [];
-    }
-    $decoded = json_decode((string) file_get_contents($usersPath), true);
-    return is_array($decoded) ? $decoded : [];
-}
-
-// Find a user record by username.
-function backgrounds_find_user(array $users, string $username): ?array {
-    foreach ($users as $user) {
-        if (is_array($user) && ($user['username'] ?? '') === $username) {
-            return $user;
-        }
-    }
-    return null;
-}
-
 // Require an authenticated session and edit_site permission.
 // Signature unchanged so existing callers (backgrounds-upload/delete/list)
-// continue to work without edits.
+// continue to work without edits. CSRF enforcement is handled inside the
+// shared gate for POST requests; GET endpoints (list) skip it.
 function backgrounds_require_edit_site(): array {
     $adminAuthPath = function_exists('lawnding_admin_path')
         ? lawnding_admin_path('auth.php')
         : dirname(__DIR__, 3) . '/admin/auth.php';
     require_once $adminAuthPath;
 
-    $allowed = backgrounds_allowed_permissions();
-    $usersPath = backgrounds_users_path();
-    $users = lawnding_load_users_file($usersPath);
-    $tgConfig = lawnding_load_tg_config();
-
-    $identity = lawnding_resolve_admin_identity($tgConfig, $users, $allowed);
-    if (!$identity['isAuthenticated']) {
-        backgrounds_json_response(['error' => 'Unauthorized'], 401);
-    }
-    if (!$identity['context']['canEditSite']) {
-        backgrounds_json_response(['error' => 'Forbidden'], 403);
-    }
+    $identity = lawnding_require_admin_mutation(
+        null,
+        function ($msg, $code) { backgrounds_json_response(['error' => $msg], $code); }
+    );
 
     return [
         'authUser' => $identity['authUser'],
@@ -75,18 +37,6 @@ function backgrounds_require_edit_site(): array {
         'isFullAdmin' => $identity['context']['isFullAdmin'],
         'canEditSite' => $identity['context']['canEditSite'],
     ];
-}
-
-// Require a valid CSRF token for state-changing requests.
-function backgrounds_require_csrf(): void {
-    $sessionToken = $_SESSION['csrf_token'] ?? '';
-    $postedToken = $_POST['csrf_token'] ?? '';
-    if (!is_string($sessionToken) || $sessionToken === '' || !is_string($postedToken) || $postedToken === '') {
-        backgrounds_json_response(['error' => 'Forbidden'], 403);
-    }
-    if (!hash_equals($sessionToken, $postedToken)) {
-        backgrounds_json_response(['error' => 'Forbidden'], 403);
-    }
 }
 
 // Resolve paths used by the backgrounds endpoints.

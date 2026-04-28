@@ -14,25 +14,6 @@ function respond($payload, $code = 200) {
     exit;
 }
 
-// Read users.json into an array (empty on failure).
-function load_users($usersPath) {
-    if (!is_readable($usersPath)) {
-        return [];
-    }
-    $decoded = json_decode(file_get_contents($usersPath), true);
-    return is_array($decoded) ? $decoded : [];
-}
-
-// Find a user record by username.
-function find_user($users, $username) {
-    foreach ($users as $user) {
-        if (is_array($user) && ($user['username'] ?? '') === $username) {
-            return $user;
-        }
-    }
-    return null;
-}
-
 // Resolve filesystem paths for data, images, and config files.
 function resolve_paths() {
     $publicDir = function_exists('lawnding_config')
@@ -228,18 +209,6 @@ function validate_markdown_gating_or_fail(string $markdown, string $context): vo
     respond(['error' => $message . $suffix], 400);
 }
 
-// Require a valid CSRF token for state-changing requests.
-function require_csrf_token() {
-    $sessionToken = $_SESSION['csrf_token'] ?? '';
-    $postedToken = $_POST['csrf_token'] ?? '';
-    if (!is_string($sessionToken) || $sessionToken === '' || !is_string($postedToken) || $postedToken === '') {
-        respond(['error' => 'Forbidden'], 403);
-    }
-    if (!hash_equals($sessionToken, $postedToken)) {
-        respond(['error' => 'Forbidden'], 403);
-    }
-}
-
 // Endpoint accepts POST only.
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     respond(['error' => 'Method not allowed'], 405);
@@ -253,27 +222,16 @@ if ($postMaxBytes > 0 && $contentLength > $postMaxBytes) {
     respond(['error' => 'Payload too large. Please reduce image sizes and try again.'], 413);
 }
 
-// Resolve identity (bcrypt + Telegram-derived). The resolver handles both
-// auth paths and surfaces a uniform context. See admin/auth.php.
+// Resolve admin identity and enforce edit_site + CSRF. See admin/auth.php.
 $adminAuthPath = function_exists('lawnding_admin_path')
     ? lawnding_admin_path('auth.php')
     : dirname(__DIR__, 3) . '/admin/auth.php';
 require_once $adminAuthPath;
 
-$allowedPermissions = ['full_admin', 'add_users', 'edit_users', 'remove_users', 'edit_site'];
-$usersPath = function_exists('lawnding_config')
-    ? lawnding_config('users_path', dirname(__DIR__, 3) . '/admin/users.json')
-    : dirname(__DIR__, 3) . '/admin/users.json';
-$users = lawnding_load_users_file($usersPath);
-$tgConfig = lawnding_load_tg_config();
-
-$identity = lawnding_resolve_admin_identity($tgConfig, $users, $allowedPermissions);
-if (!$identity['isAuthenticated']) {
-    respond(['error' => 'Unauthorized'], 401);
-}
-if (!$identity['context']['canEditSite']) {
-    respond(['error' => 'Forbidden'], 403);
-}
+$identity = lawnding_require_admin_mutation(
+    null,
+    function ($msg, $code) { respond(['error' => $msg], $code); }
+);
 
 // Compat locals — preserved so the rest of save-config's action handlers
 // continue to read from familiar names.
@@ -282,8 +240,6 @@ $authRecord = $identity['authRecord'];
 $permissions = $identity['context']['currentPermissions'];
 $isFullAdmin = $identity['context']['isFullAdmin'];
 $canEditSite = $identity['context']['canEditSite'];
-
-require_csrf_token();
 
 // Validate file uploads (size and PHP error codes). Enforces the app-level
 // upload cap on every $_FILES entry — covers pane icon uploads, logo, and

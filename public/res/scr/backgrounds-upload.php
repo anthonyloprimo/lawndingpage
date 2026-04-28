@@ -19,7 +19,6 @@ if ($postMaxBytes > 0 && $contentLength > $postMaxBytes) {
 
 // Require auth and edit_site permission.
 backgrounds_require_edit_site();
-backgrounds_require_csrf();
 
 // Validate the file upload payload.
 $upload = $_FILES['bgFile'] ?? null;

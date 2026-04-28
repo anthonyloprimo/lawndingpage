@@ -9,17 +9,6 @@ function respond($payload, $code = 200) {
     exit;
 }
 
-function require_csrf_token() {
-    $sessionToken = $_SESSION['csrf_token'] ?? '';
-    $postedToken = $_POST['csrf_token'] ?? '';
-    if (!is_string($sessionToken) || $sessionToken === '' || !is_string($postedToken) || $postedToken === '') {
-        respond(['error' => 'Forbidden'], 403);
-    }
-    if (!hash_equals($sessionToken, $postedToken)) {
-        respond(['error' => 'Forbidden'], 403);
-    }
-}
-
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     respond(['error' => 'Method not allowed'], 405);
 }
@@ -29,22 +18,10 @@ $adminAuthPath = function_exists('lawnding_admin_path')
     : dirname(__DIR__, 3) . '/admin/auth.php';
 require_once $adminAuthPath;
 
-$allowedPermissions = ['full_admin', 'add_users', 'edit_users', 'remove_users', 'edit_site'];
-$usersPath = function_exists('lawnding_config')
-    ? lawnding_config('users_path', dirname(__DIR__, 3) . '/admin/users.json')
-    : dirname(__DIR__, 3) . '/admin/users.json';
-$users = lawnding_load_users_file($usersPath);
-$tgConfig = lawnding_load_tg_config();
-
-$identity = lawnding_resolve_admin_identity($tgConfig, $users, $allowedPermissions);
-if (!$identity['isAuthenticated']) {
-    respond(['error' => 'Unauthorized'], 401);
-}
-if (!$identity['context']['canEditSite']) {
-    respond(['error' => 'Forbidden'], 403);
-}
-
-require_csrf_token();
+lawnding_require_admin_mutation(
+    null,
+    function ($msg, $code) { respond(['error' => $msg], $code); }
+);
 
 $markdown = $_POST['markdown'] ?? '';
 if (!is_string($markdown)) {

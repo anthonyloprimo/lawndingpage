@@ -226,6 +226,7 @@ header.header {
     gap: 12px;
     position: relative;
     overflow: hidden;
+    color: #FFFFFF;
 }
 
 .adminNoticeText {
@@ -244,6 +245,7 @@ header.header {
     background: #FFFFFF22;
     color: inherit;
     font-weight: 700;
+    cursor: pointer;
 }
 
 .adminNoticeClose:hover {

@@ -346,32 +346,13 @@ if (!empty($headerDataResolved['backgrounds']) && is_array($headerDataResolved['
         return $bg;
     }, $headerDataResolved['backgrounds']);
 }
-$faviconUrl = is_string($headerDataResolved['logo'] ?? null) && $headerDataResolved['logo'] !== ''
-    ? $headerDataResolved['logo']
-    : $resolveAssetUrl('res/img/logo.jpg');
-$faviconToken = defined('SITE_VERSION') ? (string) SITE_VERSION : '';
-$faviconPathRaw = is_string($headerData['logo'] ?? null) ? $headerData['logo'] : '';
-if ($faviconPathRaw !== '' && !preg_match('#^[a-z][a-z0-9+.-]*:#i', $faviconPathRaw) && !str_starts_with($faviconPathRaw, '//')) {
-    $faviconPath = ltrim($faviconPathRaw, '/');
-    if (str_starts_with($faviconPath, 'public/')) {
-        $faviconPath = substr($faviconPath, strlen('public/'));
-    }
-    if (str_starts_with($faviconPath, 'res/')) {
-        $faviconFsPath = function_exists('lawnding_public_path')
-            ? lawnding_public_path($faviconPath)
-            : __DIR__ . '/' . $faviconPath;
-        if (is_file($faviconFsPath)) {
-            $mtime = @filemtime($faviconFsPath);
-            if (is_int($mtime) && $mtime > 0) {
-                $faviconToken = (string) $mtime;
-            }
-        }
-    }
-}
-$faviconHref = $faviconUrl;
-if ($faviconToken !== '') {
-    $faviconHref .= (str_contains($faviconHref, '?') ? '&' : '?') . 'v=' . rawurlencode($faviconToken);
-}
+$faviconRaw = is_string($headerData['logo'] ?? null) && $headerData['logo'] !== ''
+    ? $headerData['logo']
+    : 'res/img/logo.jpg';
+$faviconHref = lawnding_versioned_local_asset_url(
+    $faviconRaw,
+    defined('SITE_VERSION') ? (string) SITE_VERSION : ''
+);
 $headerDataJson = htmlspecialchars(json_encode($headerDataResolved, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT), ENT_QUOTES, 'UTF-8');
 
 // Render pane icon from panes.json (SVG string or uploaded file reference).

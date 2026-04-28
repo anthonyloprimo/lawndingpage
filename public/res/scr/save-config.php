@@ -595,20 +595,6 @@ function build_migration_plan(array $paths, string $modulesDir): array {
     ];
 }
 
-// Reject SVG that contains scripts or inline event handlers.
-function is_safe_svg($svg) {
-    if (!is_string($svg) || $svg === '') {
-        return false;
-    }
-    if (stripos($svg, '<script') !== false) {
-        return false;
-    }
-    if (preg_match('/\\son[a-z]+\\s*=\\s*["\']?/i', $svg)) {
-        return false;
-    }
-    return true;
-}
-
 // Validate pane IDs (camelCase alphanumeric).
 function is_valid_pane_id($value) {
     if (!is_string($value) || $value === '') {
@@ -950,7 +936,7 @@ if ($action === 'pane_management') {
             if (is_string($iconValue) && $iconValue !== '') {
                 $iconValue = preg_replace('/<title[^>]*>[\\s\\S]*?<\\/title>/i', '', $iconValue);
             }
-            if (!is_safe_svg($iconValue)) {
+            if (!lawnding_is_safe_svg($iconValue)) {
                 respond(['error' => 'Invalid SVG icon for pane ' . $name . '.'], 400);
             }
         } elseif ($iconType === 'file') {
@@ -961,7 +947,7 @@ if ($action === 'pane_management') {
             // show up on the navbar with a sensible icon out of the
             // box. Admin can overwrite later in the pane icon editor.
             $defaultIcon = lawnding_module_default_icon($moduleId);
-            if ($defaultIcon !== '' && is_safe_svg($defaultIcon)) {
+            if ($defaultIcon !== '' && lawnding_is_safe_svg($defaultIcon)) {
                 $iconType = 'svg';
                 $iconValue = $defaultIcon;
             } else {

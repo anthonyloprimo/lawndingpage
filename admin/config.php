@@ -284,32 +284,13 @@ if (!empty($headerDataDisplay['backgrounds']) && is_array($headerDataDisplay['ba
         return $bg;
     }, $headerDataDisplay['backgrounds']);
 }
-$faviconUrl = is_string($headerDataDisplay['logo'] ?? null) && $headerDataDisplay['logo'] !== ''
-    ? $headerDataDisplay['logo']
-    : $makeAssetUrl('res/img/logo.jpg');
-$faviconToken = defined('SITE_VERSION') ? (string) SITE_VERSION : '';
-$faviconPathRaw = is_string($headerData['logo'] ?? null) ? $headerData['logo'] : '';
-if ($faviconPathRaw !== '' && !preg_match('#^[a-z][a-z0-9+.-]*:#i', $faviconPathRaw) && !str_starts_with($faviconPathRaw, '//')) {
-    $faviconPath = ltrim($faviconPathRaw, '/');
-    if (str_starts_with($faviconPath, 'public/')) {
-        $faviconPath = substr($faviconPath, strlen('public/'));
-    }
-    if (str_starts_with($faviconPath, 'res/')) {
-        $faviconFsPath = function_exists('lawnding_public_path')
-            ? lawnding_public_path($faviconPath)
-            : __DIR__ . '/../public/' . $faviconPath;
-        if (is_file($faviconFsPath)) {
-            $mtime = @filemtime($faviconFsPath);
-            if (is_int($mtime) && $mtime > 0) {
-                $faviconToken = (string) $mtime;
-            }
-        }
-    }
-}
-$faviconHref = $faviconUrl;
-if ($faviconToken !== '') {
-    $faviconHref .= (str_contains($faviconHref, '?') ? '&' : '?') . 'v=' . rawurlencode($faviconToken);
-}
+$faviconRaw = is_string($headerData['logo'] ?? null) && $headerData['logo'] !== ''
+    ? $headerData['logo']
+    : 'res/img/logo.jpg';
+$faviconHref = lawnding_versioned_local_asset_url(
+    $faviconRaw,
+    defined('SITE_VERSION') ? (string) SITE_VERSION : ''
+);
 // Keep raw background data for editing and file operations.
 $backgrounds = [];
 if (!empty($headerData['backgrounds']) && is_array($headerData['backgrounds'])) {
@@ -317,26 +298,13 @@ if (!empty($headerData['backgrounds']) && is_array($headerData['backgrounds'])) 
 }
 
 
-$isSafeSvg = function (?string $svg): bool {
-    if (!is_string($svg) || $svg === '') {
-        return false;
-    }
-    if (stripos($svg, '<script') !== false) {
-        return false;
-    }
-    if (preg_match('/\\son[a-z]+\\s*=\\s*["\']?/i', $svg)) {
-        return false;
-    }
-    return true;
-};
-
-$renderPaneIcon = function (array $pane) use ($makeAssetUrl, $isSafeSvg): string {
+$renderPaneIcon = function (array $pane) use ($makeAssetUrl): string {
     $icon = $pane['icon'] ?? [];
     if (is_array($icon)) {
         $type = $icon['type'] ?? '';
         if ($type === 'svg') {
             $svg = $icon['value'] ?? '';
-            if (is_string($svg) && $svg !== '' && $isSafeSvg($svg)) {
+            if (is_string($svg) && $svg !== '' && lawnding_is_safe_svg($svg)) {
                 return $svg;
             }
         } elseif ($type === 'file') {
@@ -350,7 +318,7 @@ $renderPaneIcon = function (array $pane) use ($makeAssetUrl, $isSafeSvg): string
     $moduleId = $pane['module'] ?? '';
     if (is_string($moduleId) && $moduleId !== '') {
         $default = lawnding_module_default_icon($moduleId);
-        if ($default !== '' && $isSafeSvg($default)) {
+        if ($default !== '' && lawnding_is_safe_svg($default)) {
             return $default;
         }
     }

@@ -254,7 +254,7 @@ if (!empty($tgBotData['blacklist_user_ids']) && is_array($tgBotData['blacklist_u
     $tgBotBlacklistUserIds = lawnding_tg_normalize_user_entries($tgBotData['blacklist_user_ids']);
 }
 $tgBotBlacklistUserIdsText = implode("\n", array_map(fn(array $e): string => $e['id'] . ' ' . strtoupper($e['content']), $tgBotBlacklistUserIds));
-$webhookBase = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+$webhookBase = lawnding_request_is_secure() ? 'https' : 'http';
 $webhookHost = $_SERVER['HTTP_HOST'] ?? 'your-domain.com';
 $webhookUrl = $webhookBase . '://' . $webhookHost . ($assetBase ?? '') . '/plugins/telegram/webhook.php';
 

@@ -2,7 +2,7 @@ name: Test
 
 on:
   push:
-    branches: [main, chore/frontend-shared-helpers]  # TODO: remove branch after CI test
+    branches: [main]
   pull_request:
     branches: [main]
   workflow_dispatch:

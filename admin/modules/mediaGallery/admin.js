@@ -12,9 +12,7 @@ $(document).ready(function() {
 
     let gdNoticeShown = false;
 
-    const basePath = window.appConfig && typeof window.appConfig.basePath === 'string'
-        ? window.appConfig.basePath.replace(/\/$/, '')
-        : '';
+    const basePath = lpGetBasePath();
     const csrfToken = window.appConfig && window.appConfig.csrfToken ? window.appConfig.csrfToken : '';
 
     function buildUrl(file) {
@@ -101,14 +99,6 @@ $(document).ready(function() {
         }
     }
 
-    function formatBytes(bytes) {
-        if (!bytes || bytes <= 0) { return '0 B'; }
-        const units = ['B', 'KB', 'MB', 'GB'];
-        const i = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
-        const val = bytes / Math.pow(1024, i);
-        return (i === 0 ? val : val.toFixed(1)) + ' ' + units[i];
-    }
-
     function normalizeItems(items) {
         if (!Array.isArray(items)) {
             return [];
@@ -178,8 +168,8 @@ $(document).ready(function() {
                 $thumb.css('background-image', `url('${thumbUrl}')`);
             }
             if (item.type === 'image' && item.original_size > 0) {
-                const sizeLabel = 'Original: ' + formatBytes(item.original_size)
-                    + '\nResized:  ' + formatBytes(item.saved_size);
+                const sizeLabel = 'Original: ' + lpFormatBytes(item.original_size)
+                    + '\nResized:  ' + lpFormatBytes(item.saved_size);
                 $thumb.attr('data-size-info', sizeLabel);
             }
             const $actions = $(

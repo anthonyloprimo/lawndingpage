@@ -764,8 +764,8 @@ function renderEventLists() {
                     <button
                         class=\"eventCalendarButton eventCalendarToggle\"
                         type=\"button\"
-                        data-pane-id=\"${escapeHtml(paneId)}\"
-                        data-event-id=\"${escapeHtml(eventId || '')}\"
+                        data-pane-id=\"${lpEscapeHtml(paneId)}\"
+                        data-event-id=\"${lpEscapeHtml(eventId || '')}\"
                         aria-haspopup=\"true\"
                         aria-expanded=\"false\"
                     >
@@ -792,23 +792,14 @@ function renderEventLists() {
             const rawDescription = event.description || '';
             const truncated = truncateDescription(rawDescription);
             return `
-                <div class=\"eventItem\" data-event-id=\"${escapeHtml(event.id || '')}\" data-pane-id=\"${escapeHtml(paneId)}\">
-                    <div class=\"eventItemTitle\">${escapeHtml(event.name || 'Untitled')}</div>
-                    <div class=\"eventItemMeta\">${escapeHtml(timeRange)}</div>
-                    ${address ? `<div class=\"eventItemMeta\"><a href=\"${escapeHtml(addressLink)}\" target=\"_blank\" rel=\"noopener\">${escapeHtml(address)}</a></div>` : ''}
-                    ${details ? `<div class=\"eventItemMeta\">${escapeHtml(truncated)}</div>` : ''}
+                <div class=\"eventItem\" data-event-id=\"${lpEscapeHtml(event.id || '')}\" data-pane-id=\"${lpEscapeHtml(paneId)}\">
+                    <div class=\"eventItemTitle\">${lpEscapeHtml(event.name || 'Untitled')}</div>
+                    <div class=\"eventItemMeta\">${lpEscapeHtml(timeRange)}</div>
+                    ${address ? `<div class=\"eventItemMeta\"><a href=\"${lpEscapeHtml(addressLink)}\" target=\"_blank\" rel=\"noopener\">${lpEscapeHtml(address)}</a></div>` : ''}
+                    ${details ? `<div class=\"eventItemMeta\">${lpEscapeHtml(truncated)}</div>` : ''}
                     ${button}
                 </div>
             `;
-        }
-
-        function escapeHtml(value) {
-            return String(value)
-                .replace(/&/g, '&amp;')
-                .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;')
-                .replace(/\"/g, '&quot;')
-                .replace(/'/g, '&#39;');
         }
 
         const happening = [];
@@ -1042,7 +1033,7 @@ function renderEventLists() {
 
         function renderDayEventSection(title, sectionEvents) {
             if (!sectionEvents.length) { return ''; }
-            return `<div class="eventCalendarDaySection"><h4>${escapeHtml(title)}</h4><div class="eventSectionBody">${sectionEvents.map((event) => renderEventItem(event, eventCanBeSaved(event), paneId)).join('')}</div></div>`;
+            return `<div class="eventCalendarDaySection"><h4>${lpEscapeHtml(title)}</h4><div class="eventSectionBody">${sectionEvents.map((event) => renderEventItem(event, eventCanBeSaved(event), paneId)).join('')}</div></div>`;
         }
 
         function openDayModal(dayStart) {
@@ -1076,7 +1067,7 @@ function renderEventLists() {
             $meta.text(timeRange);
             if (event.address) {
                 const link = buildMapsUrl(event.address);
-                $address.html(`<a href=\"${escapeHtml(link)}\" target=\"_blank\" rel=\"noopener\">${escapeHtml(event.address)}</a>`);
+                $address.html(`<a href=\"${lpEscapeHtml(link)}\" target=\"_blank\" rel=\"noopener\">${lpEscapeHtml(event.address)}</a>`);
             } else {
                 $address.text('');
             }

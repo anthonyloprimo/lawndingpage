@@ -117,7 +117,7 @@ test_assert(
 // detects source format from the bytes. These tests prevent that regression
 // from drifting back in.
 
-if (extension_loaded('gd')) {
+if (test_check_extension('gd')) {
     $tmpDir = sys_get_temp_dir();
 
     // (1) Passthrough: under-cap JPEG source -> byte-for-byte to JPEG dest.

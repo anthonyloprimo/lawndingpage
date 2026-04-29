@@ -27,6 +27,8 @@ To set up LawndingPage, understand the structure of the files.
         - _template/
         - basicText/
         - eventList/
+        - externalLink/
+        - mediaGallery/
         - README.md
     - auth.php
     - config.php

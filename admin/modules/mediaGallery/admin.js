@@ -84,19 +84,11 @@ $(document).ready(function() {
     }
 
     function showSaving() {
-        if (typeof window.showSavingOverlay === 'function') {
-            window.showSavingOverlay();
-        } else {
-            $('#savingOverlay').addClass('isActive').attr('aria-hidden', 'false');
-        }
+        window.showSavingOverlay();
     }
 
     function hideSaving() {
-        if (typeof window.hideSavingOverlay === 'function') {
-            window.hideSavingOverlay();
-        } else {
-            $('#savingOverlay').removeClass('isActive').attr('aria-hidden', 'true');
-        }
+        window.hideSavingOverlay();
     }
 
     function normalizeItems(items) {

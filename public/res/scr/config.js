@@ -24,6 +24,31 @@ $(document).ready(function() {
         }
     }
 
+    // Unified handler for jQuery $.ajax error callbacks against admin
+    // endpoints. Hides the saving overlay first, then extracts a
+    // user-facing message from xhr.responseText (parsed JSON .error →
+    // raw text → defaultMsg fallback chain) and shows the danger
+    // notice. Use from each $.ajax({ error }) handler instead of
+    // duplicating the parse + cleanup boilerplate. Sites that need
+    // additional concerns (a 403 special case, etc.) handle those
+    // inline before the call.
+    function handleEndpointError(xhr, defaultMsg) {
+        hideSavingOverlay();
+        let message = defaultMsg;
+        const responseText = xhr && xhr.responseText ? xhr.responseText : '';
+        if (responseText) {
+            try {
+                const parsed = JSON.parse(responseText);
+                if (parsed && parsed.error) {
+                    message = parsed.error;
+                }
+            } catch (err) {
+                message = responseText;
+            }
+        }
+        addAdminNotice('danger', message);
+    }
+
     function readTgGroupRows() {
         const order = [];
         const entriesById = new Map();
@@ -670,17 +695,24 @@ $(document).ready(function() {
         refreshAuthLinkControls($list);
     }
 
-    function refreshLinkControls($list) {
-        const $cards = $list ? $list.find('.linksConfigCard') : $('.linksConfigCard');
-        $cards.find('.moveUpLink, .moveDownLink').prop('disabled', false);
-        if ($cards.length === 0) {
+    // Disable the up/down move arrows at list boundaries. Shared
+    // algorithm for the three reorderable lists in the admin
+    // (links, auth links, backgrounds); each public wrapper just
+    // queries its own row collection and delegates here.
+    function refreshListControls($items) {
+        $items.find('.moveUpLink, .moveDownLink').prop('disabled', false);
+        if ($items.length === 0) {
             return;
         }
-        $cards.first().find('.moveUpLink').prop('disabled', true);
-        $cards.last().find('.moveDownLink').prop('disabled', true);
-        if ($cards.length === 1) {
-            $cards.first().find('.moveDownLink').prop('disabled', true);
+        $items.first().find('.moveUpLink').prop('disabled', true);
+        $items.last().find('.moveDownLink').prop('disabled', true);
+        if ($items.length === 1) {
+            $items.first().find('.moveDownLink').prop('disabled', true);
         }
+    }
+
+    function refreshLinkControls($list) {
+        refreshListControls($list ? $list.find('.linksConfigCard') : $('.linksConfigCard'));
     }
 
     function buildLinkIdFromText(text, prefix = 'link') {
@@ -967,16 +999,7 @@ $(document).ready(function() {
     }
 
     function refreshBackgroundControls() {
-        const $rows = $('#bgConfig').find('.bgConfigList .bgConfigRow').not('.bgConfigHeader');
-        $rows.find('.moveUpLink, .moveDownLink').prop('disabled', false);
-        if ($rows.length === 0) {
-            return;
-        }
-        $rows.first().find('.moveUpLink').prop('disabled', true);
-        $rows.last().find('.moveDownLink').prop('disabled', true);
-        if ($rows.length === 1) {
-            $rows.first().find('.moveDownLink').prop('disabled', true);
-        }
+        refreshListControls($('#bgConfig').find('.bgConfigList .bgConfigRow').not('.bgConfigHeader'));
     }
 
     function initBackgroundSettings() {
@@ -1156,26 +1179,12 @@ $(document).ready(function() {
                     });
                 },
                 error: function(xhr) {
-                    const responseText = xhr && xhr.responseText ? xhr.responseText : '';
                     if (xhr && xhr.status === 403) {
                         addAdminNotice('danger', 'You do not have permission to edit site content.');
                         hideSavingOverlay();
                         return;
                     }
-                    let message = 'Save failed. Please try again.';
-                    if (responseText) {
-                        try {
-                            const parsed = JSON.parse(responseText);
-                            if (parsed && parsed.error) {
-                                message = parsed.error;
-                            }
-                        } catch (err) {
-                            message = responseText;
-                        }
-                    }
-                    console.error('Save failed', responseText);
-                    addAdminNotice('danger', message);
-                    hideSavingOverlay();
+                    handleEndpointError(xhr, 'Save failed. Please try again.');
                 }
             });
         });
@@ -1541,16 +1550,7 @@ $(document).ready(function() {
     }
 
     function refreshAuthLinkControls($list) {
-        const $cards = $list ? $list.find('.authLinksConfigCard') : $('.authLinksConfigCard');
-        $cards.find('.moveUpLink, .moveDownLink').prop('disabled', false);
-        if ($cards.length === 0) {
-            return;
-        }
-        $cards.first().find('.moveUpLink').prop('disabled', true);
-        $cards.last().find('.moveDownLink').prop('disabled', true);
-        if ($cards.length === 1) {
-            $cards.first().find('.moveDownLink').prop('disabled', true);
-        }
+        refreshListControls($list ? $list.find('.authLinksConfigCard') : $('.authLinksConfigCard'));
     }
 
     function updateAuthLinkIdForCard($card) {
@@ -2380,20 +2380,7 @@ $(document).ready(function() {
                     }
                 },
                 error: function(xhr) {
-                    hideSavingOverlay();
-                    const responseText = xhr && xhr.responseText ? xhr.responseText : '';
-                    let message = 'Pane save failed. Please try again.';
-                    if (responseText) {
-                        try {
-                            const parsed = JSON.parse(responseText);
-                            if (parsed && parsed.error) {
-                                message = parsed.error;
-                            }
-                        } catch (err) {
-                            message = responseText;
-                        }
-                    }
-                    addAdminNotice('danger', message);
+                    handleEndpointError(xhr, 'Pane save failed. Please try again.');
                 }
             });
         }
@@ -2683,20 +2670,7 @@ $(document).ready(function() {
                     openModal();
                 },
                 error: function(xhr) {
-                    hideSavingOverlay();
-                    const responseText = xhr && xhr.responseText ? xhr.responseText : '';
-                    let message = 'Migration preview failed.';
-                    if (responseText) {
-                        try {
-                            const parsed = JSON.parse(responseText);
-                            if (parsed && parsed.error) {
-                                message = parsed.error;
-                            }
-                        } catch (err) {
-                            message = responseText;
-                        }
-                    }
-                    addAdminNotice('danger', message);
+                    handleEndpointError(xhr, 'Migration preview failed.');
                 }
             });
         }
@@ -2730,20 +2704,7 @@ $(document).ready(function() {
                     window.location.reload();
                 },
                 error: function(xhr) {
-                    hideSavingOverlay();
-                    const responseText = xhr && xhr.responseText ? xhr.responseText : '';
-                    let message = 'Migration failed.';
-                    if (responseText) {
-                        try {
-                            const parsed = JSON.parse(responseText);
-                            if (parsed && parsed.error) {
-                                message = parsed.error;
-                            }
-                        } catch (err) {
-                            message = responseText;
-                        }
-                    }
-                    addAdminNotice('danger', message);
+                    handleEndpointError(xhr, 'Migration failed.');
                 }
             });
         });

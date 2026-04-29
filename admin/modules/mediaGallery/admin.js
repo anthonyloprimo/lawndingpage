@@ -157,7 +157,10 @@ $(document).ready(function() {
             const $thumb = $('<button class="mediaGalleryThumbButton" type="button" aria-label="Edit media"></button>');
             const thumbUrl = getThumbUrl(item);
             if (thumbUrl) {
-                $thumb.css('background-image', `url('${thumbUrl}')`);
+                $thumb.append($('<img class="mediaGalleryThumb">').attr({
+                    src: thumbUrl,
+                    alt: item.title || ''
+                }));
             }
             if (item.type === 'image' && item.original_size > 0) {
                 const sizeLabel = 'Original: ' + lpFormatBytes(item.original_size)

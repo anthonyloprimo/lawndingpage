@@ -105,7 +105,7 @@ if ($itemsJson === false) {
                     $thumbUrl = function_exists('lawnding_asset_url') ? lawnding_asset_url($thumbPath) : $thumbPath;
                 ?>
                 <div class="mediaGalleryItem<?php echo $itemType === 'video' ? ' isVideo' : ''; ?>" data-item-id="<?php echo htmlspecialchars($itemId); ?>" data-item-type="<?php echo htmlspecialchars($itemType); ?>" data-item-order="<?php echo (int) $itemOrder; ?>" data-item-file="<?php echo htmlspecialchars($itemFile); ?>" data-item-thumb="<?php echo htmlspecialchars($itemThumb); ?>" data-item-title="<?php echo htmlspecialchars($itemTitle); ?>">
-                    <button class="mediaGalleryThumbButton" type="button" aria-label="Edit media"<?php echo $thumbUrl !== '' ? ' style="background-image: url(' . htmlspecialchars($thumbUrl) . ');"' : ''; ?>></button>
+                    <button class="mediaGalleryThumbButton" type="button" aria-label="Edit media"><?php if ($thumbUrl !== ''): ?><img class="mediaGalleryThumb" src="<?php echo htmlspecialchars($thumbUrl); ?>" alt="<?php echo htmlspecialchars($itemTitle); ?>"><?php endif; ?></button>
                     <div class="mediaGalleryItemActions">
                         <button class="mediaGalleryMoveUp iconButton" type="button" title="Move up" aria-label="Move up"><?php echo lawnding_icon_svg('move_up'); ?></button>
                         <button class="mediaGalleryMoveDown iconButton" type="button" title="Move down" aria-label="Move down"><?php echo lawnding_icon_svg('move_down'); ?></button>

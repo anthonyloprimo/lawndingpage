@@ -109,3 +109,88 @@ test_assert(
     lawnding_image_resize_output_format('thumb.bmp', true) === null,
     'unsupported ext -> null'
 );
+
+// ----- Integration tests (require GD) -----
+// Pin behavior the pure helpers can't reach. The initial engine refactor
+// regressed byte-exact passthrough for under-cap uploads because the
+// extension-comparison check never matched for upload tempfiles; the fix
+// detects source format from the bytes. These tests prevent that regression
+// from drifting back in.
+
+if (test_check_extension('gd')) {
+    $tmpDir = sys_get_temp_dir();
+
+    // (1) Passthrough: under-cap JPEG source -> byte-for-byte to JPEG dest.
+    $smallSrc = $tmpDir . '/lp-test-small-' . uniqid() . '.jpg';
+    $smallDst = $tmpDir . '/lp-test-small-dst-' . uniqid() . '.jpg';
+    $im = imagecreatetruecolor(100, 100);
+    imagefill($im, 0, 0, imagecolorallocate($im, 200, 100, 50));
+    imagejpeg($im, $smallSrc, 85);
+    imagedestroy($im);
+    $smallSrcBytes = file_get_contents($smallSrc);
+
+    test_assert(
+        lawnding_image_resize($smallSrc, $smallDst, 1920, 10000, 'maxbox') === true,
+        'passthrough: maxbox call on under-cap source returns true'
+    );
+    test_assert(
+        file_get_contents($smallDst) === $smallSrcBytes,
+        'passthrough: under-cap source written byte-for-byte (no GD re-encode)'
+    );
+
+    @unlink($smallSrc);
+    @unlink($smallDst);
+
+    // (2) Resize: over-cap source -> bytes differ, output is at cap width.
+    $bigSrc = $tmpDir . '/lp-test-big-' . uniqid() . '.jpg';
+    $bigDst = $tmpDir . '/lp-test-big-dst-' . uniqid() . '.jpg';
+    $im = imagecreatetruecolor(2000, 1500);
+    imagefill($im, 0, 0, imagecolorallocate($im, 50, 100, 200));
+    imagejpeg($im, $bigSrc, 85);
+    imagedestroy($im);
+    $bigSrcBytes = file_get_contents($bigSrc);
+
+    test_assert(
+        lawnding_image_resize($bigSrc, $bigDst, 1920, 10000, 'maxbox') === true,
+        'resize: maxbox call on over-cap source returns true'
+    );
+    $bigDstBytes = file_get_contents($bigDst);
+    test_assert(
+        $bigSrcBytes !== $bigDstBytes,
+        'resize: over-cap source is re-encoded (bytes differ from source)'
+    );
+    $bigDstInfo = getimagesizefromstring($bigDstBytes);
+    test_assert(
+        $bigDstInfo !== false && $bigDstInfo[0] === 1920,
+        'resize: over-cap source is resized to cap width (1920)'
+    );
+
+    @unlink($bigSrc);
+    @unlink($bigDst);
+
+    // (3) Format conversion: src is JPEG, dest is PNG -> re-encode (no passthrough).
+    $jpegSrc = $tmpDir . '/lp-test-jpeg-' . uniqid() . '.jpg';
+    $pngDst  = $tmpDir . '/lp-test-png-dst-' . uniqid() . '.png';
+    $im = imagecreatetruecolor(100, 100);
+    imagefill($im, 0, 0, imagecolorallocate($im, 100, 200, 50));
+    imagejpeg($im, $jpegSrc, 85);
+    imagedestroy($im);
+    $jpegBytes = file_get_contents($jpegSrc);
+
+    test_assert(
+        lawnding_image_resize($jpegSrc, $pngDst, 1920, 10000, 'maxbox') === true,
+        'format conversion: maxbox call returns true even when src/dest formats differ'
+    );
+    $pngDstBytes = file_get_contents($pngDst);
+    test_assert(
+        $jpegBytes !== $pngDstBytes,
+        'format conversion: JPEG src does not pass through into PNG dest'
+    );
+    test_assert(
+        substr($pngDstBytes, 0, 8) === "\x89PNG\r\n\x1a\n",
+        'format conversion: dest file has PNG magic header'
+    );
+
+    @unlink($jpegSrc);
+    @unlink($pngDst);
+}

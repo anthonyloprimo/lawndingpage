@@ -606,17 +606,26 @@ function lawnding_image_resize(string $srcPath, string $destPath, int $width, in
     }
     [$newW, $newH, $cropX, $cropY, $cropW, $cropH] = $dims;
 
-    // Fast path: maxbox passthrough when the source already fits and the dest
-    // format matches the source bytes' implied format. We can't always detect
-    // implied format from raw bytes here, so the conservative check is "no
-    // resize and no crop needed" — re-encode anyway when newW/newH match
-    // source but we need a format conversion.
+    // Fast path: maxbox passthrough when the source already fits and its bytes
+    // are already in the dest format. Detect source format from the bytes
+    // rather than the source path's extension — upload tempfiles
+    // (e.g. /tmp/phpAbCdEf) have no extension, so an extension comparison
+    // never matches and the fast path would never trigger for the most
+    // common caller. Failing to passthrough means re-encoding small uploads
+    // through GD, which subtly changes their bytes; the prior implementation
+    // preserved them exactly.
     $isPassthrough = $mode === 'maxbox' && $newW === $origW && $newH === $origH
         && $cropX === 0 && $cropY === 0 && $cropW === $origW && $cropH === $origH;
     if ($isPassthrough) {
-        $srcExt = strtolower(pathinfo($srcPath, PATHINFO_EXTENSION));
-        $destExt = strtolower(pathinfo($destPath, PATHINFO_EXTENSION));
-        if ($srcExt === $destExt || ($srcExt === 'jpg' && $destExt === 'jpeg') || ($srcExt === 'jpeg' && $destExt === 'jpg')) {
+        $info = @getimagesizefromstring($bytes);
+        $srcFormat = $info && isset($info[2]) ? match ((int) $info[2]) {
+            IMAGETYPE_JPEG => 'jpeg',
+            IMAGETYPE_PNG  => 'png',
+            IMAGETYPE_GIF  => 'gif',
+            IMAGETYPE_WEBP => 'webp',
+            default        => null,
+        } : null;
+        if ($srcFormat !== null && $srcFormat === $format) {
             imagedestroy($src);
             return file_put_contents($destPath, $bytes, LOCK_EX) !== false;
         }

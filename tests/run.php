@@ -137,16 +137,21 @@ sort($testFiles, SORT_NATURAL);
 
 $totalAssertions = 0;
 $totalFailures = 0;
+$totalSkips = 0;
 $passedFiles = 0;
 $failedFiles = 0;
+$skippedFiles = 0;
 
 foreach ($testFiles as $file) {
     $base = basename($file);
     $_tests_assertions = 0;
     $_tests_failures = 0;
+    $_tests_skips = [];
 
     try {
         require $file;
+    } catch (TestSkipException $e) {
+        $_tests_skips[] = $e->getMessage();
     } catch (Throwable $e) {
         $_tests_failures++;
         fwrite(STDERR, "    {$red}ERROR{$reset}: " . $e->getMessage() . "\n");
@@ -155,20 +160,37 @@ foreach ($testFiles as $file) {
 
     $totalAssertions += $_tests_assertions;
     $totalFailures += $_tests_failures;
+    $totalSkips += count($_tests_skips);
+
+    $skipNote = empty($_tests_skips) ? '' : ', ' . count($_tests_skips) . ' SKIPPED';
 
     if ($_tests_failures > 0) {
         $failedFiles++;
-        echo "{$red}FAIL{$reset}  $base  ({$_tests_assertions} assertions, {$_tests_failures} failures)\n";
+        echo "{$red}FAIL{$reset}  $base  ({$_tests_assertions} assertions, {$_tests_failures} failures{$skipNote})\n";
+    } elseif (!empty($_tests_skips) && $_tests_assertions === 0) {
+        // Hard skip: test_require_* aborted before any assertions could run.
+        $skippedFiles++;
+        echo "{$yellow}SKIP{$reset}  $base  (file aborted before any assertions)\n";
     } elseif ($_tests_assertions > 0) {
         $passedFiles++;
-        echo "{$green}PASS{$reset}  $base  ({$_tests_assertions} assertions)\n";
+        $color = empty($_tests_skips) ? $green : $yellow;
+        $label = empty($_tests_skips) ? 'PASS' : 'PASS';
+        echo "{$color}{$label}{$reset}  $base  ({$_tests_assertions} assertions{$skipNote})\n";
     } else {
         $failedFiles++;
         echo "{$yellow}WARN{$reset}  $base  (0 assertions)\n";
     }
+
+    foreach ($_tests_skips as $reason) {
+        echo "      {$yellow}↪ skipped:{$reset} $reason\n";
+    }
 }
 
-if ($totalFailures > 0) {
+// Tests must confirm the environment has all the tools they need. Skips —
+// whether soft (test_check_*) or hard (test_require_*) — mean a tool is
+// missing; the suite fails loudly so the user installs the dep rather than
+// shipping with silent gaps in coverage.
+if ($totalFailures > 0 || $totalSkips > 0) {
     $exitCode = 1;
 }
 
@@ -177,7 +199,16 @@ echo "PHP:     $phpErrors errors\n";
 if ($hasNode) {
     echo "JS:      $jsErrors errors\n";
 }
-echo "Tests:   $passedFiles/" . ($passedFiles + $failedFiles) . " passed\n";
-echo "Asserts: $totalAssertions total, $totalFailures failures\n";
+$totalFiles = $passedFiles + $failedFiles + $skippedFiles;
+echo "Tests:   $passedFiles/$totalFiles passed";
+if ($skippedFiles > 0) {
+    echo " ({$skippedFiles} file" . ($skippedFiles === 1 ? '' : 's') . " fully skipped)";
+}
+echo "\n";
+echo "Asserts: $totalAssertions total, $totalFailures failures";
+if ($totalSkips > 0) {
+    echo ", $totalSkips skip notice" . ($totalSkips === 1 ? '' : 's');
+}
+echo "\n";
 
 exit($exitCode);

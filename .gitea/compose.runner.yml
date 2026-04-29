@@ -1,0 +1,37 @@
+# Gitea Actions runner — executes CI jobs (tests, lint) for this repo.
+#
+# Setup:
+#   1. Get a registration token from Gitea:
+#      Site Administration → Actions → Runners → Create new runner
+#   2. Set GITEA_TOKEN in your environment:
+#      export GITEA_TOKEN="<token from Gitea>"
+#   3. docker compose -f .gitea/compose.runner.yml up -d
+#
+# The runner registers itself on first start and then watches for jobs.
+# Restarting or rebuilding the container reuses the existing registration.
+
+services:
+  runner:
+    image: gitea/act_runner:0.2.10
+    container_name: gitea-runner
+    restart: unless-stopped
+    environment:
+      GITEA_INSTANCE_URL: https://gitea.home.catfeesh.com
+      GITEA_RUNNER_REGISTRATION_TOKEN: ${GITEA_TOKEN}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - runner-data:/data
+    command: >
+      sh -c "
+        if [ ! -f /data/.runner ]; then
+          act_runner register \
+            --instance \"$$GITEA_INSTANCE_URL\" \
+            --token \"$$GITEA_RUNNER_REGISTRATION_TOKEN\" \
+            --name lawnding-runner \
+            --no-interactive
+        fi &&
+        exec act_runner daemon
+      "
+
+volumes:
+  runner-data:

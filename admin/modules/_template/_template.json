@@ -4,6 +4,7 @@
   "version": "0.0.0",
   "description": "Starter template for new modules.",
   "preview": "preview.png",
+  "default_icon": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\"><path d=\"M3,3H21V21H3V3M5,5V19H19V5H5Z\"/></svg>",
   "data_files": [
     { "type": "md", "pattern": "{paneId}.md" }
   ],

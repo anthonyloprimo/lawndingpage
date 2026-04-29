@@ -93,11 +93,22 @@ if ($absOld && is_readable($absOld)) {
     unlink($absOld);
 }
 
+$existingThumbPath = is_array($item) ? (string) ($item['thumb'] ?? '') : '';
+$thumbRelative = $existingThumbPath;
+if (!media_gallery_thumb_is_custom($existingThumbPath)) {
+    $absOldThumb = media_gallery_abs_from_asset($paths['data_dir'], $existingThumbPath);
+    if ($absOldThumb && is_readable($absOldThumb)) {
+        unlink($absOldThumb);
+    }
+    $thumbRelative = media_gallery_derive_thumb($targetPath, $paths['data_dir'], $paneId, $itemId, $isVideo);
+}
+
 $type = $isVideo ? 'video' : 'image';
 $relativePath = 'res/data/mediaGalleryContent-' . $paneId . '/' . $filename;
 
 $items[$index]['file']          = lawnding_normalize_asset_path($relativePath);
 $items[$index]['type']          = $type;
+$items[$index]['thumb']         = $thumbRelative;
 $items[$index]['original_size'] = $originalSize;
 $items[$index]['saved_size']    = $savedSize;
 

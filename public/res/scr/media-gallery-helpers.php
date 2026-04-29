@@ -103,6 +103,10 @@ function media_gallery_media_dir(string $dataDir, string $paneId): string {
     return rtrim($dataDir, '/\\') . '/mediaGalleryContent-' . $paneId;
 }
 
+function media_gallery_thumbs_dir(string $dataDir, string $paneId): string {
+    return media_gallery_media_dir($dataDir, $paneId) . '/thumbs';
+}
+
 function media_gallery_ensure_dir(string $dir): void {
     if (!is_dir($dir)) {
         mkdir($dir, 0775, true);
@@ -195,6 +199,47 @@ function media_gallery_abs_from_asset(string $dataDir, string $path): ?string {
     }
     $relative = substr($normalized, strlen('res/data/'));
     return rtrim($dataDir, '/\\') . '/' . $relative;
+}
+
+// Derive a 1:1 cover-cropped 400x400 thumbnail from a saved source image
+// at $srcAbsPath, writing it to the gallery's thumbs/ subdir as
+// media-{itemId}-thumb.{webp|jpg}. Returns the storage-form relative
+// path on success, '' on any failure (video item, GD missing, resize
+// returned false). Callers write the result to item.thumb; an empty
+// return value lets the renderer's existing fallback chain (item.file
+// when item.thumb is empty) take over.
+function media_gallery_derive_thumb(string $srcAbsPath, string $dataDir, string $paneId, string $itemId, bool $isVideo): string {
+    if ($isVideo) {
+        return '';
+    }
+    if (!function_exists('lawnding_image_resize')) {
+        return '';
+    }
+    $thumbsDir = media_gallery_thumbs_dir($dataDir, $paneId);
+    media_gallery_ensure_dir($thumbsDir);
+    $thumbExt = function_exists('imagewebp') ? 'webp' : 'jpg';
+    $thumbFilename = 'media-' . $itemId . '-thumb.' . $thumbExt;
+    $thumbAbsPath = rtrim($thumbsDir, '/\\') . '/' . $thumbFilename;
+    if (!lawnding_image_resize($srcAbsPath, $thumbAbsPath, 400, 400, 'cover')) {
+        return '';
+    }
+    return lawnding_normalize_asset_path(
+        'res/data/mediaGalleryContent-' . $paneId . '/thumbs/' . $thumbFilename
+    );
+}
+
+// Distinguish admin-uploaded custom thumbnails (thumb-{itemId}.{ext},
+// written by media-gallery-thumb.php) from auto-derived ones
+// (media-{itemId}-thumb.{ext}, written by media_gallery_derive_thumb).
+// Source-replace keeps custom thumbs intact and re-derives the rest.
+// Prefix-based check is fragile to renames; if the naming conventions
+// change in either thumb.php or derive_thumb above, update both at once.
+function media_gallery_thumb_is_custom(string $thumbPath): bool {
+    if ($thumbPath === '') {
+        return false;
+    }
+    $basename = basename($thumbPath);
+    return $basename !== '' && str_starts_with($basename, 'thumb-');
 }
 
 function media_gallery_build_payload(array $items): array {

@@ -85,10 +85,10 @@ if ($mime === '' || strpos($mime, 'image/') !== 0) {
 }
 
 $ext = media_gallery_safe_ext((string) ($upload['name'] ?? ''));
-$mediaDir = media_gallery_media_dir($paths['data_dir'], $paneId);
-media_gallery_ensure_dir($mediaDir);
+$thumbsDir = media_gallery_thumbs_dir($paths['data_dir'], $paneId);
+media_gallery_ensure_dir($thumbsDir);
 $filename = 'thumb-' . $itemId . '.' . $ext;
-$targetPath = rtrim($mediaDir, '/\\') . '/' . $filename;
+$targetPath = rtrim($thumbsDir, '/\\') . '/' . $filename;
 
 if (!move_uploaded_file($upload['tmp_name'], $targetPath)) {
     media_gallery_json_response(['error' => 'Upload failed. Please try again.'], 400);
@@ -98,7 +98,7 @@ if ($absOldThumb && is_readable($absOldThumb)) {
     unlink($absOldThumb);
 }
 
-$relativePath = 'res/data/mediaGalleryContent-' . $paneId . '/' . $filename;
+$relativePath = 'res/data/mediaGalleryContent-' . $paneId . '/thumbs/' . $filename;
 $items[$index]['thumb'] = lawnding_normalize_asset_path($relativePath);
 
 $items = media_gallery_reindex_orders($items);

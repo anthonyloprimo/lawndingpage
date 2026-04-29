@@ -86,6 +86,8 @@ if (!$resized && !move_uploaded_file($upload['tmp_name'], $targetPath)) {
 }
 $savedSize = is_file($targetPath) ? (int) filesize($targetPath) : $originalSize;
 
+$thumbRelative = media_gallery_derive_thumb($targetPath, $paths['data_dir'], $paneId, $newId, $isVideo);
+
 $type = $isVideo ? 'video' : 'image';
 $relativePath = 'res/data/mediaGalleryContent-' . $paneId . '/' . $filename;
 
@@ -103,7 +105,7 @@ $items[] = [
     'id'            => $newId,
     'type'          => $type,
     'file'          => lawnding_normalize_asset_path($relativePath),
-    'thumb'         => '',
+    'thumb'         => $thumbRelative,
     'title'         => '',
     'order'         => $maxOrder + 1,
     'original_size' => $originalSize,

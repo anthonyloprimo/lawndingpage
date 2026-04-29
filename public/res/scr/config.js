@@ -6,13 +6,6 @@ $(document).ready(function() {
     let pendingLogoFile = null;
     let gdNoticeShown = false;
 
-    function formatBytes(bytes) {
-        if (!bytes || bytes <= 0) { return '0 B'; }
-        const units = ['B', 'KB', 'MB', 'GB'];
-        const i = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
-        const val = bytes / Math.pow(1024, i);
-        return (i === 0 ? val : val.toFixed(1)) + ' ' + units[i];
-    }
     let linkCounter = $('#linksConfig .linksConfigCard').length;
     let authLinkCounter = $('#authLinksConfig .authLinksConfigCard').length;
     let initialSnapshot = null;
@@ -613,9 +606,7 @@ $(document).ready(function() {
 
         if ($testBot.length) {
             $testBot.on('click', function() {
-                const basePath = window.appConfig && typeof window.appConfig.basePath === 'string'
-                    ? window.appConfig.basePath.replace(/\/$/, '')
-                    : '';
+                const basePath = lpGetBasePath();
                 const url = basePath ? `${basePath}/plugins/telegram/test.php` : '/plugins/telegram/test.php';
                 const csrfToken = (window.appConfig && window.appConfig.csrfToken) || '';
                 const body = new URLSearchParams();
@@ -636,9 +627,7 @@ $(document).ready(function() {
 
         if ($validateGroups.length) {
             $validateGroups.on('click', function() {
-                const basePath = window.appConfig && typeof window.appConfig.basePath === 'string'
-                    ? window.appConfig.basePath.replace(/\/$/, '')
-                    : '';
+                const basePath = lpGetBasePath();
                 const url = basePath ? `${basePath}/plugins/telegram/validate-groups.php` : '/plugins/telegram/validate-groups.php';
                 const groupIds = readTgGroupRows().map((entry) => entry.id);
                 if (!groupIds.length) {
@@ -1059,9 +1048,7 @@ $(document).ready(function() {
 
     // Save handler: gather data and POST to save endpoint.
     function bindSaveHandler() {
-        const basePath = window.appConfig && typeof window.appConfig.basePath === 'string'
-            ? window.appConfig.basePath.replace(/\/$/, '')
-            : '';
+        const basePath = lpGetBasePath();
         const saveUrl = basePath ? `${basePath}/res/scr/save-config.php` : '/res/scr/save-config.php';
 
         $('.saveChanges').on('click', function() {
@@ -1732,9 +1719,7 @@ $(document).ready(function() {
     }
 
     function buildUrl(fileName) {
-        const basePath = window.appConfig && typeof window.appConfig.basePath === 'string'
-            ? window.appConfig.basePath.replace(/\/$/, '')
-            : '';
+        const basePath = lpGetBasePath();
         return basePath ? `${basePath}/res/scr/${fileName}` : `/res/scr/${fileName}`;
     }
 
@@ -1779,16 +1764,16 @@ $(document).ready(function() {
             const originalSize = bg && parseInt(bg.original_size, 10) > 0 ? parseInt(bg.original_size, 10) : 0;
             const savedSize = bg && parseInt(bg.saved_size, 10) > 0 ? parseInt(bg.saved_size, 10) : 0;
             const sizeAttr = originalSize > 0
-                ? ` data-size-info="Original: ${formatBytes(originalSize)}\nResized:  ${formatBytes(savedSize)}"`
+                ? ` data-size-info="Original: ${lpFormatBytes(originalSize)}\nResized:  ${lpFormatBytes(savedSize)}"`
                 : '';
             const isEmpty = !displayUrl;
             const row = `
-                <div class="bgConfigRow" data-current-url="${escapeHtml(url)}" data-author-url="${escapeHtml(authorUrl)}" data-index="${index}">
+                <div class="bgConfigRow" data-current-url="${lpEscapeHtml(url)}" data-author-url="${lpEscapeHtml(authorUrl)}" data-index="${index}">
                     <div class="bgThumbWrap ${isEmpty ? 'empty' : ''}"${sizeAttr}>
-                        <img class="bgThumb" src="${escapeHtml(displayUrl)}" alt="Background preview">
+                        <img class="bgThumb" src="${lpEscapeHtml(displayUrl)}" alt="Background preview">
                     </div>
-                    <input class="bgAuthorInput" type="text" name="bgAuthor[]" value="${escapeHtml(author)}" placeholder="Author">
-                    <input class="bgAuthorUrlInput" type="text" name="bgAuthorUrl[]" value="${escapeHtml(authorUrl)}" placeholder="URL">
+                    <input class="bgAuthorInput" type="text" name="bgAuthor[]" value="${lpEscapeHtml(author)}" placeholder="Author">
+                    <input class="bgAuthorUrlInput" type="text" name="bgAuthorUrl[]" value="${lpEscapeHtml(authorUrl)}" placeholder="URL">
                     <div class="bgRowActions">
                         <button class="moveUpLink iconButton" type="button" title="Move background up" aria-label="Move background up">${moveUpIcon}</button>
                         <button class="moveDownLink iconButton" type="button" title="Move background down" aria-label="Move background down">${moveDownIcon}</button>
@@ -2183,9 +2168,7 @@ $(document).ready(function() {
                 return icon.value;
             }
             if (icon.type === 'file' && icon.value) {
-                const basePath = window.appConfig && typeof window.appConfig.basePath === 'string'
-                    ? window.appConfig.basePath.replace(/\/$/, '')
-                    : '';
+                const basePath = lpGetBasePath();
                 const src = basePath ? `${basePath}/res/img/panes/${icon.value}` : `/res/img/panes/${icon.value}`;
                 return `<img src="${src}" alt="">`;
             }
@@ -2370,9 +2353,7 @@ $(document).ready(function() {
                     formData.append(`paneIconFile_${pane.id}`, pane.iconFile);
                 }
             });
-            const basePath = window.appConfig && typeof window.appConfig.basePath === 'string'
-                ? window.appConfig.basePath.replace(/\/$/, '')
-                : '';
+            const basePath = lpGetBasePath();
             const saveUrl = basePath ? `${basePath}/res/scr/save-config.php` : '/res/scr/save-config.php';
 
             showSavingOverlay();
@@ -2677,9 +2658,7 @@ $(document).ready(function() {
 
         // Request a migration preview from save-config.php.
         function fetchPreview() {
-            const basePath = window.appConfig && typeof window.appConfig.basePath === 'string'
-                ? window.appConfig.basePath.replace(/\/$/, '')
-                : '';
+            const basePath = lpGetBasePath();
             const saveUrl = basePath ? `${basePath}/res/scr/save-config.php` : '/res/scr/save-config.php';
             const formData = new FormData();
             formData.append('action', 'migration_preview');
@@ -2731,9 +2710,7 @@ $(document).ready(function() {
                 addAdminNotice('danger', 'Migration preview not available.');
                 return;
             }
-            const basePath = window.appConfig && typeof window.appConfig.basePath === 'string'
-                ? window.appConfig.basePath.replace(/\/$/, '')
-                : '';
+            const basePath = lpGetBasePath();
             const saveUrl = basePath ? `${basePath}/res/scr/save-config.php` : '/res/scr/save-config.php';
             const formData = new FormData();
             formData.append('action', 'migration_apply');
@@ -2941,7 +2918,7 @@ $(document).ready(function() {
         requestMarkdownPreview(markdown, clearance, function(html) {
             $preview.html(html).removeAttr('hidden');
         }, function(message) {
-            $preview.html(`<p>${escapeHtml(message || 'Preview failed.')}</p>`).removeAttr('hidden');
+            $preview.html(`<p>${lpEscapeHtml(message || 'Preview failed.')}</p>`).removeAttr('hidden');
         });
     }
 
@@ -3059,9 +3036,7 @@ $(document).ready(function() {
     }
 
     function requestMarkdownPreview(markdown, clearance, onSuccess, onError) {
-        const basePath = window.appConfig && typeof window.appConfig.basePath === 'string'
-            ? window.appConfig.basePath.replace(/\/$/, '')
-            : '';
+        const basePath = lpGetBasePath();
         const previewUrl = basePath ? `${basePath}/res/scr/markdown-preview.php` : '/res/scr/markdown-preview.php';
         const formData = new FormData();
         formData.append('markdown', markdown);
@@ -3498,15 +3473,6 @@ $(document).ready(function() {
         }
 
         $targets.prop('disabled', true);
-    }
-
-    function escapeHtml(value) {
-        return String(value)
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;')
-            .replace(/'/g, '&#39;');
     }
 
     function showSavingOverlay() {

@@ -32,18 +32,6 @@
         }
     }
 
-    function escapeHtml(value) {
-        if (value === null || value === undefined) {
-            return '';
-        }
-        return String(value)
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;')
-            .replace(/'/g, '&#039;');
-    }
-
     function summaryLine(entry) {
         var raw = entry.msg || entry.event || '';
         if (typeof raw !== 'string') {
@@ -64,7 +52,7 @@
     }
 
     function renderEmpty(message) {
-        viewer.innerHTML = '<p class="diagnosticsEmpty">' + escapeHtml(message || 'No entries to show.') + '</p>';
+        viewer.innerHTML = '<p class="diagnosticsEmpty">' + lpEscapeHtml(message || 'No entries to show.') + '</p>';
     }
 
     // Read the four filter checkboxes' state. Severities not represented by a
@@ -151,17 +139,17 @@
 
             html += '<li class="diagnosticsRow ' + severityClass(sev) + '">';
             html += '<button type="button" class="diagnosticsRowSummary" aria-expanded="false">';
-            html += '<span class="diagnosticsRowTs">' + escapeHtml(ts) + '</span>';
-            html += '<span class="diagnosticsRowSev">' + escapeHtml(sev) + '</span>';
-            html += '<span class="diagnosticsRowSrc">' + escapeHtml(src) + '</span>';
-            html += '<span class="diagnosticsRowMsg">' + escapeHtml(summary) + '</span>';
+            html += '<span class="diagnosticsRowTs">' + lpEscapeHtml(ts) + '</span>';
+            html += '<span class="diagnosticsRowSev">' + lpEscapeHtml(sev) + '</span>';
+            html += '<span class="diagnosticsRowSrc">' + lpEscapeHtml(src) + '</span>';
+            html += '<span class="diagnosticsRowMsg">' + lpEscapeHtml(summary) + '</span>';
             html += '</button>';
             html += '<div class="diagnosticsRowDetail" hidden>';
             if (fullMsg) {
-                html += '<pre class="diagnosticsRowMessage">' + escapeHtml(fullMsg) + '</pre>';
+                html += '<pre class="diagnosticsRowMessage">' + lpEscapeHtml(fullMsg) + '</pre>';
             }
             for (var j = 0; j < detailParts.length; j++) {
-                html += '<div class="diagnosticsRowField">' + escapeHtml(detailParts[j]) + '</div>';
+                html += '<div class="diagnosticsRowField">' + lpEscapeHtml(detailParts[j]) + '</div>';
             }
             html += '</div>';
             html += '</li>';

@@ -1,6 +1,11 @@
 ### Changelog
 
 
+#### v1.12.8
+- Media galleries now accept image uploads only. Video uploads will return as an admin-controllable feature in a future release.
+
+-----
+
 #### v1.12.7
 - Added a "Skip to main content" link that appears at the top of every page when you press Tab. Lets keyboard users jump past the header and navigation in one keystroke.
 - The admin panel browser tab now shows a proper page title with your site name (was previously blank).

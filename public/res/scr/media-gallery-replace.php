@@ -42,8 +42,11 @@ if ($finfo) {
     finfo_close($finfo);
 }
 $mime = is_string($mime) ? $mime : '';
-if ($mime === '' || (strpos($mime, 'image/') !== 0 && strpos($mime, 'video/') !== 0)) {
-    media_gallery_json_response(['error' => 'Invalid media upload.'], 400);
+if ($mime === '' || strpos($mime, 'image/') !== 0) {
+    $errorMsg = strpos($mime, 'video/') === 0
+        ? 'Video uploads are not enabled. Galleries currently accept images only.'
+        : 'Invalid media upload.';
+    media_gallery_json_response(['error' => $errorMsg], 400);
 }
 
 $paths = media_gallery_paths();

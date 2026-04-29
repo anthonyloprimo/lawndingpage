@@ -201,14 +201,99 @@ function media_gallery_abs_from_asset(string $dataDir, string $path): ?string {
     return rtrim($dataDir, '/\\') . '/' . $relative;
 }
 
-// Derive a 1:1 cover-cropped 400x400 thumbnail from a saved source image
-// at $srcAbsPath, writing it to the gallery's thumbs/ subdir as
+// Pure math: compute a cover-style crop window anchored on a focal
+// point. Returns [cropX, cropY, cropW, cropH] in source coords. Focal
+// coords are normalized 0.0-1.0 and clamp to that range. The crop
+// window is also clamped to the source bounds so a focal point near an
+// edge doesn't slide the window off the image.
+//
+// Pairs with media_gallery_focal_crop_to_temp(); split for unit
+// testability without GD.
+function media_gallery_focal_crop_window(int $srcW, int $srcH, int $targetW, int $targetH, float $focalX, float $focalY): array {
+    if ($srcW <= 0 || $srcH <= 0 || $targetW <= 0 || $targetH <= 0) {
+        return [0, 0, max(1, $srcW), max(1, $srcH)];
+    }
+    $ratio = max($targetW / $srcW, $targetH / $srcH);
+    $cropW = $targetW / $ratio;
+    $cropH = $targetH / $ratio;
+    $focalX = max(0.0, min(1.0, $focalX));
+    $focalY = max(0.0, min(1.0, $focalY));
+    $cropOffsetX = max(0.0, min((float) $srcW - $cropW, $srcW * $focalX - $cropW / 2));
+    $cropOffsetY = max(0.0, min((float) $srcH - $cropH, $srcH * $focalY - $cropH / 2));
+    return [
+        (int) round($cropOffsetX),
+        (int) round($cropOffsetY),
+        (int) round($cropW),
+        (int) round($cropH),
+    ];
+}
+
+// GD: crop $srcAbsPath to a focal-aware window and write a lossless PNG
+// to a tempfile. Returns the temp path on success, null on failure
+// (GD missing, decode failed, crop failed, write failed). Caller is
+// responsible for unlinking the temp file after use.
+//
+// The intermediate is PNG so the bytes pass through losslessly; the
+// final thumb format (webp/jpg) is selected by the caller's subsequent
+// lawnding_image_resize() call.
+function media_gallery_focal_crop_to_temp(string $srcAbsPath, int $targetW, int $targetH, float $focalX, float $focalY): ?string {
+    if (!extension_loaded('gd')) {
+        return null;
+    }
+    $info = @getimagesize($srcAbsPath);
+    if (!is_array($info) || ($info[0] ?? 0) <= 0 || ($info[1] ?? 0) <= 0) {
+        return null;
+    }
+    [$srcW, $srcH] = $info;
+    [$cropX, $cropY, $cropW, $cropH] = media_gallery_focal_crop_window($srcW, $srcH, $targetW, $targetH, $focalX, $focalY);
+
+    $bytes = @file_get_contents($srcAbsPath);
+    if ($bytes === false) {
+        return null;
+    }
+    $src = @imagecreatefromstring($bytes);
+    if (!$src) {
+        return null;
+    }
+
+    $cropped = @imagecrop($src, ['x' => $cropX, 'y' => $cropY, 'width' => $cropW, 'height' => $cropH]);
+    imagedestroy($src);
+    if (!$cropped) {
+        return null;
+    }
+
+    $tempPath = tempnam(sys_get_temp_dir(), 'lp-focal-crop-');
+    if ($tempPath === false) {
+        imagedestroy($cropped);
+        return null;
+    }
+    // tempnam created a file with no extension; rename to .png so the
+    // engine's format detector picks PNG output for the intermediate.
+    $tempPngPath = $tempPath . '.png';
+    @rename($tempPath, $tempPngPath);
+    $ok = imagepng($cropped, $tempPngPath);
+    imagedestroy($cropped);
+    if (!$ok) {
+        @unlink($tempPngPath);
+        return null;
+    }
+    return $tempPngPath;
+}
+
+// Derive a 1:1 400x400 thumbnail from a saved source image at
+// $srcAbsPath, writing it to the gallery's thumbs/ subdir as
 // media-{itemId}-thumb.{webp|jpg}. Returns the storage-form relative
 // path on success, '' on any failure (video item, GD missing, resize
 // returned false). Callers write the result to item.thumb; an empty
 // return value lets the renderer's existing fallback chain (item.file
 // when item.thumb is empty) take over.
-function media_gallery_derive_thumb(string $srcAbsPath, string $dataDir, string $paneId, string $itemId, bool $isVideo): string {
+//
+// When focal coords are non-null, gallery does its own GD-side crop
+// to a focal-aware window first (via focal_crop_to_temp), then hands
+// the cropped intermediate to lawnding_image_resize for the final
+// resize/encode. Without focal coords, the engine's centered cover
+// mode is used directly. Engine stays feature-blind.
+function media_gallery_derive_thumb(string $srcAbsPath, string $dataDir, string $paneId, string $itemId, bool $isVideo, ?float $focalX = null, ?float $focalY = null): string {
     if ($isVideo) {
         return '';
     }
@@ -220,12 +305,24 @@ function media_gallery_derive_thumb(string $srcAbsPath, string $dataDir, string 
     $thumbExt = function_exists('imagewebp') ? 'webp' : 'jpg';
     $thumbFilename = 'media-' . $itemId . '-thumb.' . $thumbExt;
     $thumbAbsPath = rtrim($thumbsDir, '/\\') . '/' . $thumbFilename;
+    $thumbRelative = lawnding_normalize_asset_path(
+        'res/data/mediaGalleryContent-' . $paneId . '/thumbs/' . $thumbFilename
+    );
+
+    if ($focalX !== null && $focalY !== null) {
+        $tempPath = media_gallery_focal_crop_to_temp($srcAbsPath, 400, 400, $focalX, $focalY);
+        if ($tempPath === null) {
+            return '';
+        }
+        $resized = lawnding_image_resize($tempPath, $thumbAbsPath, 400, 400, 'maxbox');
+        @unlink($tempPath);
+        return $resized ? $thumbRelative : '';
+    }
+
     if (!lawnding_image_resize($srcAbsPath, $thumbAbsPath, 400, 400, 'cover')) {
         return '';
     }
-    return lawnding_normalize_asset_path(
-        'res/data/mediaGalleryContent-' . $paneId . '/thumbs/' . $thumbFilename
-    );
+    return $thumbRelative;
 }
 
 // Distinguish admin-uploaded custom thumbnails (thumb-{itemId}.{ext},

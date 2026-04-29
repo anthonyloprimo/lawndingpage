@@ -510,12 +510,83 @@ function lawnding_footer_platform_html(): string {
         . ' <a href="#" data-changelog-trigger>[CHANGELOG]</a>';
 }
 
-// Resize an uploaded image using GD if the image exceeds the given dimensions.
-// Returns true when the image was written to $destPath (resized or already within
-// limits). Returns false if GD is unavailable or the operation failed — callers
-// must fall back to move_uploaded_file() so the upload always succeeds.
-function lawnding_gd_resize_image(string $srcPath, string $destPath, int $maxW, int $maxH): bool {
+// Compute resize/crop dimensions for an image.
+// Returns [newW, newH, cropX, cropY, cropW, cropH] where the crop fields describe
+// the source-coords region to read FROM (used by GD's imagecopyresampled), and
+// newW/newH describe the output dimensions. Returns null for invalid inputs or
+// unrecognized modes — callers must treat null as a failure.
+//
+// Modes:
+//   maxbox  — fit inside box; never upscale; never crop. Pass-through when
+//             source already fits.
+//   contain — fit inside box; letterbox the orthogonal axis. Upscales if needed
+//             so output is exactly target dims (caveat: nothing in this codebase
+//             currently feeds it sources smaller than the target).
+//   cover   — fill box exactly; center-crop the overflow axis. Output is always
+//             exactly target dims.
+function lawnding_image_resize_dimensions(int $srcW, int $srcH, int $targetW, int $targetH, string $mode): ?array {
+    if ($srcW <= 0 || $srcH <= 0 || $targetW <= 0 || $targetH <= 0) {
+        return null;
+    }
+    if ($mode === 'maxbox') {
+        if ($srcW <= $targetW && $srcH <= $targetH) {
+            return [$srcW, $srcH, 0, 0, $srcW, $srcH];
+        }
+        $ratio = min($targetW / $srcW, $targetH / $srcH);
+        return [(int) round($srcW * $ratio), (int) round($srcH * $ratio), 0, 0, $srcW, $srcH];
+    }
+    if ($mode === 'contain') {
+        $ratio = min($targetW / $srcW, $targetH / $srcH);
+        return [(int) round($srcW * $ratio), (int) round($srcH * $ratio), 0, 0, $srcW, $srcH];
+    }
+    if ($mode === 'cover') {
+        $ratio = max($targetW / $srcW, $targetH / $srcH);
+        $cropW = $targetW / $ratio;
+        $cropH = $targetH / $ratio;
+        return [
+            $targetW,
+            $targetH,
+            (int) round(($srcW - $cropW) / 2),
+            (int) round(($srcH - $cropH) / 2),
+            (int) round($cropW),
+            (int) round($cropH),
+        ];
+    }
+    return null;
+}
+
+// Pick the GD output format matching the destination file's extension.
+// Returns the format token ('jpeg'|'png'|'gif'|'webp') or null if the requested
+// format is unavailable in the current GD build (only 'webp' has a soft dep —
+// .webp dest with $gdHasWebp=false returns null so the caller can fall back to
+// a different extension).
+function lawnding_image_resize_output_format(string $destPath, bool $gdHasWebp): ?string {
+    $ext = strtolower(pathinfo($destPath, PATHINFO_EXTENSION));
+    if ($ext === 'webp') {
+        return $gdHasWebp ? 'webp' : null;
+    }
+    return match ($ext) {
+        'jpg', 'jpeg' => 'jpeg',
+        'png'         => 'png',
+        'gif'         => 'gif',
+        default       => null,
+    };
+}
+
+// Resize (and optionally crop) an image using GD. Replaces the legacy
+// lawnding_gd_resize_image() with explicit fit modes.
+//
+// Returns true when the image was written to $destPath. Returns false if GD is
+// unavailable, the source can't be decoded, the dest extension's format is
+// unsupported by the current GD build, or the file write failed — callers
+// (e.g. lawnding_validate_and_save_image) must fall back to move_uploaded_file
+// so the upload always succeeds.
+function lawnding_image_resize(string $srcPath, string $destPath, int $width, int $height, string $mode = 'maxbox'): bool {
     if (!extension_loaded('gd')) {
+        return false;
+    }
+    $format = lawnding_image_resize_output_format($destPath, function_exists('imagewebp'));
+    if ($format === null) {
         return false;
     }
     $bytes = file_get_contents($srcPath);
@@ -528,27 +599,54 @@ function lawnding_gd_resize_image(string $srcPath, string $destPath, int $maxW, 
     }
     $origW = imagesx($src);
     $origH = imagesy($src);
-    if ($origW <= $maxW && $origH <= $maxH) {
-        // Already within limits — write as-is so the caller doesn't need move_uploaded_file.
+    $dims = lawnding_image_resize_dimensions($origW, $origH, $width, $height, $mode);
+    if ($dims === null) {
         imagedestroy($src);
-        return file_put_contents($destPath, $bytes, LOCK_EX) !== false;
-    }
-    $ratio = min($maxW / $origW, $maxH / $origH);
-    $newW  = (int) round($origW * $ratio);
-    $newH  = (int) round($origH * $ratio);
-    $dst = imagescale($src, $newW, $newH, IMG_BICUBIC);
-    imagedestroy($src);
-    if (!$dst) {
         return false;
     }
-    $ext = strtolower(pathinfo($destPath, PATHINFO_EXTENSION));
+    [$newW, $newH, $cropX, $cropY, $cropW, $cropH] = $dims;
+
+    // Fast path: maxbox passthrough when the source already fits and the dest
+    // format matches the source bytes' implied format. We can't always detect
+    // implied format from raw bytes here, so the conservative check is "no
+    // resize and no crop needed" — re-encode anyway when newW/newH match
+    // source but we need a format conversion.
+    $isPassthrough = $mode === 'maxbox' && $newW === $origW && $newH === $origH
+        && $cropX === 0 && $cropY === 0 && $cropW === $origW && $cropH === $origH;
+    if ($isPassthrough) {
+        $srcExt = strtolower(pathinfo($srcPath, PATHINFO_EXTENSION));
+        $destExt = strtolower(pathinfo($destPath, PATHINFO_EXTENSION));
+        if ($srcExt === $destExt || ($srcExt === 'jpg' && $destExt === 'jpeg') || ($srcExt === 'jpeg' && $destExt === 'jpg')) {
+            imagedestroy($src);
+            return file_put_contents($destPath, $bytes, LOCK_EX) !== false;
+        }
+    }
+
+    $dst = imagecreatetruecolor($newW, $newH);
+    if (!$dst) {
+        imagedestroy($src);
+        return false;
+    }
+    // Preserve transparency for PNG/GIF dest.
+    if ($format === 'png' || $format === 'gif') {
+        imagealphablending($dst, false);
+        imagesavealpha($dst, true);
+        $transparent = imagecolorallocatealpha($dst, 0, 0, 0, 127);
+        imagefilledrectangle($dst, 0, 0, $newW, $newH, $transparent);
+    }
+    $copied = imagecopyresampled($dst, $src, 0, 0, $cropX, $cropY, $newW, $newH, $cropW, $cropH);
+    imagedestroy($src);
+    if (!$copied) {
+        imagedestroy($dst);
+        return false;
+    }
+
     ob_start();
-    $ok = match ($ext) {
-        'jpg', 'jpeg' => imagejpeg($dst, null, 85),
-        'webp'        => imagewebp($dst, null, 85),
-        'png'         => imagepng($dst),
-        'gif'         => imagegif($dst),
-        default       => false,
+    $ok = match ($format) {
+        'jpeg' => imagejpeg($dst, null, 85),
+        'webp' => imagewebp($dst, null, 85),
+        'png'  => imagepng($dst),
+        'gif'  => imagegif($dst),
     };
     $out = ob_get_clean();
     imagedestroy($dst);
@@ -601,8 +699,8 @@ function lawnding_validate_and_save_image(
         $safeName = preg_replace('/[^a-zA-Z0-9._-]/', '_', pathinfo($file['name'], PATHINFO_FILENAME)) . '.' . $ext;
     }
     $targetPath = rtrim($destDir, '/\\') . '/' . $safeName;
-    $resized = function_exists('lawnding_gd_resize_image')
-        && lawnding_gd_resize_image($file['tmp_name'], $targetPath, $maxW, $maxH);
+    $resized = function_exists('lawnding_image_resize')
+        && lawnding_image_resize($file['tmp_name'], $targetPath, $maxW, $maxH, 'maxbox');
     if (!$resized && !move_uploaded_file($file['tmp_name'], $targetPath)) {
         return ['ok' => false, 'error' => 'Failed to save uploaded file.'];
     }

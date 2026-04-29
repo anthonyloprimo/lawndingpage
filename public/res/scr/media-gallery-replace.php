@@ -82,8 +82,8 @@ $targetPath = rtrim($mediaDir, '/\\') . '/' . $filename;
 $originalSize = (int) ($upload['size'] ?? 0);
 $isVideo = strpos($mime, 'video/') === 0;
 $resized = !$isVideo
-    && function_exists('lawnding_gd_resize_image')
-    && lawnding_gd_resize_image($upload['tmp_name'], $targetPath, 1920, 10000);
+    && function_exists('lawnding_image_resize')
+    && lawnding_image_resize($upload['tmp_name'], $targetPath, 1920, 10000, 'maxbox');
 if (!$resized && !move_uploaded_file($upload['tmp_name'], $targetPath)) {
     media_gallery_json_response(['error' => 'Upload failed. Please try again.'], 400);
 }

@@ -194,7 +194,7 @@ $useSiteDefaults = !isset($paneSettings['useSiteDefaults']) || $paneSettings['us
                             <dt>Uploaded by</dt><dd class="mediaGalleryInfoUploadedBy">—</dd>
                             <dt class="mediaGalleryInfoCaptionLabel">Caption</dt>
                         </dl>
-                        <textarea class="mediaGalleryCaptionInput" rows="3" placeholder="Optional caption"></textarea>
+                        <textarea class="mediaGalleryCaptionInput" rows="2" placeholder="Optional caption"></textarea>
                     </div>
                     <div class="mediaGalleryActionRow mediaGalleryModalFooterActions">
                         <button class="mediaGalleryFocalSave usersButton" type="button" disabled>Save</button>

@@ -59,8 +59,11 @@ foreach ($items as $item) {
     }
     $file = isset($item['file']) ? (string) $item['file'] : '';
     $thumb = isset($item['thumb']) ? (string) $item['thumb'] : '';
-    $item['file'] = function_exists('lawnding_asset_url') ? lawnding_asset_url($file) : $file;
-    $item['thumb'] = function_exists('lawnding_asset_url') ? lawnding_asset_url($thumb) : $thumb;
+    // Versioned URLs append ?v=<filemtime> when the file is local under
+    // public/res/ -- so freshly regenerated thumbs render the new bytes
+    // on next page load instead of a stale cached copy.
+    $item['file'] = function_exists('lawnding_versioned_local_asset_url') ? lawnding_versioned_local_asset_url($file) : $file;
+    $item['thumb'] = function_exists('lawnding_versioned_local_asset_url') ? lawnding_versioned_local_asset_url($thumb) : $thumb;
     $itemsForJson[] = $item;
 }
 
@@ -81,13 +84,13 @@ if ($itemsJson === false) {
                 $itemFile = isset($item['file']) ? (string) $item['file'] : '';
                 $itemThumb = isset($item['thumb']) ? (string) $item['thumb'] : '';
                 $itemTitle = isset($item['title']) ? (string) $item['title'] : '';
-                $itemFileUrl = function_exists('lawnding_asset_url') ? lawnding_asset_url($itemFile) : $itemFile;
+                $itemFileUrl = function_exists('lawnding_versioned_local_asset_url') ? lawnding_versioned_local_asset_url($itemFile) : $itemFile;
                 $thumbPath = $itemThumb !== '' ? $itemThumb : ($itemType === 'image' ? $itemFile : '');
-                $thumbUrl = $thumbPath !== '' && function_exists('lawnding_asset_url') ? lawnding_asset_url($thumbPath) : $thumbPath;
+                $thumbUrl = $thumbPath !== '' && function_exists('lawnding_versioned_local_asset_url') ? lawnding_versioned_local_asset_url($thumbPath) : $thumbPath;
             ?>
             <a class="mediaGalleryPublicItem<?php echo $itemType === 'video' ? ' isVideo' : ''; ?>" href="<?php echo htmlspecialchars($itemFileUrl); ?>" data-media-id="<?php echo htmlspecialchars($itemId); ?>" data-media-type="<?php echo htmlspecialchars($itemType); ?>" data-media-file="<?php echo htmlspecialchars($itemFileUrl); ?>" data-media-thumb="<?php echo htmlspecialchars($itemThumb); ?>" data-media-title="<?php echo htmlspecialchars($itemTitle); ?>">
                 <?php if ($thumbUrl !== ''): ?>
-                    <img class="mediaGalleryPublicThumb" src="<?php echo htmlspecialchars($thumbUrl); ?>" alt="">
+                    <img class="mediaGalleryPublicThumb" src="<?php echo htmlspecialchars($thumbUrl); ?>" alt="<?php echo htmlspecialchars($itemTitle); ?>" loading="lazy" decoding="async">
                 <?php endif; ?>
                 <span class="mediaGalleryPublicLabel" aria-hidden="true"></span>
             </a>
@@ -103,7 +106,7 @@ if ($itemsJson === false) {
             <button class="mediaGalleryLightboxNav mediaGalleryLightboxPrev" type="button" aria-label="Previous">‹</button>
             <button class="mediaGalleryLightboxNav mediaGalleryLightboxNext" type="button" aria-label="Next">›</button>
             <div class="mediaGalleryLightboxMedia">
-                <img class="mediaGalleryLightboxImage" alt="">
+                <img class="mediaGalleryLightboxImage" alt="" decoding="async">
                 <video class="mediaGalleryLightboxVideo" controls playsinline></video>
             </div>
             <div class="mediaGalleryLightboxCaption"></div>

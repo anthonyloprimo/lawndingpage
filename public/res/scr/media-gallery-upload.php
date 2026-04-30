@@ -1,6 +1,6 @@
 <?php
 require_once __DIR__ . '/../../../lp-bootstrap.php';
-require_once __DIR__ . '/media-gallery-helpers.php';
+require_once lawnding_admin_path('modules/mediaGallery/helpers.php');
 lawnding_init_session();
 
 media_gallery_require_method('POST');
@@ -11,7 +11,7 @@ if ($postMaxBytes > 0 && $contentLength > $postMaxBytes) {
     media_gallery_json_response(['error' => 'Payload too large. Please reduce image sizes and try again.'], 413);
 }
 
-media_gallery_require_edit_site();
+$identity = media_gallery_require_edit_site();
 
 $paneId = $_POST['paneId'] ?? '';
 if (!is_string($paneId) || $paneId === '' || !media_gallery_is_valid_pane_id($paneId)) {
@@ -86,6 +86,22 @@ if (!$resized && !move_uploaded_file($upload['tmp_name'], $targetPath)) {
 }
 $savedSize = is_file($targetPath) ? (int) filesize($targetPath) : $originalSize;
 
+// Optional focal coords from the client (set by smartcrop.js auto-
+// fallback before upload). Numeric values clamp to [0, 1]; absent /
+// empty / non-numeric inputs leave focal as null and derive_thumb
+// falls back to centered crop.
+$focalXRaw = $_POST['focal_x'] ?? null;
+$focalYRaw = $_POST['focal_y'] ?? null;
+$focalX = null;
+$focalY = null;
+if ($focalXRaw !== null && $focalXRaw !== '' && $focalYRaw !== null && $focalYRaw !== ''
+    && is_numeric($focalXRaw) && is_numeric($focalYRaw)) {
+    $focalX = max(0.0, min(1.0, (float) $focalXRaw));
+    $focalY = max(0.0, min(1.0, (float) $focalYRaw));
+}
+
+$thumbRelative = media_gallery_derive_thumb($targetPath, $paths['data_dir'], $paneId, $newId, $isVideo, $focalX, $focalY);
+
 $type = $isVideo ? 'video' : 'image';
 $relativePath = 'res/data/mediaGalleryContent-' . $paneId . '/' . $filename;
 
@@ -103,11 +119,15 @@ $items[] = [
     'id'            => $newId,
     'type'          => $type,
     'file'          => lawnding_normalize_asset_path($relativePath),
-    'thumb'         => '',
+    'thumb'         => $thumbRelative,
     'title'         => '',
     'order'         => $maxOrder + 1,
     'original_size' => $originalSize,
     'saved_size'    => $savedSize,
+    'focal_x'       => $focalX,
+    'focal_y'       => $focalY,
+    'uploaded_at'   => gmdate('c'),
+    'uploaded_by'   => isset($identity['authUser']) ? (string) $identity['authUser'] : '',
 ];
 
 $items = media_gallery_reindex_orders($items);

@@ -34,12 +34,18 @@
     aspect-ratio: 1 / 1;
     border-radius: 10px;
     background-color: #0f0f0f;
-    background-size: cover;
-    background-position: center;
-    background-repeat: no-repeat;
     border: 1px solid #ffffff22;
+    padding: 0;
     position: relative;
     overflow: hidden;
+}
+
+.mediaGalleryThumb,
+.mediaGalleryPublicThumb {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
 }
 
 .mediaGalleryThumbButton[data-size-info]::after {
@@ -121,7 +127,7 @@
 .mediaGalleryControlsRow {
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    justify-content: flex-end;
     gap: 12px;
     width: 100%;
 }
@@ -156,16 +162,10 @@
     color: #ffffffcc;
 }
 
-.mediaGalleryFootnote {
-    font-size: 0.85rem;
-    color: #ffffff88;
-    margin: 0;
-}
-
 .mediaGalleryModal .userModal {
-    width: 80vw;
+    width: 85vw;
     height: 80vh;
-    max-width: 80vw;
+    max-width: 85vw;
     max-height: 80vh;
     overflow: hidden;
     position: relative;
@@ -174,32 +174,147 @@
 .mediaGalleryModalBody {
     display: flex;
     gap: 20px;
-    align-items: flex-start;
+    align-items: stretch;
     max-width: 100%;
-    height: 100%;
+    flex: 1 1 auto;
+    min-height: 0;
 }
 
 .mediaGalleryModalPreview {
     flex: 1 1 auto;
-    max-width: calc(80vw - 280px);
-    max-height: 80vh;
-    width: calc(80vw - 280px);
+    max-width: calc(85vw - 320px);
+    width: calc(85vw - 320px);
+    height: 100%;
     display: flex;
     align-items: center;
     justify-content: center;
+    position: relative;
 }
 
 .mediaGalleryModalImage {
     width: 100%;
-    height: 80vh;
-    max-width: calc(80vw - 280px);
-    max-height: 80vh;
+    height: 100%;
+    max-width: calc(85vw - 320px);
     background-color: #0f0f0f;
     background-size: contain;
     background-position: center;
     background-repeat: no-repeat;
     border-radius: 10px;
     border: 1px solid #ffffff22;
+    position: relative;
+    cursor: crosshair;
+}
+
+.mediaGalleryModalImage:focus {
+    outline: 2px solid #4a9eff;
+    outline-offset: -2px;
+}
+
+.mediaGalleryFocalMarker {
+    position: absolute;
+    width: 24px;
+    height: 24px;
+    border: 2px solid #fff;
+    border-radius: 50%;
+    box-shadow: 0 0 0 2px #000, 0 0 8px rgba(0, 0, 0, 0.6);
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    transition: left 0.1s, top 0.1s;
+}
+
+.mediaGalleryFocalMarker[hidden] {
+    display: none;
+}
+
+.mediaGalleryModal.isVideo .mediaGalleryFocalSave {
+    display: none;
+}
+
+/* Pane-settings gear button. Positioned absolutely top-right of the pane
+   so it floats over the existing paneHeader without disturbing the
+   icon/title layout. Hidden until hover (or focus for keyboard users) to
+   keep the header visually quiet — admins discover it on first hover. */
+.mediaGalleryPane {
+    position: relative;
+}
+.mediaGallerySettingsButton {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: transparent;
+    border: 1px solid #ffffff22;
+    border-radius: 6px;
+    padding: 4px;
+    color: #ffffffbb;
+    cursor: pointer;
+    z-index: 2;
+}
+.mediaGallerySettingsButton:hover,
+.mediaGallerySettingsButton:focus-visible {
+    color: #ffffffee;
+    border-color: #ffffff55;
+}
+.mediaGallerySettingsButton svg {
+    width: 18px;
+    height: 18px;
+    display: block;
+    fill: currentColor;
+}
+
+/* "Use site defaults" toggle in the per-pane settings modal: bigger gap
+   from the override fieldset to make the inheritance relationship clear. */
+.mediaGallerySettingsUseDefaults {
+    margin-bottom: 12px;
+}
+.mediaGallerySettingsOverrides[disabled] {
+    opacity: 0.45;
+}
+
+.mediaGalleryActionRow {
+    display: flex;
+    gap: 8px;
+}
+
+.mediaGalleryActionRow > button {
+    flex: 1;
+}
+
+.mediaGalleryConfirmDelete {
+    position: absolute;
+    inset: 0;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    background: rgba(0, 0, 0, 0.35);
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 18px;
+    z-index: 10;
+    border-radius: 10px;
+}
+
+.mediaGalleryModal.isConfirmingDelete .mediaGalleryConfirmDelete {
+    display: flex;
+}
+
+.mediaGalleryConfirmDeletePrompt {
+    margin: 0;
+    color: #ffffff;
+    font-size: 1.5rem;
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
+}
+
+.mediaGalleryConfirmDeleteActions {
+    width: 60%;
+    min-width: 280px;
+    max-width: 360px;
+}
+
+/* Keep the close button above the confirm overlay so users can dismiss
+   the modal entirely without first clicking No. */
+.mediaGalleryModal .userModalClose {
+    z-index: 11;
 }
 
 .mediaGalleryModalVideo {
@@ -221,12 +336,21 @@
 }
 
 .mediaGalleryModalActions {
-    flex: 0 0 260px;
+    flex: 0 0 300px;
     display: flex;
     flex-direction: column;
     gap: 12px;
     max-height: 100%;
     overflow: hidden;
+}
+
+/* margin-top: auto absorbs all leftover vertical space above this row,
+   pushing it to the bottom of the actions column. The actions column
+   stretches to the body height (which matches the image preview), so
+   the row's bottom edge ends up horizontally aligned with the bottom
+   of the image. */
+.mediaGalleryModalFooterActions {
+    margin-top: auto;
 }
 
 .mediaGalleryModal .userModalClose {
@@ -235,28 +359,62 @@
     right: 10px;
 }
 
-.mediaGalleryField {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-}
-
-.mediaGalleryFieldLabel {
-    font-size: 0.9rem;
-    color: #ffffffcc;
-}
-
 .mediaGalleryCaptionInput {
-    padding: 6px 8px;
-    border-radius: 6px;
+    padding: 2px 6px;
+    border-radius: 4px;
     background: #00000055;
     border: 1px solid #ffffff22;
+    width: 100%;
+    box-sizing: border-box;
+    font-family: inherit;
+    font-size: inherit;
+    color: inherit;
+}
+
+/* Allow the mouseover input's value to scroll horizontally past the visible
+   column width without clipping or breaking the grid -- input handles its
+   own scroll cursor; we just keep the dd cell from clipping the visible
+   bounds via overflow: visible. */
+.mediaGalleryInfoMouseover {
+    overflow: visible;
 }
 
 .mediaGalleryButtonStack {
     display: flex;
     flex-direction: column;
     gap: 8px;
+}
+
+.mediaGalleryInfo {
+    margin: 0;
+    padding-top: 4px;
+}
+
+.mediaGalleryInfoHeader {
+    font-size: 0.9rem;
+    color: #ffffffcc;
+    font-weight: 600;
+    margin: 0 0 6px 0;
+    padding-bottom: 6px;
+    border-bottom: 1px solid #ffffff22;
+}
+
+.mediaGalleryInfoList {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 4px 12px;
+    margin: 0;
+    font-size: 0.85rem;
+}
+
+.mediaGalleryInfoList dt {
+    color: #ffffff88;
+}
+
+.mediaGalleryInfoList dd {
+    margin: 0;
+    color: #ffffffcc;
+    word-break: break-word;
 }
 
 .mediaGalleryButtonStack button {
@@ -297,12 +455,6 @@
     position: relative;
     overflow: hidden;
     border: 1px solid #ffffff22;
-}
-
-.mediaGalleryPublicThumb {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
 }
 
 .mediaGalleryPublicItem.isVideo::before {

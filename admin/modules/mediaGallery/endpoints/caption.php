@@ -1,5 +1,12 @@
 <?php
-require_once __DIR__ . '/../../../lp-bootstrap.php';
+// Persist a single item's caption (item.title) to the gallery's JSON
+// store. POST { paneId, itemId, title, csrf_token }. Caller is the
+// modal Save flow when the caption input has diverged from its
+// modal-open snapshot.
+//
+// title can be any string (including empty -- empty clears the caption).
+// All other validation (length cap, rich-text sanitization, etc.) is
+// upstream caller's concern; this endpoint just stores what it's given.
 require_once lawnding_admin_path('modules/mediaGallery/helpers.php');
 lawnding_init_session();
 
@@ -8,11 +15,16 @@ media_gallery_require_edit_site();
 
 $paneId = $_POST['paneId'] ?? '';
 $itemId = $_POST['itemId'] ?? '';
+$title = $_POST['title'] ?? '';
+
 if (!is_string($paneId) || $paneId === '' || !media_gallery_is_valid_pane_id($paneId)) {
     media_gallery_json_response(['error' => 'Invalid pane id.'], 400);
 }
 if (!is_string($itemId) || $itemId === '') {
     media_gallery_json_response(['error' => 'Invalid item id.'], 400);
+}
+if (!is_string($title)) {
+    $title = '';
 }
 
 $paths = media_gallery_paths();
@@ -35,24 +47,11 @@ if ($index < 0) {
     media_gallery_json_response(['error' => 'Media not found.'], 404);
 }
 
-$item = $items[$index];
-$filePath = is_array($item) ? (string) ($item['file'] ?? '') : '';
-$thumbPath = is_array($item) ? (string) ($item['thumb'] ?? '') : '';
-
-$absFile = media_gallery_abs_from_asset($paths['data_dir'], $filePath);
-$absThumb = media_gallery_abs_from_asset($paths['data_dir'], $thumbPath);
-if ($absFile && is_readable($absFile)) {
-    unlink($absFile);
-}
-if ($absThumb && is_readable($absThumb)) {
-    unlink($absThumb);
-}
-
-array_splice($items, $index, 1);
+$items[$index]['title'] = $title;
 $items = media_gallery_reindex_orders($items);
 $data['items'] = $items;
 media_gallery_write_data($jsonPath, $data);
 
 media_gallery_json_response([
-    'items' => media_gallery_build_payload($items)
+    'items' => media_gallery_build_payload($items),
 ]);

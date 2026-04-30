@@ -1785,6 +1785,48 @@ button:disabled {
     gap: 6px;
     cursor: pointer;
 }
+.siteConfigGroup {
+    border: 1px solid #ffffff22;
+    border-radius: 6px;
+    padding: 10px 14px 12px 14px;
+    margin: 8px 0;
+}
+.siteConfigGroup legend {
+    padding: 0 6px;
+    font-size: 0.9rem;
+    color: #ffffffcc;
+}
+.siteConfigToggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    padding: 4px 0;
+}
+.siteConfigToggle span {
+    color: #ffffffcc;
+    font-size: 0.95rem;
+}
+.siteConfigField {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 4px 0;
+    color: #ffffffcc;
+    font-size: 0.95rem;
+}
+.siteConfigField input[type="number"] {
+    width: 80px;
+    padding: 4px 6px;
+    border-radius: 4px;
+    background: #00000055;
+    border: 1px solid #ffffff22;
+    color: inherit;
+    font-family: inherit;
+    font-size: inherit;
+    text-align: right;
+}
 .diagnosticsToolbar button {
     padding: 4px 10px;
     background: #00000033;

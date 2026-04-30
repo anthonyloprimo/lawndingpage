@@ -721,7 +721,12 @@ function lawnding_validate_and_save_image(
 // admin module templates. PHP's upload_max_filesize / post_max_size
 // can still cap below this; their lower value wins.
 function lawnding_app_upload_max_bytes(): int {
-    return 5 * 1024 * 1024;
+    $siteConfig = lawnding_load_site_config();
+    $mb = isset($siteConfig['mediaGallery']['maxUploadSizeMB']) ? (int) $siteConfig['mediaGallery']['maxUploadSizeMB'] : 5;
+    if ($mb <= 0) {
+        $mb = 5;
+    }
+    return $mb * 1024 * 1024;
 }
 
 function lawnding_app_upload_max_label(): string {
@@ -798,6 +803,113 @@ function lawnding_load_panes(string $path): array {
         return [];
     }
     return $decoded['panes'];
+}
+
+// Canonical site-config baseline. Adding a key here makes it appear in the
+// admin Site Config UI and ships with its default value without admins
+// needing to re-save lp-siteConfig.json. Nested by module so settings
+// cluster with their owning code (mediaGallery.customThumbs, not
+// gallery_custom_thumbs at top level). Per-pane overrides (sidecar
+// settings.json next to items.json) shadow these values when the pane
+// has useSiteDefaults === false.
+function lawnding_site_config_defaults(): array {
+    return [
+        'mediaGallery' => [
+            'customThumbs'    => false,
+            'changeMedia'     => false,
+            'maxUploadSizeMB' => 5,
+        ],
+    ];
+}
+
+function lawnding_site_config_path(): string {
+    $adminDir = lawnding_config('admin_dir', dirname(__DIR__) . '/admin');
+    return rtrim((string) $adminDir, '/\\') . '/lp-siteConfig.json';
+}
+
+// Loads admin/lp-siteConfig.json and merges it on top of defaults. Values
+// missing or of the wrong type fall back to their default — defensive
+// against hand-edited JSON or schema additions made between sessions.
+function lawnding_load_site_config(): array {
+    $defaults = lawnding_site_config_defaults();
+    $saved = lawnding_read_json(lawnding_site_config_path());
+    $merged = $defaults;
+    foreach ($defaults as $module => $flags) {
+        if (!is_array($saved[$module] ?? null)) {
+            continue;
+        }
+        foreach ($flags as $key => $defaultValue) {
+            if (!isset($saved[$module][$key])) {
+                continue;
+            }
+            $savedValue = $saved[$module][$key];
+            // Type-dispatch validation: each saved value must match the
+            // PHP type of the default. Mixed-type schemas (some bools,
+            // some ints) all flow through this single branch.
+            if (is_bool($defaultValue) && is_bool($savedValue)) {
+                $merged[$module][$key] = $savedValue;
+            } elseif (is_int($defaultValue) && (is_int($savedValue) || (is_string($savedValue) && is_numeric($savedValue)))) {
+                $merged[$module][$key] = max(0, (int) $savedValue);
+            }
+        }
+    }
+    return $merged;
+}
+
+// Persist a fully-formed site-config array. Caller is responsible for shape
+// (typically: load defaults, override with admin form values, pass here).
+// Uses LOCK_EX matching the project standard. Returns true on success.
+function lawnding_save_site_config(array $config): bool {
+    $encoded = json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+    if ($encoded === false) {
+        return false;
+    }
+    return file_put_contents(lawnding_site_config_path(), $encoded, LOCK_EX) !== false;
+}
+
+// Per-pane settings live in a sidecar settings.json inside each pane's
+// content directory (e.g. public/res/data/mediaGalleryContent-<paneId>/
+// settings.json). The file is sparse — present only when the admin has
+// unchecked "Use site defaults" for this pane. Absence means "follow site
+// defaults", so a galleries-without-overrides install carries no per-pane
+// settings files at all. Returns [] when the file doesn't exist or is
+// unreadable / malformed.
+function lawnding_load_pane_settings(string $settingsPath): array {
+    if (!is_readable($settingsPath)) {
+        return [];
+    }
+    $decoded = lawnding_read_json($settingsPath);
+    return is_array($decoded) ? $decoded : [];
+}
+
+// Persist per-pane settings. Creates the parent directory if needed (so
+// modules don't have to mkdir before calling). Returns true on success.
+function lawnding_save_pane_settings(string $settingsPath, array $settings): bool {
+    $dir = dirname($settingsPath);
+    if (!is_dir($dir) && !@mkdir($dir, 0775, true) && !is_dir($dir)) {
+        return false;
+    }
+    $encoded = json_encode($settings, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+    if ($encoded === false) {
+        return false;
+    }
+    return file_put_contents($settingsPath, $encoded, LOCK_EX) !== false;
+}
+
+// Resolve the effective value of a single setting given the pane's loaded
+// override array (from lawnding_load_pane_settings) and the desired
+// module/key. Pure function — caller does I/O once and resolves multiple
+// keys without re-reading the sidecar file. When useSiteDefaults is true
+// or missing (the default state for a pane with no settings.json), the
+// value is read live from lp-siteConfig — so changes to site-wide
+// defaults propagate immediately to every pane that's still inheriting.
+function lawnding_resolve_pane_setting(array $paneSettings, string $module, string $key): bool {
+    $useDefaults = !isset($paneSettings['useSiteDefaults']) || $paneSettings['useSiteDefaults'] !== false;
+    if ($useDefaults) {
+        $siteConfig = lawnding_load_site_config();
+        return !empty($siteConfig[$module][$key]);
+    }
+    return isset($paneSettings[$key]) && $paneSettings[$key] === true;
 }
 
 // Sort panes by explicit order while preserving original order as tie-breaker.

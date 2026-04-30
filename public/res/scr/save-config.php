@@ -546,6 +546,7 @@ $backgroundsJson = $_POST['backgrounds'] ?? null;
 $backgroundAuthorsJson = $_POST['backgroundAuthors'] ?? null;
 $panePayload = $_POST['pane'] ?? null;
 $panesPayload = $_POST['panes'] ?? null;
+$siteConfigPayload = $_POST['siteConfig'] ?? null;
 
 // Parse and validate JSON payloads.
 $linksData = parse_json_payload($linksJson, 'Invalid links payload');
@@ -954,6 +955,26 @@ if ($action === 'pane_management') {
             }
         }
 
+        // mediaGallery's items.json now lives inside the per-pane content dir,
+        // so the dir must exist before write_json_file() initializes items.json below.
+        // Also eagerly create settings.json with the canonical default
+        // (useSiteDefaults: true) so every gallery has a settings record from
+        // the moment it's created -- the resolver behavior is unchanged
+        // (absent file == useSiteDefaults true), but having the file present
+        // makes it obvious the gallery is wired up and saves consistently.
+        if ($currentModule === 'mediaGallery') {
+            $mediaDir = media_gallery_dir($paths['data_dir'], $currentId);
+            if (!is_dir($mediaDir)) {
+                mkdir($mediaDir, 0775, true);
+            }
+            $settingsPath = $mediaDir . '/settings.json';
+            if (!is_readable($settingsPath)) {
+                if (!lawnding_save_pane_settings($settingsPath, ['useSiteDefaults' => true])) {
+                    respond(['error' => 'Failed to initialize gallery settings for ' . $currentId . '.'], 500);
+                }
+            }
+        }
+
         $newManifest = load_module_manifest($modulesDir, $currentModule);
         $newData = is_array($newManifest) ? ($newManifest['data_files'] ?? []) : [];
         if (is_array($newData)) {
@@ -979,12 +1000,6 @@ if ($action === 'pane_management') {
                         write_text_file($path, '', 'Failed to initialize pane data for ' . $currentId . '.');
                     }
                 }
-            }
-        }
-        if ($currentModule === 'mediaGallery') {
-            $mediaDir = media_gallery_dir($paths['data_dir'], $currentId);
-            if (!is_dir($mediaDir)) {
-                mkdir($mediaDir, 0775, true);
             }
         }
     }
@@ -1500,6 +1515,39 @@ if (is_array($authLinksOut)) {
 if (is_array($tgBotData)) {
     $normalized = normalize_tg_bot_payload($tgBotData);
     write_json_file($tgBotPath, $normalized, 'Failed to write Telegram bot data');
+}
+
+// Site Config: walk the canonical defaults and mirror each key's checkbox
+// state from the POSTed siteConfigPayload. Unsubmitted checkboxes mean
+// false (HTML form semantics); unrecognized keys in the payload are
+// dropped (defense against tampering or stale clients posting old keys).
+// Gated on edit_site for now (matches the form's render gate); tighten to
+// full_admin if these flags ever drive security-sensitive behavior. The
+// hidden __rendered marker ensures the block fires even when the admin
+// unchecks all boxes (otherwise $_POST['siteConfig'] would be absent and
+// the save would no-op, leaving stale values on disk).
+if (is_array($siteConfigPayload) && !empty($siteConfigPayload['__rendered']) && !empty($canEditSite)) {
+    $defaults = lawnding_site_config_defaults();
+    $merged = $defaults;
+    foreach ($defaults as $module => $flags) {
+        $submitted = is_array($siteConfigPayload[$module] ?? null) ? $siteConfigPayload[$module] : [];
+        foreach ($flags as $key => $defaultValue) {
+            // Type-dispatch parsing: bools take HTML form's checkbox semantics
+            // (unsubmitted == false). Ints take the posted numeric, falling
+            // back to the default if missing or non-numeric. Min 1 floor on
+            // ints so a 0 doesn't accidentally disable the feature.
+            if (is_bool($defaultValue)) {
+                $merged[$module][$key] = !empty($submitted[$key]);
+            } elseif (is_int($defaultValue)) {
+                $raw = $submitted[$key] ?? null;
+                $value = (is_numeric($raw)) ? (int) $raw : $defaultValue;
+                $merged[$module][$key] = max(1, $value);
+            }
+        }
+    }
+    if (!lawnding_save_site_config($merged)) {
+        respond(['error' => 'Failed to write site config'], 500);
+    }
 }
 
 // All operations succeeded.

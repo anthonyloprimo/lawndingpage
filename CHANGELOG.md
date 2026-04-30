@@ -1,6 +1,19 @@
 ### Changelog
 
 
+#### v1.13.0
+- Added a Site Config section to the admin panel for full admins. Sets the defaults that newly created media galleries inherit. Currently includes "Allow per-item custom thumbnail uploads" and "Allow replacing media files on existing items".
+- Each gallery pane now has a gear icon in the top-right corner. Click it to override the site defaults for that specific gallery — useful when one curated gallery needs custom thumbnails enabled while everything else stays locked down.
+- Media galleries auto-derive a 1:1 square thumbnail on upload, intelligently cropping to keep faces and high-contrast areas in frame instead of dumb-centering.
+- Click any image in the gallery's edit modal to set a focal point. The thumbnail re-derives around that point so cover-mode crops keep the right pixels visible.
+- The "Add new media" button now accepts multiple files at once.
+- The image edit modal now shows an Image Info section: original size, saved size, upload date, and uploader. Telegram uploaders show as their friendly handle (e.g. "@phinnay") instead of raw numeric IDs.
+- Delete buttons in the gallery now ask for confirmation via a blur-backdrop overlay over the image preview.
+- Caption changes in the edit modal enable the Save button immediately, instead of waiting for a focal-point change.
+- Thumbnail grid images now use lazy and async loading hints — long galleries scroll smoother on slow links.
+
+-----
+
 #### v1.12.8
 - Media galleries now accept image uploads only. Video uploads will return as an admin-controllable feature in a future release.
 

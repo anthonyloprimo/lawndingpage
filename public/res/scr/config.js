@@ -1135,6 +1135,35 @@ $(document).ready(function() {
                 hasChanges = true;
             }
 
+            // Site Config (lp-siteConfig.json). Bracket-notation field names
+            // unpack into $_POST['siteConfig'][<module>][<key>] server-side.
+            // The hidden __rendered marker tells the PHP handler to honor
+            // this submission even if every box is unchecked (otherwise an
+            // all-unchecked submit would have no siteConfig keys at all).
+            let siteConfigChanged = false;
+            if (currentSnapshot.siteConfig && !isEqualSnapshot(currentSnapshot.siteConfig, initialSnapshot.siteConfig)) {
+                formData.append('siteConfig[__rendered]', '1');
+                Object.keys(currentSnapshot.siteConfig).forEach((module) => {
+                    const flags = currentSnapshot.siteConfig[module] || {};
+                    Object.keys(flags).forEach((key) => {
+                        const value = flags[key];
+                        // Bool: append "1" only when checked (HTML form
+                        // semantics; PHP reads !empty()).
+                        // Number: always append, including 0, so the int
+                        // value lands in $_POST verbatim.
+                        if (typeof value === 'boolean') {
+                            if (value) {
+                                formData.append('siteConfig[' + module + '][' + key + ']', '1');
+                            }
+                        } else if (typeof value === 'number') {
+                            formData.append('siteConfig[' + module + '][' + key + ']', String(value));
+                        }
+                    });
+                });
+                hasChanges = true;
+                siteConfigChanged = true;
+            }
+
             if (!hasChanges) {
                 addAdminNotice('warning', 'No changes to save.');
                 return;
@@ -1154,6 +1183,15 @@ $(document).ready(function() {
                 contentType: false,
                 success: function(resp) {
                     console.log('Save successful', resp);
+                    if (siteConfigChanged) {
+                        // Site config drives server-side conditional rendering
+                        // (gear modal checkbox states, per-item modal button
+                        // visibility) that JS state propagation can't refresh
+                        // in place. Hard-reload so every conditional re-derives.
+                        addAdminNotice('ok', 'Site config saved. Reloading…', { persist: true });
+                        setTimeout(function() { window.location.reload(); }, 600);
+                        return;
+                    }
                     addAdminNotice('ok', 'Changes saved.');
                     if (resp && resp.gd_unavailable && !gdNoticeShown) {
                         gdNoticeShown = true;
@@ -1385,6 +1423,41 @@ $(document).ready(function() {
         return changed;
     }
 
+    function getSiteConfigData() {
+        // Walks every checkbox or number input inside #siteConfig with a
+        // name shaped like siteConfig[<module>][<key>], so new flags added
+        // to lawnding_site_config_defaults() (and rendered by the PHP form)
+        // flow through the snapshot/diff path without any JS updates.
+        // Type detection mirrors the PHP form: checkboxes become bools,
+        // number inputs become ints. Returns null when the section isn't
+        // rendered (user lacks edit_site) so the snapshot diff stays clean.
+        const $section = $('#siteConfig');
+        if (!$section.length) {
+            return null;
+        }
+        const data = {};
+        $section.find('input[type="checkbox"][name^="siteConfig["], input[type="number"][name^="siteConfig["]').each(function() {
+            const $input = $(this);
+            const name = $input.attr('name') || '';
+            const m = name.match(/^siteConfig\[([^\]]+)\]\[([^\]]+)\]$/);
+            if (!m) {
+                return; // skips siteConfig[__rendered] and any non-flag inputs
+            }
+            const moduleKey = m[1];
+            const flagKey = m[2];
+            if (!data[moduleKey]) {
+                data[moduleKey] = {};
+            }
+            if ($input.attr('type') === 'checkbox') {
+                data[moduleKey][flagKey] = $input.is(':checked');
+            } else {
+                const parsed = parseInt($input.val(), 10);
+                data[moduleKey][flagKey] = Number.isFinite(parsed) ? parsed : 0;
+            }
+        });
+        return data;
+    }
+
     function captureSnapshot() {
         return {
             header: getHeaderData(),
@@ -1392,7 +1465,8 @@ $(document).ready(function() {
             authLinks: getAuthLinksData(),
             tgBot: getTgBotData(),
             backgrounds: getBackgroundsData(),
-            panes: getPaneSaveData()
+            panes: getPaneSaveData(),
+            siteConfig: getSiteConfigData()
         };
     }
 

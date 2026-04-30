@@ -193,6 +193,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    position: relative;
 }
 
 .mediaGalleryModalImage {
@@ -265,7 +266,7 @@
     justify-content: center;
     gap: 18px;
     z-index: 10;
-    border-radius: inherit;
+    border-radius: 10px;
 }
 
 .mediaGalleryModal.isConfirmingDelete .mediaGalleryConfirmDelete {

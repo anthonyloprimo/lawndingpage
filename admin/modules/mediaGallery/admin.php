@@ -141,6 +141,13 @@ if ($itemsJson === false) {
                         <div class="mediaGalleryFocalMarker" aria-hidden="true" hidden></div>
                     </div>
                     <video class="mediaGalleryModalVideo" controls playsinline></video>
+                    <div class="mediaGalleryConfirmDelete" role="alertdialog" aria-hidden="true" aria-labelledby="mediaGalleryConfirmDeletePrompt-<?php echo htmlspecialchars($paneId); ?>">
+                        <p id="mediaGalleryConfirmDeletePrompt-<?php echo htmlspecialchars($paneId); ?>" class="mediaGalleryConfirmDeletePrompt">Are you sure?</p>
+                        <div class="mediaGalleryActionRow mediaGalleryConfirmDeleteActions">
+                            <button class="mediaGalleryConfirmDeleteNo usersButton" type="button">No</button>
+                            <button class="mediaGalleryConfirmDeleteYes usersButton usersDanger" type="button">Yes, delete</button>
+                        </div>
+                    </div>
                 </div>
                 <div class="mediaGalleryModalActions">
                     <label class="mediaGalleryField">
@@ -159,13 +166,6 @@ if ($itemsJson === false) {
                         </div>
                     </div>
                     <div class="mediaGalleryFootnote">Uploads are saved immediately. Max upload size: <?php echo htmlspecialchars(lawnding_app_upload_max_label()); ?>.</div>
-                </div>
-            </div>
-            <div class="mediaGalleryConfirmDelete" role="alertdialog" aria-hidden="true" aria-labelledby="mediaGalleryConfirmDeletePrompt-<?php echo htmlspecialchars($paneId); ?>">
-                <p id="mediaGalleryConfirmDeletePrompt-<?php echo htmlspecialchars($paneId); ?>" class="mediaGalleryConfirmDeletePrompt">Are you sure?</p>
-                <div class="mediaGalleryActionRow mediaGalleryConfirmDeleteActions">
-                    <button class="mediaGalleryConfirmDeleteNo usersButton" type="button">No</button>
-                    <button class="mediaGalleryConfirmDeleteYes usersButton usersDanger" type="button">Yes, delete</button>
                 </div>
             </div>
             <button class="userModalClose" type="button" aria-label="Close">×</button>

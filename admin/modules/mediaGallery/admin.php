@@ -168,8 +168,8 @@ $useSiteDefaults = !isset($paneSettings['useSiteDefaults']) || $paneSettings['us
                     <div class="mediaGalleryConfirmDelete" role="alertdialog" aria-hidden="true" aria-labelledby="mediaGalleryConfirmDeletePrompt-<?php echo htmlspecialchars($paneId); ?>">
                         <p id="mediaGalleryConfirmDeletePrompt-<?php echo htmlspecialchars($paneId); ?>" class="mediaGalleryConfirmDeletePrompt">Are you sure?</p>
                         <div class="mediaGalleryActionRow mediaGalleryConfirmDeleteActions">
-                            <button class="mediaGalleryConfirmDeleteNo usersButton" type="button">No</button>
                             <button class="mediaGalleryConfirmDeleteYes usersButton usersDanger" type="button">Yes, delete</button>
+                            <button class="mediaGalleryConfirmDeleteNo usersButton" type="button">No</button>
                         </div>
                     </div>
                 </div>
@@ -228,8 +228,8 @@ $useSiteDefaults = !isset($paneSettings['useSiteDefaults']) || $paneSettings['us
                     </label>
                 </fieldset>
                 <div class="mediaGalleryActionRow">
-                    <button class="mediaGallerySettingsCancel usersButton" type="button">Cancel</button>
                     <button class="mediaGallerySettingsSave usersButton" type="button">Save</button>
+                    <button class="mediaGallerySettingsCancel usersButton" type="button">Cancel</button>
                 </div>
             </form>
             <button class="userModalClose" type="button" aria-label="Close">×</button>

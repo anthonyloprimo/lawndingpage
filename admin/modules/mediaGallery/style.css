@@ -353,6 +353,21 @@
     margin-top: auto;
 }
 
+/* The hint shares margin-top: auto with .mediaGalleryModalFooterActions
+   so the two split the gap between Info and the bottom buttons evenly --
+   hint lands roughly at the midpoint of the available space. */
+.mediaGalleryModalHint {
+    margin: auto 0 0 0;
+    padding: 8px 12px;
+    text-align: left;
+    font-size: 0.85rem;
+    font-style: italic;
+    color: #ffffffaa;
+    border: 1px dashed #ffffff33;
+    border-radius: 6px;
+    background: #00000033;
+}
+
 .mediaGalleryModal .userModalClose {
     position: absolute;
     top: 10px;

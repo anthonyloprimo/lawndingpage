@@ -183,6 +183,7 @@ $useSiteDefaults = !isset($paneSettings['useSiteDefaults']) || $paneSettings['us
                         <?php endif; ?>
                     </div>
                     <?php endif; ?>
+                    <p class="mediaGalleryModalHint">Tip!<br>Click the image to adjust the center of the thumbnail.</p>
                     <div class="mediaGalleryActionRow mediaGalleryModalFooterActions">
                         <button class="mediaGalleryModalCancel usersButton" type="button">Cancel</button>
                     </div>

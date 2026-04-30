@@ -1135,6 +1135,24 @@ $(document).ready(function() {
                 hasChanges = true;
             }
 
+            // Site Config (lp-siteConfig.json). Bracket-notation field names
+            // unpack into $_POST['siteConfig'][<module>][<key>] server-side.
+            // The hidden __rendered marker tells the PHP handler to honor
+            // this submission even if every box is unchecked (otherwise an
+            // all-unchecked submit would have no siteConfig keys at all).
+            if (currentSnapshot.siteConfig && !isEqualSnapshot(currentSnapshot.siteConfig, initialSnapshot.siteConfig)) {
+                formData.append('siteConfig[__rendered]', '1');
+                Object.keys(currentSnapshot.siteConfig).forEach((module) => {
+                    const flags = currentSnapshot.siteConfig[module] || {};
+                    Object.keys(flags).forEach((key) => {
+                        if (flags[key]) {
+                            formData.append('siteConfig[' + module + '][' + key + ']', '1');
+                        }
+                    });
+                });
+                hasChanges = true;
+            }
+
             if (!hasChanges) {
                 addAdminNotice('warning', 'No changes to save.');
                 return;
@@ -1385,6 +1403,34 @@ $(document).ready(function() {
         return changed;
     }
 
+    function getSiteConfigData() {
+        // Walks every checkbox inside #siteConfig with a name shaped like
+        // siteConfig[<module>][<key>], so new flags added to
+        // lawnding_site_config_defaults() (and rendered by the PHP form)
+        // flow through the snapshot/diff path without any JS updates.
+        // Returns null when the section isn't rendered (user lacks
+        // edit_site) so the snapshot diff stays clean.
+        const $section = $('#siteConfig');
+        if (!$section.length) {
+            return null;
+        }
+        const data = {};
+        $section.find('input[type="checkbox"][name^="siteConfig["]').each(function() {
+            const name = $(this).attr('name') || '';
+            const m = name.match(/^siteConfig\[([^\]]+)\]\[([^\]]+)\]$/);
+            if (!m) {
+                return; // skips siteConfig[__rendered] and any non-flag inputs
+            }
+            const moduleKey = m[1];
+            const flagKey = m[2];
+            if (!data[moduleKey]) {
+                data[moduleKey] = {};
+            }
+            data[moduleKey][flagKey] = $(this).is(':checked');
+        });
+        return data;
+    }
+
     function captureSnapshot() {
         return {
             header: getHeaderData(),
@@ -1392,7 +1438,8 @@ $(document).ready(function() {
             authLinks: getAuthLinksData(),
             tgBot: getTgBotData(),
             backgrounds: getBackgroundsData(),
-            panes: getPaneSaveData()
+            panes: getPaneSaveData(),
+            siteConfig: getSiteConfigData()
         };
     }
 

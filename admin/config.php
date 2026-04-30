@@ -37,6 +37,31 @@ $readFile = function (string $path, string $fallback = ''): string {
 };
 
 // Render a shared SVG icon by name to avoid inline duplication.
+// Label registry for the SITE CONFIG admin UI. Keyed by module then flag,
+// with a top-level '_modules' map for fieldset legends. Adding a new flag
+// to lawnding_site_config_defaults() without a label here gets a
+// camelCase-split fallback ("customThumbs" -> "Custom thumbs"); add an
+// entry below when you want a hand-written description.
+function lawnding_site_config_labels(): array {
+    return [
+        '_modules' => [
+            'mediaGallery' => 'Media Gallery',
+        ],
+        'mediaGallery' => [
+            'customThumbs' => 'Allow per-item custom thumbnail uploads',
+            'changeMedia'  => 'Allow replacing media files on existing items',
+        ],
+    ];
+}
+
+// Fallback for missing labels. "customThumbs" -> "Custom thumbs",
+// "mediaGallery" -> "Media gallery". Splits on case transitions, lowers
+// the rest, capitalizes the first word.
+function lawnding_camel_to_label(string $key): string {
+    $spaced = preg_replace('/([a-z])([A-Z])/', '$1 $2', $key);
+    return ucfirst(strtolower((string) $spaced));
+}
+
 function lawnding_icon_svg(string $name): string {
     static $paths = [
         'help' => 'M15.07,11.25L14.17,12.17C13.45,12.89 13,13.5 13,15H11V14.5C11,13.39 11.45,12.39 12.17,11.67L13.41,10.41C13.78,10.05 14,9.55 14,9C14,7.89 13.1,7 12,7A2,2 0 0,0 10,9H8A4,4 0 0,1 12,5A4,4 0 0,1 16,9C16,9.88 15.64,10.67 15.07,11.25M13,19H11V17H13M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12C22,6.47 17.5,2 12,2Z',
@@ -1086,22 +1111,38 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
         <?php endif; ?>
         <?php // Site Config: site-wide module defaults. New panes inherit these; per-pane overrides live in the gear-icon modal on each gallery. Gated on edit_site for now; tighten to full_admin if these flags ever drive security-sensitive behavior. ?>
         <?php if (!empty($canEditSite)): ?>
-        <?php $siteConfig = lawnding_load_site_config(); ?>
+        <?php
+            // Walk lawnding_site_config_defaults() so adding a new flag in
+            // code auto-renders here. Labels come from the site-config
+            // label registry above; missing labels fall back to a
+            // camelCase-split version of the key.
+            $siteConfig = lawnding_load_site_config();
+            $siteConfigDefaults = lawnding_site_config_defaults();
+            $siteConfigLabels = lawnding_site_config_labels();
+            $moduleLabels = is_array($siteConfigLabels['_modules'] ?? null) ? $siteConfigLabels['_modules'] : [];
+        ?>
         <div class="pane glassConvex" id="siteConfig">
             <h3>SITE CONFIG</h3>
             <p class="paneHint">Defaults that newly created panes inherit. Existing panes can opt out per-instance via the gear icon on each pane.</p>
             <input type="hidden" name="siteConfig[__rendered]" value="1">
-            <fieldset class="siteConfigGroup">
-                <legend>Media Gallery</legend>
-                <label class="siteConfigToggle">
-                    <input type="checkbox" name="siteConfig[mediaGallery][customThumbs]" <?php echo !empty($siteConfig['mediaGallery']['customThumbs']) ? 'checked' : ''; ?>>
-                    <span>Allow per-item custom thumbnail uploads</span>
-                </label>
-                <label class="siteConfigToggle">
-                    <input type="checkbox" name="siteConfig[mediaGallery][changeMedia]" <?php echo !empty($siteConfig['mediaGallery']['changeMedia']) ? 'checked' : ''; ?>>
-                    <span>Allow replacing media files on existing items</span>
-                </label>
-            </fieldset>
+            <?php foreach ($siteConfigDefaults as $moduleKey => $flags): ?>
+                <?php if (!is_array($flags) || empty($flags)) continue; ?>
+                <?php $moduleLabel = $moduleLabels[$moduleKey] ?? lawnding_camel_to_label($moduleKey); ?>
+                <fieldset class="siteConfigGroup">
+                    <legend><?php echo htmlspecialchars($moduleLabel); ?></legend>
+                    <?php foreach ($flags as $flagKey => $defaultValue): ?>
+                        <?php
+                            $flagLabel = $siteConfigLabels[$moduleKey][$flagKey] ?? lawnding_camel_to_label($flagKey);
+                            $checked = !empty($siteConfig[$moduleKey][$flagKey]);
+                            $name = 'siteConfig[' . $moduleKey . '][' . $flagKey . ']';
+                        ?>
+                        <label class="siteConfigToggle">
+                            <input type="checkbox" name="<?php echo htmlspecialchars($name); ?>" <?php echo $checked ? 'checked' : ''; ?>>
+                            <span><?php echo htmlspecialchars($flagLabel); ?></span>
+                        </label>
+                    <?php endforeach; ?>
+                </fieldset>
+            <?php endforeach; ?>
         </div>
         <?php endif; ?>
         <?php // Render each dynamic pane using its module admin template. ?>

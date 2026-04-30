@@ -112,6 +112,10 @@ function media_gallery_thumbs_dir(string $dataDir, string $paneId): string {
     return media_gallery_media_dir($dataDir, $paneId) . '/thumbs';
 }
 
+function media_gallery_settings_path(string $dataDir, string $paneId): string {
+    return media_gallery_media_dir($dataDir, $paneId) . '/settings.json';
+}
+
 function media_gallery_ensure_dir(string $dir): void {
     if (!is_dir($dir)) {
         mkdir($dir, 0775, true);

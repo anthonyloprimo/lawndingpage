@@ -359,7 +359,7 @@
 .mediaGalleryModalHint {
     margin: auto 0 0 0;
     padding: 8px 12px;
-    text-align: center;
+    text-align: left;
     font-size: 0.85rem;
     font-style: italic;
     color: #ffffffaa;

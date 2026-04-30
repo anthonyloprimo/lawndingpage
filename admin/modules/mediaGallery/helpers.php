@@ -81,7 +81,12 @@ function media_gallery_pane_json_file(array $pane, string $paneId): string {
     if (is_array($data) && !empty($data['json']) && is_string($data['json'])) {
         return $data['json'];
     }
-    return $paneId . '.json';
+    // Fallback when pane.data.json isn't set: items.json lives inside
+    // the per-instance content directory so all data for one gallery
+    // (metadata + source files + thumbs) is colocated under one
+    // mediaGalleryContent-{paneId}/ folder. Pane renames just rename
+    // that folder; no separate JSON-rename step needed.
+    return 'mediaGalleryContent-' . $paneId . '/items.json';
 }
 
 function media_gallery_load_data(string $path): array {

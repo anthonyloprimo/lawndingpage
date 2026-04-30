@@ -199,8 +199,8 @@ $useSiteDefaults = !isset($paneSettings['useSiteDefaults']) || $paneSettings['us
                         </dl>
                     </div>
                     <div class="mediaGalleryActionRow mediaGalleryModalFooterActions">
-                        <button class="mediaGalleryRemoveButton usersButton usersDanger" type="button">Delete</button>
                         <button class="mediaGalleryFocalSave usersButton" type="button" disabled>Save</button>
+                        <button class="mediaGalleryRemoveButton usersButton usersDanger" type="button">Delete</button>
                     </div>
                 </div>
             </div>

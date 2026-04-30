@@ -94,8 +94,6 @@ $paneSettings = lawnding_load_pane_settings($paneSettingsPath);
 $canCustomThumbs = lawnding_resolve_pane_setting($paneSettings, 'mediaGallery', 'customThumbs');
 $canChangeMedia  = lawnding_resolve_pane_setting($paneSettings, 'mediaGallery', 'changeMedia');
 $useSiteDefaults = !isset($paneSettings['useSiteDefaults']) || $paneSettings['useSiteDefaults'] !== false;
-$overrideCustomThumbs = isset($paneSettings['customThumbs']) && $paneSettings['customThumbs'] === true;
-$overrideChangeMedia  = isset($paneSettings['changeMedia']) && $paneSettings['changeMedia'] === true;
 ?>
 <div class="pane glassConvex mediaGalleryPane" id="<?php echo htmlspecialchars($paneId); ?>" data-pane-type="mediaGallery" data-pane-id="<?php echo htmlspecialchars($paneId); ?>">
     <div class="paneHeader">
@@ -221,11 +219,11 @@ $overrideChangeMedia  = isset($paneSettings['changeMedia']) && $paneSettings['ch
                 <fieldset class="siteConfigGroup mediaGallerySettingsOverrides" <?php echo $useSiteDefaults ? 'disabled' : ''; ?>>
                     <legend>Per-pane overrides</legend>
                     <label class="siteConfigToggle">
-                        <input type="checkbox" name="customThumbs" <?php echo $overrideCustomThumbs ? 'checked' : ''; ?>>
+                        <input type="checkbox" name="customThumbs" <?php echo $canCustomThumbs ? 'checked' : ''; ?>>
                         <span>Allow per-item custom thumbnail uploads</span>
                     </label>
                     <label class="siteConfigToggle">
-                        <input type="checkbox" name="changeMedia" <?php echo $overrideChangeMedia ? 'checked' : ''; ?>>
+                        <input type="checkbox" name="changeMedia" <?php echo $canChangeMedia ? 'checked' : ''; ?>>
                         <span>Allow replacing media files on existing items</span>
                     </label>
                 </fieldset>

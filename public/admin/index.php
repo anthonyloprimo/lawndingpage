@@ -23,7 +23,12 @@ $versionPath = function_exists('lawnding_public_path')
 require_once $versionPath;
 
 // Content Security Policy for the admin entrypoint + clickjacking protection.
-header("Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'");
+// img-src includes blob: so URL.createObjectURL output (used by
+// smartcrop.js client-side analysis in the gallery upload flow) can
+// be loaded as Image() src. blob: URLs are same-origin-only by design
+// -- this doesn't open a remote-load vector, only lets the page
+// display its own in-memory image data.
+header("Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'");
 header('X-Frame-Options: DENY');
 
 // Build the canonical public admin URL so redirects never expose rewritten upstream paths.

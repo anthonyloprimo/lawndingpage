@@ -962,7 +962,7 @@ $(document).ready(function() {
             const next = function(index) {
                 if (index >= total) {
                     if (succeeded > 0 && failed === 0) {
-                        addNotice('ok', succeeded + ' media uploaded.');
+                        addNotice('ok', succeeded + ' files uploaded.');
                     } else if (succeeded > 0 && failed > 0) {
                         addNotice('warning', succeeded + ' uploaded, ' + failed + ' failed.');
                     }

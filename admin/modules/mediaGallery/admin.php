@@ -174,16 +174,6 @@ $useSiteDefaults = !isset($paneSettings['useSiteDefaults']) || $paneSettings['us
                     </div>
                 </div>
                 <div class="mediaGalleryModalActions">
-                    <div class="mediaGalleryButtonStack">
-                        <?php if ($canChangeMedia): ?>
-                        <button class="mediaGalleryChangeButton usersButton" type="button">Change media</button>
-                        <input class="mediaGalleryChangeInput" type="file" accept="image/*" hidden>
-                        <?php endif; ?>
-                        <?php if ($canCustomThumbs): ?>
-                        <button class="mediaGalleryThumbButtonAction usersButton" type="button">Set thumbnail</button>
-                        <input class="mediaGalleryThumbInput" type="file" accept="image/*" hidden>
-                        <?php endif; ?>
-                    </div>
                     <div class="mediaGalleryInfo">
                         <h5 class="mediaGalleryInfoHeader">Image Info:</h5>
                         <dl class="mediaGalleryInfoList">
@@ -196,6 +186,18 @@ $useSiteDefaults = !isset($paneSettings['useSiteDefaults']) || $paneSettings['us
                         </dl>
                         <textarea class="mediaGalleryCaptionInput" rows="2" placeholder="Optional caption"></textarea>
                     </div>
+                    <?php if ($canChangeMedia || $canCustomThumbs): ?>
+                    <div class="mediaGalleryButtonStack">
+                        <?php if ($canChangeMedia): ?>
+                        <button class="mediaGalleryChangeButton usersButton" type="button">Change media</button>
+                        <input class="mediaGalleryChangeInput" type="file" accept="image/*" hidden>
+                        <?php endif; ?>
+                        <?php if ($canCustomThumbs): ?>
+                        <button class="mediaGalleryThumbButtonAction usersButton" type="button">Set thumbnail</button>
+                        <input class="mediaGalleryThumbInput" type="file" accept="image/*" hidden>
+                        <?php endif; ?>
+                    </div>
+                    <?php endif; ?>
                     <div class="mediaGalleryActionRow mediaGalleryModalFooterActions">
                         <button class="mediaGalleryFocalSave usersButton" type="button" disabled>Save</button>
                         <button class="mediaGalleryRemoveButton usersButton usersDanger" type="button">Delete</button>

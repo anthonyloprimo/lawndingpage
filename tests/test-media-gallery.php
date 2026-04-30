@@ -1,6 +1,6 @@
 <?php
 require_once __DIR__ . '/bootstrap.php';
-require_once __DIR__ . '/../public/res/scr/media-gallery-helpers.php';
+require_once lawnding_admin_path('modules/mediaGallery/helpers.php');
 
 // ----- media_gallery_focal_crop_window (pure math) -----
 

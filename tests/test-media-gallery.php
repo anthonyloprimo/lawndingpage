@@ -136,3 +136,45 @@ if (test_check_extension('gd')) {
         'focal_crop_to_temp returns null for unreadable source'
     );
 }
+
+// ----- media_gallery_build_payload (item-shape pass-through) -----
+
+// New uploaded_at / uploaded_by fields are passed through verbatim
+$payload = media_gallery_build_payload([
+    [
+        'id' => 'abc',
+        'type' => 'image',
+        'file' => 'res/data/x/foo.jpg',
+        'thumb' => 'res/data/x/thumbs/foo.webp',
+        'title' => '',
+        'order' => 1,
+        'uploaded_at' => '2026-04-29T18:42:30+00:00',
+        'uploaded_by' => 'Phinnay',
+    ],
+]);
+test_assert(
+    isset($payload[0]['uploaded_at']) && $payload[0]['uploaded_at'] === '2026-04-29T18:42:30+00:00',
+    'build_payload preserves uploaded_at string verbatim'
+);
+test_assert(
+    isset($payload[0]['uploaded_by']) && $payload[0]['uploaded_by'] === 'Phinnay',
+    'build_payload preserves uploaded_by string verbatim'
+);
+
+// TG-derived sentinel survives unchanged
+$payload = media_gallery_build_payload([
+    ['id' => 'tg1', 'type' => 'image', 'file' => '', 'thumb' => '', 'uploaded_by' => 'tg:114290546'],
+]);
+test_assert(
+    $payload[0]['uploaded_by'] === 'tg:114290546',
+    'build_payload preserves tg:<id> sentinel for TG-derived uploads'
+);
+
+// Legacy items missing the new fields default to empty strings (no PHP notices, no nulls)
+$payload = media_gallery_build_payload([
+    ['id' => 'legacy', 'type' => 'image', 'file' => '', 'thumb' => ''],
+]);
+test_assert(
+    $payload[0]['uploaded_at'] === '' && $payload[0]['uploaded_by'] === '',
+    'build_payload defaults uploaded_at / uploaded_by to "" for legacy items'
+);

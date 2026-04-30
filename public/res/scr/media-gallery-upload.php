@@ -11,7 +11,7 @@ if ($postMaxBytes > 0 && $contentLength > $postMaxBytes) {
     media_gallery_json_response(['error' => 'Payload too large. Please reduce image sizes and try again.'], 413);
 }
 
-media_gallery_require_edit_site();
+$identity = media_gallery_require_edit_site();
 
 $paneId = $_POST['paneId'] ?? '';
 if (!is_string($paneId) || $paneId === '' || !media_gallery_is_valid_pane_id($paneId)) {
@@ -126,6 +126,8 @@ $items[] = [
     'saved_size'    => $savedSize,
     'focal_x'       => $focalX,
     'focal_y'       => $focalY,
+    'uploaded_at'   => gmdate('c'),
+    'uploaded_by'   => isset($identity['authUser']) ? (string) $identity['authUser'] : '',
 ];
 
 $items = media_gallery_reindex_orders($items);

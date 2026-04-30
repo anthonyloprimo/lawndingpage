@@ -363,6 +363,8 @@ function media_gallery_build_payload(array $items): array {
             'saved_size'    => isset($item['saved_size']) ? (int) $item['saved_size'] : 0,
             'focal_x'       => isset($item['focal_x']) && is_numeric($item['focal_x']) ? (float) $item['focal_x'] : null,
             'focal_y'       => isset($item['focal_y']) && is_numeric($item['focal_y']) ? (float) $item['focal_y'] : null,
+            'uploaded_at'   => isset($item['uploaded_at']) ? (string) $item['uploaded_at'] : '',
+            'uploaded_by'   => isset($item['uploaded_by']) ? (string) $item['uploaded_by'] : '',
             'displayFile'   => $file !== '' ? lawnding_versioned_local_asset_url($file) : '',
             'displayThumb'  => $thumb !== '' ? lawnding_versioned_local_asset_url($thumb) : '',
         ];

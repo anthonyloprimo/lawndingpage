@@ -110,6 +110,8 @@ $items[] = [
     'order'         => $maxOrder + 1,
     'original_size' => $originalSize,
     'saved_size'    => $savedSize,
+    'focal_x'       => null,
+    'focal_y'       => null,
 ];
 
 $items = media_gallery_reindex_orders($items);

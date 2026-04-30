@@ -256,10 +256,14 @@
 .mediaGalleryConfirmDelete {
     position: absolute;
     inset: 0;
-    background: rgba(0, 0, 0, 0.85);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    background: rgba(0, 0, 0, 0.35);
     display: none;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
+    gap: 18px;
     z-index: 10;
     border-radius: inherit;
 }
@@ -268,20 +272,17 @@
     display: flex;
 }
 
-.mediaGalleryConfirmDeleteContent {
-    background: #2a2a2a;
-    border: 1px solid #ffffff33;
-    border-radius: 10px;
-    padding: 24px;
-    text-align: center;
-    min-width: 280px;
-    max-width: 360px;
+.mediaGalleryConfirmDeletePrompt {
+    margin: 0;
+    color: #ffffff;
+    font-size: 1.5rem;
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
 }
 
-.mediaGalleryConfirmDeleteContent p {
-    margin: 0 0 16px 0;
-    font-size: 1.1rem;
-    color: #ffffffee;
+.mediaGalleryConfirmDeleteActions {
+    width: 60%;
+    min-width: 280px;
+    max-width: 360px;
 }
 
 /* Keep the close button above the confirm overlay so users can dismiss

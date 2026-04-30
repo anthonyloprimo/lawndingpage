@@ -394,8 +394,7 @@
 
 .mediaGalleryInfo {
     margin: 0;
-    padding-top: 10px;
-    border-top: 1px solid #ffffff22;
+    padding-top: 4px;
 }
 
 .mediaGalleryInfoHeader {
@@ -403,6 +402,8 @@
     color: #ffffffcc;
     font-weight: 600;
     margin: 0 0 6px 0;
+    padding-bottom: 6px;
+    border-bottom: 1px solid #ffffff22;
 }
 
 .mediaGalleryInfoList {

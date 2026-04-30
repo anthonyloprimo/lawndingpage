@@ -1,0 +1,57 @@
+<?php
+// Persist a single item's caption (item.title) to the gallery's JSON
+// store. POST { paneId, itemId, title, csrf_token }. Caller is the
+// modal Save flow when the caption input has diverged from its
+// modal-open snapshot.
+//
+// title can be any string (including empty -- empty clears the caption).
+// All other validation (length cap, rich-text sanitization, etc.) is
+// upstream caller's concern; this endpoint just stores what it's given.
+require_once lawnding_admin_path('modules/mediaGallery/helpers.php');
+lawnding_init_session();
+
+media_gallery_require_method('POST');
+media_gallery_require_edit_site();
+
+$paneId = $_POST['paneId'] ?? '';
+$itemId = $_POST['itemId'] ?? '';
+$title = $_POST['title'] ?? '';
+
+if (!is_string($paneId) || $paneId === '' || !media_gallery_is_valid_pane_id($paneId)) {
+    media_gallery_json_response(['error' => 'Invalid pane id.'], 400);
+}
+if (!is_string($itemId) || $itemId === '') {
+    media_gallery_json_response(['error' => 'Invalid item id.'], 400);
+}
+if (!is_string($title)) {
+    $title = '';
+}
+
+$paths = media_gallery_paths();
+$panes = media_gallery_load_panes($paths['panes_path']);
+$pane = media_gallery_find_pane($panes, $paneId);
+if (!$pane) {
+    media_gallery_json_response(['error' => 'Pane not found.'], 404);
+}
+
+$jsonFile = media_gallery_pane_json_file($pane, $paneId);
+$jsonPath = rtrim($paths['data_dir'], '/\\') . '/' . $jsonFile;
+$data = media_gallery_load_data($jsonPath);
+$items = $data['items'] ?? [];
+if (!is_array($items)) {
+    $items = [];
+}
+
+$index = media_gallery_find_item_index($items, $itemId);
+if ($index < 0) {
+    media_gallery_json_response(['error' => 'Media not found.'], 404);
+}
+
+$items[$index]['title'] = $title;
+$items = media_gallery_reindex_orders($items);
+$data['items'] = $items;
+media_gallery_write_data($jsonPath, $data);
+
+media_gallery_json_response([
+    'items' => media_gallery_build_payload($items),
+]);

@@ -285,6 +285,7 @@ $(document).ready(function() {
         const $modal = state.$modal;
         $modal.toggleClass('isVideo', item.type === 'video');
         $modal.removeClass('isConfirmingDelete');
+        state.modalOriginalTitle = item.title || '';
         $modal.find('.mediaGalleryCaptionInput').val(item.title || '');
         $modal.find('.mediaGalleryFocalMarker').attr('hidden', '');
         state.modalNaturalDims = null;
@@ -334,6 +335,7 @@ $(document).ready(function() {
         state.activeItemId = null;
         state.pendingFocal = null;
         state.pendingThumbClear = false;
+        state.modalOriginalTitle = '';
         updateSaveEnabled(state);
     }
 
@@ -398,8 +400,20 @@ $(document).ready(function() {
         $marker.css({ left: left + 'px', top: top + 'px' }).removeAttr('hidden');
     }
 
+    function isCaptionDirty(state) {
+        const $input = state.$modal.find('.mediaGalleryCaptionInput');
+        if (!$input.length) {
+            return false;
+        }
+        const current = $input.val() || '';
+        const baseline = typeof state.modalOriginalTitle === 'string' ? state.modalOriginalTitle : '';
+        return current !== baseline;
+    }
+
     function updateSaveEnabled(state) {
-        const hasChanges = state.pendingFocal !== null || state.pendingThumbClear === true;
+        const hasChanges = state.pendingFocal !== null
+            || state.pendingThumbClear === true
+            || isCaptionDirty(state);
         state.$modal.find('.mediaGalleryFocalSave').prop('disabled', !hasChanges);
     }
 
@@ -436,6 +450,45 @@ $(document).ready(function() {
             callback();
         };
         img.src = src;
+    }
+
+    function saveCaptionToServer(state, itemId, title, onSuccess) {
+        const formData = new URLSearchParams();
+        formData.append('module', 'mediaGallery');
+        formData.append('endpoint', 'caption');
+        formData.append('paneId', state.paneId);
+        formData.append('itemId', itemId);
+        formData.append('title', title);
+        if (csrfToken) {
+            formData.append('csrf_token', csrfToken);
+        }
+        fetch(buildUrl('module-endpoint.php'), {
+            method: 'POST',
+            credentials: 'same-origin',
+            body: formData,
+        })
+            .then((response) => response.json().then((data) => ({ ok: response.ok, data })))
+            .then(({ ok, data }) => {
+                if (!ok || !data || data.error) {
+                    if (typeof window.addAdminNotice === 'function') {
+                        window.addAdminNotice('danger', (data && data.error) || 'Failed to save caption.');
+                    }
+                    return;
+                }
+                if (Array.isArray(data.items)) {
+                    state.items = data.items;
+                    state.initialItems = JSON.parse(JSON.stringify(data.items));
+                    renderGrid(state);
+                }
+                if (typeof onSuccess === 'function') {
+                    onSuccess();
+                }
+            })
+            .catch(() => {
+                if (typeof window.addAdminNotice === 'function') {
+                    window.addAdminNotice('danger', 'Failed to save caption.');
+                }
+            });
     }
 
     function saveFocalToServer(state, itemId, focalX, focalY, onSuccess) {
@@ -786,6 +839,7 @@ $(document).ready(function() {
                 return;
             }
             updateItemTitle(state, itemId, $(this).val() || '');
+            updateSaveEnabled(state);
         });
 
         $modal.on('click', '.mediaGalleryChangeButton', function() {
@@ -892,16 +946,21 @@ $(document).ready(function() {
             const finishSave = function() {
                 state.pendingFocal = null;
                 state.pendingThumbClear = false;
+                state.modalOriginalTitle = '';
                 closeModal(state);
             };
 
-            // Order matters: the focal endpoint preserves an existing
-            // custom thumb (basename prefix thumb-) and only re-derives
-            // the auto-thumb when the current item.thumb isn't custom.
-            // If a clear is pending, do it first so item.thumb is empty
-            // before the focal save runs -- otherwise the focal save
-            // would skip its re-derive and the subsequent clear would
-            // wipe the result.
+            // Order matters across the chained commits:
+            // 1. Caption FIRST -- thumb-clear and focal-save endpoints
+            //    each return a refreshed items payload that would
+            //    overwrite our local item.title mutation if caption ran
+            //    later.
+            // 2. Thumb-clear NEXT -- focal-save preserves an existing
+            //    custom thumb and only re-derives the auto-thumb when
+            //    item.thumb isn't custom. Clearing first makes item.
+            //    thumb empty so focal-save's re-derive fires correctly.
+            // 3. Focal-save LAST -- consumes whatever item state the
+            //    earlier saves produced.
             const commitFocalIfPending = function() {
                 if (state.pendingFocal !== null) {
                     saveFocalToServer(
@@ -916,10 +975,19 @@ $(document).ready(function() {
                 }
             };
 
-            if (state.pendingThumbClear) {
-                clearThumbnail(state, itemId, commitFocalIfPending);
+            const commitThumbIfPending = function() {
+                if (state.pendingThumbClear) {
+                    clearThumbnail(state, itemId, commitFocalIfPending);
+                } else {
+                    commitFocalIfPending();
+                }
+            };
+
+            if (isCaptionDirty(state)) {
+                const newTitle = state.$modal.find('.mediaGalleryCaptionInput').val() || '';
+                saveCaptionToServer(state, itemId, newTitle, commitThumbIfPending);
             } else {
-                commitFocalIfPending();
+                commitThumbIfPending();
             }
         });
 

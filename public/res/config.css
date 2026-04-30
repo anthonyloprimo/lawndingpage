@@ -1785,6 +1785,28 @@ button:disabled {
     gap: 6px;
     cursor: pointer;
 }
+.siteConfigGroup {
+    border: 1px solid #ffffff22;
+    border-radius: 6px;
+    padding: 10px 14px 12px 14px;
+    margin: 8px 0;
+}
+.siteConfigGroup legend {
+    padding: 0 6px;
+    font-size: 0.9rem;
+    color: #ffffffcc;
+}
+.siteConfigToggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    padding: 4px 0;
+}
+.siteConfigToggle span {
+    color: #ffffffcc;
+    font-size: 0.95rem;
+}
 .diagnosticsToolbar button {
     padding: 4px 10px;
     background: #00000033;

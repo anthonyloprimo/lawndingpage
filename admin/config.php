@@ -57,6 +57,7 @@ function lawnding_icon_svg(string $name): string {
         'eye_open' => 'M12,9A3,3 0 0,0 9,12A3,3 0 0,0 12,15A3,3 0 0,0 15,12A3,3 0 0,0 12,9M12,17A5,5 0 0,1 7,12A5,5 0 0,1 12,7A5,5 0 0,1 17,12A5,5 0 0,1 12,17M12,4.5C7,4.5 2.73,7.61 1,12C2.73,16.39 7,19.5 12,19.5C17,19.5 21.27,16.39 23,12C21.27,7.61 17,4.5 12,4.5Z',
         'eye_closed' => 'M12 17.5C8.2 17.5 4.8 15.4 3.2 12H1C2.7 16.4 7 19.5 12 19.5S21.3 16.4 23 12H20.8C19.2 15.4 15.8 17.5 12 17.5Z',
         'diagnostics' => 'M13,14H11V9H13M13,18H11V16H13M1,21H23L12,2L1,21Z',
+        'settings' => 'M12,15.5A3.5,3.5 0 0,1 8.5,12A3.5,3.5 0 0,1 12,8.5A3.5,3.5 0 0,1 15.5,12A3.5,3.5 0 0,1 12,15.5M19.43,12.97C19.47,12.65 19.5,12.33 19.5,12C19.5,11.67 19.47,11.34 19.43,11L21.54,9.37C21.73,9.22 21.78,8.95 21.66,8.73L19.66,5.27C19.54,5.05 19.27,4.96 19.05,5.05L16.56,6.05C16.04,5.66 15.5,5.32 14.87,5.07L14.5,2.42C14.46,2.18 14.25,2 14,2H10C9.75,2 9.54,2.18 9.5,2.42L9.13,5.07C8.5,5.32 7.96,5.66 7.44,6.05L4.95,5.05C4.73,4.96 4.46,5.05 4.34,5.27L2.34,8.73C2.21,8.95 2.27,9.22 2.46,9.37L4.57,11C4.53,11.34 4.5,11.67 4.5,12C4.5,12.33 4.53,12.65 4.57,12.97L2.46,14.63C2.27,14.78 2.21,15.05 2.34,15.27L4.34,18.73C4.46,18.95 4.73,19.03 4.95,18.95L7.44,17.94C7.96,18.34 8.5,18.68 9.13,18.93L9.5,21.58C9.54,21.82 9.75,22 10,22H14C14.25,22 14.46,21.82 14.5,21.58L14.87,18.93C15.5,18.67 16.04,18.34 16.56,17.94L19.05,18.95C19.27,19.03 19.54,18.95 19.66,18.73L21.66,15.27C21.78,15.05 21.73,14.78 21.54,14.63L19.43,12.97Z',
     ];
 
     if (!isset($paths[$name])) {
@@ -1083,6 +1084,26 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
             </div>
         </div>
         <?php endif; ?>
+        <?php // Site Config: site-wide module defaults. New panes inherit these; per-pane overrides live in the gear-icon modal on each gallery. Gated on full_admin since it changes site-wide behavior. ?>
+        <?php if (!empty($isFullAdmin)): ?>
+        <?php $siteConfig = lawnding_load_site_config(); ?>
+        <div class="pane glassConvex" id="siteConfig">
+            <h3>SITE CONFIG</h3>
+            <p class="paneHint">Defaults that newly created panes inherit. Existing panes can opt out per-instance via the gear icon on each pane.</p>
+            <input type="hidden" name="siteConfig[__rendered]" value="1">
+            <fieldset class="siteConfigGroup">
+                <legend>Media Gallery</legend>
+                <label class="siteConfigToggle">
+                    <input type="checkbox" name="siteConfig[mediaGallery][customThumbs]" <?php echo !empty($siteConfig['mediaGallery']['customThumbs']) ? 'checked' : ''; ?>>
+                    <span>Allow per-item custom thumbnail uploads</span>
+                </label>
+                <label class="siteConfigToggle">
+                    <input type="checkbox" name="siteConfig[mediaGallery][changeMedia]" <?php echo !empty($siteConfig['mediaGallery']['changeMedia']) ? 'checked' : ''; ?>>
+                    <span>Allow replacing media files on existing items</span>
+                </label>
+            </fieldset>
+        </div>
+        <?php endif; ?>
         <?php // Render each dynamic pane using its module admin template. ?>
         <?php foreach ($panes as $pane): ?>
             <?php
@@ -1108,6 +1129,9 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
             <li><a class="navLink" href="#" data-pane="bg" aria-label="Backgrounds" title="Edit Random Background Images"><?php echo lawnding_icon_svg('backgrounds'); ?></a></li>
             <?php if (!empty($canEditSite)): ?>
             <li><a class="navLink" href="#" data-pane="diagnostics" aria-label="Diagnostics" title="Diagnostics — recent runtime errors"><?php echo lawnding_icon_svg('diagnostics'); ?></a></li>
+            <?php endif; ?>
+            <?php if (!empty($isFullAdmin)): ?>
+            <li><a class="navLink" href="#" data-pane="siteConfig" aria-label="Site Config" title="Site Config — defaults that new panes inherit"><?php echo lawnding_icon_svg('settings'); ?></a></li>
             <?php endif; ?>
             <li class="navSeparator" aria-hidden="true"></li>
             <li><a class="navLink" href="#" data-pane="links" aria-label="Links" title="Links"><?php echo lawnding_icon_svg('links'); ?></a></li>

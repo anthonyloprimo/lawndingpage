@@ -546,6 +546,7 @@ $backgroundsJson = $_POST['backgrounds'] ?? null;
 $backgroundAuthorsJson = $_POST['backgroundAuthors'] ?? null;
 $panePayload = $_POST['pane'] ?? null;
 $panesPayload = $_POST['panes'] ?? null;
+$siteConfigPayload = $_POST['siteConfig'] ?? null;
 
 // Parse and validate JSON payloads.
 $linksData = parse_json_payload($linksJson, 'Invalid links payload');
@@ -1503,6 +1504,28 @@ if (is_array($authLinksOut)) {
 if (is_array($tgBotData)) {
     $normalized = normalize_tg_bot_payload($tgBotData);
     write_json_file($tgBotPath, $normalized, 'Failed to write Telegram bot data');
+}
+
+// Site Config: walk the canonical defaults and mirror each key's checkbox
+// state from the POSTed siteConfigPayload. Unsubmitted checkboxes mean
+// false (HTML form semantics); unrecognized keys in the payload are
+// dropped (defense against tampering or stale clients posting old keys).
+// Gated on full_admin since these flags drive site-wide behavior. The
+// hidden __rendered marker ensures the block fires even when the admin
+// unchecks all boxes (otherwise $_POST['siteConfig'] would be absent and
+// the save would no-op, leaving stale values on disk).
+if (is_array($siteConfigPayload) && !empty($siteConfigPayload['__rendered']) && !empty($isFullAdmin)) {
+    $defaults = lawnding_site_config_defaults();
+    $merged = $defaults;
+    foreach ($defaults as $module => $flags) {
+        $submitted = is_array($siteConfigPayload[$module] ?? null) ? $siteConfigPayload[$module] : [];
+        foreach ($flags as $key => $defaultValue) {
+            $merged[$module][$key] = !empty($submitted[$key]);
+        }
+    }
+    if (!lawnding_save_site_config($merged)) {
+        respond(['error' => 'Failed to write site config'], 500);
+    }
 }
 
 // All operations succeeded.

@@ -721,7 +721,12 @@ function lawnding_validate_and_save_image(
 // admin module templates. PHP's upload_max_filesize / post_max_size
 // can still cap below this; their lower value wins.
 function lawnding_app_upload_max_bytes(): int {
-    return 5 * 1024 * 1024;
+    $siteConfig = lawnding_load_site_config();
+    $mb = isset($siteConfig['mediaGallery']['maxUploadSizeMB']) ? (int) $siteConfig['mediaGallery']['maxUploadSizeMB'] : 5;
+    if ($mb <= 0) {
+        $mb = 5;
+    }
+    return $mb * 1024 * 1024;
 }
 
 function lawnding_app_upload_max_label(): string {
@@ -810,8 +815,9 @@ function lawnding_load_panes(string $path): array {
 function lawnding_site_config_defaults(): array {
     return [
         'mediaGallery' => [
-            'customThumbs' => false,
-            'changeMedia'  => false,
+            'customThumbs'    => false,
+            'changeMedia'     => false,
+            'maxUploadSizeMB' => 5,
         ],
     ];
 }
@@ -833,8 +839,17 @@ function lawnding_load_site_config(): array {
             continue;
         }
         foreach ($flags as $key => $defaultValue) {
-            if (isset($saved[$module][$key]) && is_bool($saved[$module][$key])) {
-                $merged[$module][$key] = $saved[$module][$key];
+            if (!isset($saved[$module][$key])) {
+                continue;
+            }
+            $savedValue = $saved[$module][$key];
+            // Type-dispatch validation: each saved value must match the
+            // PHP type of the default. Mixed-type schemas (some bools,
+            // some ints) all flow through this single branch.
+            if (is_bool($defaultValue) && is_bool($savedValue)) {
+                $merged[$module][$key] = $savedValue;
+            } elseif (is_int($defaultValue) && (is_int($savedValue) || (is_string($savedValue) && is_numeric($savedValue)))) {
+                $merged[$module][$key] = max(0, (int) $savedValue);
             }
         }
     }

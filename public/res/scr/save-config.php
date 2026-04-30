@@ -1532,7 +1532,17 @@ if (is_array($siteConfigPayload) && !empty($siteConfigPayload['__rendered']) && 
     foreach ($defaults as $module => $flags) {
         $submitted = is_array($siteConfigPayload[$module] ?? null) ? $siteConfigPayload[$module] : [];
         foreach ($flags as $key => $defaultValue) {
-            $merged[$module][$key] = !empty($submitted[$key]);
+            // Type-dispatch parsing: bools take HTML form's checkbox semantics
+            // (unsubmitted == false). Ints take the posted numeric, falling
+            // back to the default if missing or non-numeric. Min 1 floor on
+            // ints so a 0 doesn't accidentally disable the feature.
+            if (is_bool($defaultValue)) {
+                $merged[$module][$key] = !empty($submitted[$key]);
+            } elseif (is_int($defaultValue)) {
+                $raw = $submitted[$key] ?? null;
+                $value = (is_numeric($raw)) ? (int) $raw : $defaultValue;
+                $merged[$module][$key] = max(1, $value);
+            }
         }
     }
     if (!lawnding_save_site_config($merged)) {

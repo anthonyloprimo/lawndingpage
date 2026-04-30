@@ -118,3 +118,14 @@ test_assert(
     isset($defaults['mediaGallery']['changeMedia']) && $defaults['mediaGallery']['changeMedia'] === false,
     'defaults: mediaGallery.changeMedia starts false'
 );
+test_assert(
+    isset($defaults['mediaGallery']['maxUploadSizeMB']) && $defaults['mediaGallery']['maxUploadSizeMB'] === 5,
+    'defaults: mediaGallery.maxUploadSizeMB is 5 (MB)'
+);
+
+// lawnding_app_upload_max_bytes() respects site config (with hardcoded
+// 5MB fallback when no admin/lp-siteConfig.json file exists, as in tests).
+test_assert(
+    lawnding_app_upload_max_bytes() === 5 * 1024 * 1024,
+    'app upload cap reads site config default (5 MB) when no saved file'
+);

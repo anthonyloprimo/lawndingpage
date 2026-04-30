@@ -1146,8 +1146,17 @@ $(document).ready(function() {
                 Object.keys(currentSnapshot.siteConfig).forEach((module) => {
                     const flags = currentSnapshot.siteConfig[module] || {};
                     Object.keys(flags).forEach((key) => {
-                        if (flags[key]) {
-                            formData.append('siteConfig[' + module + '][' + key + ']', '1');
+                        const value = flags[key];
+                        // Bool: append "1" only when checked (HTML form
+                        // semantics; PHP reads !empty()).
+                        // Number: always append, including 0, so the int
+                        // value lands in $_POST verbatim.
+                        if (typeof value === 'boolean') {
+                            if (value) {
+                                formData.append('siteConfig[' + module + '][' + key + ']', '1');
+                            }
+                        } else if (typeof value === 'number') {
+                            formData.append('siteConfig[' + module + '][' + key + ']', String(value));
                         }
                     });
                 });
@@ -1415,19 +1424,21 @@ $(document).ready(function() {
     }
 
     function getSiteConfigData() {
-        // Walks every checkbox inside #siteConfig with a name shaped like
-        // siteConfig[<module>][<key>], so new flags added to
-        // lawnding_site_config_defaults() (and rendered by the PHP form)
+        // Walks every checkbox or number input inside #siteConfig with a
+        // name shaped like siteConfig[<module>][<key>], so new flags added
+        // to lawnding_site_config_defaults() (and rendered by the PHP form)
         // flow through the snapshot/diff path without any JS updates.
-        // Returns null when the section isn't rendered (user lacks
-        // edit_site) so the snapshot diff stays clean.
+        // Type detection mirrors the PHP form: checkboxes become bools,
+        // number inputs become ints. Returns null when the section isn't
+        // rendered (user lacks edit_site) so the snapshot diff stays clean.
         const $section = $('#siteConfig');
         if (!$section.length) {
             return null;
         }
         const data = {};
-        $section.find('input[type="checkbox"][name^="siteConfig["]').each(function() {
-            const name = $(this).attr('name') || '';
+        $section.find('input[type="checkbox"][name^="siteConfig["], input[type="number"][name^="siteConfig["]').each(function() {
+            const $input = $(this);
+            const name = $input.attr('name') || '';
             const m = name.match(/^siteConfig\[([^\]]+)\]\[([^\]]+)\]$/);
             if (!m) {
                 return; // skips siteConfig[__rendered] and any non-flag inputs
@@ -1437,7 +1448,12 @@ $(document).ready(function() {
             if (!data[moduleKey]) {
                 data[moduleKey] = {};
             }
-            data[moduleKey][flagKey] = $(this).is(':checked');
+            if ($input.attr('type') === 'checkbox') {
+                data[moduleKey][flagKey] = $input.is(':checked');
+            } else {
+                const parsed = parseInt($input.val(), 10);
+                data[moduleKey][flagKey] = Number.isFinite(parsed) ? parsed : 0;
+            }
         });
         return data;
     }

@@ -48,8 +48,9 @@ function lawnding_site_config_labels(): array {
             'mediaGallery' => 'Media Gallery',
         ],
         'mediaGallery' => [
-            'customThumbs' => 'Allow per-item custom thumbnail uploads',
-            'changeMedia'  => 'Allow replacing media files on existing items',
+            'customThumbs'    => 'Allow per-item custom thumbnail uploads',
+            'changeMedia'     => 'Allow replacing media files on existing items',
+            'maxUploadSizeMB' => 'Max upload size (MB)',
         ],
     ];
 }
@@ -1133,13 +1134,20 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
                     <?php foreach ($flags as $flagKey => $defaultValue): ?>
                         <?php
                             $flagLabel = $siteConfigLabels[$moduleKey][$flagKey] ?? lawnding_camel_to_label($flagKey);
-                            $checked = !empty($siteConfig[$moduleKey][$flagKey]);
                             $name = 'siteConfig[' . $moduleKey . '][' . $flagKey . ']';
+                            $current = $siteConfig[$moduleKey][$flagKey] ?? $defaultValue;
                         ?>
-                        <label class="siteConfigToggle">
-                            <input type="checkbox" name="<?php echo htmlspecialchars($name); ?>" <?php echo $checked ? 'checked' : ''; ?>>
-                            <span><?php echo htmlspecialchars($flagLabel); ?></span>
-                        </label>
+                        <?php if (is_bool($defaultValue)): ?>
+                            <label class="siteConfigToggle">
+                                <input type="checkbox" name="<?php echo htmlspecialchars($name); ?>" <?php echo !empty($current) ? 'checked' : ''; ?>>
+                                <span><?php echo htmlspecialchars($flagLabel); ?></span>
+                            </label>
+                        <?php elseif (is_int($defaultValue)): ?>
+                            <label class="siteConfigField">
+                                <span><?php echo htmlspecialchars($flagLabel); ?></span>
+                                <input type="number" min="1" step="1" name="<?php echo htmlspecialchars($name); ?>" value="<?php echo htmlspecialchars((string) (int) $current); ?>">
+                            </label>
+                        <?php endif; ?>
                     <?php endforeach; ?>
                 </fieldset>
             <?php endforeach; ?>

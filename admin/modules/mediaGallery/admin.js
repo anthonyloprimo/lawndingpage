@@ -284,6 +284,7 @@ $(document).ready(function() {
         state.activeItemId = itemId;
         const $modal = state.$modal;
         $modal.toggleClass('isVideo', item.type === 'video');
+        $modal.removeClass('isConfirmingDelete');
         $modal.find('.mediaGalleryCaptionInput').val(item.title || '');
         $modal.find('.mediaGalleryFocalMarker').attr('hidden', '');
         state.modalNaturalDims = null;
@@ -318,6 +319,7 @@ $(document).ready(function() {
 
     function closeModal(state) {
         const $modal = state.$modal;
+        $modal.removeClass('isConfirmingDelete');
         const $video = $modal.find('.mediaGalleryModalVideo');
         if ($video.length) {
             $video.get(0).pause();
@@ -678,7 +680,7 @@ $(document).ready(function() {
                 }
                 setItemsFromPayload(state, data.items || []);
                 closeModal(state);
-                addNotice('ok', 'Media removed.');
+                addNotice('ok', 'Media deleted.');
                 hideSaving();
             })
             .catch(() => {
@@ -929,9 +931,28 @@ $(document).ready(function() {
 
         $modal.on('click', '.mediaGalleryRemoveButton', function() {
             const itemId = state.activeItemId;
-            if (itemId) {
-                deleteMedia(state, itemId);
+            if (!itemId) {
+                return;
             }
+            $modal.addClass('isConfirmingDelete');
+            // Move focus to the No button so the default Enter / Esc
+            // path is "back out" rather than "confirm delete." The Yes
+            // button explicitly receives danger styling but isn't the
+            // default focus.
+            $modal.find('.mediaGalleryConfirmDeleteNo').trigger('focus');
+        });
+
+        $modal.on('click', '.mediaGalleryConfirmDeleteYes', function() {
+            const itemId = state.activeItemId;
+            if (!itemId) {
+                return;
+            }
+            $modal.removeClass('isConfirmingDelete');
+            deleteMedia(state, itemId);
+        });
+
+        $modal.on('click', '.mediaGalleryConfirmDeleteNo', function() {
+            $modal.removeClass('isConfirmingDelete');
         });
     });
 

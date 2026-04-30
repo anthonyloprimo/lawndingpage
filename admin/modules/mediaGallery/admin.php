@@ -153,10 +153,21 @@ if ($itemsJson === false) {
                         <button class="mediaGalleryThumbButtonAction usersButton" type="button">Set thumbnail</button>
                         <input class="mediaGalleryThumbInput" type="file" accept="image/*" hidden>
                         <button class="mediaGalleryThumbClear usersButton" type="button">Use default thumbnail</button>
-                        <button class="mediaGalleryRemoveButton usersButton usersDanger" type="button">Remove from gallery</button>
-                        <button class="mediaGalleryFocalSave usersButton" type="button" disabled>Save</button>
+                        <div class="mediaGalleryActionRow">
+                            <button class="mediaGalleryRemoveButton usersButton usersDanger" type="button">Delete</button>
+                            <button class="mediaGalleryFocalSave usersButton" type="button" disabled>Save</button>
+                        </div>
                     </div>
                     <div class="mediaGalleryFootnote">Uploads are saved immediately. Max upload size: <?php echo htmlspecialchars(lawnding_app_upload_max_label()); ?>.</div>
+                </div>
+            </div>
+            <div class="mediaGalleryConfirmDelete" aria-hidden="true">
+                <div class="mediaGalleryConfirmDeleteContent" role="alertdialog" aria-labelledby="mediaGalleryConfirmDeletePrompt-<?php echo htmlspecialchars($paneId); ?>">
+                    <p id="mediaGalleryConfirmDeletePrompt-<?php echo htmlspecialchars($paneId); ?>">Are you sure?</p>
+                    <div class="mediaGalleryActionRow">
+                        <button class="mediaGalleryConfirmDeleteNo usersButton" type="button">No</button>
+                        <button class="mediaGalleryConfirmDeleteYes usersButton usersDanger" type="button">Yes, delete</button>
+                    </div>
                 </div>
             </div>
             <button class="userModalClose" type="button" aria-label="Close">×</button>

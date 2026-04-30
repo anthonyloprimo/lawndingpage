@@ -244,6 +244,52 @@
     display: none;
 }
 
+.mediaGalleryActionRow {
+    display: flex;
+    gap: 8px;
+}
+
+.mediaGalleryActionRow > button {
+    flex: 1;
+}
+
+.mediaGalleryConfirmDelete {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.85);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+    border-radius: inherit;
+}
+
+.mediaGalleryModal.isConfirmingDelete .mediaGalleryConfirmDelete {
+    display: flex;
+}
+
+.mediaGalleryConfirmDeleteContent {
+    background: #2a2a2a;
+    border: 1px solid #ffffff33;
+    border-radius: 10px;
+    padding: 24px;
+    text-align: center;
+    min-width: 280px;
+    max-width: 360px;
+}
+
+.mediaGalleryConfirmDeleteContent p {
+    margin: 0 0 16px 0;
+    font-size: 1.1rem;
+    color: #ffffffee;
+}
+
+/* Keep the close button above the confirm overlay so users can dismiss
+   the modal entirely without first clicking No. */
+.mediaGalleryModal .userModalClose {
+    z-index: 11;
+}
+
 .mediaGalleryModalVideo {
     width: 100%;
     height: 80vh;

@@ -235,6 +235,15 @@
     display: none;
 }
 
+/* Hidden pending the admin features-toggle work (roadmap commits 4-6).
+   The DOM elements, JS handlers, and server endpoints all stay; only
+   the visual entry points are gated. See memory
+   project_gallery_per_item_actions_gated for the re-enable plan. */
+.mediaGalleryChangeButton,
+.mediaGalleryThumbButtonAction {
+    display: none;
+}
+
 .mediaGalleryModalVideo {
     width: 100%;
     height: 80vh;

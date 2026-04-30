@@ -21,6 +21,17 @@ if (!defined('LAWNDING_MEDIA_GALLERY_ADMIN_ASSETS_INJECTED')) {
     echo '<script src="'
         . htmlspecialchars($scriptUrl, ENT_QUOTES, 'UTF-8')
         . '" defer></script>';
+
+    // smartcrop.js (vendored at v2.0.5) runs client-side before each
+    // upload to suggest a focal point. admin.js feature-detects
+    // window.smartcrop; if the script fails to load, uploads still
+    // succeed and the server falls back to centered crop.
+    $smartcropUrl = function_exists('lawnding_versioned_local_asset_url')
+        ? lawnding_versioned_local_asset_url('res/scr/smartcrop.js')
+        : '/res/scr/smartcrop.js';
+    echo '<script src="'
+        . htmlspecialchars($smartcropUrl, ENT_QUOTES, 'UTF-8')
+        . '" defer></script>';
 }
 
 // Pane metadata used for IDs, labels, and data file resolution.

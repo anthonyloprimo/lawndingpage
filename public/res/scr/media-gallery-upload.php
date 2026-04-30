@@ -86,7 +86,21 @@ if (!$resized && !move_uploaded_file($upload['tmp_name'], $targetPath)) {
 }
 $savedSize = is_file($targetPath) ? (int) filesize($targetPath) : $originalSize;
 
-$thumbRelative = media_gallery_derive_thumb($targetPath, $paths['data_dir'], $paneId, $newId, $isVideo);
+// Optional focal coords from the client (set by smartcrop.js auto-
+// fallback before upload). Numeric values clamp to [0, 1]; absent /
+// empty / non-numeric inputs leave focal as null and derive_thumb
+// falls back to centered crop.
+$focalXRaw = $_POST['focal_x'] ?? null;
+$focalYRaw = $_POST['focal_y'] ?? null;
+$focalX = null;
+$focalY = null;
+if ($focalXRaw !== null && $focalXRaw !== '' && $focalYRaw !== null && $focalYRaw !== ''
+    && is_numeric($focalXRaw) && is_numeric($focalYRaw)) {
+    $focalX = max(0.0, min(1.0, (float) $focalXRaw));
+    $focalY = max(0.0, min(1.0, (float) $focalYRaw));
+}
+
+$thumbRelative = media_gallery_derive_thumb($targetPath, $paths['data_dir'], $paneId, $newId, $isVideo, $focalX, $focalY);
 
 $type = $isVideo ? 'video' : 'image';
 $relativePath = 'res/data/mediaGalleryContent-' . $paneId . '/' . $filename;
@@ -110,8 +124,8 @@ $items[] = [
     'order'         => $maxOrder + 1,
     'original_size' => $originalSize,
     'saved_size'    => $savedSize,
-    'focal_x'       => null,
-    'focal_y'       => null,
+    'focal_x'       => $focalX,
+    'focal_y'       => $focalY,
 ];
 
 $items = media_gallery_reindex_orders($items);

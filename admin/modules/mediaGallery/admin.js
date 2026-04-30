@@ -552,6 +552,100 @@ $(document).ready(function() {
             .catch(() => {});
     }
 
+    // Run smartcrop.js (vendored at v2.0.5) on a picked file to suggest
+    // a focal point before upload. Resolves to {focal_x, focal_y} on
+    // success, or null on any failure (smartcrop missing, image decode
+    // failed, non-image file). Failure-graceful by design: a null
+    // resolution just means the upload posts without focal coords and
+    // the server falls back to centered crop -- same as today's
+    // behavior with no focal hint, never worse.
+    //
+    // The focal point is computed as the center of smartcrop's chosen
+    // 400x400 crop window, normalized to [0, 1] of source pixel
+    // dimensions. That's the same shape the server expects from a
+    // human-set focal-point picker click.
+    function smartcropFocalForFile(file) {
+        return new Promise(function(resolve) {
+            if (typeof window.smartcrop === 'undefined') {
+                resolve(null);
+                return;
+            }
+            if (!file || !file.type || file.type.indexOf('image/') !== 0) {
+                resolve(null);
+                return;
+            }
+            let blobUrl;
+            try {
+                blobUrl = URL.createObjectURL(file);
+            } catch (e) {
+                resolve(null);
+                return;
+            }
+            const img = new Image();
+            const cleanup = function() {
+                try { URL.revokeObjectURL(blobUrl); } catch (e) { /* ignore */ }
+            };
+            img.onload = function() {
+                if (!img.naturalWidth || !img.naturalHeight) {
+                    cleanup();
+                    resolve(null);
+                    return;
+                }
+                let cropPromise;
+                try {
+                    cropPromise = window.smartcrop.crop(img, { width: 400, height: 400 });
+                } catch (e) {
+                    cleanup();
+                    resolve(null);
+                    return;
+                }
+                cropPromise.then(function(result) {
+                    cleanup();
+                    const tc = result && result.topCrop;
+                    if (!tc || typeof tc.x !== 'number' || typeof tc.y !== 'number'
+                        || typeof tc.width !== 'number' || typeof tc.height !== 'number') {
+                        resolve(null);
+                        return;
+                    }
+                    const focalX = (tc.x + tc.width / 2) / img.naturalWidth;
+                    const focalY = (tc.y + tc.height / 2) / img.naturalHeight;
+                    resolve({
+                        focal_x: Math.max(0, Math.min(1, focalX)),
+                        focal_y: Math.max(0, Math.min(1, focalY)),
+                    });
+                }).catch(function() {
+                    cleanup();
+                    resolve(null);
+                });
+            };
+            img.onerror = function() {
+                cleanup();
+                resolve(null);
+            };
+            img.src = blobUrl;
+        });
+    }
+
+    // Smartcrop the file (best-effort) then hand off to uploadMedia
+    // with the resulting focal coords merged into options.focal.
+    // Wrapper exists so callers (single + batch) share the same
+    // smartcrop-then-upload control flow without duplicating it.
+    function smartcropAndUpload(state, file, options) {
+        smartcropFocalForFile(file).then(function(focal) {
+            const merged = Object.assign({}, options || {});
+            if (focal) {
+                merged.focal = focal;
+            }
+            uploadMedia(state, file, merged);
+        });
+    }
+
+    // options.focal                  -- {focal_x, focal_y} pre-computed
+    //                                   before upload (smartcrop or
+    //                                   future hooks). Posted alongside
+    //                                   the file so the server stores
+    //                                   them on the new item and uses
+    //                                   them in derive_thumb.
     // options.suppressSuccessNotice  -- caller will surface a batch
     //                                   summary instead of per-file
     //                                   notices.
@@ -572,6 +666,12 @@ $(document).ready(function() {
         const formData = new FormData();
         formData.append('paneId', state.paneId);
         formData.append('mediaFile', file);
+        if (options.focal
+            && typeof options.focal.focal_x === 'number'
+            && typeof options.focal.focal_y === 'number') {
+            formData.append('focal_x', String(options.focal.focal_x));
+            formData.append('focal_y', String(options.focal.focal_y));
+        }
         if (csrfToken) {
             formData.append('csrf_token', csrfToken);
         }
@@ -846,7 +946,7 @@ $(document).ready(function() {
                 return;
             }
             if (files.length === 1) {
-                uploadMedia(state, files[0]);
+                smartcropAndUpload(state, files[0]);
                 return;
             }
 
@@ -870,7 +970,7 @@ $(document).ready(function() {
                     // surfaced the reasons.
                     return;
                 }
-                uploadMedia(state, files[index], {
+                smartcropAndUpload(state, files[index], {
                     suppressSuccessNotice: true,
                     onComplete: function(ok) {
                         if (ok) {

@@ -1140,6 +1140,7 @@ $(document).ready(function() {
             // The hidden __rendered marker tells the PHP handler to honor
             // this submission even if every box is unchecked (otherwise an
             // all-unchecked submit would have no siteConfig keys at all).
+            let siteConfigChanged = false;
             if (currentSnapshot.siteConfig && !isEqualSnapshot(currentSnapshot.siteConfig, initialSnapshot.siteConfig)) {
                 formData.append('siteConfig[__rendered]', '1');
                 Object.keys(currentSnapshot.siteConfig).forEach((module) => {
@@ -1151,6 +1152,7 @@ $(document).ready(function() {
                     });
                 });
                 hasChanges = true;
+                siteConfigChanged = true;
             }
 
             if (!hasChanges) {
@@ -1172,6 +1174,15 @@ $(document).ready(function() {
                 contentType: false,
                 success: function(resp) {
                     console.log('Save successful', resp);
+                    if (siteConfigChanged) {
+                        // Site config drives server-side conditional rendering
+                        // (gear modal checkbox states, per-item modal button
+                        // visibility) that JS state propagation can't refresh
+                        // in place. Hard-reload so every conditional re-derives.
+                        addAdminNotice('ok', 'Site config saved. Reloading…', { persist: true });
+                        setTimeout(function() { window.location.reload(); }, 600);
+                        return;
+                    }
                     addAdminNotice('ok', 'Changes saved.');
                     if (resp && resp.gd_unavailable && !gdNoticeShown) {
                         gdNoticeShown = true;

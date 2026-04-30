@@ -174,10 +174,6 @@ $useSiteDefaults = !isset($paneSettings['useSiteDefaults']) || $paneSettings['us
                     </div>
                 </div>
                 <div class="mediaGalleryModalActions">
-                    <label class="mediaGalleryField">
-                        <span class="mediaGalleryFieldLabel">Caption / Alt text</span>
-                        <input type="text" class="mediaGalleryCaptionInput" placeholder="Optional caption">
-                    </label>
                     <div class="mediaGalleryButtonStack">
                         <?php if ($canChangeMedia): ?>
                         <button class="mediaGalleryChangeButton usersButton" type="button">Change media</button>
@@ -196,7 +192,9 @@ $useSiteDefaults = !isset($paneSettings['useSiteDefaults']) || $paneSettings['us
                             <dt>Saved size</dt><dd class="mediaGalleryInfoSavedSize">—</dd>
                             <dt>Uploaded at</dt><dd class="mediaGalleryInfoUploadedAt">—</dd>
                             <dt>Uploaded by</dt><dd class="mediaGalleryInfoUploadedBy">—</dd>
+                            <dt class="mediaGalleryInfoCaptionLabel">Caption</dt>
                         </dl>
+                        <textarea class="mediaGalleryCaptionInput" rows="3" placeholder="Optional caption"></textarea>
                     </div>
                     <div class="mediaGalleryActionRow mediaGalleryModalFooterActions">
                         <button class="mediaGalleryFocalSave usersButton" type="button" disabled>Save</button>

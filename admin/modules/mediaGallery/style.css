@@ -365,22 +365,25 @@
     right: 10px;
 }
 
-.mediaGalleryField {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-}
-
-.mediaGalleryFieldLabel {
-    font-size: 0.9rem;
-    color: #ffffffcc;
-}
-
 .mediaGalleryCaptionInput {
     padding: 6px 8px;
     border-radius: 6px;
     background: #00000055;
     border: 1px solid #ffffff22;
+    width: 100%;
+    box-sizing: border-box;
+    resize: vertical;
+    font-family: inherit;
+    font-size: inherit;
+    color: inherit;
+    margin-top: 4px;
+}
+
+/* Caption label sits as the bottom dt in the Image Info dl. Span both
+   grid columns so the textarea below it gets full section width. */
+.mediaGalleryInfoCaptionLabel {
+    grid-column: 1 / -1;
+    margin-top: 4px;
 }
 
 .mediaGalleryButtonStack {

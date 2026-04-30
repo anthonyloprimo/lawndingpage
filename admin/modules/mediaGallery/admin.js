@@ -288,6 +288,7 @@ $(document).ready(function() {
         $modal.find('.mediaGalleryFocalMarker').attr('hidden', '');
         state.modalNaturalDims = null;
         state.pendingFocal = null;
+        state.pendingThumbClear = false;
 
         const fileUrl = makeAssetUrl(item.file);
         const $image = $modal.find('.mediaGalleryModalImage');
@@ -306,7 +307,7 @@ $(document).ready(function() {
             });
         }
 
-        updateFocalSaveEnabled(state);
+        updateSaveEnabled(state);
 
         if (typeof window.openAdminModal === 'function') {
             window.openAdminModal($modal);
@@ -330,7 +331,8 @@ $(document).ready(function() {
         }
         state.activeItemId = null;
         state.pendingFocal = null;
-        updateFocalSaveEnabled(state);
+        state.pendingThumbClear = false;
+        updateSaveEnabled(state);
     }
 
     // Compute the on-screen bounding rect of the displayed image inside
@@ -394,14 +396,15 @@ $(document).ready(function() {
         $marker.css({ left: left + 'px', top: top + 'px' }).removeAttr('hidden');
     }
 
-    function updateFocalSaveEnabled(state) {
-        state.$modal.find('.mediaGalleryFocalSave').prop('disabled', !state.pendingFocal);
+    function updateSaveEnabled(state) {
+        const hasChanges = state.pendingFocal !== null || state.pendingThumbClear === true;
+        state.$modal.find('.mediaGalleryFocalSave').prop('disabled', !hasChanges);
     }
 
     function setPendingFocal(state, focalX, focalY) {
         state.pendingFocal = { focal_x: focalX, focal_y: focalY };
         positionFocalMarker(state);
-        updateFocalSaveEnabled(state);
+        updateSaveEnabled(state);
     }
 
     // itemId acts as a stale-request token: if the user navigates to a
@@ -612,7 +615,13 @@ $(document).ready(function() {
             });
     }
 
-    function clearThumbnail(state, itemId) {
+    // Called from the Save flow after the user has clicked "Use default
+    // thumbnail" (which only marks state.pendingThumbClear). Posts the
+    // clear to the server and yields to onSuccess so the Save handler
+    // can chain into a focal save if one is also pending. Doesn't re-
+    // open the modal -- the Save handler closes it after all chained
+    // commits finish.
+    function clearThumbnail(state, itemId, onSuccess) {
         const formData = new FormData();
         formData.append('paneId', state.paneId);
         formData.append('itemId', itemId);
@@ -635,9 +644,10 @@ $(document).ready(function() {
                     return;
                 }
                 setItemsFromPayload(state, data.items || []);
-                openModal(state, itemId);
-                addNotice('ok', 'Thumbnail cleared.');
                 hideSaving();
+                if (typeof onSuccess === 'function') {
+                    onSuccess();
+                }
             })
             .catch(() => {
                 addNotice('danger', 'Thumbnail update failed. Please try again.');
@@ -804,9 +814,13 @@ $(document).ready(function() {
 
         $modal.on('click', '.mediaGalleryThumbClear', function() {
             const itemId = state.activeItemId;
-            if (itemId) {
-                clearThumbnail(state, itemId);
+            if (!itemId) {
+                return;
             }
+            // Defer the actual clear until Save commits. Marks pending,
+            // enables the Save button.
+            state.pendingThumbClear = true;
+            updateSaveEnabled(state);
         });
 
         $modal.on('click', '.mediaGalleryModalImage', function(event) {
@@ -872,20 +886,39 @@ $(document).ready(function() {
             if (!itemId) {
                 return;
             }
-            if (state.pendingFocal === null) {
+
+            const finishSave = function() {
+                state.pendingFocal = null;
+                state.pendingThumbClear = false;
                 closeModal(state);
-                return;
-            }
-            saveFocalToServer(
-                state,
-                itemId,
-                state.pendingFocal.focal_x,
-                state.pendingFocal.focal_y,
-                function() {
-                    state.pendingFocal = null;
-                    closeModal(state);
+            };
+
+            // Order matters: the focal endpoint preserves an existing
+            // custom thumb (basename prefix thumb-) and only re-derives
+            // the auto-thumb when the current item.thumb isn't custom.
+            // If a clear is pending, do it first so item.thumb is empty
+            // before the focal save runs -- otherwise the focal save
+            // would skip its re-derive and the subsequent clear would
+            // wipe the result.
+            const commitFocalIfPending = function() {
+                if (state.pendingFocal !== null) {
+                    saveFocalToServer(
+                        state,
+                        itemId,
+                        state.pendingFocal.focal_x,
+                        state.pendingFocal.focal_y,
+                        finishSave
+                    );
+                } else {
+                    finishSave();
                 }
-            );
+            };
+
+            if (state.pendingThumbClear) {
+                clearThumbnail(state, itemId, commitFocalIfPending);
+            } else {
+                commitFocalIfPending();
+            }
         });
 
         $(window).on('resize', function() {

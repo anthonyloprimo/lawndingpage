@@ -105,7 +105,9 @@ $(document).ready(function() {
                 title: String(safe.title || ''),
                 order: Number.isFinite(Number(safe.order)) ? Number(safe.order) : 0,
                 original_size: parseInt(safe.original_size, 10) || 0,
-                saved_size:    parseInt(safe.saved_size,    10) || 0
+                saved_size:    parseInt(safe.saved_size,    10) || 0,
+                uploaded_at:   String(safe.uploaded_at || ''),
+                uploaded_by:   String(safe.uploaded_by || '')
             };
         }).filter((item) => item.id !== '');
     }
@@ -310,12 +312,29 @@ $(document).ready(function() {
         }
 
         updateSaveEnabled(state);
+        populateImageInfo($modal, item);
 
         if (typeof window.openAdminModal === 'function') {
             window.openAdminModal($modal);
         } else {
             $modal.addClass('isOpen').attr('aria-hidden', 'false');
         }
+    }
+
+    function populateImageInfo($modal, item) {
+        const fmt = window.lpFormatBytes || function (b) { return b ? b + ' B' : '—'; };
+        const orig = item.original_size > 0 ? fmt(item.original_size) : '—';
+        const saved = item.saved_size > 0 ? fmt(item.saved_size) : '—';
+        let when = '—';
+        if (item.uploaded_at) {
+            const d = new Date(item.uploaded_at);
+            when = isNaN(d.getTime()) ? item.uploaded_at : d.toLocaleString();
+        }
+        const who = item.uploaded_by || '—';
+        $modal.find('.mediaGalleryInfoOriginalSize').text(orig);
+        $modal.find('.mediaGalleryInfoSavedSize').text(saved);
+        $modal.find('.mediaGalleryInfoUploadedAt').text(when);
+        $modal.find('.mediaGalleryInfoUploadedBy').text(who);
     }
 
     function closeModal(state) {

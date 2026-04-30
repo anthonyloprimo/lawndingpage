@@ -176,7 +176,15 @@ if ($itemsJson === false) {
                             <button class="mediaGalleryFocalSave usersButton" type="button" disabled>Save</button>
                         </div>
                     </div>
-                    <div class="mediaGalleryFootnote">Uploads are saved immediately. Max upload size: <?php echo htmlspecialchars(lawnding_app_upload_max_label()); ?>.</div>
+                    <div class="mediaGalleryInfo">
+                        <h5 class="mediaGalleryInfoHeader">Image Info:</h5>
+                        <dl class="mediaGalleryInfoList">
+                            <dt>Original size</dt><dd class="mediaGalleryInfoOriginalSize">—</dd>
+                            <dt>Saved size</dt><dd class="mediaGalleryInfoSavedSize">—</dd>
+                            <dt>Uploaded at</dt><dd class="mediaGalleryInfoUploadedAt">—</dd>
+                            <dt>Uploaded by</dt><dd class="mediaGalleryInfoUploadedBy">—</dd>
+                        </dl>
+                    </div>
                 </div>
             </div>
             <button class="userModalClose" type="button" aria-label="Close">×</button>

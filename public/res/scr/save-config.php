@@ -957,10 +957,21 @@ if ($action === 'pane_management') {
 
         // mediaGallery's items.json now lives inside the per-pane content dir,
         // so the dir must exist before write_json_file() initializes items.json below.
+        // Also eagerly create settings.json with the canonical default
+        // (useSiteDefaults: true) so every gallery has a settings record from
+        // the moment it's created -- the resolver behavior is unchanged
+        // (absent file == useSiteDefaults true), but having the file present
+        // makes it obvious the gallery is wired up and saves consistently.
         if ($currentModule === 'mediaGallery') {
             $mediaDir = media_gallery_dir($paths['data_dir'], $currentId);
             if (!is_dir($mediaDir)) {
                 mkdir($mediaDir, 0775, true);
+            }
+            $settingsPath = $mediaDir . '/settings.json';
+            if (!is_readable($settingsPath)) {
+                if (!lawnding_save_pane_settings($settingsPath, ['useSiteDefaults' => true])) {
+                    respond(['error' => 'Failed to initialize gallery settings for ' . $currentId . '.'], 500);
+                }
             }
         }
 

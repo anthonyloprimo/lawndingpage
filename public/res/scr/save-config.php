@@ -954,6 +954,15 @@ if ($action === 'pane_management') {
             }
         }
 
+        // mediaGallery's items.json now lives inside the per-pane content dir,
+        // so the dir must exist before write_json_file() initializes items.json below.
+        if ($currentModule === 'mediaGallery') {
+            $mediaDir = media_gallery_dir($paths['data_dir'], $currentId);
+            if (!is_dir($mediaDir)) {
+                mkdir($mediaDir, 0775, true);
+            }
+        }
+
         $newManifest = load_module_manifest($modulesDir, $currentModule);
         $newData = is_array($newManifest) ? ($newManifest['data_files'] ?? []) : [];
         if (is_array($newData)) {
@@ -979,12 +988,6 @@ if ($action === 'pane_management') {
                         write_text_file($path, '', 'Failed to initialize pane data for ' . $currentId . '.');
                     }
                 }
-            }
-        }
-        if ($currentModule === 'mediaGallery') {
-            $mediaDir = media_gallery_dir($paths['data_dir'], $currentId);
-            if (!is_dir($mediaDir)) {
-                mkdir($mediaDir, 0775, true);
             }
         }
     }

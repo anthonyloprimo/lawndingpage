@@ -161,13 +161,28 @@ test_assert(
     'build_payload preserves uploaded_by string verbatim'
 );
 
-// TG-derived sentinel survives unchanged
+// TG-derived sentinel survives unchanged in uploaded_by; uploaded_by_display
+// falls back to the raw sentinel when no cached profile is available
+// (the test env has no membership cache).
 $payload = media_gallery_build_payload([
     ['id' => 'tg1', 'type' => 'image', 'file' => '', 'thumb' => '', 'uploaded_by' => 'tg:114290546'],
 ]);
 test_assert(
     $payload[0]['uploaded_by'] === 'tg:114290546',
-    'build_payload preserves tg:<id> sentinel for TG-derived uploads'
+    'build_payload preserves tg:<id> sentinel in uploaded_by'
+);
+test_assert(
+    $payload[0]['uploaded_by_display'] === 'tg:114290546',
+    'build_payload uploaded_by_display falls back to raw sentinel when cache has no profile'
+);
+
+// Bcrypt usernames are already friendly — uploaded_by_display mirrors uploaded_by
+$payload = media_gallery_build_payload([
+    ['id' => 'b1', 'type' => 'image', 'file' => '', 'thumb' => '', 'uploaded_by' => 'Phinnay'],
+]);
+test_assert(
+    $payload[0]['uploaded_by_display'] === 'Phinnay',
+    'build_payload uploaded_by_display passes bcrypt usernames through unchanged'
 );
 
 // Legacy items missing the new fields default to empty strings (no PHP notices, no nulls)

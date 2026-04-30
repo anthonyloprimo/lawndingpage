@@ -345,6 +345,7 @@ function media_gallery_thumb_is_custom(string $thumbPath): bool {
 }
 
 function media_gallery_build_payload(array $items): array {
+    $tgProfiles = null;
     $output = [];
     foreach ($items as $item) {
         if (!is_array($item)) {
@@ -352,21 +353,37 @@ function media_gallery_build_payload(array $items): array {
         }
         $file = isset($item['file']) ? (string) $item['file'] : '';
         $thumb = isset($item['thumb']) ? (string) $item['thumb'] : '';
+        $uploadedBy = isset($item['uploaded_by']) ? (string) $item['uploaded_by'] : '';
+        $uploadedByDisplay = $uploadedBy;
+        if (preg_match('/^tg:(\d+)$/', $uploadedBy, $m)) {
+            if ($tgProfiles === null) {
+                $tgCache = function_exists('lawnding_tg_cache_load') ? lawnding_tg_cache_load() : ['users' => []];
+                $tgProfiles = is_array($tgCache['users'] ?? null) ? $tgCache['users'] : [];
+            }
+            $profile = $tgProfiles[$m[1]]['profile'] ?? null;
+            if (is_array($profile) && function_exists('lawnding_format_tg_display_name')) {
+                $name = lawnding_format_tg_display_name($profile, null);
+                if ($name !== '') {
+                    $uploadedByDisplay = $name;
+                }
+            }
+        }
         $output[] = [
-            'id'            => isset($item['id']) ? (string) $item['id'] : '',
-            'type'          => isset($item['type']) ? (string) $item['type'] : 'image',
-            'file'          => $file,
-            'thumb'         => $thumb,
-            'title'         => isset($item['title']) ? (string) $item['title'] : '',
-            'order'         => isset($item['order']) ? (int) $item['order'] : 0,
-            'original_size' => isset($item['original_size']) ? (int) $item['original_size'] : 0,
-            'saved_size'    => isset($item['saved_size']) ? (int) $item['saved_size'] : 0,
-            'focal_x'       => isset($item['focal_x']) && is_numeric($item['focal_x']) ? (float) $item['focal_x'] : null,
-            'focal_y'       => isset($item['focal_y']) && is_numeric($item['focal_y']) ? (float) $item['focal_y'] : null,
-            'uploaded_at'   => isset($item['uploaded_at']) ? (string) $item['uploaded_at'] : '',
-            'uploaded_by'   => isset($item['uploaded_by']) ? (string) $item['uploaded_by'] : '',
-            'displayFile'   => $file !== '' ? lawnding_versioned_local_asset_url($file) : '',
-            'displayThumb'  => $thumb !== '' ? lawnding_versioned_local_asset_url($thumb) : '',
+            'id'                  => isset($item['id']) ? (string) $item['id'] : '',
+            'type'                => isset($item['type']) ? (string) $item['type'] : 'image',
+            'file'                => $file,
+            'thumb'               => $thumb,
+            'title'               => isset($item['title']) ? (string) $item['title'] : '',
+            'order'               => isset($item['order']) ? (int) $item['order'] : 0,
+            'original_size'       => isset($item['original_size']) ? (int) $item['original_size'] : 0,
+            'saved_size'          => isset($item['saved_size']) ? (int) $item['saved_size'] : 0,
+            'focal_x'             => isset($item['focal_x']) && is_numeric($item['focal_x']) ? (float) $item['focal_x'] : null,
+            'focal_y'             => isset($item['focal_y']) && is_numeric($item['focal_y']) ? (float) $item['focal_y'] : null,
+            'uploaded_at'         => isset($item['uploaded_at']) ? (string) $item['uploaded_at'] : '',
+            'uploaded_by'         => $uploadedBy,
+            'uploaded_by_display' => $uploadedByDisplay,
+            'displayFile'         => $file !== '' ? lawnding_versioned_local_asset_url($file) : '',
+            'displayThumb'        => $thumb !== '' ? lawnding_versioned_local_asset_url($thumb) : '',
         ];
     }
     return $output;

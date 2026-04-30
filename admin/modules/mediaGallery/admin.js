@@ -106,8 +106,9 @@ $(document).ready(function() {
                 order: Number.isFinite(Number(safe.order)) ? Number(safe.order) : 0,
                 original_size: parseInt(safe.original_size, 10) || 0,
                 saved_size:    parseInt(safe.saved_size,    10) || 0,
-                uploaded_at:   String(safe.uploaded_at || ''),
-                uploaded_by:   String(safe.uploaded_by || '')
+                uploaded_at:           String(safe.uploaded_at || ''),
+                uploaded_by:           String(safe.uploaded_by || ''),
+                uploaded_by_display:   String(safe.uploaded_by_display || safe.uploaded_by || '')
             };
         }).filter((item) => item.id !== '');
     }
@@ -330,7 +331,7 @@ $(document).ready(function() {
             const d = new Date(item.uploaded_at);
             when = isNaN(d.getTime()) ? item.uploaded_at : d.toLocaleString();
         }
-        const who = item.uploaded_by || '—';
+        const who = item.uploaded_by_display || item.uploaded_by || '—';
         $modal.find('.mediaGalleryInfoOriginalSize').text(orig);
         $modal.find('.mediaGalleryInfoSavedSize').text(saved);
         $modal.find('.mediaGalleryInfoUploadedAt').text(when);

@@ -149,11 +149,11 @@ if ($itemsJson === false) {
                     <div class="mediaGalleryButtonStack">
                         <button class="mediaGalleryChangeButton usersButton" type="button">Change media</button>
                         <input class="mediaGalleryChangeInput" type="file" accept="image/*" hidden>
-                        <button class="mediaGalleryFocalReset usersButton" type="button" disabled>Reset focal point</button>
                         <button class="mediaGalleryThumbButtonAction usersButton" type="button">Set thumbnail</button>
                         <input class="mediaGalleryThumbInput" type="file" accept="image/*" hidden>
                         <button class="mediaGalleryThumbClear usersButton" type="button">Use default thumbnail</button>
                         <button class="mediaGalleryRemoveButton usersButton usersDanger" type="button">Remove from gallery</button>
+                        <button class="mediaGalleryFocalSave usersButton" type="button" disabled>Save</button>
                     </div>
                     <div class="mediaGalleryFootnote">Uploads are saved immediately. Max upload size: <?php echo htmlspecialchars(lawnding_app_upload_max_label()); ?>.</div>
                 </div>

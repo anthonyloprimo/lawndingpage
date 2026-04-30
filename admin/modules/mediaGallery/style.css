@@ -231,7 +231,7 @@
     display: none;
 }
 
-.mediaGalleryModal.isVideo .mediaGalleryFocalReset {
+.mediaGalleryModal.isVideo .mediaGalleryFocalSave {
     display: none;
 }
 

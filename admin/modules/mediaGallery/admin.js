@@ -276,6 +276,7 @@ $(document).ready(function() {
         $modal.find('.mediaGalleryCaptionInput').val(item.title || '');
         $modal.find('.mediaGalleryFocalMarker').attr('hidden', '');
         state.modalNaturalDims = null;
+        state.pendingFocal = null;
 
         const fileUrl = makeAssetUrl(item.file);
         const $image = $modal.find('.mediaGalleryModalImage');
@@ -294,7 +295,7 @@ $(document).ready(function() {
             });
         }
 
-        updateFocalResetEnabled(state);
+        updateFocalSaveEnabled(state);
 
         if (typeof window.openAdminModal === 'function') {
             window.openAdminModal($modal);
@@ -317,6 +318,8 @@ $(document).ready(function() {
             $modal.removeClass('isOpen').attr('aria-hidden', 'true');
         }
         state.activeItemId = null;
+        state.pendingFocal = null;
+        updateFocalSaveEnabled(state);
     }
 
     // Compute the on-screen bounding rect of the displayed image inside
@@ -339,10 +342,27 @@ $(document).ready(function() {
         return { left: 0, top: (rect.height - imgH) / 2, width: imgW, height: imgH };
     }
 
+    // Read whichever focal value should currently drive the marker:
+    // pendingFocal (in-flight, unsaved click/arrow change) wins; falls
+    // back to the saved item.focal_x / focal_y. pendingFocal is cleared
+    // by openModal/closeModal/saveFocalToServer so it never leaks across
+    // sessions.
+    function getDisplayedFocal(state, item) {
+        if (state.pendingFocal) {
+            return state.pendingFocal;
+        }
+        return { focal_x: item.focal_x, focal_y: item.focal_y };
+    }
+
     function positionFocalMarker(state) {
         const $marker = state.$modal.find('.mediaGalleryFocalMarker');
         const item = state.items.find((entry) => entry.id === state.activeItemId);
-        if (!item || item.type === 'video' || item.focal_x == null || item.focal_y == null) {
+        if (!item || item.type === 'video') {
+            $marker.attr('hidden', '');
+            return;
+        }
+        const focal = getDisplayedFocal(state, item);
+        if (focal.focal_x == null || focal.focal_y == null) {
             $marker.attr('hidden', '');
             return;
         }
@@ -358,16 +378,19 @@ $(document).ready(function() {
             $marker.attr('hidden', '');
             return;
         }
-        const left = bounds.left + bounds.width * item.focal_x;
-        const top = bounds.top + bounds.height * item.focal_y;
+        const left = bounds.left + bounds.width * focal.focal_x;
+        const top = bounds.top + bounds.height * focal.focal_y;
         $marker.css({ left: left + 'px', top: top + 'px' }).removeAttr('hidden');
     }
 
-    function updateFocalResetEnabled(state) {
-        const item = state.items.find((entry) => entry.id === state.activeItemId);
-        const $reset = state.$modal.find('.mediaGalleryFocalReset');
-        const hasFocal = item && (item.focal_x != null || item.focal_y != null);
-        $reset.prop('disabled', !hasFocal);
+    function updateFocalSaveEnabled(state) {
+        state.$modal.find('.mediaGalleryFocalSave').prop('disabled', !state.pendingFocal);
+    }
+
+    function setPendingFocal(state, focalX, focalY) {
+        state.pendingFocal = { focal_x: focalX, focal_y: focalY };
+        positionFocalMarker(state);
+        updateFocalSaveEnabled(state);
     }
 
     // itemId acts as a stale-request token: if the user navigates to a
@@ -399,23 +422,7 @@ $(document).ready(function() {
         img.src = src;
     }
 
-    function setFocal(state, focalX, focalY) {
-        const itemId = state.activeItemId;
-        if (!itemId) {
-            return;
-        }
-        const item = state.items.find((entry) => entry.id === itemId);
-        if (!item) {
-            return;
-        }
-        item.focal_x = focalX;
-        item.focal_y = focalY;
-        positionFocalMarker(state);
-        updateFocalResetEnabled(state);
-        saveFocalToServer(state, itemId, focalX, focalY);
-    }
-
-    function saveFocalToServer(state, itemId, focalX, focalY) {
+    function saveFocalToServer(state, itemId, focalX, focalY, onSuccess) {
         const formData = new URLSearchParams();
         formData.append('module', 'mediaGallery');
         formData.append('endpoint', 'focal');
@@ -443,7 +450,9 @@ $(document).ready(function() {
                     state.items = data.items;
                     state.initialItems = JSON.parse(JSON.stringify(data.items));
                     renderGrid(state);
-                    updateFocalResetEnabled(state);
+                }
+                if (typeof onSuccess === 'function') {
+                    onSuccess();
                 }
             })
             .catch(() => {
@@ -806,15 +815,19 @@ $(document).ready(function() {
             }
             const clickX = event.clientX - rect.left - bounds.left;
             const clickY = event.clientY - rect.top - bounds.top;
+            // Click on the letterbox padding (outside the displayed image
+            // area) is the reset gesture: pendingFocal cleared to nulls,
+            // marker hides, Save button stays enabled so the reset can be
+            // committed.
             if (clickX < 0 || clickX > bounds.width || clickY < 0 || clickY > bounds.height) {
+                setPendingFocal(state, null, null);
                 return;
             }
             const focalX = Math.max(0, Math.min(1, clickX / bounds.width));
             const focalY = Math.max(0, Math.min(1, clickY / bounds.height));
-            setFocal(state, focalX, focalY);
+            setPendingFocal(state, focalX, focalY);
         });
 
-        let focalKeyboardSaveTimer = null;
         $modal.on('keydown', '.mediaGalleryModalImage', function(event) {
             const itemId = state.activeItemId;
             if (!itemId) {
@@ -835,26 +848,33 @@ $(document).ready(function() {
                 default: return;
             }
             event.preventDefault();
-            const baseX = item.focal_x == null ? 0.5 : item.focal_x;
-            const baseY = item.focal_y == null ? 0.5 : item.focal_y;
+            const displayed = getDisplayedFocal(state, item);
+            const baseX = displayed.focal_x == null ? 0.5 : displayed.focal_x;
+            const baseY = displayed.focal_y == null ? 0.5 : displayed.focal_y;
             const newFocalX = Math.max(0, Math.min(1, baseX + dx));
             const newFocalY = Math.max(0, Math.min(1, baseY + dy));
-            item.focal_x = newFocalX;
-            item.focal_y = newFocalY;
-            positionFocalMarker(state);
-            updateFocalResetEnabled(state);
-            clearTimeout(focalKeyboardSaveTimer);
-            focalKeyboardSaveTimer = setTimeout(function() {
-                saveFocalToServer(state, itemId, newFocalX, newFocalY);
-            }, 300);
+            setPendingFocal(state, newFocalX, newFocalY);
         });
 
-        $modal.on('click', '.mediaGalleryFocalReset', function() {
+        $modal.on('click', '.mediaGalleryFocalSave', function() {
             const itemId = state.activeItemId;
             if (!itemId) {
                 return;
             }
-            setFocal(state, null, null);
+            if (state.pendingFocal === null) {
+                closeModal(state);
+                return;
+            }
+            saveFocalToServer(
+                state,
+                itemId,
+                state.pendingFocal.focal_x,
+                state.pendingFocal.focal_y,
+                function() {
+                    state.pendingFocal = null;
+                    closeModal(state);
+                }
+            );
         });
 
         $(window).on('resize', function() {

@@ -182,8 +182,8 @@ $useSiteDefaults = !isset($paneSettings['useSiteDefaults']) || $paneSettings['us
                             <dt>Thumbnail coords</dt><dd class="mediaGalleryInfoFocalCoords">0%, 0%</dd>
                             <dt>Uploaded at</dt><dd class="mediaGalleryInfoUploadedAt">—</dd>
                             <dt>Uploaded by</dt><dd class="mediaGalleryInfoUploadedBy">—</dd>
+                            <dt>Mouseover</dt><dd class="mediaGalleryInfoMouseover"><input type="text" class="mediaGalleryCaptionInput" placeholder="Optional"></dd>
                         </dl>
-                        <textarea class="mediaGalleryCaptionInput" rows="2" placeholder="Optional caption"></textarea>
                     </div>
                     <?php if ($canChangeMedia || $canCustomThumbs): ?>
                     <div class="mediaGalleryButtonStack">

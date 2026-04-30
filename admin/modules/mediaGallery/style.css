@@ -366,17 +366,23 @@
 }
 
 .mediaGalleryCaptionInput {
-    padding: 6px 8px;
-    border-radius: 6px;
+    padding: 2px 6px;
+    border-radius: 4px;
     background: #00000055;
     border: 1px solid #ffffff22;
     width: 100%;
     box-sizing: border-box;
-    resize: vertical;
     font-family: inherit;
     font-size: inherit;
     color: inherit;
-    margin-top: 4px;
+}
+
+/* Allow the mouseover input's value to scroll horizontally past the visible
+   column width without clipping or breaking the grid -- input handles its
+   own scroll cursor; we just keep the dd cell from clipping the visible
+   bounds via overflow: visible. */
+.mediaGalleryInfoMouseover {
+    overflow: visible;
 }
 
 .mediaGalleryButtonStack {

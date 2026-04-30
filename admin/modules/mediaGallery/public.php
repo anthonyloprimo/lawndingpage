@@ -90,7 +90,7 @@ if ($itemsJson === false) {
             ?>
             <a class="mediaGalleryPublicItem<?php echo $itemType === 'video' ? ' isVideo' : ''; ?>" href="<?php echo htmlspecialchars($itemFileUrl); ?>" data-media-id="<?php echo htmlspecialchars($itemId); ?>" data-media-type="<?php echo htmlspecialchars($itemType); ?>" data-media-file="<?php echo htmlspecialchars($itemFileUrl); ?>" data-media-thumb="<?php echo htmlspecialchars($itemThumb); ?>" data-media-title="<?php echo htmlspecialchars($itemTitle); ?>">
                 <?php if ($thumbUrl !== ''): ?>
-                    <img class="mediaGalleryPublicThumb" src="<?php echo htmlspecialchars($thumbUrl); ?>" alt="<?php echo htmlspecialchars($itemTitle); ?>">
+                    <img class="mediaGalleryPublicThumb" src="<?php echo htmlspecialchars($thumbUrl); ?>" alt="<?php echo htmlspecialchars($itemTitle); ?>" loading="lazy" decoding="async">
                 <?php endif; ?>
                 <span class="mediaGalleryPublicLabel" aria-hidden="true"></span>
             </a>
@@ -106,7 +106,7 @@ if ($itemsJson === false) {
             <button class="mediaGalleryLightboxNav mediaGalleryLightboxPrev" type="button" aria-label="Previous">‹</button>
             <button class="mediaGalleryLightboxNav mediaGalleryLightboxNext" type="button" aria-label="Next">›</button>
             <div class="mediaGalleryLightboxMedia">
-                <img class="mediaGalleryLightboxImage" alt="">
+                <img class="mediaGalleryLightboxImage" alt="" decoding="async">
                 <video class="mediaGalleryLightboxVideo" controls playsinline></video>
             </div>
             <div class="mediaGalleryLightboxCaption"></div>

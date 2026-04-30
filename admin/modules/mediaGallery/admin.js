@@ -173,7 +173,9 @@ $(document).ready(function() {
             if (thumbUrl) {
                 $thumb.append($('<img class="mediaGalleryThumb">').attr({
                     src: thumbUrl,
-                    alt: item.title || ''
+                    alt: item.title || '',
+                    loading: 'lazy',
+                    decoding: 'async'
                 }));
             }
             if (item.type === 'image' && item.original_size > 0) {

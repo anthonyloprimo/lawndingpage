@@ -1170,7 +1170,7 @@ $(document).ready(function() {
         // element's own content/padding, not on any descendant -- so this
         // automatically excludes the caption input, buttons, Image Info
         // text, heading, close button, etc.
-        $modal.on('click', '.userModal, .mediaGalleryModalBody', function(event) {
+        $modal.on('click', '.userModal, .mediaGalleryModalBody, .mediaGalleryModalActions', function(event) {
             if (event.target !== this) {
                 return;
             }

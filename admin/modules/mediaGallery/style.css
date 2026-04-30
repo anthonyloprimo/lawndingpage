@@ -236,13 +236,44 @@
     display: none;
 }
 
-/* Hidden pending the admin features-toggle work (roadmap commits 4-6).
-   The DOM elements, JS handlers, and server endpoints all stay; only
-   the visual entry points are gated. See memory
-   project_gallery_per_item_actions_gated for the re-enable plan. */
-.mediaGalleryChangeButton,
-.mediaGalleryThumbButtonAction {
-    display: none;
+/* Pane-settings gear button. Positioned absolutely top-right of the pane
+   so it floats over the existing paneHeader without disturbing the
+   icon/title layout. Hidden until hover (or focus for keyboard users) to
+   keep the header visually quiet — admins discover it on first hover. */
+.mediaGalleryPane {
+    position: relative;
+}
+.mediaGallerySettingsButton {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: transparent;
+    border: 1px solid #ffffff22;
+    border-radius: 6px;
+    padding: 4px;
+    color: #ffffffbb;
+    cursor: pointer;
+    z-index: 2;
+}
+.mediaGallerySettingsButton:hover,
+.mediaGallerySettingsButton:focus-visible {
+    color: #ffffffee;
+    border-color: #ffffff55;
+}
+.mediaGallerySettingsButton svg {
+    width: 18px;
+    height: 18px;
+    display: block;
+    fill: currentColor;
+}
+
+/* "Use site defaults" toggle in the per-pane settings modal: bigger gap
+   from the override fieldset to make the inheritance relationship clear. */
+.mediaGallerySettingsUseDefaults {
+    margin-bottom: 12px;
+}
+.mediaGallerySettingsOverrides[disabled] {
+    opacity: 0.45;
 }
 
 .mediaGalleryActionRow {

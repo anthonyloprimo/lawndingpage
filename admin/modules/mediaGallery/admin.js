@@ -901,6 +901,11 @@ $(document).ready(function() {
             $('body').append($modal);
         }
 
+        const $settingsModal = $pane.find('.mediaGallerySettingsModal');
+        if ($settingsModal.length && !$settingsModal.parent().is('body')) {
+            $('body').append($settingsModal);
+        }
+
         let payload = {};
         if ($dataScript.length) {
             try {
@@ -941,6 +946,79 @@ $(document).ready(function() {
             if (itemId) {
                 openModal(state, String(itemId));
             }
+        });
+
+        $pane.on('click', '.mediaGallerySettingsButton', function() {
+            if (typeof window.openAdminModal === 'function') {
+                window.openAdminModal($settingsModal);
+            } else {
+                $settingsModal.addClass('isOpen').attr('aria-hidden', 'false');
+            }
+        });
+
+        function closeSettingsModal() {
+            if (typeof window.closeAdminModal === 'function') {
+                window.closeAdminModal($settingsModal);
+            } else {
+                $settingsModal.removeClass('isOpen').attr('aria-hidden', 'true');
+            }
+        }
+
+        $settingsModal.on('click', '.userModalClose, .mediaGallerySettingsCancel', function() {
+            closeSettingsModal();
+        });
+        $settingsModal.on('click', function(event) {
+            if ($(event.target).is('.mediaGallerySettingsModal')) {
+                closeSettingsModal();
+            }
+        });
+
+        // "Use site defaults" toggles whether the override fieldset is editable.
+        // Disabled fieldset means even if a value is checked, it won't post.
+        $settingsModal.on('change', '.mediaGallerySettingsUseDefaultsInput', function() {
+            const useDefaults = $(this).is(':checked');
+            $settingsModal.find('.mediaGallerySettingsOverrides').prop('disabled', useDefaults);
+        });
+
+        $settingsModal.on('click', '.mediaGallerySettingsSave', function() {
+            const useDefaults = $settingsModal.find('.mediaGallerySettingsUseDefaultsInput').is(':checked');
+            const $overrides = $settingsModal.find('.mediaGallerySettingsOverrides');
+            const formData = new URLSearchParams();
+            formData.append('module', 'mediaGallery');
+            formData.append('endpoint', 'settings');
+            formData.append('paneId', state.paneId);
+            formData.append('useSiteDefaults', useDefaults ? '1' : '0');
+            if (!useDefaults) {
+                if ($overrides.find('input[name="customThumbs"]').is(':checked')) {
+                    formData.append('customThumbs', '1');
+                }
+                if ($overrides.find('input[name="changeMedia"]').is(':checked')) {
+                    formData.append('changeMedia', '1');
+                }
+            }
+            if (csrfToken) {
+                formData.append('csrf_token', csrfToken);
+            }
+            showSaving();
+            fetch(buildUrl('module-endpoint.php'), {
+                method: 'POST',
+                credentials: 'same-origin',
+                body: formData
+            })
+                .then((response) => response.json().then((data) => ({ ok: response.ok, data })))
+                .then(({ ok, data }) => {
+                    hideSaving();
+                    if (!ok || !data || data.error) {
+                        addNotice('danger', (data && data.error) || 'Failed to save settings.');
+                        return;
+                    }
+                    addNotice('ok', 'Settings saved. Reload to see changes.');
+                    closeSettingsModal();
+                })
+                .catch(() => {
+                    hideSaving();
+                    addNotice('danger', 'Failed to save settings.');
+                });
         });
 
         $pane.on('click', '.mediaGalleryMoveUp', function() {

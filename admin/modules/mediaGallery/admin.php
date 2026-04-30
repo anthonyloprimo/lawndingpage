@@ -82,6 +82,20 @@ $itemsJson = json_encode(['items' => media_gallery_build_payload($items)], JSON_
 if ($itemsJson === false) {
     $itemsJson = '{"items":[]}';
 }
+
+// Load per-pane settings sidecar and resolve effective values for this
+// render. Resolved booleans gate the per-item modal buttons below; the
+// raw $paneSettings array is also serialized into the pane-settings
+// modal for editing.
+$dataDirForSettings = function_exists('lawnding_data_path') ? lawnding_data_path('') : (dirname(__DIR__, 3) . '/public/res/data');
+$dataDirForSettings = rtrim($dataDirForSettings, '/\\');
+$paneSettingsPath = media_gallery_settings_path($dataDirForSettings, $paneId);
+$paneSettings = lawnding_load_pane_settings($paneSettingsPath);
+$canCustomThumbs = lawnding_resolve_pane_setting($paneSettings, 'mediaGallery', 'customThumbs');
+$canChangeMedia  = lawnding_resolve_pane_setting($paneSettings, 'mediaGallery', 'changeMedia');
+$useSiteDefaults = !isset($paneSettings['useSiteDefaults']) || $paneSettings['useSiteDefaults'] !== false;
+$overrideCustomThumbs = isset($paneSettings['customThumbs']) && $paneSettings['customThumbs'] === true;
+$overrideChangeMedia  = isset($paneSettings['changeMedia']) && $paneSettings['changeMedia'] === true;
 ?>
 <div class="pane glassConvex mediaGalleryPane" id="<?php echo htmlspecialchars($paneId); ?>" data-pane-type="mediaGallery" data-pane-id="<?php echo htmlspecialchars($paneId); ?>">
     <div class="paneHeader">
@@ -95,6 +109,7 @@ if ($itemsJson === false) {
             <?php endif; ?>
             <span class="paneDataHint"><?php echo htmlspecialchars('Folder: mediaGalleryContent-' . $paneId); ?></span>
         </div>
+        <button class="mediaGallerySettingsButton iconButton" type="button" aria-label="Pane settings" title="Pane settings"><?php echo lawnding_icon_svg('settings'); ?></button>
     </div>
 
     <div class="mediaGalleryScroll">
@@ -166,10 +181,14 @@ if ($itemsJson === false) {
                         <input type="text" class="mediaGalleryCaptionInput" placeholder="Optional caption">
                     </label>
                     <div class="mediaGalleryButtonStack">
+                        <?php if ($canChangeMedia): ?>
                         <button class="mediaGalleryChangeButton usersButton" type="button">Change media</button>
                         <input class="mediaGalleryChangeInput" type="file" accept="image/*" hidden>
+                        <?php endif; ?>
+                        <?php if ($canCustomThumbs): ?>
                         <button class="mediaGalleryThumbButtonAction usersButton" type="button">Set thumbnail</button>
                         <input class="mediaGalleryThumbInput" type="file" accept="image/*" hidden>
+                        <?php endif; ?>
                         <button class="mediaGalleryThumbClear usersButton" type="button">Use default thumbnail</button>
                         <div class="mediaGalleryActionRow">
                             <button class="mediaGalleryRemoveButton usersButton usersDanger" type="button">Delete</button>
@@ -187,6 +206,34 @@ if ($itemsJson === false) {
                     </div>
                 </div>
             </div>
+            <button class="userModalClose" type="button" aria-label="Close">×</button>
+        </div>
+    </div>
+
+    <div class="userModalOverlay mediaGallerySettingsModal" id="mediaGallerySettingsModal-<?php echo htmlspecialchars($paneId); ?>" aria-hidden="true">
+        <div class="userModal glassConcave">
+            <h4><?php echo htmlspecialchars($paneName); ?> Settings</h4>
+            <form class="mediaGallerySettingsForm" data-pane-id="<?php echo htmlspecialchars($paneId); ?>">
+                <label class="siteConfigToggle mediaGallerySettingsUseDefaults">
+                    <input type="checkbox" class="mediaGallerySettingsUseDefaultsInput" <?php echo $useSiteDefaults ? 'checked' : ''; ?>>
+                    <span>Use site defaults</span>
+                </label>
+                <fieldset class="siteConfigGroup mediaGallerySettingsOverrides" <?php echo $useSiteDefaults ? 'disabled' : ''; ?>>
+                    <legend>Per-pane overrides</legend>
+                    <label class="siteConfigToggle">
+                        <input type="checkbox" name="customThumbs" <?php echo $overrideCustomThumbs ? 'checked' : ''; ?>>
+                        <span>Allow per-item custom thumbnail uploads</span>
+                    </label>
+                    <label class="siteConfigToggle">
+                        <input type="checkbox" name="changeMedia" <?php echo $overrideChangeMedia ? 'checked' : ''; ?>>
+                        <span>Allow replacing media files on existing items</span>
+                    </label>
+                </fieldset>
+                <div class="mediaGalleryActionRow">
+                    <button class="mediaGallerySettingsCancel usersButton" type="button">Cancel</button>
+                    <button class="mediaGallerySettingsSave usersButton" type="button">Save</button>
+                </div>
+            </form>
             <button class="userModalClose" type="button" aria-label="Close">×</button>
         </div>
     </div>

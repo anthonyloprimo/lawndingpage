@@ -316,6 +316,7 @@ $(document).ready(function() {
 
         updateSaveEnabled(state);
         populateImageInfo($modal, item);
+        updateFocalCoordsDisplay(state);
 
         if (typeof window.openAdminModal === 'function') {
             window.openAdminModal($modal);
@@ -442,7 +443,36 @@ $(document).ready(function() {
     function setPendingFocal(state, focalX, focalY) {
         state.pendingFocal = { focal_x: focalX, focal_y: focalY };
         positionFocalMarker(state);
+        updateFocalCoordsDisplay(state);
         updateSaveEnabled(state);
+    }
+
+    // Format the displayed focal as "X%, Y%" -- 0-1 normalized values
+    // multiplied by 100 and rounded for readability. Reset state (null/null)
+    // shows "0%, 0%" to convey "no focal point set, default thumbnail."
+    function updateFocalCoordsDisplay(state) {
+        const item = state.items.find((entry) => entry.id === state.activeItemId);
+        if (!item) {
+            return;
+        }
+        const focal = getDisplayedFocal(state, item);
+        let display = '0%, 0%';
+        if (focal.focal_x != null && focal.focal_y != null) {
+            const x = Math.round(focal.focal_x * 100);
+            const y = Math.round(focal.focal_y * 100);
+            display = x + '%, ' + y + '%';
+        }
+        state.$modal.find('.mediaGalleryInfoFocalCoords').text(display);
+    }
+
+    // Unified "click outside the image = use default thumbnail" gesture.
+    // Replaces the removed "Use default thumbnail" button: clears the
+    // pending focal (server falls back to default crop) AND sets
+    // pendingThumbClear (any custom uploaded thumbnail is dropped on save).
+    // A saved item may have either or both set, so both must reset.
+    function resetFocalToDefault(state) {
+        state.pendingThumbClear = true;
+        setPendingFocal(state, null, null);
     }
 
     // itemId acts as a stale-request token: if the user navigates to a
@@ -1130,17 +1160,6 @@ $(document).ready(function() {
             }
         });
 
-        $modal.on('click', '.mediaGalleryThumbClear', function() {
-            const itemId = state.activeItemId;
-            if (!itemId) {
-                return;
-            }
-            // Defer the actual clear until Save commits. Marks pending,
-            // enables the Save button.
-            state.pendingThumbClear = true;
-            updateSaveEnabled(state);
-        });
-
         // Reset focal when a click lands on the modal's own padding ring,
         // the gap between heading and body, or the gap between preview and
         // actions -- the natural "empty space" around the image. Mirrors
@@ -1163,7 +1182,7 @@ $(document).ready(function() {
             if (!item || item.type === 'video') {
                 return;
             }
-            setPendingFocal(state, null, null);
+            resetFocalToDefault(state);
         });
 
         $modal.on('click', '.mediaGalleryModalImage', function(event) {
@@ -1184,11 +1203,11 @@ $(document).ready(function() {
             const clickX = event.clientX - rect.left - bounds.left;
             const clickY = event.clientY - rect.top - bounds.top;
             // Click on the letterbox padding (outside the displayed image
-            // area) is the reset gesture: pendingFocal cleared to nulls,
-            // marker hides, Save button stays enabled so the reset can be
-            // committed.
+            // area) is the reset gesture: pendingFocal cleared, custom
+            // thumbnail also cleared, Save button stays enabled so the
+            // reset can be committed.
             if (clickX < 0 || clickX > bounds.width || clickY < 0 || clickY > bounds.height) {
-                setPendingFocal(state, null, null);
+                resetFocalToDefault(state);
                 return;
             }
             const focalX = Math.max(0, Math.min(1, clickX / bounds.width));

@@ -183,13 +183,13 @@ $useSiteDefaults = !isset($paneSettings['useSiteDefaults']) || $paneSettings['us
                         <button class="mediaGalleryThumbButtonAction usersButton" type="button">Set thumbnail</button>
                         <input class="mediaGalleryThumbInput" type="file" accept="image/*" hidden>
                         <?php endif; ?>
-                        <button class="mediaGalleryThumbClear usersButton" type="button">Use default thumbnail</button>
                     </div>
                     <div class="mediaGalleryInfo">
                         <h5 class="mediaGalleryInfoHeader">Image Info:</h5>
                         <dl class="mediaGalleryInfoList">
                             <dt>Original size</dt><dd class="mediaGalleryInfoOriginalSize">—</dd>
                             <dt>Saved size</dt><dd class="mediaGalleryInfoSavedSize">—</dd>
+                            <dt>Thumbnail coords</dt><dd class="mediaGalleryInfoFocalCoords">0%, 0%</dd>
                             <dt>Uploaded at</dt><dd class="mediaGalleryInfoUploadedAt">—</dd>
                             <dt>Uploaded by</dt><dd class="mediaGalleryInfoUploadedBy">—</dd>
                             <dt class="mediaGalleryInfoCaptionLabel">Caption</dt>

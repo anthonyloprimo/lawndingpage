@@ -274,6 +274,8 @@ $(document).ready(function() {
         const $modal = state.$modal;
         $modal.toggleClass('isVideo', item.type === 'video');
         $modal.find('.mediaGalleryCaptionInput').val(item.title || '');
+        $modal.find('.mediaGalleryFocalMarker').attr('hidden', '');
+        state.modalNaturalDims = null;
 
         const fileUrl = makeAssetUrl(item.file);
         const $image = $modal.find('.mediaGalleryModalImage');
@@ -287,7 +289,12 @@ $(document).ready(function() {
             $video.removeAttr('src');
             $video.get(0).load();
             $image.css('background-image', fileUrl ? `url('${fileUrl}')` : 'none');
+            loadModalNaturalDims(state, fileUrl, itemId, function() {
+                positionFocalMarker(state);
+            });
         }
+
+        updateFocalResetEnabled(state);
 
         if (typeof window.openAdminModal === 'function') {
             window.openAdminModal($modal);
@@ -310,6 +317,140 @@ $(document).ready(function() {
             $modal.removeClass('isOpen').attr('aria-hidden', 'true');
         }
         state.activeItemId = null;
+    }
+
+    // Compute the on-screen bounding rect of the displayed image inside
+    // a container with object-fit/background-size: contain semantics.
+    // Returns { left, top, width, height } in container coords, or null
+    // if naturalDims are unavailable.
+    function computeImageDisplayBounds(rect, naturalDims) {
+        if (!naturalDims || !naturalDims.w || !naturalDims.h || rect.width <= 0 || rect.height <= 0) {
+            return null;
+        }
+        const containerAspect = rect.width / rect.height;
+        const naturalAspect = naturalDims.w / naturalDims.h;
+        if (containerAspect > naturalAspect) {
+            const imgH = rect.height;
+            const imgW = imgH * naturalAspect;
+            return { left: (rect.width - imgW) / 2, top: 0, width: imgW, height: imgH };
+        }
+        const imgW = rect.width;
+        const imgH = imgW / naturalAspect;
+        return { left: 0, top: (rect.height - imgH) / 2, width: imgW, height: imgH };
+    }
+
+    function positionFocalMarker(state) {
+        const $marker = state.$modal.find('.mediaGalleryFocalMarker');
+        const item = state.items.find((entry) => entry.id === state.activeItemId);
+        if (!item || item.type === 'video' || item.focal_x == null || item.focal_y == null) {
+            $marker.attr('hidden', '');
+            return;
+        }
+        const $modalImage = state.$modal.find('.mediaGalleryModalImage');
+        const naturalDims = state.modalNaturalDims;
+        if (!naturalDims) {
+            $marker.attr('hidden', '');
+            return;
+        }
+        const rect = $modalImage[0].getBoundingClientRect();
+        const bounds = computeImageDisplayBounds(rect, naturalDims);
+        if (!bounds) {
+            $marker.attr('hidden', '');
+            return;
+        }
+        const left = bounds.left + bounds.width * item.focal_x;
+        const top = bounds.top + bounds.height * item.focal_y;
+        $marker.css({ left: left + 'px', top: top + 'px' }).removeAttr('hidden');
+    }
+
+    function updateFocalResetEnabled(state) {
+        const item = state.items.find((entry) => entry.id === state.activeItemId);
+        const $reset = state.$modal.find('.mediaGalleryFocalReset');
+        const hasFocal = item && (item.focal_x != null || item.focal_y != null);
+        $reset.prop('disabled', !hasFocal);
+    }
+
+    // itemId acts as a stale-request token: if the user navigates to a
+    // different item before this load completes, the result is dropped
+    // instead of stomping the current item's modalNaturalDims.
+    function loadModalNaturalDims(state, src, itemId, callback) {
+        if (!src) {
+            if (state.activeItemId === itemId) {
+                state.modalNaturalDims = null;
+                callback();
+            }
+            return;
+        }
+        const img = new Image();
+        img.onload = function() {
+            if (state.activeItemId !== itemId) {
+                return;
+            }
+            state.modalNaturalDims = { w: img.naturalWidth, h: img.naturalHeight };
+            callback();
+        };
+        img.onerror = function() {
+            if (state.activeItemId !== itemId) {
+                return;
+            }
+            state.modalNaturalDims = null;
+            callback();
+        };
+        img.src = src;
+    }
+
+    function setFocal(state, focalX, focalY) {
+        const itemId = state.activeItemId;
+        if (!itemId) {
+            return;
+        }
+        const item = state.items.find((entry) => entry.id === itemId);
+        if (!item) {
+            return;
+        }
+        item.focal_x = focalX;
+        item.focal_y = focalY;
+        positionFocalMarker(state);
+        updateFocalResetEnabled(state);
+        saveFocalToServer(state, itemId, focalX, focalY);
+    }
+
+    function saveFocalToServer(state, itemId, focalX, focalY) {
+        const formData = new URLSearchParams();
+        formData.append('module', 'mediaGallery');
+        formData.append('endpoint', 'focal');
+        formData.append('paneId', state.paneId);
+        formData.append('itemId', itemId);
+        formData.append('focal_x', focalX === null ? '' : String(focalX));
+        formData.append('focal_y', focalY === null ? '' : String(focalY));
+        if (csrfToken) {
+            formData.append('csrf_token', csrfToken);
+        }
+        fetch(buildUrl('module-endpoint.php'), {
+            method: 'POST',
+            credentials: 'same-origin',
+            body: formData,
+        })
+            .then((response) => response.json().then((data) => ({ ok: response.ok, data })))
+            .then(({ ok, data }) => {
+                if (!ok || !data || data.error) {
+                    if (typeof window.addAdminNotice === 'function') {
+                        window.addAdminNotice('danger', (data && data.error) || 'Failed to save focal point.');
+                    }
+                    return;
+                }
+                if (Array.isArray(data.items)) {
+                    state.items = data.items;
+                    state.initialItems = JSON.parse(JSON.stringify(data.items));
+                    renderGrid(state);
+                    updateFocalResetEnabled(state);
+                }
+            })
+            .catch(() => {
+                if (typeof window.addAdminNotice === 'function') {
+                    window.addAdminNotice('danger', 'Failed to save focal point.');
+                }
+            });
     }
 
     function refreshFromServer(state) {
@@ -645,6 +786,80 @@ $(document).ready(function() {
             const itemId = state.activeItemId;
             if (itemId) {
                 clearThumbnail(state, itemId);
+            }
+        });
+
+        $modal.on('click', '.mediaGalleryModalImage', function(event) {
+            const itemId = state.activeItemId;
+            if (!itemId) {
+                return;
+            }
+            const item = state.items.find((entry) => entry.id === itemId);
+            if (!item || item.type === 'video' || !state.modalNaturalDims) {
+                return;
+            }
+            const $modalImage = $(this);
+            const rect = $modalImage[0].getBoundingClientRect();
+            const bounds = computeImageDisplayBounds(rect, state.modalNaturalDims);
+            if (!bounds) {
+                return;
+            }
+            const clickX = event.clientX - rect.left - bounds.left;
+            const clickY = event.clientY - rect.top - bounds.top;
+            if (clickX < 0 || clickX > bounds.width || clickY < 0 || clickY > bounds.height) {
+                return;
+            }
+            const focalX = Math.max(0, Math.min(1, clickX / bounds.width));
+            const focalY = Math.max(0, Math.min(1, clickY / bounds.height));
+            setFocal(state, focalX, focalY);
+        });
+
+        let focalKeyboardSaveTimer = null;
+        $modal.on('keydown', '.mediaGalleryModalImage', function(event) {
+            const itemId = state.activeItemId;
+            if (!itemId) {
+                return;
+            }
+            const item = state.items.find((entry) => entry.id === itemId);
+            if (!item || item.type === 'video') {
+                return;
+            }
+            const STEP = 0.05;
+            let dx = 0;
+            let dy = 0;
+            switch (event.key) {
+                case 'ArrowLeft':  dx = -STEP; break;
+                case 'ArrowRight': dx = STEP;  break;
+                case 'ArrowUp':    dy = -STEP; break;
+                case 'ArrowDown':  dy = STEP;  break;
+                default: return;
+            }
+            event.preventDefault();
+            const baseX = item.focal_x == null ? 0.5 : item.focal_x;
+            const baseY = item.focal_y == null ? 0.5 : item.focal_y;
+            const newFocalX = Math.max(0, Math.min(1, baseX + dx));
+            const newFocalY = Math.max(0, Math.min(1, baseY + dy));
+            item.focal_x = newFocalX;
+            item.focal_y = newFocalY;
+            positionFocalMarker(state);
+            updateFocalResetEnabled(state);
+            clearTimeout(focalKeyboardSaveTimer);
+            focalKeyboardSaveTimer = setTimeout(function() {
+                saveFocalToServer(state, itemId, newFocalX, newFocalY);
+            }, 300);
+        });
+
+        $modal.on('click', '.mediaGalleryFocalReset', function() {
+            const itemId = state.activeItemId;
+            if (!itemId) {
+                return;
+            }
+            setFocal(state, null, null);
+        });
+
+        $(window).on('resize', function() {
+            if (state.activeItemId && state.$modal.hasClass('isOpen')) {
+                positionFocalMarker(state);
             }
         });
 

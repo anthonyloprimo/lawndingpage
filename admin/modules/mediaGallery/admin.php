@@ -136,7 +136,9 @@ if ($itemsJson === false) {
             <h4>Media Details</h4>
             <div class="mediaGalleryModalBody">
                 <div class="mediaGalleryModalPreview">
-                    <div class="mediaGalleryModalImage" role="img" aria-label="Media preview"></div>
+                    <div class="mediaGalleryModalImage" role="img" aria-label="Media preview, click to set focal point" tabindex="0">
+                        <div class="mediaGalleryFocalMarker" aria-hidden="true" hidden></div>
+                    </div>
                     <video class="mediaGalleryModalVideo" controls playsinline></video>
                 </div>
                 <div class="mediaGalleryModalActions">
@@ -147,6 +149,7 @@ if ($itemsJson === false) {
                     <div class="mediaGalleryButtonStack">
                         <button class="mediaGalleryChangeButton usersButton" type="button">Change media</button>
                         <input class="mediaGalleryChangeInput" type="file" accept="image/*" hidden>
+                        <button class="mediaGalleryFocalReset usersButton" type="button" disabled>Reset focal point</button>
                         <button class="mediaGalleryThumbButtonAction usersButton" type="button">Set thumbnail</button>
                         <input class="mediaGalleryThumbInput" type="file" accept="image/*" hidden>
                         <button class="mediaGalleryThumbClear usersButton" type="button">Use default thumbnail</button>

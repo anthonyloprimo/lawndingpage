@@ -126,10 +126,21 @@ $(document).ready(function() {
     }
 
     function getThumbUrl(item) {
+        // Prefer the server-built display* URLs when available -- they
+        // carry mtime-based ?v= cache busting so freshly regenerated
+        // thumbs (after focal save, replace, etc.) render the new bytes
+        // instead of the stale cached version. Fall back to the raw
+        // path when the server hasn't supplied a display URL.
+        if (item.displayThumb) {
+            return item.displayThumb;
+        }
         if (item.thumb) {
             return makeAssetUrl(item.thumb);
         }
         if (item.type === 'image') {
+            if (item.displayFile) {
+                return item.displayFile;
+            }
             return makeAssetUrl(item.file);
         }
         return '';

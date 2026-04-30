@@ -66,7 +66,8 @@ if (!empty($paneData) && is_array($paneData)) {
 }
 $dataHint = $dataFiles ? 'saves to ' . implode(', ', $dataFiles) : '';
 
-$itemsJson = json_encode(['items' => $items], JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
+require_once __DIR__ . '/helpers.php';
+$itemsJson = json_encode(['items' => media_gallery_build_payload($items)], JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
 if ($itemsJson === false) {
     $itemsJson = '{"items":[]}';
 }

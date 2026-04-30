@@ -188,10 +188,6 @@ $useSiteDefaults = !isset($paneSettings['useSiteDefaults']) || $paneSettings['us
                         <input class="mediaGalleryThumbInput" type="file" accept="image/*" hidden>
                         <?php endif; ?>
                         <button class="mediaGalleryThumbClear usersButton" type="button">Use default thumbnail</button>
-                        <div class="mediaGalleryActionRow">
-                            <button class="mediaGalleryRemoveButton usersButton usersDanger" type="button">Delete</button>
-                            <button class="mediaGalleryFocalSave usersButton" type="button" disabled>Save</button>
-                        </div>
                     </div>
                     <div class="mediaGalleryInfo">
                         <h5 class="mediaGalleryInfoHeader">Image Info:</h5>
@@ -201,6 +197,10 @@ $useSiteDefaults = !isset($paneSettings['useSiteDefaults']) || $paneSettings['us
                             <dt>Uploaded at</dt><dd class="mediaGalleryInfoUploadedAt">—</dd>
                             <dt>Uploaded by</dt><dd class="mediaGalleryInfoUploadedBy">—</dd>
                         </dl>
+                    </div>
+                    <div class="mediaGalleryActionRow mediaGalleryModalFooterActions">
+                        <button class="mediaGalleryRemoveButton usersButton usersDanger" type="button">Delete</button>
+                        <button class="mediaGalleryFocalSave usersButton" type="button" disabled>Save</button>
                     </div>
                 </div>
             </div>

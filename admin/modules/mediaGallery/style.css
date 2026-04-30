@@ -350,6 +350,15 @@
     overflow: hidden;
 }
 
+/* margin-top: auto absorbs all leftover vertical space above this row,
+   pushing it to the bottom of the actions column. The actions column
+   stretches to the body height (which matches the image preview), so
+   the row's bottom edge ends up horizontally aligned with the bottom
+   of the image. */
+.mediaGalleryModalFooterActions {
+    margin-top: auto;
+}
+
 .mediaGalleryModal .userModalClose {
     position: absolute;
     top: 10px;

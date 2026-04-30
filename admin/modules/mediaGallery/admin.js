@@ -1141,6 +1141,31 @@ $(document).ready(function() {
             updateSaveEnabled(state);
         });
 
+        // Reset focal when a click lands on the modal's own padding ring,
+        // the gap between heading and body, or the gap between preview and
+        // actions -- the natural "empty space" around the image. Mirrors
+        // the letterbox-click reset that fires inside .mediaGalleryModalImage,
+        // covering the case where the image fills the preview exactly and
+        // has no letterbox padding to click.
+        // event.target === this means the click landed on the bound
+        // element's own content/padding, not on any descendant -- so this
+        // automatically excludes the caption input, buttons, Image Info
+        // text, heading, close button, etc.
+        $modal.on('click', '.userModal, .mediaGalleryModalBody', function(event) {
+            if (event.target !== this) {
+                return;
+            }
+            const itemId = state.activeItemId;
+            if (!itemId) {
+                return;
+            }
+            const item = state.items.find((entry) => entry.id === itemId);
+            if (!item || item.type === 'video') {
+                return;
+            }
+            setPendingFocal(state, null, null);
+        });
+
         $modal.on('click', '.mediaGalleryModalImage', function(event) {
             const itemId = state.activeItemId;
             if (!itemId) {

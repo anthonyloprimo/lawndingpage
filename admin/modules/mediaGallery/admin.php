@@ -67,16 +67,6 @@ if ($iconHtml === '') {
     $iconHtml = '<span class="paneIconFallback">Icon</span>';
 }
 
-$dataFiles = [];
-if (!empty($paneData) && is_array($paneData)) {
-    foreach ($paneData as $file) {
-        if (is_string($file) && $file !== '') {
-            $dataFiles[] = $file;
-        }
-    }
-}
-$dataHint = $dataFiles ? 'saves to ' . implode(', ', $dataFiles) : '';
-
 require_once __DIR__ . '/helpers.php';
 $itemsJson = json_encode(['items' => media_gallery_build_payload($items)], JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
 if ($itemsJson === false) {
@@ -102,10 +92,7 @@ $useSiteDefaults = !isset($paneSettings['useSiteDefaults']) || $paneSettings['us
         </button>
         <div class="paneHeaderTitle">
             <span class="paneTitle"><?php echo htmlspecialchars($paneName); ?></span>
-            <?php if ($dataHint !== ''): ?>
-                <span class="paneDataHint"><?php echo htmlspecialchars('(' . $dataHint . ')'); ?></span>
-            <?php endif; ?>
-            <span class="paneDataHint"><?php echo htmlspecialchars('Folder: mediaGalleryContent-' . $paneId); ?></span>
+            <span class="paneDataHint"><?php echo htmlspecialchars('Max upload size: ' . lawnding_app_upload_max_label()); ?></span>
         </div>
         <button class="mediaGallerySettingsButton iconButton" type="button" aria-label="Pane settings" title="Pane settings"><?php echo lawnding_icon_svg('settings'); ?></button>
     </div>

@@ -1084,8 +1084,8 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
             </div>
         </div>
         <?php endif; ?>
-        <?php // Site Config: site-wide module defaults. New panes inherit these; per-pane overrides live in the gear-icon modal on each gallery. Gated on full_admin since it changes site-wide behavior. ?>
-        <?php if (!empty($isFullAdmin)): ?>
+        <?php // Site Config: site-wide module defaults. New panes inherit these; per-pane overrides live in the gear-icon modal on each gallery. Gated on edit_site for now; tighten to full_admin if these flags ever drive security-sensitive behavior. ?>
+        <?php if (!empty($canEditSite)): ?>
         <?php $siteConfig = lawnding_load_site_config(); ?>
         <div class="pane glassConvex" id="siteConfig">
             <h3>SITE CONFIG</h3>
@@ -1130,7 +1130,7 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
             <?php if (!empty($canEditSite)): ?>
             <li><a class="navLink" href="#" data-pane="diagnostics" aria-label="Diagnostics" title="Diagnostics — recent runtime errors"><?php echo lawnding_icon_svg('diagnostics'); ?></a></li>
             <?php endif; ?>
-            <?php if (!empty($isFullAdmin)): ?>
+            <?php if (!empty($canEditSite)): ?>
             <li><a class="navLink" href="#" data-pane="siteConfig" aria-label="Site Config" title="Site Config — defaults that new panes inherit"><?php echo lawnding_icon_svg('settings'); ?></a></li>
             <?php endif; ?>
             <li class="navSeparator" aria-hidden="true"></li>

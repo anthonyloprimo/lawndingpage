@@ -1510,11 +1510,12 @@ if (is_array($tgBotData)) {
 // state from the POSTed siteConfigPayload. Unsubmitted checkboxes mean
 // false (HTML form semantics); unrecognized keys in the payload are
 // dropped (defense against tampering or stale clients posting old keys).
-// Gated on full_admin since these flags drive site-wide behavior. The
+// Gated on edit_site for now (matches the form's render gate); tighten to
+// full_admin if these flags ever drive security-sensitive behavior. The
 // hidden __rendered marker ensures the block fires even when the admin
 // unchecks all boxes (otherwise $_POST['siteConfig'] would be absent and
 // the save would no-op, leaving stale values on disk).
-if (is_array($siteConfigPayload) && !empty($siteConfigPayload['__rendered']) && !empty($isFullAdmin)) {
+if (is_array($siteConfigPayload) && !empty($siteConfigPayload['__rendered']) && !empty($canEditSite)) {
     $defaults = lawnding_site_config_defaults();
     $merged = $defaults;
     foreach ($defaults as $module => $flags) {

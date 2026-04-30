@@ -552,8 +552,21 @@ $(document).ready(function() {
             .catch(() => {});
     }
 
-    function uploadMedia(state, file) {
+    // options.suppressSuccessNotice  -- caller will surface a batch
+    //                                   summary instead of per-file
+    //                                   notices.
+    // options.onComplete(ok)         -- called after the upload
+    //                                   resolves (success or failure).
+    //                                   Lets the batch driver chain
+    //                                   the next upload once this one
+    //                                   has fully settled, including
+    //                                   the items-payload sync.
+    function uploadMedia(state, file, options) {
+        options = options || {};
         if (!file) {
+            if (typeof options.onComplete === 'function') {
+                options.onComplete(false);
+            }
             return;
         }
         const formData = new FormData();
@@ -578,19 +591,30 @@ $(document).ready(function() {
                     }
                     addNotice(status === 413 ? 'warning' : 'danger', message);
                     hideSaving();
+                    if (typeof options.onComplete === 'function') {
+                        options.onComplete(false);
+                    }
                     return;
                 }
                 setItemsFromPayload(state, data.items || []);
-                addNotice('ok', 'Media uploaded.');
+                if (!options.suppressSuccessNotice) {
+                    addNotice('ok', 'Media uploaded.');
+                }
                 if (data.gd_unavailable && !gdNoticeShown) {
                     gdNoticeShown = true;
                     addNotice('ok', 'For better performance, install the PHP GD extension on your server.');
                 }
                 hideSaving();
+                if (typeof options.onComplete === 'function') {
+                    options.onComplete(true);
+                }
             })
             .catch(() => {
                 addNotice('danger', 'Upload failed. Please try again.');
                 hideSaving();
+                if (typeof options.onComplete === 'function') {
+                    options.onComplete(false);
+                }
             });
     }
 
@@ -816,11 +840,49 @@ $(document).ready(function() {
         });
 
         $pane.find('.mediaGalleryUploadInput').on('change', function() {
-            const file = this.files && this.files[0] ? this.files[0] : null;
+            const files = this.files ? Array.from(this.files) : [];
             this.value = '';
-            if (file) {
-                uploadMedia(state, file);
+            if (files.length === 0) {
+                return;
             }
+            if (files.length === 1) {
+                uploadMedia(state, files[0]);
+                return;
+            }
+
+            // Sequential batch upload. media-gallery-upload.php does a
+            // read-modify-write on the gallery's JSON file -- two
+            // concurrent uploads would race and the second writer's
+            // append could clobber the first's. Chaining via the
+            // onComplete callback guarantees each request reads the
+            // post-previous-write state.
+            const total = files.length;
+            let succeeded = 0;
+            let failed = 0;
+            const next = function(index) {
+                if (index >= total) {
+                    if (succeeded > 0 && failed === 0) {
+                        addNotice('ok', succeeded + ' media uploaded.');
+                    } else if (succeeded > 0 && failed > 0) {
+                        addNotice('warning', succeeded + ' uploaded, ' + failed + ' failed.');
+                    }
+                    // If all failed, the per-file danger notices already
+                    // surfaced the reasons.
+                    return;
+                }
+                uploadMedia(state, files[index], {
+                    suppressSuccessNotice: true,
+                    onComplete: function(ok) {
+                        if (ok) {
+                            succeeded++;
+                        } else {
+                            failed++;
+                        }
+                        next(index + 1);
+                    },
+                });
+            };
+            next(0);
         });
 
         $modal.on('click', '.userModalClose', function() {

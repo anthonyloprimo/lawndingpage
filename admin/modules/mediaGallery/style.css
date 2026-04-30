@@ -379,13 +379,6 @@
     margin-top: 4px;
 }
 
-/* Caption label sits as the bottom dt in the Image Info dl. Span both
-   grid columns so the textarea below it gets full section width. */
-.mediaGalleryInfoCaptionLabel {
-    grid-column: 1 / -1;
-    margin-top: 4px;
-}
-
 .mediaGalleryButtonStack {
     display: flex;
     flex-direction: column;

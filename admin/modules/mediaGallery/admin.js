@@ -1115,7 +1115,7 @@ $(document).ready(function() {
             next(0);
         });
 
-        $modal.on('click', '.userModalClose', function() {
+        $modal.on('click', '.userModalClose, .mediaGalleryModalCancel', function() {
             closeModal(state);
         });
 

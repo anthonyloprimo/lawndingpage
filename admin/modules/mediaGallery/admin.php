@@ -175,14 +175,13 @@ $useSiteDefaults = !isset($paneSettings['useSiteDefaults']) || $paneSettings['us
                 </div>
                 <div class="mediaGalleryModalActions">
                     <div class="mediaGalleryInfo">
-                        <h5 class="mediaGalleryInfoHeader">Image Info:</h5>
+                        <h5 class="mediaGalleryInfoHeader">Info</h5>
                         <dl class="mediaGalleryInfoList">
                             <dt>Original size</dt><dd class="mediaGalleryInfoOriginalSize">—</dd>
                             <dt>Saved size</dt><dd class="mediaGalleryInfoSavedSize">—</dd>
                             <dt>Thumbnail coords</dt><dd class="mediaGalleryInfoFocalCoords">0%, 0%</dd>
                             <dt>Uploaded at</dt><dd class="mediaGalleryInfoUploadedAt">—</dd>
                             <dt>Uploaded by</dt><dd class="mediaGalleryInfoUploadedBy">—</dd>
-                            <dt class="mediaGalleryInfoCaptionLabel">Caption</dt>
                         </dl>
                         <textarea class="mediaGalleryCaptionInput" rows="2" placeholder="Optional caption"></textarea>
                     </div>
@@ -199,6 +198,9 @@ $useSiteDefaults = !isset($paneSettings['useSiteDefaults']) || $paneSettings['us
                     </div>
                     <?php endif; ?>
                     <div class="mediaGalleryActionRow mediaGalleryModalFooterActions">
+                        <button class="mediaGalleryModalCancel usersButton" type="button">Cancel</button>
+                    </div>
+                    <div class="mediaGalleryActionRow">
                         <button class="mediaGalleryFocalSave usersButton" type="button" disabled>Save</button>
                         <button class="mediaGalleryRemoveButton usersButton usersDanger" type="button">Delete</button>
                     </div>

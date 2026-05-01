@@ -551,15 +551,15 @@ The core design of `config.php` is directly based on `index.php`.  Literally, I 
             - `Add users` allow them to create new accounts.
             - `Edit users` allow them to update permissions and reset passwords (for all except the Master Account).
             - `Remove users` allow them to remove a user account
-            - `Edit site` allows them to modify all parts of the site - the header, links list, add/remove panees, modify their content, update te background images, etc...
+            - `Edit site` allows them to modify all parts of the site - the header, links list, add/remove panes, modify their content, update the background images, etc...
 
-#### Background Image Managemenet
-- Background images can be added or removed, re-ordereed, have attributions specified (author and URL), as well as modify the display mode.
+#### Background Image Management
+- Background images can be added or removed, re-ordered, have attributions specified (author and URL), as well as modify the display mode.
 - The main list shows a thumbnail of the image, with an option to change it, uploading a new file.
     - The Author and URL fields are self-explanatory.
     - The up/down arrows allow you to re-order the image, which only applies for sequential displaying of background images.
     - The remove button (red button with a trash can) will remove the background from the list and delete it off the server.  This saves immediately upon confirming the action.
-    - Aside from the remove button, changes are saved when you click the "Save all changees" button in the header.
+    - Aside from the remove button, changes are saved when you click the "Save all changes" button in the header.
 - Under the main list lets you set display options or add a new image.
     - Display modes include...
         - Random on load

@@ -372,9 +372,7 @@ function lawnding_render_pane_icon(array $pane): string {
         } elseif ($type === 'file') {
             $value = $icon['value'] ?? '';
             if (is_string($value) && $value !== '') {
-                $src = function_exists('lawnding_asset_url')
-                    ? lawnding_asset_url('res/img/panes/' . ltrim($value, '/'))
-                    : 'res/img/panes/' . ltrim($value, '/');
+                $src = lawnding_versioned_local_asset_url('res/img/panes/' . ltrim($value, '/'));
                 return '<img class="navLinkIconImage" src="' . htmlspecialchars($src, ENT_QUOTES, 'UTF-8') . '" alt="">';
             }
         }

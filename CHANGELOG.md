@@ -1,6 +1,11 @@
 ### Changelog
 
 
+#### v1.13.1
+- Fixed a bug where uploading a replacement icon for a pane left visitors seeing the old icon until they hard-refreshed.
+
+-----
+
 #### v1.13.0
 - Added a Site Config section to the admin panel for full admins. Sets the defaults that newly created media galleries inherit. Currently includes "Allow per-item custom thumbnail uploads" and "Allow replacing media files on existing items".
 - Each gallery pane now has a gear icon in the top-right corner. Click it to override the site defaults for that specific gallery — useful when one curated gallery needs custom thumbnails enabled while everything else stays locked down.

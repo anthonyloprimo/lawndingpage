@@ -987,6 +987,27 @@ function lawnding_request_is_secure(): bool {
     return (string) ($_SERVER['SERVER_PORT'] ?? '') === '443';
 }
 
+// Resolve the client IP behind common reverse proxies. Reads X-Real-IP first
+// (Traefik / nginx), then the first entry of X-Forwarded-For (Traefik also
+// sets this; nginx too), then falls back to REMOTE_ADDR for bare-metal
+// deployments. Same trust model as lawnding_request_is_secure(): we trust
+// proxy headers when present because the proxy is part of the controlled
+// stack. Used by rate-limit lookups on the login endpoints.
+function lawnding_client_ip(): string {
+    $realIp = $_SERVER['HTTP_X_REAL_IP'] ?? '';
+    if (is_string($realIp) && trim($realIp) !== '') {
+        return trim($realIp);
+    }
+    $forwarded = $_SERVER['HTTP_X_FORWARDED_FOR'] ?? '';
+    if (is_string($forwarded) && $forwarded !== '') {
+        $first = trim(explode(',', $forwarded)[0]);
+        if ($first !== '') {
+            return $first;
+        }
+    }
+    return (string) ($_SERVER['REMOTE_ADDR'] ?? '');
+}
+
 // Configure hardened session cookie params and start the session.
 function lawnding_init_session(): void {
     if (session_status() !== PHP_SESSION_NONE) {

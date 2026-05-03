@@ -1,6 +1,12 @@
 ### Changelog
 
 
+#### v1.14.1
+- Repeated failed sign-in attempts now lock the account out for 15 minutes after 5 misses, on both the public sign-in dialog and the /admin/ form. The lockout applies to the IP and the username independently, so neither a single attacker on one IP nor a botnet hitting one account can keep guessing forever. A successful sign-in clears the lockout.
+- Changing your password (or having an admin reset it for you) now signs you out from any "Stay signed in" devices. Closes a gap where a long-lived cookie could survive a password change.
+
+-----
+
 #### v1.14.0
 - Added a Sign in button to the upper right of the public page header. Click it to open a sign-in dialog with a username/password form and a Login with Telegram button alongside.
 - Added a "Stay signed in" checkbox to the dialog and to the admin login form. When ticked, a long-lived per-device cookie keeps you signed in for 30 days; clicking Log out invalidates that device's cookie without affecting your other browsers.

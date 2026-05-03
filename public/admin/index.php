@@ -88,6 +88,10 @@ $rememberLibPath = function_exists('lawnding_admin_path')
     ? lawnding_admin_path('lib/remember-me.php')
     : dirname(__DIR__, 2) . '/admin/lib/remember-me.php';
 require_once $rememberLibPath;
+$rateLimitLibPath = function_exists('lawnding_admin_path')
+    ? lawnding_admin_path('lib/rate-limit.php')
+    : dirname(__DIR__, 2) . '/admin/lib/rate-limit.php';
+require_once $rateLimitLibPath;
 lawnding_consume_remember_cookie();
 
 // Users file location (stored outside public web root).
@@ -292,18 +296,32 @@ if ($action === 'login') {
         if (require_csrf_token($errors)) {
             $username = trim($_POST['username'] ?? '');
             $password = $_POST['password'] ?? '';
-            $user = find_user($users, $username);
-            if (!$user || !password_verify($password, $user['password_hash'] ?? '')) {
-                $errors[] = 'Username/password incorrect.';
-                lawnding_log_event('info', 'login_failed', [
-                    'attempted_username' => $username,
-                    'user_exists' => $user !== null,
-                ]);
+
+            // Brute-force gate: refuse the attempt before reaching
+            // password_verify if this IP or username is currently locked.
+            $clientIp = lawnding_client_ip();
+            $rateLimitPath = lawnding_rate_limit_path();
+            $lock = lawnding_rate_limit_check($clientIp, $username, $rateLimitPath);
+            if ($lock !== null) {
+                $minutes = max(1, (int) ceil($lock['seconds_remaining'] / 60));
+                $suffix = $minutes === 1 ? '' : 's';
+                $errors[] = "Too many failed attempts. Try again in {$minutes} minute{$suffix}.";
             } else {
-                session_regenerate_id(true); // Prevent session fixation by rotating the ID on login.
-                $_SESSION['auth_user'] = $user['username']; // Store the authenticated user in the session.
-                if (isset($_POST['remember']) && (string) $_POST['remember'] === '1') {
-                    lawnding_remember_token_issue($user['username'], lawnding_remember_tokens_path());
+                $user = find_user($users, $username);
+                if (!$user || !password_verify($password, $user['password_hash'] ?? '')) {
+                    $errors[] = 'Username/password incorrect.';
+                    lawnding_log_event('info', 'login_failed', [
+                        'attempted_username' => $username,
+                        'user_exists' => $user !== null,
+                    ]);
+                    lawnding_rate_limit_record_failure($clientIp, $username, $rateLimitPath);
+                } else {
+                    session_regenerate_id(true); // Prevent session fixation by rotating the ID on login.
+                    $_SESSION['auth_user'] = $user['username']; // Store the authenticated user in the session.
+                    lawnding_rate_limit_record_success($clientIp, $user['username'], $rateLimitPath);
+                    if (isset($_POST['remember']) && (string) $_POST['remember'] === '1') {
+                        lawnding_remember_token_issue($user['username'], lawnding_remember_tokens_path());
+                    }
                 }
             }
         }
@@ -447,6 +465,14 @@ if ($action === 'change_password') {
                     $passwordChangeSuccess = 'Password updated. You can now use the admin panel.';
                     $authRecord['must_change_password'] = false;
                     $forcePasswordChange = false;
+                    // Invalidate all "Stay signed in" cookies for this user
+                    // across every device. Password change is the canonical
+                    // "I think someone got in" signal — leaving long-lived
+                    // cookies valid would let the attacker back in.
+                    lawnding_remember_token_revoke_all_for_user(
+                        $authRecord['username'],
+                        lawnding_remember_tokens_path()
+                    );
                 }
             }
         }
@@ -643,6 +669,14 @@ if ($action === 'reset_password') {
                         $resetUsername = $targetUsername;
                         $resetLogoutAfterReset = $resetLogoutAfter;
                         enforce_users_permissions($usersPath, $usersWarnings);
+                        // Invalidate every "Stay signed in" cookie for the
+                        // target user — they're getting a new temp password,
+                        // so any device that auto-logs-in via remember-me
+                        // could otherwise dodge the forced password change.
+                        lawnding_remember_token_revoke_all_for_user(
+                            $targetUsername,
+                            lawnding_remember_tokens_path()
+                        );
                     }
                 } elseif (count($usersErrors) === 0) {
                     $usersErrors[] = 'User not found.';

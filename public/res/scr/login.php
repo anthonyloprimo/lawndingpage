@@ -19,6 +19,7 @@
 require_once __DIR__ . '/../../../lp-bootstrap.php';
 require_once __DIR__ . '/../../../admin/auth.php';
 require_once __DIR__ . '/../../../admin/lib/remember-me.php';
+require_once __DIR__ . '/../../../admin/lib/rate-limit.php';
 
 lawnding_init_session();
 
@@ -48,6 +49,17 @@ if ($username === '' || $password === '') {
     lp_login_respond(['error' => 'Username and password are required.'], 400);
 }
 
+$clientIp = lawnding_client_ip();
+$rateLimitPath = lawnding_rate_limit_path();
+$lock = lawnding_rate_limit_check($clientIp, $username, $rateLimitPath);
+if ($lock !== null) {
+    $minutes = max(1, (int) ceil($lock['seconds_remaining'] / 60));
+    $suffix = $minutes === 1 ? '' : 's';
+    lp_login_respond([
+        'error' => "Too many failed attempts. Try again in {$minutes} minute{$suffix}.",
+    ], 429);
+}
+
 $usersPath = (string) lawnding_config('users_path', '');
 $users = lawnding_load_users_file($usersPath);
 
@@ -67,6 +79,7 @@ if ($matched === null || !password_verify($password, $matched['password_hash'] ?
         'user_exists' => $matched !== null,
         'source' => 'public_modal',
     ]);
+    lawnding_rate_limit_record_failure($clientIp, $username, $rateLimitPath);
     lp_login_respond(['error' => 'Username or password incorrect.'], 401);
 }
 
@@ -75,6 +88,7 @@ $_SESSION['auth_user'] = $matched['username'];
 // Coming through the public-side modal: a later logout should return the
 // user to the public site, not drop them on the admin login form.
 $_SESSION['logout_return_public'] = true;
+lawnding_rate_limit_record_success($clientIp, $matched['username'], $rateLimitPath);
 
 if ($remember) {
     lawnding_remember_token_issue($matched['username'], lawnding_remember_tokens_path());

@@ -826,6 +826,13 @@ nav {
     left: 0;
 }
 
+/* The Telegram plugin's stylesheet sets the same rule, but duplicating it
+   here means the absolute-positioned Sign in button below works even if the
+   TG plugin is ever disabled. position: relative is idempotent. */
+.header {
+    position: relative;
+}
+
 /* === Header logout form for bcrypt-only chip === */
 .lpHeaderLogoutForm {
     display: inline-flex;
@@ -834,7 +841,14 @@ nav {
 }
 
 /* === Header sign-in button === */
+/* Positioned absolutely against .header so this button lands in the same
+   upper-right corner the Telegram-logged-in chip occupies — visual rhythm
+   matches across all three header auth states (signed-out, bcrypt, TG). */
 .lpHeaderLoginButton {
+    position: absolute;
+    top: 12px;
+    right: 16px;
+    z-index: 10;
     display: inline-flex;
     align-items: center;
     justify-content: center;

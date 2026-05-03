@@ -349,6 +349,171 @@ function media_gallery_thumb_is_custom(string $thumbPath): bool {
     return $basename !== '' && str_starts_with($basename, 'thumb-');
 }
 
+// Merge a save_map mediaChanges payload into the existing items array.
+// Pure: caller does I/O. The payload is the JS-side diff
+// ({updates: [{id, title?, order?}, ...]}) — fields that the admin UI
+// can edit in the per-item editor. Unknown ids are ignored (item may
+// have been deleted out-of-band by another admin); after merging,
+// items are re-sorted by order and order is re-numbered 1..N for
+// stable contiguous values. Wired into save-config.php's save_map
+// dispatch via the manifest's `validator` field.
+function media_gallery_apply_changes(array $data, array $changes): array {
+    $items = $data['items'] ?? [];
+    if (!is_array($items)) {
+        $items = [];
+    }
+    $updates = $changes['updates'] ?? [];
+    if (!is_array($updates) || empty($updates)) {
+        $data['items'] = $items;
+        return $data;
+    }
+    $indexById = [];
+    foreach ($items as $index => $item) {
+        if (is_array($item) && isset($item['id'])) {
+            $indexById[(string) $item['id']] = $index;
+        }
+    }
+    foreach ($updates as $update) {
+        if (!is_array($update)) {
+            continue;
+        }
+        $id = isset($update['id']) ? (string) $update['id'] : '';
+        if ($id === '' || !isset($indexById[$id])) {
+            continue;
+        }
+        $idx = $indexById[$id];
+        if (!is_array($items[$idx])) {
+            $items[$idx] = [];
+        }
+        if (array_key_exists('title', $update)) {
+            $items[$idx]['title'] = (string) $update['title'];
+        }
+        if (array_key_exists('order', $update)) {
+            $items[$idx]['order'] = (int) $update['order'];
+        }
+    }
+    usort($items, function ($a, $b) {
+        $orderA = is_array($a) && isset($a['order']) ? (int) $a['order'] : 0;
+        $orderB = is_array($b) && isset($b['order']) ? (int) $b['order'] : 0;
+        return $orderA <=> $orderB;
+    });
+    $order = 1;
+    foreach ($items as &$item) {
+        if (!is_array($item)) {
+            $item = [];
+        }
+        $item['order'] = $order;
+        $order += 1;
+    }
+    unset($item);
+    $data['items'] = $items;
+    return $data;
+}
+
+// Rewrite stored item.file / item.thumb paths after a pane rename.
+// Items reference assets via storage-form paths like
+// "res/data/mediaGalleryContent-<paneId>/media-1234.jpg"; when the
+// pane is renamed, the directory has already been moved (by core's
+// generic pane_content_dir rename), but the strings inside items.json
+// still point at the old segment. Pure string replace on the
+// "mediaGalleryContent-<oldId>/" → "mediaGalleryContent-<newId>/"
+// segment.
+function media_gallery_update_paths(array $data, string $oldId, string $newId): array {
+    $items = $data['items'] ?? [];
+    if (!is_array($items)) {
+        $data['items'] = [];
+        return $data;
+    }
+    $oldSegment = 'mediaGalleryContent-' . $oldId . '/';
+    $newSegment = 'mediaGalleryContent-' . $newId . '/';
+    foreach ($items as &$item) {
+        if (!is_array($item)) {
+            $item = [];
+        }
+        if (!empty($item['file']) && is_string($item['file'])) {
+            $item['file'] = str_replace($oldSegment, $newSegment, $item['file']);
+        }
+        if (!empty($item['thumb']) && is_string($item['thumb'])) {
+            $item['thumb'] = str_replace($oldSegment, $newSegment, $item['thumb']);
+        }
+    }
+    unset($item);
+    $data['items'] = $items;
+    return $data;
+}
+
+// Manifest-declared `on_rename` callback. Core renames the per-pane
+// content directory generically; this callback updates the asset
+// references stored inside items.json so they point at the new
+// directory name. Signature is the contract with save-config.php's
+// dispatch loop: ($prevId, $currentId, $context) where $context
+// carries the data_dir and the previous module's manifest.
+function media_gallery_on_rename(string $prevId, string $currentId, array $context): void {
+    $dataDir = isset($context['data_dir']) ? (string) $context['data_dir'] : '';
+    if ($dataDir === '') {
+        return;
+    }
+    $manifest = isset($context['manifest']) && is_array($context['manifest']) ? $context['manifest'] : [];
+    $entries = $manifest['data_files'] ?? [];
+    if (!is_array($entries)) {
+        return;
+    }
+    // Locate the first JSON data file in the manifest — gallery has
+    // only one (items.json), and that's the file with embedded paths.
+    $jsonFile = '';
+    foreach ($entries as $entry) {
+        if (!is_array($entry)) {
+            continue;
+        }
+        $type = isset($entry['type']) ? (string) $entry['type'] : '';
+        $pattern = isset($entry['pattern']) ? (string) $entry['pattern'] : '';
+        if ($type === 'json' && $pattern !== '') {
+            $jsonFile = str_replace('{paneId}', $currentId, $pattern);
+            break;
+        }
+    }
+    if ($jsonFile === '') {
+        return;
+    }
+    $jsonPath = rtrim($dataDir, '/\\') . '/' . $jsonFile;
+    if (!is_readable($jsonPath)) {
+        return;
+    }
+    $decoded = json_decode((string) file_get_contents($jsonPath), true);
+    if (!is_array($decoded)) {
+        // items.json exists but is corrupt — log so admin sees it in
+        // Diagnostics, since the rename completed (dir already moved by
+        // core) but the asset paths inside the file can't be rewritten.
+        lawnding_log_event('error', 'media_gallery.on_rename.decode_failed', [
+            'prev_id'   => $prevId,
+            'pane_id'   => $currentId,
+            'json_path' => $jsonPath,
+        ]);
+        return;
+    }
+    $updated = media_gallery_update_paths($decoded, $prevId, $currentId);
+    $encoded = json_encode($updated, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+    if ($encoded === false) {
+        lawnding_log_event('error', 'media_gallery.on_rename.encode_failed', [
+            'prev_id'   => $prevId,
+            'pane_id'   => $currentId,
+            'json_path' => $jsonPath,
+        ]);
+        return;
+    }
+    if (file_put_contents($jsonPath, $encoded, LOCK_EX) === false) {
+        // Disk write failed after the dir-rename succeeded — gallery now
+        // points at the new dir but items.json still carries the old
+        // segment. Surface in Diagnostics so the admin can resave to
+        // recover (or fix the file by hand).
+        lawnding_log_event('error', 'media_gallery.on_rename.write_failed', [
+            'prev_id'   => $prevId,
+            'pane_id'   => $currentId,
+            'json_path' => $jsonPath,
+        ]);
+    }
+}
+
 function media_gallery_build_payload(array $items): array {
     $tgProfiles = null;
     $output = [];

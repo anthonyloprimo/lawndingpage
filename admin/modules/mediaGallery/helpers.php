@@ -14,10 +14,10 @@ function media_gallery_require_method(string $method): void {
     }
 }
 
-// Signature unchanged so existing callers (media-gallery-{list,replace,
-// upload,delete,thumb}.php) continue to work without edits. CSRF is
-// handled inside the shared gate for POST requests; GET endpoints (list,
-// thumb) skip it.
+// Wraps lawnding_require_admin_mutation so each endpoint file doesn't
+// repeat the auth + CSRF dance. Returns a flat snapshot of the resolved
+// identity; callers that need full context can reach for the resolver
+// directly.
 function media_gallery_require_edit_site(): array {
     $adminAuthPath = function_exists('lawnding_admin_path')
         ? lawnding_admin_path('auth.php')
@@ -335,11 +335,12 @@ function media_gallery_derive_thumb(string $srcAbsPath, string $dataDir, string 
 }
 
 // Distinguish admin-uploaded custom thumbnails (thumb-{itemId}.{ext},
-// written by media-gallery-thumb.php) from auto-derived ones
+// written by endpoints/thumb.php) from auto-derived ones
 // (media-{itemId}-thumb.{ext}, written by media_gallery_derive_thumb).
 // Source-replace keeps custom thumbs intact and re-derives the rest.
 // Prefix-based check is fragile to renames; if the naming conventions
-// change in either thumb.php or derive_thumb above, update both at once.
+// change in either endpoints/thumb.php or derive_thumb above, update
+// both at once.
 function media_gallery_thumb_is_custom(string $thumbPath): bool {
     if ($thumbPath === '') {
         return false;

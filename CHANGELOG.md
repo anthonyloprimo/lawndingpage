@@ -1,6 +1,13 @@
 ### Changelog
 
 
+#### v1.14.2
+- Fixed a bug where a gallery item's saved focal point silently disappeared from the editor after any page reload or any non-focal change. The thumbnail itself was always correct on the public site; only the editor's UI lost track of where the focal point was set.
+- Improved keyboard and screen-reader navigation in the public gallery lightbox. Focus stays inside the modal while it's open, returns to the originating gallery thumbnail when the modal closes, video controls remain reachable via Tab, and screen readers now announce the active item's caption.
+- In the gallery editor, the modal field formerly called Mouseover is now Hovertext, and hovering a thumbnail reveals that field's value instead of the original / resized byte counts. The byte counts are still visible in the modal's Info section.
+
+-----
+
 #### v1.14.1
 - Repeated failed sign-in attempts now lock the account out for 15 minutes after 5 misses, on both the public sign-in dialog and the /admin/ form. The lockout applies to the IP and the username independently, so neither a single attacker on one IP nor a botnet hitting one account can keep guessing forever. A successful sign-in clears the lockout.
 - Changing your password (or having an admin reset it for you) now signs you out from any "Stay signed in" devices. Closes a gap where a long-lived cookie could survive a password change.

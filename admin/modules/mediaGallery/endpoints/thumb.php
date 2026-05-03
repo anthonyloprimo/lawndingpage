@@ -1,5 +1,4 @@
 <?php
-require_once __DIR__ . '/../../../lp-bootstrap.php';
 require_once lawnding_admin_path('modules/mediaGallery/helpers.php');
 lawnding_init_session();
 

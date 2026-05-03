@@ -48,9 +48,8 @@
     display: block;
 }
 
-.mediaGalleryThumbButton[data-size-info]::after {
-    content: attr(data-size-info);
-    white-space: pre;
+.mediaGalleryThumbButton[data-hover-text]::after {
+    content: attr(data-hover-text);
     position: absolute;
     bottom: 0;
     left: 0;
@@ -63,8 +62,11 @@
     pointer-events: none;
     opacity: 0;
     transition: opacity 0s 0s;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
-.mediaGalleryThumbButton[data-size-info]:hover::after {
+.mediaGalleryThumbButton[data-hover-text]:hover::after {
     opacity: 1;
     transition: opacity 0s 1s;
 }
@@ -386,11 +388,11 @@
     color: inherit;
 }
 
-/* Allow the mouseover input's value to scroll horizontally past the visible
-   column width without clipping or breaking the grid -- input handles its
-   own scroll cursor; we just keep the dd cell from clipping the visible
-   bounds via overflow: visible. */
-.mediaGalleryInfoMouseover {
+/* Allow the hovertext input's value to scroll horizontally past the
+   visible column width without clipping or breaking the grid -- input
+   handles its own scroll cursor; we just keep the dd cell from clipping
+   the visible bounds via overflow: visible. */
+.mediaGalleryInfoHovertext {
     overflow: visible;
 }
 
@@ -594,6 +596,15 @@
 
 .mediaGalleryLightboxNext {
     right: -50px;
+}
+
+/* Keyboard-only focus ring on the lightbox controls. Default browser
+   outline blends with the buttons' own 1px white-tinted border against
+   the dark backdrop; an explicit white ring makes Tab focus visible. */
+.mediaGalleryLightboxClose:focus-visible,
+.mediaGalleryLightboxNav:focus-visible {
+    outline: 2px solid #ffffff;
+    outline-offset: 2px;
 }
 
 .mediaGalleryLightboxCaption {

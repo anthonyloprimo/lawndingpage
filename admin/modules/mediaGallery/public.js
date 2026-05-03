@@ -52,6 +52,24 @@
         let isOpen = false;
         let touchStartX = 0;
         let touchEndX = 0;
+        // Element that had focus when the lightbox opened. Restored on
+        // close so keyboard / SR users return to the gallery thumb they
+        // were on instead of the document body. Mirrors the admin-side
+        // openAdminModal / closeAdminModal pattern in config.js.
+        let lastFocused = null;
+
+        // Querying live each time so dynamically-added/removed buttons
+        // (e.g. nav buttons hidden when items.length <= 1) participate
+        // correctly in the trap. video[controls] / audio[controls] are
+        // included because native media controls are keyboard-focusable
+        // but lack tabindex and href, so a shorter "button + link +
+        // tabindex" set would exclude them -- video items would lose
+        // their play/pause/seek keyboard affordance once trapped.
+        const FOCUSABLE_SELECTOR = 'button:not([disabled]), [href], video[controls], audio[controls], [tabindex]:not([tabindex="-1"])';
+        function getFocusable() {
+            return Array.from(lightbox.querySelectorAll(FOCUSABLE_SELECTOR))
+                .filter((el) => el.offsetParent !== null || el === document.activeElement);
+        }
 
         function updateNav() {
             const hasMultiple = items.length > 1;
@@ -102,10 +120,16 @@
             if (!items.length) {
                 return;
             }
+            lastFocused = document.activeElement;
             isOpen = true;
             lightbox.classList.add('isOpen');
             lightbox.setAttribute('aria-hidden', 'false');
             showItem(index);
+            // Send initial focus to the close button so Tab lands on a
+            // sensible element and Esc has somewhere to fire from.
+            if (closeBtn) {
+                closeBtn.focus();
+            }
         }
 
         function closeLightbox() {
@@ -123,6 +147,10 @@
             if (lightboxImage) {
                 lightboxImage.removeAttribute('src');
             }
+            if (lastFocused && typeof lastFocused.focus === 'function') {
+                lastFocused.focus();
+            }
+            lastFocused = null;
         }
 
         function showNext() {
@@ -157,16 +185,41 @@
             nextBtn.addEventListener('click', () => showNext());
         }
 
-        document.addEventListener('keydown', (event) => {
+        // Scoped to the lightbox element rather than document so multiple
+        // gallery panes on a page don't each register a global listener
+        // gated by their own isOpen flag. The focus trap below keeps
+        // focus inside the lightbox while open, so this fires reliably.
+        lightbox.addEventListener('keydown', (event) => {
             if (!isOpen) {
                 return;
             }
             if (event.key === 'Escape') {
                 closeLightbox();
-            } else if (event.key === 'ArrowLeft') {
+                return;
+            }
+            if (event.key === 'ArrowLeft') {
                 showPrev();
-            } else if (event.key === 'ArrowRight') {
+                return;
+            }
+            if (event.key === 'ArrowRight') {
                 showNext();
+                return;
+            }
+            if (event.key === 'Tab') {
+                const focusable = getFocusable();
+                if (!focusable.length) {
+                    event.preventDefault();
+                    return;
+                }
+                const first = focusable[0];
+                const last = focusable[focusable.length - 1];
+                if (event.shiftKey && document.activeElement === first) {
+                    event.preventDefault();
+                    last.focus();
+                } else if (!event.shiftKey && document.activeElement === last) {
+                    event.preventDefault();
+                    first.focus();
+                }
             }
         });
 

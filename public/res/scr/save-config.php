@@ -4,6 +4,7 @@ require_once __DIR__ . '/../../../lp-bootstrap.php';
 // Load versioned constants (schema version, site version) for consistency checks.
 require_once __DIR__ . '/../version.php';
 require_once __DIR__ . '/markdown-gating.php';
+require_once lawnding_admin_path('lib/pane-icon.php');
 lawnding_init_session();
 
 // Unified JSON response helper.
@@ -511,19 +512,6 @@ function is_valid_pane_id($value) {
         return false;
     }
     return preg_match('/^[a-z][a-z0-9]*(?:[A-Z][a-z0-9]*)*$/', $value) === 1;
-}
-
-// Save a pane icon file upload under res/img/panes with a stable filename.
-function save_pane_icon($fileArray, $paneId, $iconDir) {
-    $base = preg_replace('/[^a-z0-9]/i', '', (string) $paneId);
-    if ($base === '') {
-        return null;
-    }
-    if (!is_dir($iconDir)) {
-        mkdir($iconDir, 0755, true);
-    }
-    $result = lawnding_validate_and_save_image($fileArray, $iconDir, $base, 256, 256, lawnding_image_mime_map());
-    return $result['ok'] ? $result['filename'] : null;
 }
 
 // Validate and save an uploaded image; returns relative path.
@@ -1045,7 +1033,7 @@ if ($action === 'pane_management') {
         if ($iconType === 'file') {
             $fileKey = 'paneIconFile_' . $paneId;
             if (isset($_FILES[$fileKey])) {
-                $saved = save_pane_icon($_FILES[$fileKey], $paneId, $paneIconDir);
+                $saved = lawnding_save_pane_icon_upload($_FILES[$fileKey], $paneId, $paneIconDir);
                 if ($saved) {
                     $iconValue = $saved;
                 }

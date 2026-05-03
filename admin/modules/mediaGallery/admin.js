@@ -954,12 +954,11 @@ $(document).ready(function() {
         const $dataScript = $pane.find('.mediaGalleryData');
         const $modal = $pane.find('.mediaGalleryModal');
         if ($modal.length && !$modal.parent().is('body')) {
+            // Reparent for layering. After this, $pane no longer contains
+            // the modal — search modal contents via $modal / state.$modal,
+            // never $pane.find('.modal-thing'). See
+            // feedback_modal_reparent_capture_reference memory.
             $('body').append($modal);
-        }
-
-        const $settingsModal = $pane.find('.mediaGallerySettingsModal');
-        if ($settingsModal.length && !$settingsModal.parent().is('body')) {
-            $('body').append($settingsModal);
         }
 
         let payload = {};
@@ -997,84 +996,25 @@ $(document).ready(function() {
         renderGrid(state);
         paneStates.push(state);
 
+        // Live-toggle per-item modal buttons on settings save (avoids F5).
+        // Search in state.$modal — the modal was reparented to <body> on
+        // init so it's no longer inside state.$pane.
+        $(document).on('lp:per-pane-settings-saved', function(event, detail) {
+            if (!detail || detail.paneId !== state.paneId || detail.module !== 'mediaGallery') {
+                return;
+            }
+            const perms = detail.resolvedValues || {};
+            const $stack = state.$modal.find('.mediaGalleryButtonStack');
+            $stack.find('.mediaGalleryChangeButton').prop('hidden', !perms.changeMedia);
+            $stack.find('.mediaGalleryThumbButtonAction').prop('hidden', !perms.customThumbs);
+            $stack.prop('hidden', !perms.changeMedia && !perms.customThumbs);
+        });
+
         $pane.on('click', '.mediaGalleryThumbButton', function() {
             const itemId = $(this).closest('.mediaGalleryItem').data('item-id') || '';
             if (itemId) {
                 openModal(state, String(itemId));
             }
-        });
-
-        $pane.on('click', '.mediaGallerySettingsButton', function() {
-            if (typeof window.openAdminModal === 'function') {
-                window.openAdminModal($settingsModal);
-            } else {
-                $settingsModal.addClass('isOpen').attr('aria-hidden', 'false');
-            }
-        });
-
-        function closeSettingsModal() {
-            if (typeof window.closeAdminModal === 'function') {
-                window.closeAdminModal($settingsModal);
-            } else {
-                $settingsModal.removeClass('isOpen').attr('aria-hidden', 'true');
-            }
-        }
-
-        $settingsModal.on('click', '.userModalClose, .mediaGallerySettingsCancel', function() {
-            closeSettingsModal();
-        });
-        $settingsModal.on('click', function(event) {
-            if ($(event.target).is('.mediaGallerySettingsModal')) {
-                closeSettingsModal();
-            }
-        });
-
-        // "Use site defaults" toggles whether the override fieldset is editable.
-        // Disabled fieldset means even if a value is checked, it won't post.
-        $settingsModal.on('change', '.mediaGallerySettingsUseDefaultsInput', function() {
-            const useDefaults = $(this).is(':checked');
-            $settingsModal.find('.mediaGallerySettingsOverrides').prop('disabled', useDefaults);
-        });
-
-        $settingsModal.on('click', '.mediaGallerySettingsSave', function() {
-            const useDefaults = $settingsModal.find('.mediaGallerySettingsUseDefaultsInput').is(':checked');
-            const $overrides = $settingsModal.find('.mediaGallerySettingsOverrides');
-            const formData = new URLSearchParams();
-            formData.append('module', 'mediaGallery');
-            formData.append('endpoint', 'settings');
-            formData.append('paneId', state.paneId);
-            formData.append('useSiteDefaults', useDefaults ? '1' : '0');
-            if (!useDefaults) {
-                if ($overrides.find('input[name="customThumbs"]').is(':checked')) {
-                    formData.append('customThumbs', '1');
-                }
-                if ($overrides.find('input[name="changeMedia"]').is(':checked')) {
-                    formData.append('changeMedia', '1');
-                }
-            }
-            if (csrfToken) {
-                formData.append('csrf_token', csrfToken);
-            }
-            showSaving();
-            fetch(buildUrl('module-endpoint.php'), {
-                method: 'POST',
-                credentials: 'same-origin',
-                body: formData
-            })
-                .then((response) => response.json().then((data) => ({ ok: response.ok, data })))
-                .then(({ ok, data }) => {
-                    hideSaving();
-                    if (!ok || !data || data.error) {
-                        addNotice('danger', (data && data.error) || 'Failed to save settings.');
-                        return;
-                    }
-                    addNotice('ok', 'Settings saved. Reload to see changes.');
-                    closeSettingsModal();
-                })
-                .catch(() => {
-                    hideSaving();
-                    addNotice('danger', 'Failed to save settings.');
-                });
         });
 
         $pane.on('click', '.mediaGalleryMoveUp', function() {

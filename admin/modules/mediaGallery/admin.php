@@ -73,28 +73,26 @@ if ($itemsJson === false) {
     $itemsJson = '{"items":[]}';
 }
 
-// Load per-pane settings sidecar and resolve effective values for this
-// render. Resolved booleans gate the per-item modal buttons below; the
-// raw $paneSettings array is also serialized into the pane-settings
-// modal for editing.
+// Resolve per-pane settings. The dialog editor moved to the shared
+// per-pane Settings modal in admin/config.php; this side still resolves
+// effective values to gate the per-item modal buttons below.
 $dataDirForSettings = function_exists('lawnding_data_path') ? lawnding_data_path('') : (dirname(__DIR__, 3) . '/public/res/data');
 $dataDirForSettings = rtrim($dataDirForSettings, '/\\');
 $paneSettingsPath = media_gallery_settings_path($dataDirForSettings, $paneId);
 $paneSettings = lawnding_load_pane_settings($paneSettingsPath);
 $canCustomThumbs = lawnding_resolve_pane_setting($paneSettings, 'mediaGallery', 'customThumbs');
 $canChangeMedia  = lawnding_resolve_pane_setting($paneSettings, 'mediaGallery', 'changeMedia');
-$useSiteDefaults = !isset($paneSettings['useSiteDefaults']) || $paneSettings['useSiteDefaults'] !== false;
 ?>
 <div class="pane glassConvex mediaGalleryPane" id="<?php echo htmlspecialchars($paneId); ?>" data-pane-type="mediaGallery" data-pane-id="<?php echo htmlspecialchars($paneId); ?>">
     <div class="paneHeader">
-        <button class="paneIconButton" type="button" data-pane-id="<?php echo htmlspecialchars($paneId); ?>" aria-label="Edit pane icon">
+        <span class="paneIconDisplay" aria-hidden="true">
             <span class="paneIconPreview"><?php echo $iconHtml; ?></span>
-        </button>
+        </span>
         <div class="paneHeaderTitle">
             <span class="paneTitle"><?php echo htmlspecialchars($paneName); ?></span>
             <span class="paneDataHint"><?php echo htmlspecialchars('Max upload size: ' . lawnding_app_upload_max_label()); ?></span>
         </div>
-        <button class="mediaGallerySettingsButton iconButton" type="button" aria-label="Pane settings" title="Pane settings"><?php echo lawnding_icon_svg('settings'); ?></button>
+        <button class="paneSettingsButton iconButton" type="button" data-pane-id="<?php echo htmlspecialchars($paneId); ?>" aria-label="Pane settings" title="Pane settings"><?php echo lawnding_icon_svg('settings'); ?></button>
     </div>
 
     <div class="mediaGalleryScroll">
@@ -171,18 +169,15 @@ $useSiteDefaults = !isset($paneSettings['useSiteDefaults']) || $paneSettings['us
                             <dt>Hovertext</dt><dd class="mediaGalleryInfoHovertext"><input type="text" class="mediaGalleryCaptionInput" placeholder="Optional"></dd>
                         </dl>
                     </div>
-                    <?php if ($canChangeMedia || $canCustomThumbs): ?>
-                    <div class="mediaGalleryButtonStack">
-                        <?php if ($canChangeMedia): ?>
-                        <button class="mediaGalleryChangeButton usersButton" type="button">Change media</button>
+                    <?php // Always rendered; admin.js toggles `hidden` on
+                          // lp:per-pane-settings-saved so saves take effect
+                          // without a page reload. ?>
+                    <div class="mediaGalleryButtonStack" <?php echo (!$canChangeMedia && !$canCustomThumbs) ? 'hidden' : ''; ?>>
+                        <button class="mediaGalleryChangeButton usersButton" type="button" <?php echo $canChangeMedia ? '' : 'hidden'; ?>>Change media</button>
                         <input class="mediaGalleryChangeInput" type="file" accept="image/*" hidden>
-                        <?php endif; ?>
-                        <?php if ($canCustomThumbs): ?>
-                        <button class="mediaGalleryThumbButtonAction usersButton" type="button">Set thumbnail</button>
+                        <button class="mediaGalleryThumbButtonAction usersButton" type="button" <?php echo $canCustomThumbs ? '' : 'hidden'; ?>>Set thumbnail</button>
                         <input class="mediaGalleryThumbInput" type="file" accept="image/*" hidden>
-                        <?php endif; ?>
                     </div>
-                    <?php endif; ?>
                     <p class="mediaGalleryModalHint">Tip!<br>Click the image to adjust the center of the thumbnail.</p>
                     <div class="mediaGalleryActionRow mediaGalleryModalFooterActions">
                         <button class="mediaGalleryModalCancel usersButton" type="button">Cancel</button>
@@ -197,30 +192,4 @@ $useSiteDefaults = !isset($paneSettings['useSiteDefaults']) || $paneSettings['us
         </div>
     </div>
 
-    <div class="userModalOverlay mediaGallerySettingsModal" id="mediaGallerySettingsModal-<?php echo htmlspecialchars($paneId); ?>" aria-hidden="true">
-        <div class="userModal glassConcave">
-            <h4><?php echo htmlspecialchars($paneName); ?> Settings</h4>
-            <form class="mediaGallerySettingsForm" data-pane-id="<?php echo htmlspecialchars($paneId); ?>">
-                <label class="siteConfigToggle mediaGallerySettingsUseDefaults">
-                    <input type="checkbox" class="mediaGallerySettingsUseDefaultsInput" <?php echo $useSiteDefaults ? 'checked' : ''; ?>>
-                    <span>Use site defaults</span>
-                </label>
-                <fieldset class="siteConfigGroup mediaGallerySettingsOverrides" <?php echo $useSiteDefaults ? 'disabled' : ''; ?>>
-                    <legend>Per-pane overrides</legend>
-                    <label class="siteConfigToggle">
-                        <input type="checkbox" name="customThumbs" <?php echo $canCustomThumbs ? 'checked' : ''; ?>>
-                        <span>Allow per-item custom thumbnail uploads</span>
-                    </label>
-                    <label class="siteConfigToggle">
-                        <input type="checkbox" name="changeMedia" <?php echo $canChangeMedia ? 'checked' : ''; ?>>
-                        <span>Allow replacing media files on existing items</span>
-                    </label>
-                </fieldset>
-                <div class="mediaGalleryActionRow">
-                    <button class="mediaGallerySettingsSave usersButton" type="button">Save</button>
-                    <button class="mediaGallerySettingsCancel usersButton" type="button">Cancel</button>
-                </div>
-            </form>
-        </div>
-    </div>
 </div>

@@ -791,6 +791,92 @@ function lawnding_module_default_icon(string $moduleId): string {
     return $cache[$moduleId] = is_string($icon) ? $icon : '';
 }
 
+// Resolve the absolute path of a module's per-pane settings sidecar for a
+// specific pane id. The module's manifest declares the path pattern via a
+// `settings_file` field with a `{paneId}` placeholder; this helper reads
+// the manifest, substitutes the placeholder, and prepends the data dir.
+// Returns '' when the module has no settings_file declaration (modules
+// without per_pane_settings don't need a sidecar). Validates moduleId and
+// paneId character sets to block path traversal. Per-request static cache
+// keyed on module + pane.
+function lawnding_module_settings_path(string $moduleId, string $paneId): string {
+    static $cache = [];
+    $cacheKey = $moduleId . "\x00" . $paneId;
+    if (array_key_exists($cacheKey, $cache)) {
+        return $cache[$cacheKey];
+    }
+    if ($moduleId === '' || preg_match('/[^a-zA-Z0-9_-]/', $moduleId)) {
+        return $cache[$cacheKey] = '';
+    }
+    if ($paneId === '' || preg_match('/[^a-zA-Z0-9]/', $paneId)) {
+        return $cache[$cacheKey] = '';
+    }
+    $modulesDir = lawnding_admin_path('modules');
+    $manifestPath = rtrim($modulesDir, '/\\') . '/' . $moduleId . '/' . $moduleId . '.json';
+    if (!is_readable($manifestPath)) {
+        return $cache[$cacheKey] = '';
+    }
+    $manifest = json_decode((string) file_get_contents($manifestPath), true);
+    if (!is_array($manifest)) {
+        return $cache[$cacheKey] = '';
+    }
+    $pattern = $manifest['settings_file'] ?? '';
+    if (!is_string($pattern) || $pattern === '' || strpos($pattern, '..') !== false) {
+        return $cache[$cacheKey] = '';
+    }
+    $relative = str_replace('{paneId}', $paneId, $pattern);
+    $dataDir = lawnding_data_path('');
+    return $cache[$cacheKey] = rtrim($dataDir, '/\\') . '/' . ltrim($relative, '/');
+}
+
+// Read a module's per_pane_settings declaration from its manifest. Each
+// entry: { key, label, type } where type is currently always 'bool'. The
+// shared per-pane Settings modal (admin/config.php) walks this to render
+// module-specific override controls; modules that don't declare per_pane_
+// settings get only the universal icon section in the modal. Per-request
+// static cache keyed by module id; module id whitelisted to [a-zA-Z0-9_-]
+// to block path traversal. Invalid entries are silently dropped (defensive
+// against hand-edited manifests); the function returns [] rather than
+// surfacing errors so the modal still renders.
+function lawnding_module_per_pane_settings(string $moduleId): array {
+    static $cache = [];
+    if (array_key_exists($moduleId, $cache)) {
+        return $cache[$moduleId];
+    }
+    if ($moduleId === '' || preg_match('/[^a-zA-Z0-9_-]/', $moduleId)) {
+        return $cache[$moduleId] = [];
+    }
+    $modulesDir = lawnding_admin_path('modules');
+    $manifestPath = rtrim($modulesDir, '/\\') . '/' . $moduleId . '/' . $moduleId . '.json';
+    if (!is_readable($manifestPath)) {
+        return $cache[$moduleId] = [];
+    }
+    $manifest = json_decode((string) file_get_contents($manifestPath), true);
+    if (!is_array($manifest) || !isset($manifest['per_pane_settings']) || !is_array($manifest['per_pane_settings'])) {
+        return $cache[$moduleId] = [];
+    }
+    $allowedTypes = ['bool'];
+    $clean = [];
+    $seenKeys = [];
+    foreach ($manifest['per_pane_settings'] as $entry) {
+        if (!is_array($entry)) {
+            continue;
+        }
+        $key = isset($entry['key']) ? (string) $entry['key'] : '';
+        $label = isset($entry['label']) ? (string) $entry['label'] : '';
+        $type = isset($entry['type']) ? (string) $entry['type'] : '';
+        if ($key === '' || preg_match('/[^a-zA-Z0-9_]/', $key) || $label === '' || !in_array($type, $allowedTypes, true)) {
+            continue;
+        }
+        if (isset($seenKeys[$key])) {
+            continue;
+        }
+        $seenKeys[$key] = true;
+        $clean[] = ['key' => $key, 'label' => $label, 'type' => $type];
+    }
+    return $cache[$moduleId] = $clean;
+}
+
 // Load pane instances from panes.json. Returns the raw pane array or [] when
 // the file is missing or malformed. Caller typically pipes through
 // lawnding_sort_panes() before rendering.

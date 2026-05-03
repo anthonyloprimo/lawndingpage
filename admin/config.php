@@ -23,6 +23,7 @@ require $parsedownPath;
 // dependency explicit here since the admin config UI consumes these helpers
 // directly to render the bot config pane.
 require_once __DIR__ . '/lib/tg-auth.php';
+require_once __DIR__ . '/lib/per-pane-settings.php';
 
 // Helper for data file lookups that works with or without bootstrap helpers.
 $dataPath = function (string $file): string {
@@ -493,6 +494,7 @@ $appConfigPayload = [
     'paneIds' => array_values($paneIds),
     'panes' => $panesForJs,
     'modules' => $modulesCatalog,
+    'perPaneSettings' => lawnding_build_per_pane_settings_data($panes),
 ];
 $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT), ENT_QUOTES, 'UTF-8');
 ?>
@@ -1376,6 +1378,45 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
         <div class="paneManageActions">
             <button class="usersButton usersDanger" type="button" id="paneIconRemove">Remove Icon</button>
             <button class="usersButton" type="button" id="paneIconSave" data-modal-confirm="true">Save</button>
+            <button class="usersButton userModalClose" type="button">Cancel</button>
+        </div>
+    <?php lawnding_modal_close(); ?>
+
+    <?php // Shared per-pane Settings modal — opened by every pane's gear.
+          // "Use site defaults" disables the override fieldset and saves
+          // iconType=none so the pane inherits site defaults. JS hydrates
+          // from window.appConfig.perPaneSettings on open. ?>
+    <?php lawnding_modal_open('panePerPaneSettingsModal', 'Pane Settings'); ?>
+        <input type="hidden" id="panePerPaneSettingsActiveId" value="">
+
+        <label class="siteConfigToggle panePerPaneSettingsUseDefaults" hidden>
+            <input type="checkbox" id="panePerPaneSettingsUseDefaultsInput">
+            <span>Use site defaults</span>
+        </label>
+
+        <fieldset class="siteConfigGroup panePerPaneSettingsOverrides">
+            <legend>Per-pane overrides</legend>
+
+            <section class="panePerPaneSettingsIconSection">
+                <h5 class="panePerPaneSettingsSectionHeading">Icon: (click to change)</h5>
+                <div class="panePerPaneSettingsIconSummary">
+                    <button class="paneIconDisplay panePerPaneSettingsIconCurrent" type="button" id="panePerPaneSettingsIconChange" aria-label="Click to change icon" title="Click to change">
+                        <span class="paneIconPreview"></span>
+                    </button>
+                </div>
+                <div class="panePerPaneSettingsIconEditor" hidden>
+                    <div class="panePerPaneSettingsIconPicker" id="panePerPaneSettingsIconPicker" role="radiogroup" aria-label="Choose an icon"></div>
+                </div>
+            </section>
+
+            <section class="panePerPaneSettingsModuleSection" hidden>
+                <h5 class="panePerPaneSettingsSectionHeading">Module Settings</h5>
+                <div id="panePerPaneSettingsModuleControls"></div>
+            </section>
+        </fieldset>
+
+        <div class="paneManageActions">
+            <button class="usersButton" type="button" id="panePerPaneSettingsSave" data-modal-confirm="true">Save</button>
             <button class="usersButton userModalClose" type="button">Cancel</button>
         </div>
     <?php lawnding_modal_close(); ?>

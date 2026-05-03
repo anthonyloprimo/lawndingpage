@@ -504,7 +504,7 @@ $isLinksHidden = !$showLinks;
     <script src="<?php echo htmlspecialchars(lawnding_asset_url('res/scr/no-zoom.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
     
     <link rel="icon" href="<?php echo htmlspecialchars($faviconHref, ENT_QUOTES, 'UTF-8'); ?>"/>
-    <link rel="stylesheet" href="<?php echo htmlspecialchars(lawnding_asset_url('res/style.css'), ENT_QUOTES, 'UTF-8'); ?>">
+    <link rel="stylesheet" href="<?php echo htmlspecialchars(lawnding_versioned_local_asset_url('res/style.css'), ENT_QUOTES, 'UTF-8'); ?>">
 
     <script src="<?php echo htmlspecialchars(lawnding_asset_url('res/scr/jquery-3.7.1.min.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
     <?php lawnding_run_hook('head_assets'); ?>

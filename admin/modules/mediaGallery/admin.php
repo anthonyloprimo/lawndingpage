@@ -221,7 +221,6 @@ $useSiteDefaults = !isset($paneSettings['useSiteDefaults']) || $paneSettings['us
                     <button class="mediaGallerySettingsCancel usersButton" type="button">Cancel</button>
                 </div>
             </form>
-            <button class="userModalClose" type="button" aria-label="Close">×</button>
         </div>
     </div>
 </div>

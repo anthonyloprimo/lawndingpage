@@ -1,6 +1,13 @@
 ### Changelog
 
 
+#### v1.14.0
+- Added a Sign in button to the upper right of the public page header. Click it to open a sign-in dialog with a username/password form and a Login with Telegram button alongside.
+- Added a "Stay signed in" checkbox to the dialog and to the admin login form. When ticked, a long-lived per-device cookie keeps you signed in for 30 days; clicking Log out invalidates that device's cookie without affecting your other browsers.
+- Removed the inline Telegram login widget from the navigation list — the new dialog replaces it as the single login entry point. Existing direct visits to /admin/ continue to work unchanged.
+
+-----
+
 #### v1.13.1
 - Fixed a bug where uploading a replacement icon for a pane left visitors seeing the old icon until they hard-refreshed.
 

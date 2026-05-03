@@ -15,6 +15,19 @@ function lawnding_tg_config_defaults(): array {
     ];
 }
 
+// Telegram bot tokens are formatted "<numeric_id>:<rest>". The numeric prefix
+// is the bot user ID, which the programmatic Telegram.Login.auth() widget
+// requires (the iframe widget uses bot_username instead). Returns '' if the
+// token is empty or doesn't have the expected shape.
+function lawnding_tg_bot_id_from_token(string $token): string {
+    if ($token === '' || strpos($token, ':') === false) {
+        return '';
+    }
+    $parts = explode(':', $token, 2);
+    $id = $parts[0] ?? '';
+    return ($id !== '' && ctype_digit($id)) ? $id : '';
+}
+
 function lawnding_tg_normalize_content_level($value, string $default = 'sfw'): string {
     $normalized = is_string($value) ? strtolower(trim($value)) : '';
     if ($normalized !== 'nsfw' && $normalized !== 'sfw') {

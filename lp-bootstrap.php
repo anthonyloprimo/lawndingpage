@@ -1019,4 +1019,8 @@ function lawnding_init_session(): void {
 
     session_set_cookie_params($cookieParams);
     session_start();
+
+    if (empty($_SESSION['csrf_token'])) {
+        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+    }
 }

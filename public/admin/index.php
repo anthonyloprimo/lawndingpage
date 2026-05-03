@@ -84,6 +84,11 @@ $adminAuthPath = function_exists('lawnding_admin_path')
     ? lawnding_admin_path('auth.php')
     : dirname(__DIR__, 2) . '/admin/auth.php';
 require_once $adminAuthPath;
+$rememberLibPath = function_exists('lawnding_admin_path')
+    ? lawnding_admin_path('lib/remember-me.php')
+    : dirname(__DIR__, 2) . '/admin/lib/remember-me.php';
+require_once $rememberLibPath;
+lawnding_consume_remember_cookie();
 
 // Users file location (stored outside public web root).
 $usersPath = function_exists('lawnding_config')
@@ -110,11 +115,6 @@ if (is_readable($usersPath)) {
 $hasUsers = is_array($users) && count($users) > 0;
 if (!$hasUsers && $usersFileIssue === null) {
     $usersFileIssue = 'empty';
-}
-
-// CSRF token stored in the session and embedded in forms.
-if (empty($_SESSION['csrf_token'])) {
-    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
 
 // Normalize action once for all POST handlers.
@@ -302,6 +302,9 @@ if ($action === 'login') {
             } else {
                 session_regenerate_id(true); // Prevent session fixation by rotating the ID on login.
                 $_SESSION['auth_user'] = $user['username']; // Store the authenticated user in the session.
+                if (isset($_POST['remember']) && (string) $_POST['remember'] === '1') {
+                    lawnding_remember_token_issue($user['username'], lawnding_remember_tokens_path());
+                }
             }
         }
     }
@@ -729,6 +732,13 @@ if ($action === 'logout') {
             ? (rtrim((string) lawnding_config('base_url', ''), '/') . '/')
             : admin_redirect_path();
 
+        // Revoke this device's remember-me token (if any) — clears the
+        // cookie and removes the matching entry from the token store.
+        // Other devices' tokens are untouched.
+        $rememberRaw = isset($_COOKIE[LP_REMEMBER_COOKIE_NAME]) && is_string($_COOKIE[LP_REMEMBER_COOKIE_NAME])
+            ? $_COOKIE[LP_REMEMBER_COOKIE_NAME] : '';
+        lawnding_remember_token_revoke($rememberRaw, lawnding_remember_tokens_path());
+
         $_SESSION = [];
         if (ini_get('session.use_cookies')) {
             $params = session_get_cookie_params();
@@ -948,6 +958,10 @@ if ($authRecord && !$forcePasswordChange) {
                         <label class="loginField">
                             Password
                             <input class="loginInput" type="password" name="password" autocomplete="current-password" required>
+                        </label>
+                        <label class="loginField loginRemember">
+                            <input type="checkbox" name="remember" value="1">
+                            <span>Stay signed in</span>
                         </label>
                         <button class="loginButton" type="submit">Login</button>
                     </form>

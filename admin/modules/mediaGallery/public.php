@@ -101,7 +101,7 @@ if ($itemsJson === false) {
 
     <div class="mediaGalleryLightbox" id="mediaGalleryLightbox-<?php echo htmlspecialchars($paneId); ?>" aria-hidden="true">
         <div class="mediaGalleryLightboxBackdrop" data-lightbox-close></div>
-        <div class="mediaGalleryLightboxContent" role="dialog" aria-modal="true" aria-label="Media viewer">
+        <div class="mediaGalleryLightboxContent" role="dialog" aria-modal="true" aria-label="Media viewer" aria-describedby="mediaGalleryLightboxCaption-<?php echo htmlspecialchars($paneId); ?>">
             <button class="mediaGalleryLightboxClose" type="button" aria-label="Close">×</button>
             <button class="mediaGalleryLightboxNav mediaGalleryLightboxPrev" type="button" aria-label="Previous">‹</button>
             <button class="mediaGalleryLightboxNav mediaGalleryLightboxNext" type="button" aria-label="Next">›</button>
@@ -109,7 +109,7 @@ if ($itemsJson === false) {
                 <img class="mediaGalleryLightboxImage" alt="" decoding="async">
                 <video class="mediaGalleryLightboxVideo" controls playsinline></video>
             </div>
-            <div class="mediaGalleryLightboxCaption"></div>
+            <div class="mediaGalleryLightboxCaption" id="mediaGalleryLightboxCaption-<?php echo htmlspecialchars($paneId); ?>"></div>
         </div>
     </div>
 </div>

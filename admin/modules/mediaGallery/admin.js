@@ -97,6 +97,11 @@ $(document).ready(function() {
         }
         return items.map((item) => {
             const safe = item && typeof item === 'object' ? item : {};
+            // focal_x/focal_y are tri-state: a number in [0, 1] when set, null
+            // when unset (centered crop). Preserve the distinction -- treating
+            // null as 0 would silently anchor the marker to the top-left.
+            const focalX = Number.isFinite(safe.focal_x) ? safe.focal_x : null;
+            const focalY = Number.isFinite(safe.focal_y) ? safe.focal_y : null;
             return {
                 id: String(safe.id || ''),
                 type: safe.type === 'video' ? 'video' : 'image',
@@ -106,9 +111,16 @@ $(document).ready(function() {
                 order: Number.isFinite(Number(safe.order)) ? Number(safe.order) : 0,
                 original_size: parseInt(safe.original_size, 10) || 0,
                 saved_size:    parseInt(safe.saved_size,    10) || 0,
+                focal_x:       focalX,
+                focal_y:       focalY,
                 uploaded_at:           String(safe.uploaded_at || ''),
                 uploaded_by:           String(safe.uploaded_by || ''),
-                uploaded_by_display:   String(safe.uploaded_by_display || safe.uploaded_by || '')
+                uploaded_by_display:   String(safe.uploaded_by_display || safe.uploaded_by || ''),
+                // displayFile/displayThumb carry the server's mtime cache-busting
+                // (?v=<filemtime>). Drop them and the renderer falls back to the
+                // raw path, which serves stale bytes after a thumb regen.
+                displayFile:           String(safe.displayFile || ''),
+                displayThumb:          String(safe.displayThumb || '')
             };
         }).filter((item) => item.id !== '');
     }
@@ -178,10 +190,12 @@ $(document).ready(function() {
                     decoding: 'async'
                 }));
             }
-            if (item.type === 'image' && item.original_size > 0) {
-                const sizeLabel = 'Original: ' + lpFormatBytes(item.original_size)
-                    + '\nResized:  ' + lpFormatBytes(item.saved_size);
-                $thumb.attr('data-size-info', sizeLabel);
+            // Hover text shows the item's caption (the modal's "Hovertext"
+            // input). Original/Resized byte sizes used to live here too but
+            // moved into the modal's Info section, which is the canonical
+            // place for that detail now.
+            if (item.title) {
+                $thumb.attr('data-hover-text', item.title);
             }
             const $actions = $(
                 '<div class="mediaGalleryItemActions">'
@@ -585,11 +599,13 @@ $(document).ready(function() {
 
     function refreshFromServer(state) {
         const formData = new FormData();
+        formData.append('module', 'mediaGallery');
+        formData.append('endpoint', 'list');
         formData.append('paneId', state.paneId);
         if (csrfToken) {
             formData.append('csrf_token', csrfToken);
         }
-        return fetch(buildUrl('media-gallery-list.php'), {
+        return fetch(buildUrl('module-endpoint.php'), {
             method: 'POST',
             body: formData,
             credentials: 'same-origin'
@@ -716,6 +732,8 @@ $(document).ready(function() {
             return;
         }
         const formData = new FormData();
+        formData.append('module', 'mediaGallery');
+        formData.append('endpoint', 'upload');
         formData.append('paneId', state.paneId);
         formData.append('mediaFile', file);
         if (options.focal
@@ -728,7 +746,7 @@ $(document).ready(function() {
             formData.append('csrf_token', csrfToken);
         }
         showSaving();
-        fetch(buildUrl('media-gallery-upload.php'), {
+        fetch(buildUrl('module-endpoint.php'), {
             method: 'POST',
             body: formData,
             credentials: 'same-origin'
@@ -775,6 +793,8 @@ $(document).ready(function() {
             return;
         }
         const formData = new FormData();
+        formData.append('module', 'mediaGallery');
+        formData.append('endpoint', 'replace');
         formData.append('paneId', state.paneId);
         formData.append('itemId', itemId);
         formData.append('mediaFile', file);
@@ -782,7 +802,7 @@ $(document).ready(function() {
             formData.append('csrf_token', csrfToken);
         }
         showSaving();
-        fetch(buildUrl('media-gallery-replace.php'), {
+        fetch(buildUrl('module-endpoint.php'), {
             method: 'POST',
             body: formData,
             credentials: 'same-origin'
@@ -815,6 +835,8 @@ $(document).ready(function() {
             return;
         }
         const formData = new FormData();
+        formData.append('module', 'mediaGallery');
+        formData.append('endpoint', 'thumb');
         formData.append('paneId', state.paneId);
         formData.append('itemId', itemId);
         formData.append('thumbFile', file);
@@ -822,7 +844,7 @@ $(document).ready(function() {
             formData.append('csrf_token', csrfToken);
         }
         showSaving();
-        fetch(buildUrl('media-gallery-thumb.php'), {
+        fetch(buildUrl('module-endpoint.php'), {
             method: 'POST',
             body: formData,
             credentials: 'same-origin'
@@ -854,6 +876,8 @@ $(document).ready(function() {
     // commits finish.
     function clearThumbnail(state, itemId, onSuccess) {
         const formData = new FormData();
+        formData.append('module', 'mediaGallery');
+        formData.append('endpoint', 'thumb');
         formData.append('paneId', state.paneId);
         formData.append('itemId', itemId);
         formData.append('clear', '1');
@@ -861,7 +885,7 @@ $(document).ready(function() {
             formData.append('csrf_token', csrfToken);
         }
         showSaving();
-        fetch(buildUrl('media-gallery-thumb.php'), {
+        fetch(buildUrl('module-endpoint.php'), {
             method: 'POST',
             body: formData,
             credentials: 'same-origin'
@@ -888,13 +912,15 @@ $(document).ready(function() {
 
     function deleteMedia(state, itemId) {
         const formData = new FormData();
+        formData.append('module', 'mediaGallery');
+        formData.append('endpoint', 'delete');
         formData.append('paneId', state.paneId);
         formData.append('itemId', itemId);
         if (csrfToken) {
             formData.append('csrf_token', csrfToken);
         }
         showSaving();
-        fetch(buildUrl('media-gallery-delete.php'), {
+        fetch(buildUrl('module-endpoint.php'), {
             method: 'POST',
             body: formData,
             credentials: 'same-origin'
@@ -1080,7 +1106,7 @@ $(document).ready(function() {
                 return;
             }
 
-            // Sequential batch upload. media-gallery-upload.php does a
+            // Sequential batch upload. endpoints/upload.php does a
             // read-modify-write on the gallery's JSON file -- two
             // concurrent uploads would race and the second writer's
             // append could clobber the first's. Chaining via the

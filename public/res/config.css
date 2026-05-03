@@ -1345,6 +1345,89 @@ button:disabled {
     opacity: 0.8;
 }
 
+.paneIconDisplay {
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    border: 1px solid #FFFFFF33;
+    background: #00000055;
+    color: #FFFFFF;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.paneIconDisplay .paneIconPreview svg {
+    fill: currentColor;
+}
+
+.paneSettingsButton {
+    margin-left: auto;
+}
+
+.panePerPaneSettingsIconSummary {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 8px;
+}
+
+/* Modal chip is interactive (click-to-change). The dashboard pane
+   header's .paneIconDisplay stays a non-interactive span. */
+button.panePerPaneSettingsIconCurrent {
+    cursor: pointer;
+    padding: 0;
+}
+
+button.panePerPaneSettingsIconCurrent:hover {
+    background: #00000088;
+    border-color: #FFFFFF55;
+}
+
+.panePerPaneSettingsIconPicker {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(48px, 1fr));
+    gap: 6px;
+    max-height: 240px;
+    overflow-y: auto;
+    padding: 8px;
+    border: 1px solid #FFFFFF22;
+    border-radius: 6px;
+    background: #00000033;
+    margin-bottom: 10px;
+}
+
+.panePerPaneSettingsIconChoice {
+    width: 40px;
+    height: 40px;
+    border-radius: 6px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: #FFFFFF;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    padding: 0;
+}
+
+.panePerPaneSettingsIconChoice:hover {
+    background: #FFFFFF11;
+    border-color: #FFFFFF33;
+}
+
+.panePerPaneSettingsIconChoice.isSelected {
+    background: #FFFFFF22;
+    border-color: #FFFFFF66;
+}
+
+.panePerPaneSettingsIconChoice svg {
+    width: 22px;
+    height: 22px;
+    fill: currentColor;
+}
+
 .paneHeaderTitle {
     display: flex;
     align-items: center;

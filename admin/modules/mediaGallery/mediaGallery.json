@@ -10,5 +10,10 @@
   ],
   "save_map": [
     { "key": "mediaChanges", "type": "json", "file": "mediaGalleryContent-{paneId}/items.json" }
-  ]
+  ],
+  "per_pane_settings": [
+    { "key": "customThumbs", "label": "Allow per-item custom thumbnail uploads", "type": "bool" },
+    { "key": "changeMedia",  "label": "Allow replacing media files on existing items", "type": "bool" }
+  ],
+  "settings_file": "mediaGalleryContent-{paneId}/settings.json"
 }

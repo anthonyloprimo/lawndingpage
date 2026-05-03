@@ -1,6 +1,15 @@
 ### Changelog
 
 
+#### v1.15.0
+- Every pane in the admin panel now has a gear icon. Click it to open a per-pane Settings dialog covering the pane's icon and any module-specific options the pane's type provides. Previously, only the gallery had a gear (and only for its per-item override toggles); other pane types had to be edited via the inline icon popover.
+- The pane icon (upper-left of each pane header) is now display-only. The gear icon (upper-right) is the single entry point for editing per-pane settings.
+- Added a "Use site defaults" toggle to the per-pane Settings dialog for pane types whose modules expose options in Site Config (today: galleries, with the "Allow per-item custom thumbnail uploads" and "Allow replacing media files on existing items" toggles). Ticked, the pane inherits the site-wide defaults for those options. Unticked, the override controls pre-populate with the current effective values so you tweak from there instead of starting blank. The icon is always editable independently — its fallback is the module type's built-in icon, not a site-wide setting.
+- Added a "Use module default icon" button inside the icon controls so you can revert a pane's icon to the type's built-in default. The button only shows up when the current icon actually differs from that default.
+- The per-pane icon section now uses a chip-and-picker pattern: clicking the icon itself reveals a grid of built-in SVG icons to pick from. The old SVG-markup textbox and direct file upload have been removed from the per-pane modal — uploaded icons will move to a central Site Config library in a follow-up.
+
+-----
+
 #### v1.14.2
 - Fixed a bug where a gallery item's saved focal point silently disappeared from the editor after any page reload or any non-focal change. The thumbnail itself was always correct on the public site; only the editor's UI lost track of where the focal point was set.
 - Improved keyboard and screen-reader navigation in the public gallery lightbox. Focus stays inside the modal while it's open, returns to the originating gallery thumbnail when the modal closes, video controls remain reachable via Tab, and screen readers now announce the active item's caption.

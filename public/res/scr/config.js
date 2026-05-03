@@ -2373,7 +2373,9 @@ $(document).ready(function() {
                     $(this).find('.paneManageIconButton').html(html);
                 }
             });
-            $(`#${paneId} .paneIconButton`).html(html);
+            // .paneIconDisplay = dashboard chip; legacy .paneIconButton
+            // selector kept for holdover contexts (PR2 retires it).
+            $(`#${paneId} .paneIconDisplay, #${paneId} .paneIconButton`).html(html);
             $(`.navPaneItem[data-pane-id="${paneId}"] .navLink`).html(renderIconPreview(pane.icon));
         }
 
@@ -2474,14 +2476,13 @@ $(document).ready(function() {
             openPaneIconModal(panesState[index].id);
         });
 
-        // Icon button inside pane headers (outside the management list).
-        $(document).on('click', '.paneIconButton', function() {
-            if ($(this).hasClass('paneManageIconButton')) {
-                return;
-            }
+        // Universal gear → per-pane Settings modal. Pane-header icon
+        // (.paneIconDisplay) is intentionally non-interactive.
+        // .paneManageIconButton in the bulk modal still uses #paneIconModal (PR2).
+        $(document).on('click', '.paneSettingsButton', function() {
             const paneId = $(this).data('pane-id') || $(this).closest('.pane').attr('id');
             if (paneId) {
-                openPaneIconModal(String(paneId));
+                openPerPaneSettingsModal(String(paneId));
             }
         });
 
@@ -2665,6 +2666,334 @@ $(document).ready(function() {
             updatePaneIconPreview(activeIconPaneId);
             closeAdminModal($paneIconModal);
             savePaneManagementChanges({ force: true, reload: false });
+        });
+
+        // Per-pane Settings modal — universal across modules. Hydrates
+        // from window.appConfig.perPaneSettings; saves POST to
+        // pane-icon-save.php then pane-settings-save.php (sequenced).
+        const $perPaneSettingsModal = $('#panePerPaneSettingsModal');
+        let activePerPaneSettingsId = null;
+        // Selected picker chip's SVG, or '' when none picked. Pre-populated
+        // from the saved icon on open so "no change" detection works.
+        let activePerPaneSelectedSvg = '';
+
+        function getPerPaneSettingsData() {
+            const cfg = window.appConfig && window.appConfig.perPaneSettings;
+            return cfg && typeof cfg === 'object' ? cfg : { panes: {}, modules: {} };
+        }
+
+        // <fieldset disabled> cascades to all descendant form controls
+        // (chip button, picker chips, module checkboxes). Toggle is hidden
+        // when the module declares no per_pane_settings.
+        function syncPerPaneOverridesEnabled() {
+            const $useDefaultsLabel = $('.panePerPaneSettingsUseDefaults');
+            const $useDefaultsInput = $('#panePerPaneSettingsUseDefaultsInput');
+            const visible = !$useDefaultsLabel.is('[hidden]');
+            const checked = $useDefaultsInput.prop('checked');
+            $('.panePerPaneSettingsOverrides').prop('disabled', visible && checked);
+        }
+
+        function openPerPaneSettingsModal(paneId) {
+            const data = getPerPaneSettingsData();
+            const paneData = data.panes && data.panes[paneId];
+            if (!paneData) {
+                return;
+            }
+            activePerPaneSettingsId = paneId;
+
+            const moduleData = (data.modules && data.modules[paneData.module]) || { default_icon: '', per_pane_settings: [] };
+            const declared = Array.isArray(moduleData.per_pane_settings) ? moduleData.per_pane_settings : [];
+            const hasModuleSettings = declared.length > 0;
+
+            $('#panePerPaneSettingsModal-title').text(`${paneData.name || 'Pane'} Settings`);
+            $('#panePerPaneSettingsActiveId').val(paneId);
+
+            // Progressive disclosure: chip is the click-to-change trigger,
+            // editor (picker grid) hidden until clicked.
+            const icon = paneData.icon || { type: 'none', value: '' };
+            const moduleDefaultIcon = moduleData.default_icon || '';
+
+            // Preview falls back to module default for type='none' so the
+            // chip shows the icon as the dashboard renders it.
+            let previewIcon = icon;
+            if (icon.type === 'none' && moduleDefaultIcon) {
+                previewIcon = { type: 'svg', value: moduleDefaultIcon };
+            }
+            $('.panePerPaneSettingsIconCurrent .paneIconPreview').html(renderIconPreview(previewIcon));
+
+            // Default state: summary visible, editor hidden.
+            $('.panePerPaneSettingsIconSummary').removeAttr('hidden');
+            $('.panePerPaneSettingsIconEditor').attr('hidden', 'hidden');
+
+            // Picker entries: module default first (always), "Current"
+            // entry only when the saved SVG isn't covered by default or
+            // library, then library entries. Chip matching savedSvg is
+            // pre-selected.
+            activePerPaneSelectedSvg = icon.type === 'svg' ? icon.value : '';
+            const iconLibrary = Array.isArray(data.iconLibrary) ? data.iconLibrary : [];
+            const savedSvg = icon.type === 'svg' && icon.value
+                ? icon.value
+                : (icon.type === 'none' && moduleDefaultIcon ? moduleDefaultIcon : '');
+            const $picker = $('#panePerPaneSettingsIconPicker');
+            $picker.empty();
+
+            const renderChoice = (key, label, svg, isSelected) => {
+                const $choice = $('<button class="panePerPaneSettingsIconChoice" type="button" role="radio"></button>');
+                $choice.attr('data-key', key);
+                $choice.attr('data-svg', svg);
+                $choice.attr('aria-label', label);
+                $choice.attr('title', label);
+                $choice.html(svg);
+                $choice.attr('aria-checked', isSelected ? 'true' : 'false');
+                if (isSelected) {
+                    $choice.addClass('isSelected');
+                }
+                return $choice;
+            };
+
+            const entries = [];
+            if (moduleDefaultIcon) {
+                entries.push({ key: 'module-default', label: 'Module default', svg: moduleDefaultIcon });
+            }
+            const libraryHasSaved = savedSvg && iconLibrary.some((e) => e.svg === savedSvg);
+            const savedIsModuleDefault = savedSvg && savedSvg === moduleDefaultIcon;
+            if (savedSvg && !libraryHasSaved && !savedIsModuleDefault) {
+                entries.push({ key: 'current', label: 'Current icon', svg: savedSvg });
+            }
+            iconLibrary.forEach((entry) => entries.push(entry));
+
+            entries.forEach((entry) => {
+                const isMatch = entry.svg === savedSvg;
+                $picker.append(renderChoice(entry.key, entry.label, entry.svg, isMatch));
+            });
+
+            // "Use site defaults" toggle visibility + state.
+            const $useDefaultsLabel = $('.panePerPaneSettingsUseDefaults');
+            const $useDefaultsInput = $('#panePerPaneSettingsUseDefaultsInput');
+            if (hasModuleSettings) {
+                $useDefaultsLabel.removeAttr('hidden');
+                $useDefaultsInput.prop('checked', !!paneData.useSiteDefaults);
+            } else {
+                $useDefaultsLabel.attr('hidden', 'hidden');
+                $useDefaultsInput.prop('checked', true);
+            }
+
+            // Module checkboxes pre-populate from resolvedValues so
+            // unchecking the toggle starts from today's effective values.
+            const $moduleSection = $('.panePerPaneSettingsModuleSection');
+            const $moduleControls = $('#panePerPaneSettingsModuleControls');
+            $moduleControls.empty();
+            if (hasModuleSettings) {
+                $moduleSection.removeAttr('hidden');
+                const resolved = paneData.resolvedValues || {};
+                declared.forEach((entry) => {
+                    const $label = $('<label class="siteConfigToggle"><input type="checkbox"><span></span></label>');
+                    $label.find('input').attr('name', entry.key).prop('checked', !!resolved[entry.key]);
+                    $label.find('span').text(entry.label || entry.key);
+                    $moduleControls.append($label);
+                });
+            } else {
+                $moduleSection.attr('hidden', 'hidden');
+            }
+
+            syncPerPaneOverridesEnabled();
+            openAdminModal($perPaneSettingsModal);
+        }
+
+        $(document).on('change', '#panePerPaneSettingsUseDefaultsInput', function() {
+            syncPerPaneOverridesEnabled();
+        });
+
+        // Chip is the click-to-change trigger; reveals the picker.
+        // Every modal open resets to summary state.
+        $(document).on('click', '#panePerPaneSettingsIconChange', function() {
+            $('.panePerPaneSettingsIconSummary').attr('hidden', 'hidden');
+            $('.panePerPaneSettingsIconEditor').removeAttr('hidden');
+        });
+
+        // Picker click — clicked chip's SVG becomes the proposed icon
+        // and the chip preview updates live (no save needed to see it).
+        $(document).on('click', '.panePerPaneSettingsIconChoice', function() {
+            const svg = $(this).attr('data-svg') || '';
+            if (svg === '') {
+                return;
+            }
+            activePerPaneSelectedSvg = svg;
+            $('.panePerPaneSettingsIconChoice').removeClass('isSelected').attr('aria-checked', 'false');
+            $(this).addClass('isSelected').attr('aria-checked', 'true');
+            $('.panePerPaneSettingsIconCurrent .paneIconPreview').html(renderIconPreview({ type: 'svg', value: svg }));
+        });
+
+        function refreshPaneAfterSave(paneId) {
+            const data = getPerPaneSettingsData();
+            const paneData = data.panes && data.panes[paneId];
+            if (!paneData) {
+                return;
+            }
+            const moduleData = (data.modules && data.modules[paneData.module]) || {};
+            // type='none' renders as module default_icon (matches PHP renderer).
+            let previewIcon = paneData.icon || { type: 'none', value: '' };
+            if (previewIcon.type === 'none' && moduleData.default_icon) {
+                previewIcon = { type: 'svg', value: moduleData.default_icon };
+            }
+            const html = `<span class="paneIconPreview">${renderIconPreview(previewIcon)}</span>`;
+            // Dashboard chip + sidebar nav.
+            $(`#${paneId} .paneIconDisplay`).html(html);
+            $(`.navPaneItem[data-pane-id="${paneId}"] .navLink`).html(renderIconPreview(previewIcon));
+
+            // Keep panesState coherent so the legacy management modal
+            // shows the current icon if opened later.
+            const stateIdx = panesState.findIndex((entry) => entry.id === paneId);
+            if (stateIdx >= 0) {
+                panesState[stateIdx].icon = paneData.icon;
+                $paneList.find(`.paneManageRow[data-pane-index="${stateIdx}"] .paneManageIconButton`).html(html);
+            }
+        }
+
+        // Returns the icon-save POST body, null when unchanged (caller
+        // skips the icon roundtrip — the existing icon must survive a
+        // toggle-only save), or {error:...} for unsafe SVG.
+        function resolvePerPaneSettingsIconPayload(paneData) {
+            const existingType = (paneData.icon && paneData.icon.type) || 'none';
+            const existingValue = (paneData.icon && paneData.icon.value) || '';
+
+            // Toggle-on forces icon to clear (pane inherits site default).
+            const $defaultsLabel = $('.panePerPaneSettingsUseDefaults');
+            const $defaultsInput = $('#panePerPaneSettingsUseDefaultsInput');
+            const useSiteDefaults = $defaultsInput.prop('checked') && !$defaultsLabel.is('[hidden]');
+            if (useSiteDefaults) {
+                if (existingType === 'none') {
+                    return null; // already cleared; no-op
+                }
+                return { type: 'none', svg: '', file: null };
+            }
+
+            const svg = (activePerPaneSelectedSvg || '').trim();
+            if (svg === '') {
+                // Nothing picked — preserve the saved icon.
+                return null;
+            }
+            if (svg.indexOf('<script') !== -1 || /\son[a-z]+\s*=\s*["']?/i.test(svg)) {
+                return { error: 'SVG icons cannot contain scripts or inline event handlers.' };
+            }
+            if (existingType === 'svg' && svg === existingValue) {
+                return null; // unchanged
+            }
+            return { type: 'svg', svg: svg, file: null };
+        }
+
+        $(document).on('click', '#panePerPaneSettingsSave', function() {
+            if (!activePerPaneSettingsId) {
+                return;
+            }
+            const paneId = activePerPaneSettingsId;
+            const data = getPerPaneSettingsData();
+            const paneData = data.panes && data.panes[paneId];
+            if (!paneData) {
+                return;
+            }
+            const moduleId = paneData.module || '';
+
+            const iconPayload = resolvePerPaneSettingsIconPayload(paneData);
+            if (iconPayload && iconPayload.error) {
+                addAdminNotice('danger', iconPayload.error);
+                return;
+            }
+
+            const basePath = lpGetBasePath();
+            const iconUrl = basePath ? `${basePath}/res/scr/pane-icon-save.php` : '/res/scr/pane-icon-save.php';
+            const settingsUrl = basePath ? `${basePath}/res/scr/pane-settings-save.php` : '/res/scr/pane-settings-save.php';
+
+            showSavingOverlay();
+
+            // Step 1 (conditional): null payload skips the icon POST so
+            // the saved icon survives a toggle-only / settings-only save.
+            const iconStep = iconPayload
+                ? (() => {
+                    const iconForm = new FormData();
+                    iconForm.append('paneId', paneId);
+                    iconForm.append('iconType', iconPayload.type);
+                    if (iconPayload.type === 'svg') {
+                        iconForm.append('iconSvg', iconPayload.svg);
+                    } else if (iconPayload.type === 'file' && iconPayload.file) {
+                        iconForm.append('iconFile', iconPayload.file);
+                    }
+                    appendCsrf(iconForm);
+                    return fetch(iconUrl, { method: 'POST', body: iconForm, credentials: 'same-origin' })
+                        .then((r) => r.json().then((j) => ({ ok: r.ok, body: j })))
+                        .then(({ ok, body }) => {
+                            if (!ok) {
+                                throw new Error((body && body.error) || 'Failed to save icon.');
+                            }
+                            if (body.icon) {
+                                paneData.icon = body.icon;
+                            }
+                        });
+                })()
+                : Promise.resolve();
+
+            iconStep
+                .then(() => {
+                    const settingsForm = new FormData();
+                    settingsForm.append('paneId', paneId);
+                    settingsForm.append('module', moduleId);
+                    const useSiteDefaults = $('#panePerPaneSettingsUseDefaultsInput').prop('checked');
+                    settingsForm.append('useSiteDefaults', useSiteDefaults ? '1' : '0');
+                    if (!useSiteDefaults) {
+                        $('#panePerPaneSettingsModuleControls input[type="checkbox"]').each(function() {
+                            if ($(this).prop('checked')) {
+                                settingsForm.append($(this).attr('name'), '1');
+                            }
+                        });
+                    }
+                    appendCsrf(settingsForm);
+                    return fetch(settingsUrl, { method: 'POST', body: settingsForm, credentials: 'same-origin' })
+                        .then((r) => r.json().then((j) => ({ ok: r.ok, body: j })));
+                })
+                .then(({ ok, body }) => {
+                    hideSavingOverlay();
+                    if (!ok) {
+                        throw new Error((body && body.error) || 'Failed to save pane settings.');
+                    }
+                    if (body.persisted && body.settings) {
+                        paneData.useSiteDefaults = !!body.settings.useSiteDefaults;
+                        const moduleEntry = (data.modules && data.modules[moduleId]) || {};
+                        const declared = Array.isArray(moduleEntry.per_pane_settings) ? moduleEntry.per_pane_settings : [];
+                        const siteDefaults = (moduleEntry.siteDefaults && typeof moduleEntry.siteDefaults === 'object')
+                            ? moduleEntry.siteDefaults
+                            : {};
+                        const newResolved = {};
+                        declared.forEach((entry) => {
+                            if (paneData.useSiteDefaults) {
+                                // Inheriting — read the siteDefaults snapshot so
+                                // the next open shows actual defaults, not stale
+                                // per-pane values.
+                                newResolved[entry.key] = !!siteDefaults[entry.key];
+                            } else if (typeof body.settings[entry.key] !== 'undefined') {
+                                newResolved[entry.key] = !!body.settings[entry.key];
+                            } else {
+                                // Defensive — shouldn't happen with current endpoint.
+                                newResolved[entry.key] = !!(paneData.resolvedValues || {})[entry.key];
+                            }
+                        });
+                        paneData.resolvedValues = newResolved;
+                    }
+                    // Listeners: mediaGallery/admin.js (per-item button
+                    // visibility). See feedback_shared_event_channel_for_module_updates.
+                    $(document).trigger('lp:per-pane-settings-saved', [{
+                        paneId: paneId,
+                        module: moduleId,
+                        useSiteDefaults: paneData.useSiteDefaults,
+                        resolvedValues: paneData.resolvedValues || {}
+                    }]);
+                    refreshPaneAfterSave(paneId);
+                    closeAdminModal($perPaneSettingsModal);
+                    addAdminNotice('ok', 'Pane settings saved.');
+                })
+                .catch((err) => {
+                    hideSavingOverlay();
+                    addAdminNotice('danger', (err && err.message) || 'Save failed.');
+                });
         });
 
         renderPaneList();

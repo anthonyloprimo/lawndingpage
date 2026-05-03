@@ -55,15 +55,16 @@ $dataHint = $dataFiles ? 'saves to ' . implode(', ', $dataFiles) : '';
 ?>
 <div class="pane glassConvex" id="<?php echo htmlspecialchars($paneId); ?>">
     <div class="paneHeader">
-        <button class="paneIconButton" type="button" data-pane-id="<?php echo htmlspecialchars($paneId); ?>" aria-label="Edit pane icon">
+        <span class="paneIconDisplay" aria-hidden="true">
             <span class="paneIconPreview"><?php echo $iconHtml; ?></span>
-        </button>
+        </span>
         <div class="paneHeaderTitle">
             <span class="paneTitle"><?php echo htmlspecialchars($paneName); ?></span>
             <?php if ($dataHint !== ''): ?>
                 <span class="paneDataHint">(<?php echo htmlspecialchars($dataHint); ?>)</span>
             <?php endif; ?>
         </div>
+        <button class="paneSettingsButton iconButton" type="button" data-pane-id="<?php echo htmlspecialchars($paneId); ?>" aria-label="Pane settings" title="Pane settings"><?php echo lawnding_icon_svg('settings'); ?></button>
     </div>
     <div class="markdownEditor">
         <div class="markdownToolbar" role="toolbar" aria-label="Markdown formatting">

@@ -11,7 +11,18 @@ $tgAuthPath = function_exists('lawnding_admin_path')
     ? lawnding_admin_path('lib/tg-auth.php')
     : __DIR__ . '/../admin/lib/tg-auth.php';
 require_once $tgAuthPath;
+$rememberLibPath = function_exists('lawnding_admin_path')
+    ? lawnding_admin_path('lib/remember-me.php')
+    : __DIR__ . '/../admin/lib/remember-me.php';
+require_once $rememberLibPath;
 lawnding_init_session();
+lawnding_consume_remember_cookie();
+// Anyone authenticated while viewing the public page is, by definition,
+// "coming from public" — flag it so the admin logout flow sends them back
+// here instead of the admin login form.
+if (!empty($_SESSION['auth_user'])) {
+    $_SESSION['logout_return_public'] = true;
+}
 // Prevent stale HTML/PHP responses from being cached.
 $cacheHeadersPath = function_exists('lawnding_public_path')
     ? lawnding_public_path('res/scr/cache_headers.php')
@@ -54,6 +65,61 @@ foreach (glob($pluginInitGlob) ?: [] as $_pluginInit) {
     require_once $_pluginInit;
 }
 unset($_pluginInit, $pluginInitGlob);
+
+// Core: render the upper-right header for non-Telegram auth states. The
+// Telegram plugin's own header_auth_area callback owns its chip; this
+// callback covers the other two states (bcrypt-only signed in, fully
+// signed out) so the three callbacks have disjoint conditions and at most
+// one emits per render.
+lawnding_register_hook('header_auth_area', function (array $ctx): void {
+    $tgUser = is_array($ctx['tgUser'] ?? null) ? $ctx['tgUser'] : null;
+    $tgLoggedIn = $tgUser && !empty($tgUser['id']);
+    if ($tgLoggedIn) {
+        return; // Telegram plugin handles this case.
+    }
+    $bcryptLoggedIn = !empty($_SESSION['auth_user'] ?? null);
+    if ($bcryptLoggedIn) {
+        // Bcrypt-only chip. Reuses the .tgHeader* visual classes from the
+        // Telegram plugin's stylesheet (always loaded) so the rhythm matches
+        // the Telegram-logged-in case: chip with name, logout, admin link.
+        // The avatar is omitted — bcrypt users have no avatar to show.
+        $username = (string) ($_SESSION['auth_user'] ?? '');
+        $adminUrl = function_exists('lawnding_asset_url')
+            ? lawnding_asset_url('admin/')
+            : '/admin/';
+        $csrf = (string) ($_SESSION['csrf_token'] ?? '');
+        $logoutAction = htmlspecialchars($adminUrl, ENT_QUOTES, 'UTF-8');
+        echo '<div class="tgHeaderAuth">';
+        echo   '<div class="tgHeaderAuthRow">';
+        echo     '<div class="tgHeaderChip">';
+        echo       '<span class="tgHeaderName">'
+            . htmlspecialchars($username, ENT_QUOTES, 'UTF-8') . '</span>';
+        echo     '</div>';
+        // Logout form posts to /admin/ which validates $_POST['csrf_token']
+        // and respects the logout_return_public flag set on public-side login.
+        echo     '<form method="post" action="' . $logoutAction
+            . '" class="lpHeaderLogoutForm">';
+        echo       '<input type="hidden" name="action" value="logout">';
+        echo       '<input type="hidden" name="csrf_token" value="'
+            . htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8') . '">';
+        echo       '<button type="submit" class="tgHeaderLogout"'
+            . ' title="Log out" aria-label="Log out">';
+        echo         '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"'
+            . ' focusable="false" aria-hidden="true">';
+        echo           '<path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/>';
+        echo         '</svg>';
+        echo       '</button>';
+        echo     '</form>';
+        echo   '</div>';
+        echo   '<a class="tgHeaderAdmin" href="' . $logoutAction
+            . '?from=public" title="Go to admin panel">Admin panel</a>';
+        echo '</div>';
+        return;
+    }
+    // Fully signed out — show the modal trigger.
+    echo '<button type="button" class="lpHeaderLoginButton" data-lp-login-trigger'
+       . ' aria-haspopup="dialog" aria-controls="lpLoginModal">Sign in</button>';
+});
 
 // Resolve a data file path using bootstrap helpers when available.
 function lawnding_public_data_path($file) {
@@ -232,6 +298,9 @@ $tgConfig = lawnding_load_tg_config();
 $tgBotMessage = (string) ($tgConfig['unauthorized_message'] ?? 'Unable to display member links.  Join the telegram group with the link above, or contact an admin for assistance.');
 $tgBotUsername = isset($tgConfig['bot_username']) && is_string($tgConfig['bot_username'])
     ? ltrim(trim($tgConfig['bot_username']), '@')
+    : '';
+$tgBotId = isset($tgConfig['bot_token']) && is_string($tgConfig['bot_token'])
+    ? lawnding_tg_bot_id_from_token($tgConfig['bot_token'])
     : '';
 $returnPath = '/';
 $authEndpoint = function_exists('lawnding_asset_url')
@@ -486,27 +555,10 @@ $isLinksHidden = !$showLinks;
                     <?php foreach ($linksData as $link): ?>
                         <?php echo lawnding_render_link_item($link); ?>
                     <?php endforeach; ?>
-                    <?php if ($authLinksEnabled): ?>
-                        <?php if ($authLinksState === 'authorized'): ?>
-                            <?php foreach ($authLinksData as $link): ?>
-                                <?php echo lawnding_render_link_item($link); ?>
-                            <?php endforeach; ?>
-                        <?php else: ?>
-                            <li class="linkItem fullWidth authLinksLogin" id="authLinksLogin">
-                                <div class="lpTgLoginWidget">
-                                    <?php if ($tgBotUsername !== ''): ?>
-                                        <script async src="https://telegram.org/js/telegram-widget.js?22"
-                                            data-telegram-login="<?php echo htmlspecialchars($tgBotUsername, ENT_QUOTES, 'UTF-8'); ?>"
-                                            data-size="large"
-                                            data-userpic="false"
-                                            data-auth-url="<?php echo htmlspecialchars($tgAuthUrl, ENT_QUOTES, 'UTF-8'); ?>"
-                                            data-request-access="write"></script>
-                                    <?php else: ?>
-                                        Telegram login unavailable. Configure bot username in Telegram settings.
-                                    <?php endif; ?>
-                                </div>
-                            </li>
-                        <?php endif; ?>
+                    <?php if ($authLinksEnabled && $authLinksState === 'authorized'): ?>
+                        <?php foreach ($authLinksData as $link): ?>
+                            <?php echo lawnding_render_link_item($link); ?>
+                        <?php endforeach; ?>
                     <?php endif; ?>
                 </ul>
             </div>
@@ -611,9 +663,68 @@ $isLinksHidden = !$showLinks;
             </div>
         </div>
     </div>
+    <?php
+    // Login modal — rendered only for visitors who aren't authenticated by
+    // either bcrypt or Telegram. The data-* attributes carry the runtime
+    // values the JS needs (CSRF, endpoint URLs, optional Telegram bot info).
+    $lpShowLoginModal = empty($_SESSION['auth_user']) && empty($tgUser);
+    if ($lpShowLoginModal):
+        $lpLoginEndpoint = lawnding_asset_url('res/scr/login.php');
+        $lpTgAuthEndpoint = lawnding_asset_url('plugins/telegram/auth.php');
+    ?>
+    <div id="lpLoginModal" class="lpLoginModal" role="dialog" aria-modal="true"
+         aria-labelledby="lpLoginModalTitle" hidden
+         data-csrf-token="<?php echo htmlspecialchars((string) ($_SESSION['csrf_token'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>"
+         data-tg-bot-username="<?php echo htmlspecialchars($tgBotUsername, ENT_QUOTES, 'UTF-8'); ?>"
+         data-tg-bot-id="<?php echo htmlspecialchars($tgBotId, ENT_QUOTES, 'UTF-8'); ?>"
+         data-login-endpoint="<?php echo htmlspecialchars($lpLoginEndpoint, ENT_QUOTES, 'UTF-8'); ?>"
+         data-tg-auth-endpoint="<?php echo htmlspecialchars($lpTgAuthEndpoint, ENT_QUOTES, 'UTF-8'); ?>">
+        <div class="lpLoginModal__backdrop" data-lp-login-dismiss aria-hidden="true"></div>
+        <div class="lpLoginModal__dialog" role="document">
+            <header class="lpLoginModal__header">
+                <h2 id="lpLoginModalTitle" class="lpLoginModal__title">Sign in</h2>
+                <button type="button" class="lpLoginModal__close"
+                        data-lp-login-dismiss aria-label="Close sign-in dialog">×</button>
+            </header>
+            <form class="lpLoginModal__form" novalidate data-lp-login-form>
+                <label class="lpLoginModal__field">
+                    <span class="lpLoginModal__fieldLabel">Username</span>
+                    <input type="text" name="username" autocomplete="username"
+                           class="lpLoginModal__input" required>
+                </label>
+                <label class="lpLoginModal__field">
+                    <span class="lpLoginModal__fieldLabel">Password</span>
+                    <input type="password" name="password" autocomplete="current-password"
+                           class="lpLoginModal__input" required>
+                </label>
+                <label class="lpLoginModal__remember">
+                    <input type="checkbox" name="remember" value="1">
+                    <span>Stay signed in</span>
+                </label>
+                <output role="alert" aria-live="polite"
+                        class="lpLoginModal__error" data-lp-login-error hidden></output>
+                <button type="submit" class="lpLoginModal__submit">Sign in</button>
+            </form>
+            <div class="lpLoginModal__divider" aria-hidden="true">
+                <span>or</span>
+            </div>
+            <button type="button" class="lpLoginModal__telegram"
+                    data-lp-login-telegram
+                    <?php echo $tgBotId === '' ? 'disabled aria-disabled="true"' : ''; ?>>
+                <svg aria-hidden="true" focusable="false" width="20" height="20" viewBox="0 0 24 24">
+                    <path fill="currentColor" d="M9.78 18.65l.28-4.23 7.68-6.92c.34-.31-.07-.46-.52-.19L7.74 13.3 3.64 12c-.88-.25-.89-.86.2-1.3l15.97-6.16c.73-.33 1.43.18 1.15 1.3l-2.72 12.81c-.19.91-.74 1.13-1.5.71l-4.14-3.06-1.99 1.93c-.23.23-.42.42-.83.42z"/>
+                </svg>
+                <span><?php echo $tgBotId === '' ? 'Telegram login unavailable' : 'Login with Telegram'; ?></span>
+            </button>
+        </div>
+    </div>
+    <?php endif; ?>
     <script src="<?php echo htmlspecialchars(lawnding_asset_url('res/scr/public-data.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
     <script src="<?php echo htmlspecialchars(lawnding_asset_url('res/scr/shared-utils.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
     <script src="<?php echo htmlspecialchars(lawnding_asset_url('res/scr/notice-core.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
     <script src="<?php echo htmlspecialchars(lawnding_asset_url('res/scr/app.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
+    <?php if ($lpShowLoginModal): ?>
+    <script src="<?php echo htmlspecialchars(lawnding_versioned_local_asset_url('res/scr/login-modal.js'), ENT_QUOTES, 'UTF-8'); ?>" defer></script>
+    <?php endif; ?>
 </body>
 </html>

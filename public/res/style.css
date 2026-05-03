@@ -825,3 +825,227 @@ nav {
 .skipLink:focus {
     left: 0;
 }
+
+/* === Header logout form for bcrypt-only chip === */
+.lpHeaderLogoutForm {
+    display: inline-flex;
+    margin: 0;
+    padding: 0;
+}
+
+/* === Header sign-in button === */
+.lpHeaderLoginButton {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 2.25rem;
+    padding: 0 1rem;
+    border-radius: 999px;
+    background-color: #FFFFFF15;
+    color: #FFFFFF;
+    border: 1px solid #FFFFFF33;
+    backdrop-filter: blur(8px);
+    font-weight: 600;
+    font-size: 0.95rem;
+    line-height: 1;
+    cursor: pointer;
+    transition: background-color 120ms ease, border-color 120ms ease;
+}
+.lpHeaderLoginButton:hover,
+.lpHeaderLoginButton:focus-visible {
+    background-color: #FFFFFF26;
+    border-color: #FFFFFF55;
+}
+
+/* === Login modal === */
+.lpLoginModal {
+    position: fixed;
+    inset: 0;
+    z-index: 250;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+}
+.lpLoginModal[hidden] {
+    display: none;
+}
+.lpLoginModal__backdrop {
+    position: absolute;
+    inset: 0;
+    background: #00000088;
+    backdrop-filter: blur(4px);
+}
+.lpLoginModal__dialog {
+    position: relative;
+    width: 100%;
+    max-width: 380px;
+    display: flex;
+    flex-direction: column;
+    gap: 0.875rem;
+    padding: 1.5rem;
+    border-radius: 16px;
+    backdrop-filter: blur(12px);
+    background-color: #00000099;
+    box-shadow: 0 0 0 1px #FFFFFF22 inset, 0 0 0 1px #00000055, 0 12px 48px #000000AA;
+    color: #FFFFFF;
+}
+.lpLoginModal__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.25rem;
+}
+.lpLoginModal__title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin: 0;
+}
+.lpLoginModal__close {
+    font-size: 1.5rem;
+    line-height: 1;
+    padding: 0.25rem 0.55rem;
+    border-radius: 6px;
+    opacity: 0.7;
+    cursor: pointer;
+}
+.lpLoginModal__close:hover,
+.lpLoginModal__close:focus-visible {
+    opacity: 1;
+    background: #FFFFFF22;
+}
+.lpLoginModal__form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+.lpLoginModal__field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+}
+.lpLoginModal__fieldLabel {
+    font-size: 0.85rem;
+    opacity: 0.85;
+    font-weight: 500;
+}
+.lpLoginModal__input {
+    width: 100%;
+    padding: 0.65rem 0.85rem;
+    border-radius: 8px;
+    background-color: #FFFFFF12;
+    color: #FFFFFF;
+    border: 1px solid #FFFFFF33;
+    font-size: 0.95rem;
+    transition: border-color 120ms ease, background-color 120ms ease;
+}
+.lpLoginModal__input:focus-visible {
+    outline: none;
+    background-color: #FFFFFF1F;
+    border-color: #FFFFFF77;
+}
+.lpLoginModal__remember {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.9rem;
+    cursor: pointer;
+    user-select: none;
+    margin-top: 0.1rem;
+}
+.lpLoginModal__remember input {
+    width: 1rem;
+    height: 1rem;
+    accent-color: #FFFFFF;
+    cursor: pointer;
+}
+.lpLoginModal__error {
+    display: block;
+    color: #FFB4B4;
+    background-color: #5D000022;
+    border: 1px solid #FF7B7B55;
+    border-radius: 8px;
+    padding: 0.55rem 0.75rem;
+    font-size: 0.875rem;
+    line-height: 1.4;
+}
+.lpLoginModal__error[hidden] {
+    display: none;
+}
+.lpLoginModal__submit {
+    width: 100%;
+    padding: 0.7rem 1rem;
+    border-radius: 8px;
+    background-color: #FFFFFF;
+    color: #111111;
+    font-weight: 600;
+    font-size: 0.95rem;
+    border: 1px solid #FFFFFF;
+    cursor: pointer;
+    transition: background-color 120ms ease, color 120ms ease;
+    margin-top: 0.25rem;
+}
+.lpLoginModal__submit:hover,
+.lpLoginModal__submit:focus-visible {
+    background-color: #FFFFFFCC;
+}
+.lpLoginModal__submit:disabled {
+    background-color: #FFFFFF44;
+    color: #FFFFFF77;
+    cursor: not-allowed;
+}
+.lpLoginModal__divider {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin: 0.25rem 0;
+    color: #FFFFFF77;
+    font-size: 0.8rem;
+}
+.lpLoginModal__divider::before,
+.lpLoginModal__divider::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background-color: #FFFFFF22;
+}
+.lpLoginModal__telegram {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.55rem;
+    width: 100%;
+    padding: 0.7rem 1rem;
+    border-radius: 8px;
+    background-color: #229ED9;
+    color: #FFFFFF;
+    font-weight: 600;
+    font-size: 0.95rem;
+    border: 1px solid #229ED9;
+    cursor: pointer;
+    transition: background-color 120ms ease;
+}
+.lpLoginModal__telegram svg {
+    flex-shrink: 0;
+}
+.lpLoginModal__telegram:hover:not(:disabled),
+.lpLoginModal__telegram:focus-visible:not(:disabled) {
+    background-color: #1A8BC0;
+    border-color: #1A8BC0;
+}
+.lpLoginModal__telegram:disabled {
+    background-color: #FFFFFF22;
+    border-color: #FFFFFF22;
+    color: #FFFFFF77;
+    cursor: not-allowed;
+    font-style: italic;
+}
+@media (prefers-reduced-motion: reduce) {
+    .lpHeaderLoginButton,
+    .lpLoginModal__close,
+    .lpLoginModal__input,
+    .lpLoginModal__submit,
+    .lpLoginModal__telegram {
+        transition: none;
+    }
+}

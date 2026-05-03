@@ -840,10 +840,32 @@ nav {
     padding: 0;
 }
 
-/* === Header sign-in button === */
-/* Positioned absolutely against .header so this button lands in the same
-   upper-right corner the Telegram-logged-in chip occupies — visual rhythm
-   matches across all three header auth states (signed-out, bcrypt, TG). */
+/* === Login button + modal — "honeyed glass" aesthetic ===
+   Warm honeyed amber accent (#E8B86F) is the single saturated color in this
+   composition, used on the header button, submit pill, focus rings, and
+   title underline. Telegram blue stays as the SSO brand color but is
+   refined down (deeper border-blend, tighter spacing). All transitions are
+   short (120-200ms); only the page-load entrance and modal open animations
+   are noticeable, and both honor prefers-reduced-motion. */
+
+@keyframes lpHeaderLoginEntrance {
+    from { opacity: 0; transform: translateY(-4px) scale(0.96); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes lpLoginModalDialogEntrance {
+    from { opacity: 0; transform: translateY(8px) scale(0.97); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes lpLoginModalBackdropEntrance {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
+/* Header sign-in button: amber pill on dark glass header. The shadow stack
+   layers (in order) a hairline border, a warm spread glow, a neutral drop,
+   and an inset highlight — gives the pill physical presence without being
+   loud. Entrance animation runs once on first paint, ~350ms after page
+   load, drawing brief eye attention to the corner. */
 .lpHeaderLoginButton {
     position: absolute;
     top: 12px;
@@ -853,22 +875,47 @@ nav {
     align-items: center;
     justify-content: center;
     height: 2.25rem;
-    padding: 0 1rem;
+    padding: 0 1.15rem;
     border-radius: 999px;
-    background-color: #FFFFFF15;
-    color: #FFFFFF;
-    border: 1px solid #FFFFFF33;
-    backdrop-filter: blur(8px);
+    background-color: #E8B86F;
+    color: #1A1410;
+    border: 1px solid rgba(255, 230, 180, 0.35);
+    box-shadow:
+        0 0 0 1px rgba(0, 0, 0, 0.4),
+        0 6px 18px -6px rgba(232, 184, 111, 0.55),
+        0 2px 6px rgba(0, 0, 0, 0.35),
+        inset 0 1px 0 rgba(255, 255, 255, 0.35);
     font-weight: 600;
     font-size: 0.95rem;
     line-height: 1;
+    letter-spacing: -0.005em;
     cursor: pointer;
-    transition: background-color 120ms ease, border-color 120ms ease;
+    transition:
+        background-color 160ms ease,
+        box-shadow 200ms ease,
+        transform 160ms ease;
+    animation: lpHeaderLoginEntrance 520ms cubic-bezier(0.2, 0.7, 0.3, 1) 0.35s both;
 }
-.lpHeaderLoginButton:hover,
+.lpHeaderLoginButton:hover {
+    background-color: #F0C682;
+    box-shadow:
+        0 0 0 1px rgba(0, 0, 0, 0.4),
+        0 8px 22px -6px rgba(232, 184, 111, 0.7),
+        0 3px 8px rgba(0, 0, 0, 0.4),
+        inset 0 1px 0 rgba(255, 255, 255, 0.45);
+    transform: translateY(-1px);
+}
 .lpHeaderLoginButton:focus-visible {
-    background-color: #FFFFFF26;
-    border-color: #FFFFFF55;
+    outline: 2px solid rgba(232, 184, 111, 0.9);
+    outline-offset: 3px;
+}
+.lpHeaderLoginButton:active {
+    transform: translateY(0);
+    box-shadow:
+        0 0 0 1px rgba(0, 0, 0, 0.4),
+        0 4px 12px -6px rgba(232, 184, 111, 0.45),
+        0 1px 3px rgba(0, 0, 0, 0.4),
+        inset 0 1px 0 rgba(255, 255, 255, 0.25);
 }
 
 /* === Login modal === */
@@ -887,9 +934,17 @@ nav {
 .lpLoginModal__backdrop {
     position: absolute;
     inset: 0;
-    background: #00000088;
-    backdrop-filter: blur(4px);
+    background:
+        radial-gradient(ellipse at center,
+            rgba(0, 0, 0, 0.55) 0%,
+            rgba(0, 0, 0, 0.92) 80%);
+    backdrop-filter: blur(6px);
+    animation: lpLoginModalBackdropEntrance 200ms ease-out both;
 }
+/* Dialog: dark glass with a faint warm tint at the top, suggesting the
+   amber accent leaking into the surface. The stacked shadow combines a
+   hairline outer border, a deep ambient cast, and a softer secondary —
+   the dialog reads as "lit from above" against the backdrop. */
 .lpLoginModal__dialog {
     position: relative;
     width: 100%;
@@ -897,72 +952,118 @@ nav {
     display: flex;
     flex-direction: column;
     gap: 0.875rem;
-    padding: 1.5rem;
+    padding: 1.75rem 1.5rem 1.5rem;
     border-radius: 16px;
-    backdrop-filter: blur(12px);
-    background-color: #00000099;
-    box-shadow: 0 0 0 1px #FFFFFF22 inset, 0 0 0 1px #00000055, 0 12px 48px #000000AA;
+    backdrop-filter: blur(14px) saturate(115%);
+    background:
+        linear-gradient(180deg,
+            rgba(50, 38, 26, 0.45) 0%,
+            rgba(0, 0, 0, 0.55) 100%),
+        rgba(0, 0, 0, 0.55);
+    box-shadow:
+        inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+        inset 0 1px 0 rgba(255, 230, 180, 0.10),
+        0 0 0 1px rgba(0, 0, 0, 0.55),
+        0 24px 60px -12px rgba(0, 0, 0, 0.7),
+        0 8px 28px rgba(0, 0, 0, 0.5);
     color: #FFFFFF;
+    animation: lpLoginModalDialogEntrance 240ms cubic-bezier(0.2, 0.7, 0.3, 1) both;
 }
 .lpLoginModal__header {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: space-between;
-    margin-bottom: 0.25rem;
+    margin-bottom: 0.4rem;
 }
+/* Title: tighter tracking + warm amber accent line underneath. The line is
+   short (28px) and offset, less "underline" and more "punctuation mark."
+   Soft glow on the line ties back to the button's warm shadow. */
 .lpLoginModal__title {
-    font-size: 1.25rem;
+    font-size: 1.35rem;
     font-weight: 600;
+    letter-spacing: -0.022em;
     margin: 0;
+    line-height: 1;
+    position: relative;
+    padding-bottom: 0.6rem;
+}
+.lpLoginModal__title::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    width: 28px;
+    height: 2px;
+    border-radius: 2px;
+    background-color: #E8B86F;
+    box-shadow: 0 0 12px rgba(232, 184, 111, 0.6);
 }
 .lpLoginModal__close {
     font-size: 1.5rem;
     line-height: 1;
     padding: 0.25rem 0.55rem;
     border-radius: 6px;
+    color: #FFFFFFCC;
     opacity: 0.7;
     cursor: pointer;
+    transition: opacity 120ms ease, background-color 120ms ease;
 }
 .lpLoginModal__close:hover,
 .lpLoginModal__close:focus-visible {
     opacity: 1;
-    background: #FFFFFF22;
+    background: rgba(255, 255, 255, 0.12);
+    outline: none;
 }
 .lpLoginModal__form {
     display: flex;
     flex-direction: column;
-    gap: 0.75rem;
+    gap: 0.85rem;
 }
 .lpLoginModal__field {
     display: flex;
     flex-direction: column;
-    gap: 0.3rem;
+    gap: 0.32rem;
 }
+/* Field labels: small caps + wide tracking suggests "form schema" rather
+   than "casual placeholder text." Reads as deliberate typesetting. */
 .lpLoginModal__fieldLabel {
-    font-size: 0.85rem;
-    opacity: 0.85;
-    font-weight: 500;
+    font-size: 0.74rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: rgba(255, 255, 255, 0.7);
+    font-weight: 600;
 }
 .lpLoginModal__input {
     width: 100%;
-    padding: 0.65rem 0.85rem;
+    padding: 0.7rem 0.9rem;
     border-radius: 8px;
-    background-color: #FFFFFF12;
+    background-color: rgba(255, 255, 255, 0.06);
     color: #FFFFFF;
-    border: 1px solid #FFFFFF33;
+    border: 1px solid rgba(255, 255, 255, 0.18);
     font-size: 0.95rem;
-    transition: border-color 120ms ease, background-color 120ms ease;
+    transition:
+        border-color 160ms ease,
+        background-color 160ms ease,
+        box-shadow 160ms ease;
 }
+.lpLoginModal__input:hover {
+    border-color: rgba(255, 255, 255, 0.28);
+}
+/* Focus state echoes the amber accent — same color as the button + title
+   underline so the form feels keyed to one warm hue. The 3px halo at low
+   opacity is a refined alternative to the browser default outline. */
 .lpLoginModal__input:focus-visible {
     outline: none;
-    background-color: #FFFFFF1F;
-    border-color: #FFFFFF77;
+    background-color: rgba(255, 255, 255, 0.10);
+    border-color: rgba(232, 184, 111, 0.7);
+    box-shadow: 0 0 0 3px rgba(232, 184, 111, 0.18);
 }
 .lpLoginModal__remember {
     display: inline-flex;
     align-items: center;
     gap: 0.5rem;
-    font-size: 0.9rem;
+    font-size: 0.875rem;
+    color: rgba(255, 255, 255, 0.85);
     cursor: pointer;
     user-select: none;
     margin-top: 0.1rem;
@@ -970,96 +1071,172 @@ nav {
 .lpLoginModal__remember input {
     width: 1rem;
     height: 1rem;
-    accent-color: #FFFFFF;
+    accent-color: #E8B86F;
     cursor: pointer;
 }
 .lpLoginModal__error {
     display: block;
-    color: #FFB4B4;
-    background-color: #5D000022;
-    border: 1px solid #FF7B7B55;
+    color: #FFC4B0;
+    background-color: rgba(120, 30, 20, 0.32);
+    border: 1px solid rgba(255, 130, 110, 0.35);
     border-radius: 8px;
-    padding: 0.55rem 0.75rem;
+    padding: 0.6rem 0.8rem;
     font-size: 0.875rem;
     line-height: 1.4;
 }
 .lpLoginModal__error[hidden] {
     display: none;
 }
+/* Submit button: matches the header sign-in button's amber pill exactly.
+   Same color, same shadow stack, same hover lift. The repetition between
+   "what you clicked to open the modal" and "what you click to submit" ties
+   the experience together — single warm action color throughout. */
 .lpLoginModal__submit {
     width: 100%;
-    padding: 0.7rem 1rem;
-    border-radius: 8px;
-    background-color: #FFFFFF;
-    color: #111111;
+    padding: 0.78rem 1rem;
+    border-radius: 999px;
+    background-color: #E8B86F;
+    color: #1A1410;
     font-weight: 600;
     font-size: 0.95rem;
-    border: 1px solid #FFFFFF;
+    letter-spacing: -0.005em;
+    border: 1px solid rgba(255, 230, 180, 0.35);
+    box-shadow:
+        0 0 0 1px rgba(0, 0, 0, 0.4),
+        0 6px 16px -6px rgba(232, 184, 111, 0.5),
+        0 2px 5px rgba(0, 0, 0, 0.35),
+        inset 0 1px 0 rgba(255, 255, 255, 0.32);
     cursor: pointer;
-    transition: background-color 120ms ease, color 120ms ease;
-    margin-top: 0.25rem;
+    transition:
+        background-color 160ms ease,
+        box-shadow 200ms ease,
+        transform 160ms ease;
+    margin-top: 0.4rem;
 }
-.lpLoginModal__submit:hover,
-.lpLoginModal__submit:focus-visible {
-    background-color: #FFFFFFCC;
+.lpLoginModal__submit:hover:not(:disabled) {
+    background-color: #F0C682;
+    box-shadow:
+        0 0 0 1px rgba(0, 0, 0, 0.4),
+        0 8px 20px -6px rgba(232, 184, 111, 0.65),
+        0 3px 7px rgba(0, 0, 0, 0.4),
+        inset 0 1px 0 rgba(255, 255, 255, 0.42);
+    transform: translateY(-1px);
+}
+.lpLoginModal__submit:focus-visible:not(:disabled) {
+    outline: 2px solid rgba(232, 184, 111, 0.9);
+    outline-offset: 3px;
+}
+.lpLoginModal__submit:active:not(:disabled) {
+    transform: translateY(0);
 }
 .lpLoginModal__submit:disabled {
-    background-color: #FFFFFF44;
-    color: #FFFFFF77;
+    background-color: rgba(255, 255, 255, 0.18);
+    color: rgba(255, 255, 255, 0.5);
+    border-color: rgba(255, 255, 255, 0.18);
+    box-shadow: none;
     cursor: not-allowed;
 }
+/* Divider: gradient hairlines that fade to nothing at the edges, with
+   wider letter-tracking on "or" — feels typeset rather than utilitarian. */
 .lpLoginModal__divider {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
-    margin: 0.25rem 0;
-    color: #FFFFFF77;
-    font-size: 0.8rem;
+    gap: 0.85rem;
+    margin: 0.45rem 0 0.15rem;
+    color: rgba(255, 255, 255, 0.45);
+    font-size: 0.74rem;
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    font-weight: 500;
 }
 .lpLoginModal__divider::before,
 .lpLoginModal__divider::after {
     content: "";
     flex: 1;
     height: 1px;
-    background-color: #FFFFFF22;
+    background: linear-gradient(
+        90deg,
+        rgba(255, 255, 255, 0) 0%,
+        rgba(255, 255, 255, 0.22) 50%,
+        rgba(255, 255, 255, 0) 100%
+    );
 }
+/* Telegram button: keeps brand blue as the SSO marker (industry convention
+   — the color tells the user which provider it is at a glance) but the
+   border + shadow treatment matches the submit button's shape so the two
+   buttons read as siblings, not strangers. Pill radius, same lift on
+   hover, equivalent shadow weight. Slightly darker blue than vanilla
+   #229ED9 for a less-saturated, more-considered feel. */
 .lpLoginModal__telegram {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 0.55rem;
+    gap: 0.6rem;
     width: 100%;
-    padding: 0.7rem 1rem;
-    border-radius: 8px;
-    background-color: #229ED9;
+    padding: 0.72rem 1rem;
+    border-radius: 999px;
+    background-color: #2B9ED9;
     color: #FFFFFF;
     font-weight: 600;
     font-size: 0.95rem;
-    border: 1px solid #229ED9;
+    letter-spacing: -0.005em;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow:
+        0 0 0 1px rgba(0, 0, 0, 0.4),
+        0 4px 14px -6px rgba(43, 158, 217, 0.45),
+        0 2px 5px rgba(0, 0, 0, 0.35),
+        inset 0 1px 0 rgba(255, 255, 255, 0.18);
     cursor: pointer;
-    transition: background-color 120ms ease;
+    transition: background-color 160ms ease, box-shadow 200ms ease, transform 160ms ease;
 }
 .lpLoginModal__telegram svg {
     flex-shrink: 0;
+    width: 18px;
+    height: 18px;
 }
-.lpLoginModal__telegram:hover:not(:disabled),
+.lpLoginModal__telegram:hover:not(:disabled) {
+    background-color: #1F8FCC;
+    box-shadow:
+        0 0 0 1px rgba(0, 0, 0, 0.4),
+        0 6px 18px -6px rgba(43, 158, 217, 0.6),
+        0 3px 7px rgba(0, 0, 0, 0.4),
+        inset 0 1px 0 rgba(255, 255, 255, 0.22);
+    transform: translateY(-1px);
+}
 .lpLoginModal__telegram:focus-visible:not(:disabled) {
-    background-color: #1A8BC0;
-    border-color: #1A8BC0;
+    outline: 2px solid rgba(43, 158, 217, 0.9);
+    outline-offset: 3px;
+}
+.lpLoginModal__telegram:active:not(:disabled) {
+    transform: translateY(0);
 }
 .lpLoginModal__telegram:disabled {
-    background-color: #FFFFFF22;
-    border-color: #FFFFFF22;
-    color: #FFFFFF77;
+    background-color: rgba(255, 255, 255, 0.10);
+    color: rgba(255, 255, 255, 0.45);
+    border-color: rgba(255, 255, 255, 0.10);
+    box-shadow: none;
     cursor: not-allowed;
     font-style: italic;
 }
+
 @media (prefers-reduced-motion: reduce) {
     .lpHeaderLoginButton,
+    .lpHeaderLoginButton:hover,
+    .lpHeaderLoginButton:active,
     .lpLoginModal__close,
     .lpLoginModal__input,
     .lpLoginModal__submit,
-    .lpLoginModal__telegram {
+    .lpLoginModal__submit:hover,
+    .lpLoginModal__submit:active,
+    .lpLoginModal__telegram,
+    .lpLoginModal__telegram:hover,
+    .lpLoginModal__telegram:active {
         transition: none;
+        transform: none;
+    }
+    .lpHeaderLoginButton,
+    .lpLoginModal__backdrop,
+    .lpLoginModal__dialog {
+        animation: none;
     }
 }

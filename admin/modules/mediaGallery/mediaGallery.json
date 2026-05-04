@@ -21,9 +21,8 @@
   "site_config": {
     "label": "Media Gallery",
     "settings": [
-      { "key": "customThumbs",    "label": "Allow per-item custom thumbnail uploads",      "type": "bool", "default": false },
-      { "key": "changeMedia",     "label": "Allow replacing media files on existing items", "type": "bool", "default": false },
-      { "key": "maxUploadSizeMB", "label": "Max upload size (MB)",                          "type": "int",  "default": 5 }
+      { "key": "customThumbs", "label": "Allow per-item custom thumbnail uploads",      "type": "bool", "default": false },
+      { "key": "changeMedia",  "label": "Allow replacing media files on existing items", "type": "bool", "default": false }
     ]
   }
 }

@@ -722,6 +722,13 @@ function lawnding_validate_and_save_image(
 // can still cap below this; their lower value wins.
 function lawnding_app_upload_max_bytes(): int {
     $siteConfig = lawnding_load_site_config();
+    // FIXME(coupling): app-wide upload cap is currently sourced from
+    // mediaGallery's site_config namespace because Site Config
+    // infrastructure originated with the gallery feature in v1.13.0.
+    // Tracked under project_promote_max_upload_to_global_setting —
+    // promote to a top-level _app namespace when the next module
+    // needs an app-wide tunable.
+    // allow-module-coupling: pre-existing v1.13.0 namespace; backlog memory
     $mb = isset($siteConfig['mediaGallery']['maxUploadSizeMB']) ? (int) $siteConfig['mediaGallery']['maxUploadSizeMB'] : 5;
     if ($mb <= 0) {
         $mb = 5;

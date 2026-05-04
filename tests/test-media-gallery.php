@@ -193,3 +193,81 @@ test_assert(
     $payload[0]['uploaded_at'] === '' && $payload[0]['uploaded_by'] === '',
     'build_payload defaults uploaded_at / uploaded_by to "" for legacy items'
 );
+
+// ----- media_gallery_apply_changes (save_map validator dispatch target) -----
+//
+// Pure: caller does I/O. Wired into save-config.php's save_map dispatch
+// via mediaGallery's manifest `validator` field. Merges {updates: [...]}
+// payloads into the existing items array, re-sorts by order, and
+// renumbers order to be contiguous starting at 1.
+
+// Empty existing + empty updates -> empty items (with key seeded)
+$out = media_gallery_apply_changes([], ['updates' => []]);
+test_assert(
+    isset($out['items']) && $out['items'] === [],
+    'apply_changes seeds items=[] when both inputs are empty'
+);
+
+// Update touches title and re-sorts on order
+$existing = [
+    'items' => [
+        ['id' => 'a', 'title' => 'Alpha', 'order' => 1],
+        ['id' => 'b', 'title' => 'Beta',  'order' => 2],
+    ],
+];
+$out = media_gallery_apply_changes($existing, ['updates' => [
+    ['id' => 'b', 'title' => 'Bravo'],
+    ['id' => 'a', 'order' => 5],
+]]);
+test_assert(
+    $out['items'][0]['id'] === 'b' && $out['items'][0]['title'] === 'Bravo' && $out['items'][0]['order'] === 1,
+    'apply_changes updates title and renumbers order to 1..N after sort'
+);
+test_assert(
+    $out['items'][1]['id'] === 'a' && $out['items'][1]['order'] === 2,
+    'apply_changes promotes a (order=5) past b (order=2) and renumbers'
+);
+
+// Unknown ids in payload are ignored (item may have been removed out-of-band)
+$existing = ['items' => [['id' => 'x', 'title' => 'X', 'order' => 1]]];
+$out = media_gallery_apply_changes($existing, ['updates' => [
+    ['id' => 'ghost', 'title' => 'should be dropped'],
+]]);
+test_assert(
+    count($out['items']) === 1 && $out['items'][0]['id'] === 'x' && $out['items'][0]['title'] === 'X',
+    'apply_changes silently drops updates targeting unknown ids'
+);
+
+// ----- media_gallery_update_paths (on_rename helper) -----
+
+$data = [
+    'items' => [
+        ['id' => '1', 'file' => 'res/data/mediaGalleryContent-old/media-1.jpg',
+                      'thumb' => 'res/data/mediaGalleryContent-old/thumbs/media-1-thumb.webp'],
+        ['id' => '2', 'file' => '', 'thumb' => ''],
+    ],
+];
+$updated = media_gallery_update_paths($data, 'old', 'new');
+test_assert(
+    $updated['items'][0]['file'] === 'res/data/mediaGalleryContent-new/media-1.jpg',
+    'update_paths rewrites the dir segment in item.file'
+);
+test_assert(
+    $updated['items'][0]['thumb'] === 'res/data/mediaGalleryContent-new/thumbs/media-1-thumb.webp',
+    'update_paths rewrites the dir segment in item.thumb'
+);
+test_assert(
+    $updated['items'][1]['file'] === '' && $updated['items'][1]['thumb'] === '',
+    'update_paths leaves empty file/thumb fields alone'
+);
+
+// Substring safety: a legitimate file with the new id as a substring of
+// the OLD id should not get accidentally rewritten. The replace targets
+// "mediaGalleryContent-<old>/" with the trailing slash, so the match is
+// directory-anchored, not substring-anchored.
+$data = ['items' => [['file' => 'res/data/mediaGalleryContent-foobar/x.jpg']]];
+$updated = media_gallery_update_paths($data, 'foo', 'baz');
+test_assert(
+    $updated['items'][0]['file'] === 'res/data/mediaGalleryContent-foobar/x.jpg',
+    'update_paths leaves "foobar" alone when renaming "foo" -> "baz" (trailing slash anchors the match)'
+);

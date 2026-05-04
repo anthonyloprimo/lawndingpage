@@ -48,109 +48,6 @@ function resolve_paths() {
     ];
 }
 
-function media_gallery_dir(string $dataDir, string $paneId): string {
-    return rtrim($dataDir, '/\\') . '/mediaGalleryContent-' . $paneId;
-}
-
-function media_gallery_remove_dir(string $dir): void {
-    if (!is_dir($dir)) {
-        return;
-    }
-    $items = scandir($dir);
-    if (!is_array($items)) {
-        return;
-    }
-    foreach ($items as $item) {
-        if ($item === '.' || $item === '..') {
-            continue;
-        }
-        $path = $dir . '/' . $item;
-        if (is_dir($path)) {
-            media_gallery_remove_dir($path);
-        } else {
-            unlink($path);
-        }
-    }
-    rmdir($dir);
-}
-
-function media_gallery_apply_changes(array $data, array $changes): array {
-    $items = $data['items'] ?? [];
-    if (!is_array($items)) {
-        $items = [];
-    }
-    $updates = $changes['updates'] ?? [];
-    if (!is_array($updates) || empty($updates)) {
-        $data['items'] = $items;
-        return $data;
-    }
-    $indexById = [];
-    foreach ($items as $index => $item) {
-        if (is_array($item) && isset($item['id'])) {
-            $indexById[(string) $item['id']] = $index;
-        }
-    }
-    foreach ($updates as $update) {
-        if (!is_array($update)) {
-            continue;
-        }
-        $id = isset($update['id']) ? (string) $update['id'] : '';
-        if ($id === '' || !isset($indexById[$id])) {
-            continue;
-        }
-        $idx = $indexById[$id];
-        if (!is_array($items[$idx])) {
-            $items[$idx] = [];
-        }
-        if (array_key_exists('title', $update)) {
-            $items[$idx]['title'] = (string) $update['title'];
-        }
-        if (array_key_exists('order', $update)) {
-            $items[$idx]['order'] = (int) $update['order'];
-        }
-    }
-    usort($items, function ($a, $b) {
-        $orderA = is_array($a) && isset($a['order']) ? (int) $a['order'] : 0;
-        $orderB = is_array($b) && isset($b['order']) ? (int) $b['order'] : 0;
-        return $orderA <=> $orderB;
-    });
-    $order = 1;
-    foreach ($items as &$item) {
-        if (!is_array($item)) {
-            $item = [];
-        }
-        $item['order'] = $order;
-        $order += 1;
-    }
-    unset($item);
-    $data['items'] = $items;
-    return $data;
-}
-
-function media_gallery_update_paths(array $data, string $oldId, string $newId): array {
-    $items = $data['items'] ?? [];
-    if (!is_array($items)) {
-        $data['items'] = [];
-        return $data;
-    }
-    $oldSegment = 'mediaGalleryContent-' . $oldId . '/';
-    $newSegment = 'mediaGalleryContent-' . $newId . '/';
-    foreach ($items as &$item) {
-        if (!is_array($item)) {
-            $item = [];
-        }
-        if (!empty($item['file']) && is_string($item['file'])) {
-            $item['file'] = str_replace($oldSegment, $newSegment, $item['file']);
-        }
-        if (!empty($item['thumb']) && is_string($item['thumb'])) {
-            $item['thumb'] = str_replace($oldSegment, $newSegment, $item['thumb']);
-        }
-    }
-    unset($item);
-    $data['items'] = $items;
-    return $data;
-}
-
 // Load existing header data with defaults.
 function load_header_data($headerPath) {
     $headerData = [
@@ -882,35 +779,30 @@ if ($action === 'pane_management') {
                     }
                 }
             }
-            if ($currentModule === 'mediaGallery') {
-                $oldDir = media_gallery_dir($paths['data_dir'], $prevId);
-                $newDir = media_gallery_dir($paths['data_dir'], $currentId);
-                if (is_dir($oldDir) && !is_dir($newDir)) {
-                    rename($oldDir, $newDir);
-                }
-                $jsonFile = '';
-                if (is_array($oldData)) {
-                    foreach ($oldData as $entry) {
-                        if (!is_array($entry)) {
-                            continue;
-                        }
-                        $type = isset($entry['type']) ? (string) $entry['type'] : '';
-                        $pattern = isset($entry['pattern']) ? (string) $entry['pattern'] : '';
-                        if ($type === 'json' && $pattern !== '') {
-                            $jsonFile = resolve_pane_filename($pattern, $currentId);
-                            break;
-                        }
-                    }
-                }
-                if ($jsonFile !== '') {
-                    $jsonPath = rtrim($paths['data_dir'], '/\\') . '/' . $jsonFile;
-                    if (is_readable($jsonPath)) {
-                        $decoded = json_decode((string) file_get_contents($jsonPath), true);
-                        if (is_array($decoded)) {
-                            $updated = media_gallery_update_paths($decoded, $prevId, $currentId);
-                            write_json_file($jsonPath, $updated, 'Failed to update media gallery paths for ' . $currentId . '.');
-                        }
-                    }
+            // Generic per-pane content-dir rename for any module that
+            // declares pane_content_dir in its manifest.
+            $oldContentDir = lawnding_module_pane_content_dir($currentModule, $prevId);
+            $newContentDir = lawnding_module_pane_content_dir($currentModule, $currentId);
+            if ($oldContentDir !== '' && $newContentDir !== '' && is_dir($oldContentDir) && !is_dir($newContentDir)) {
+                rename($oldContentDir, $newContentDir);
+            }
+            // Module-declared on_rename callback: for modules that store
+            // their pane id inside their data files (e.g. mediaGallery's
+            // items.json carries asset paths under mediaGalleryContent-
+            // <paneId>/), this callback rewrites those references after
+            // the dir-rename above.
+            $renameCallback = lawnding_module_on_rename_callback($currentModule);
+            if ($renameCallback !== '') {
+                lawnding_module_load_helpers($currentModule);
+                if (function_exists($renameCallback)) {
+                    // $oldManifest === $newManifest here since this branch
+                    // is gated on $prevModule === $currentModule. If the
+                    // contract ever expands to fire on_rename across module
+                    // changes, revisit which manifest the callback expects.
+                    $renameCallback($prevId, $currentId, [
+                        'data_dir' => $paths['data_dir'],
+                        'manifest' => $oldManifest,
+                    ]);
                 }
             }
         }
@@ -937,28 +829,31 @@ if ($action === 'pane_management') {
                     }
                 }
             }
-            if ($prevModule === 'mediaGallery') {
-                $oldDir = media_gallery_dir($paths['data_dir'], $prevId);
-                media_gallery_remove_dir($oldDir);
+            // Generic content-dir cleanup for the previous module if it
+            // declared pane_content_dir.
+            $oldContentDir = lawnding_module_pane_content_dir($prevModule, $prevId);
+            if ($oldContentDir !== '') {
+                lawnding_remove_directory($oldContentDir);
             }
         }
 
-        // mediaGallery's items.json now lives inside the per-pane content dir,
-        // so the dir must exist before write_json_file() initializes items.json below.
-        // Also eagerly create settings.json with the canonical default
-        // (useSiteDefaults: true) so every gallery has a settings record from
-        // the moment it's created -- the resolver behavior is unchanged
-        // (absent file == useSiteDefaults true), but having the file present
-        // makes it obvious the gallery is wired up and saves consistently.
-        if ($currentModule === 'mediaGallery') {
-            $mediaDir = media_gallery_dir($paths['data_dir'], $currentId);
-            if (!is_dir($mediaDir)) {
-                mkdir($mediaDir, 0775, true);
-            }
-            $settingsPath = $mediaDir . '/settings.json';
-            if (!is_readable($settingsPath)) {
+        // Modules that declare pane_content_dir get their per-pane dir
+        // created eagerly on pane creation so subsequent write_json_file()
+        // calls (initializing data_files below) don't fail with ENOENT.
+        $contentDir = lawnding_module_pane_content_dir($currentModule, $currentId);
+        if ($contentDir !== '' && !is_dir($contentDir)) {
+            mkdir($contentDir, 0775, true);
+        }
+        // Modules that declare per_pane_settings get a sidecar settings.json
+        // pre-seeded with the canonical default (useSiteDefaults: true).
+        // The resolver behavior is unchanged (absent file == useSiteDefaults
+        // true), but having the file present makes it obvious the pane is
+        // wired up and saves consistently across admin sessions.
+        if (!empty(lawnding_module_per_pane_settings($currentModule))) {
+            $settingsPath = lawnding_module_settings_path($currentModule, $currentId);
+            if ($settingsPath !== '' && !is_readable($settingsPath)) {
                 if (!lawnding_save_pane_settings($settingsPath, ['useSiteDefaults' => true])) {
-                    respond(['error' => 'Failed to initialize gallery settings for ' . $currentId . '.'], 500);
+                    respond(['error' => 'Failed to initialize pane settings for ' . $currentId . '.'], 500);
                 }
             }
         }
@@ -982,7 +877,15 @@ if ($action === 'pane_management') {
                 $path = rtrim($paths['data_dir'], '/\\') . '/' . $file;
                 if (!is_readable($path)) {
                     if ($type === 'json') {
-                        $payload = $currentModule === 'mediaGallery' ? ['items' => []] : new stdClass();
+                        // Manifest may declare an `initial` payload per
+                        // data_files entry; fall back to an empty object
+                        // when none is declared. Note: json_decode('{}',
+                        // true) === [], so an empty {} initial in the
+                        // manifest re-encodes as []. Modules needing
+                        // exact {} preservation should declare a non-
+                        // empty initial.
+                        $initial = lawnding_module_data_file_initial($currentModule, $pattern);
+                        $payload = is_array($initial) ? $initial : new stdClass();
                         write_json_file($path, $payload, 'Failed to initialize pane data for ' . $currentId . '.');
                     } else {
                         write_text_file($path, '', 'Failed to initialize pane data for ' . $currentId . '.');
@@ -1017,9 +920,12 @@ if ($action === 'pane_management') {
                 }
             }
         }
-        if ($removedModule === 'mediaGallery' && is_string($removedId) && $removedId !== '') {
-            $mediaDir = media_gallery_dir($paths['data_dir'], $removedId);
-            media_gallery_remove_dir($mediaDir);
+        // Generic content-dir cleanup for any module with pane_content_dir.
+        if (is_string($removedId) && $removedId !== '') {
+            $contentDir = lawnding_module_pane_content_dir($removedModule, (string) $removedId);
+            if ($contentDir !== '') {
+                lawnding_remove_directory($contentDir);
+            }
         }
     }
 
@@ -1379,7 +1285,16 @@ if (is_array($panePayload)) {
             }
             $targetPath = rtrim($paths['data_dir'], '/\\') . '/' . $filename;
             $value = $panePayload[$paneId][$key];
-            if ($moduleId === 'mediaGallery' && $key === 'mediaChanges') {
+            // Manifest-declared save_map validator: when an entry carries
+            // a `validator` callback name, the module owns the merge
+            // logic. Core validates the JSON envelope, loads the existing
+            // file with the manifest's `initial` as fallback, then hands
+            // the merge to the callback. Used today for mediaGallery's
+            // mediaChanges payload (pure-add updates merge into existing
+            // items.json), reusable by any future module needing custom
+            // diff/merge semantics.
+            $validator = isset($entry['validator']) ? (string) $entry['validator'] : '';
+            if ($validator !== '') {
                 $value = (string) $value;
                 if (trim($value) === '') {
                     continue;
@@ -1388,14 +1303,19 @@ if (is_array($panePayload)) {
                 if (!is_array($decoded)) {
                     respond(['error' => 'Invalid JSON for pane ' . $paneId . '.'], 400);
                 }
-                $existing = ['items' => []];
+                lawnding_module_load_helpers($moduleId);
+                if (!function_exists($validator)) {
+                    respond(['error' => 'Internal error: missing validator ' . $validator . ' for pane ' . $paneId . '.'], 500);
+                }
+                $initial = lawnding_module_data_file_initial($moduleId, $pattern);
+                $existing = is_array($initial) ? $initial : [];
                 if (is_readable($targetPath)) {
                     $currentDecoded = json_decode((string) file_get_contents($targetPath), true);
                     if (is_array($currentDecoded)) {
                         $existing = $currentDecoded;
                     }
                 }
-                $updated = media_gallery_apply_changes($existing, $decoded);
+                $updated = $validator($existing, $decoded);
                 write_json_file($targetPath, $updated, 'Failed to write pane data for ' . $paneId . '.');
                 continue;
             }

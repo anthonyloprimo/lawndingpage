@@ -877,6 +877,250 @@ function lawnding_module_per_pane_settings(string $moduleId): array {
     return $cache[$moduleId] = $clean;
 }
 
+// Read a module's manifest as a decoded array. Returns [] when the manifest
+// is missing, unreadable, or not valid JSON. Per-request static cache keyed
+// by module id; module id whitelisted to [a-zA-Z0-9_-] to block path
+// traversal. Centralizes the read-and-decode dance so the new manifest-
+// reader helpers below don't each re-implement it.
+function lawnding_module_manifest(string $moduleId): array {
+    static $cache = [];
+    if (array_key_exists($moduleId, $cache)) {
+        return $cache[$moduleId];
+    }
+    if ($moduleId === '' || preg_match('/[^a-zA-Z0-9_-]/', $moduleId)) {
+        return $cache[$moduleId] = [];
+    }
+    $modulesDir = lawnding_admin_path('modules');
+    $manifestPath = rtrim($modulesDir, '/\\') . '/' . $moduleId . '/' . $moduleId . '.json';
+    if (!is_readable($manifestPath)) {
+        return $cache[$moduleId] = [];
+    }
+    $decoded = json_decode((string) file_get_contents($manifestPath), true);
+    return $cache[$moduleId] = is_array($decoded) ? $decoded : [];
+}
+
+// Walk admin/modules/ and return the ids of every discoverable module.
+// "Discoverable" = directory contains a matching <id>.json manifest AND no
+// IGNORE_ME.txt sentinel (the convention used by _template/ to opt out of
+// discovery). Per-request memoized. Result is sorted for deterministic
+// iteration order so manifest-walker output (Site Config defaults, labels)
+// is stable across requests.
+function lawnding_discover_module_ids(): array {
+    static $cache = null;
+    if ($cache !== null) {
+        return $cache;
+    }
+    $modulesDir = lawnding_admin_path('modules');
+    if (!is_dir($modulesDir)) {
+        return $cache = [];
+    }
+    $entries = @scandir($modulesDir);
+    if (!is_array($entries)) {
+        return $cache = [];
+    }
+    $ids = [];
+    foreach ($entries as $entry) {
+        if ($entry === '.' || $entry === '..') {
+            continue;
+        }
+        if (preg_match('/[^a-zA-Z0-9_-]/', $entry)) {
+            continue;
+        }
+        $dir = rtrim($modulesDir, '/\\') . '/' . $entry;
+        if (!is_dir($dir)) {
+            continue;
+        }
+        if (is_file($dir . '/IGNORE_ME.txt')) {
+            continue;
+        }
+        if (!is_readable($dir . '/' . $entry . '.json')) {
+            continue;
+        }
+        $ids[] = $entry;
+    }
+    sort($ids);
+    return $cache = $ids;
+}
+
+// Resolve a module's per-pane content directory (e.g. mediaGalleryContent-
+// <paneId>) to an absolute filesystem path under data_dir. The manifest
+// declares the relative pattern via `pane_content_dir` with a `{paneId}`
+// placeholder. Returns '' when the module declares no pane_content_dir
+// (most modules don't need one) or when the pane id is malformed.
+// Path-traversal guards: pane id whitelisted to [a-zA-Z0-9]; pattern
+// rejected if it contains "..".
+function lawnding_module_pane_content_dir(string $moduleId, string $paneId): string {
+    if ($paneId === '' || preg_match('/[^a-zA-Z0-9]/', $paneId)) {
+        return '';
+    }
+    $manifest = lawnding_module_manifest($moduleId);
+    $pattern = isset($manifest['pane_content_dir']) ? (string) $manifest['pane_content_dir'] : '';
+    if ($pattern === '' || strpos($pattern, '..') !== false) {
+        return '';
+    }
+    $relative = str_replace('{paneId}', $paneId, $pattern);
+    $dataDir = lawnding_data_path('');
+    return rtrim($dataDir, '/\\') . '/' . ltrim($relative, '/');
+}
+
+// Look up a module's `on_rename` callback name from its manifest. Returns
+// '' when not declared. Caller is responsible for require'ing the module's
+// helpers.php (via lawnding_module_load_helpers) and verifying with
+// function_exists() before invoking. The callback signature is
+// fn(string $prevId, string $currentId, array $context): void where
+// $context carries `data_dir` and `manifest`.
+function lawnding_module_on_rename_callback(string $moduleId): string {
+    $manifest = lawnding_module_manifest($moduleId);
+    $name = isset($manifest['on_rename']) ? (string) $manifest['on_rename'] : '';
+    return preg_match('/^[a-zA-Z_][a-zA-Z0-9_]*$/', $name) === 1 ? $name : '';
+}
+
+// Look up a module's save_map validator function name for a given form key.
+// The manifest declares `save_map[].validator` for entries that need
+// custom merge/validate logic instead of plain JSON write-through. Returns
+// '' when no validator is declared. Caller require's helpers.php and
+// function_exists-checks. Callback signature: fn(array $existing, array
+// $payload): array — returns the merged payload to persist.
+function lawnding_module_save_map_validator(string $moduleId, string $key): string {
+    $manifest = lawnding_module_manifest($moduleId);
+    $entries = $manifest['save_map'] ?? [];
+    if (!is_array($entries)) {
+        return '';
+    }
+    foreach ($entries as $entry) {
+        if (!is_array($entry)) {
+            continue;
+        }
+        if (isset($entry['key']) && (string) $entry['key'] === $key) {
+            $name = isset($entry['validator']) ? (string) $entry['validator'] : '';
+            return preg_match('/^[a-zA-Z_][a-zA-Z0-9_]*$/', $name) === 1 ? $name : '';
+        }
+    }
+    return '';
+}
+
+// Look up the `initial` payload declared on a module's data_files entry
+// matching $pattern. Returns null when no initial is declared (caller
+// should fall back to the empty-object default). The manifest's `initial`
+// is whatever JSON value the module wants its first-write to contain
+// (e.g. {"items": []} for mediaGallery).
+function lawnding_module_data_file_initial(string $moduleId, string $pattern): ?array {
+    $manifest = lawnding_module_manifest($moduleId);
+    $entries = $manifest['data_files'] ?? [];
+    if (!is_array($entries)) {
+        return null;
+    }
+    foreach ($entries as $entry) {
+        if (!is_array($entry)) {
+            continue;
+        }
+        if (isset($entry['pattern']) && (string) $entry['pattern'] === $pattern) {
+            $initial = $entry['initial'] ?? null;
+            return is_array($initial) ? $initial : null;
+        }
+    }
+    return null;
+}
+
+// Read a module's `site_config` schema declaration. Returns
+//   ['label' => string, 'settings' => [{key, label, type, default}, ...]]
+// or [] when the module declares no site_config block. Settings entries
+// are filtered to require key + type in {bool, int}; other types and
+// malformed entries are silently dropped (defensive against hand-edited
+// manifests). The Site Config admin UI walks every discoverable module's
+// site_config to build its form; modules without a site_config block
+// don't appear there at all.
+function lawnding_module_site_config(string $moduleId): array {
+    $manifest = lawnding_module_manifest($moduleId);
+    $schema = $manifest['site_config'] ?? null;
+    if (!is_array($schema)) {
+        return [];
+    }
+    $label = isset($schema['label']) ? (string) $schema['label'] : '';
+    $rawSettings = $schema['settings'] ?? [];
+    if (!is_array($rawSettings)) {
+        return [];
+    }
+    $allowedTypes = ['bool', 'int'];
+    $clean = [];
+    $seenKeys = [];
+    foreach ($rawSettings as $entry) {
+        if (!is_array($entry)) {
+            continue;
+        }
+        $key = isset($entry['key']) ? (string) $entry['key'] : '';
+        $entryLabel = isset($entry['label']) ? (string) $entry['label'] : '';
+        $type = isset($entry['type']) ? (string) $entry['type'] : '';
+        if ($key === '' || preg_match('/[^a-zA-Z0-9_]/', $key) || $entryLabel === '' || !in_array($type, $allowedTypes, true)) {
+            continue;
+        }
+        if (isset($seenKeys[$key])) {
+            continue;
+        }
+        $seenKeys[$key] = true;
+        $clean[] = [
+            'key'     => $key,
+            'label'   => $entryLabel,
+            'type'    => $type,
+            'default' => $entry['default'] ?? ($type === 'bool' ? false : 0),
+        ];
+    }
+    if (empty($clean)) {
+        return [];
+    }
+    return ['label' => $label, 'settings' => $clean];
+}
+
+// Lazy-load admin/modules/<id>/helpers.php so manifest-named callbacks
+// (validators, on_rename) resolve at dispatch time. Idempotent —
+// require_once guards against double-include. Returns true when the file
+// was loaded or already loaded; false when no helpers.php exists for the
+// module (which is not an error — most modules don't need one).
+function lawnding_module_load_helpers(string $moduleId): bool {
+    static $loaded = [];
+    if (isset($loaded[$moduleId])) {
+        return $loaded[$moduleId];
+    }
+    if ($moduleId === '' || preg_match('/[^a-zA-Z0-9_-]/', $moduleId)) {
+        return $loaded[$moduleId] = false;
+    }
+    $modulesDir = lawnding_admin_path('modules');
+    $path = rtrim($modulesDir, '/\\') . '/' . $moduleId . '/helpers.php';
+    if (!is_readable($path)) {
+        return $loaded[$moduleId] = false;
+    }
+    require_once $path;
+    return $loaded[$moduleId] = true;
+}
+
+// Recursively remove a directory and its contents. Used by save-config.php
+// when a pane is deleted or its module is changed (the old module's
+// pane_content_dir gets cleaned up). No-op when $dir doesn't exist or
+// isn't a directory — callers don't have to is_dir-check first. Mirrors
+// the pattern of the previous module-specific media_gallery_remove_dir
+// helper but generic for any module declaring pane_content_dir.
+function lawnding_remove_directory(string $dir): void {
+    if ($dir === '' || !is_dir($dir)) {
+        return;
+    }
+    $items = @scandir($dir);
+    if (!is_array($items)) {
+        return;
+    }
+    foreach ($items as $item) {
+        if ($item === '.' || $item === '..') {
+            continue;
+        }
+        $path = $dir . '/' . $item;
+        if (is_dir($path)) {
+            lawnding_remove_directory($path);
+        } else {
+            @unlink($path);
+        }
+    }
+    @rmdir($dir);
+}
+
 // Load pane instances from panes.json. Returns the raw pane array or [] when
 // the file is missing or malformed. Caller typically pipes through
 // lawnding_sort_panes() before rendering.
@@ -891,21 +1135,72 @@ function lawnding_load_panes(string $path): array {
     return $decoded['panes'];
 }
 
-// Canonical site-config baseline. Adding a key here makes it appear in the
-// admin Site Config UI and ships with its default value without admins
-// needing to re-save lp-siteConfig.json. Nested by module so settings
-// cluster with their owning code (mediaGallery.customThumbs, not
-// gallery_custom_thumbs at top level). Per-pane overrides (sidecar
-// settings.json next to items.json) shadow these values when the pane
-// has useSiteDefaults === false.
+// Canonical site-config baseline. Walks every discoverable module's
+// manifest `site_config.settings` block and aggregates defaults nested by
+// module id (mediaGallery.customThumbs, not gallery_custom_thumbs at top
+// level). Adding a key to a module's manifest makes it appear here — and
+// in the admin Site Config UI — without admins needing to re-save
+// lp-siteConfig.json. Per-pane overrides (sidecar settings.json next to
+// items.json) shadow these values when the pane has useSiteDefaults ===
+// false. Per-request memoized via lawnding_module_site_config()'s
+// upstream cache + lawnding_discover_module_ids()'s static cache.
 function lawnding_site_config_defaults(): array {
-    return [
-        'mediaGallery' => [
-            'customThumbs'    => false,
-            'changeMedia'     => false,
-            'maxUploadSizeMB' => 5,
-        ],
-    ];
+    $defaults = [];
+    foreach (lawnding_discover_module_ids() as $moduleId) {
+        $schema = lawnding_module_site_config($moduleId);
+        $settings = $schema['settings'] ?? [];
+        if (empty($settings)) {
+            continue;
+        }
+        $bucket = [];
+        foreach ($settings as $setting) {
+            $key = $setting['key'];
+            $type = $setting['type'];
+            $default = $setting['default'] ?? null;
+            if ($type === 'bool') {
+                $bucket[$key] = (bool) $default;
+            } else {
+                $bucket[$key] = max(0, (int) $default);
+            }
+        }
+        if (!empty($bucket)) {
+            $defaults[$moduleId] = $bucket;
+        }
+    }
+    return $defaults;
+}
+
+// Label registry for the SITE CONFIG admin UI. Sibling of
+// lawnding_site_config_defaults() — same iteration, different transform.
+// Walks every discoverable module's site_config.label (fieldset legend)
+// and per-setting labels. Modules without a site_config block don't
+// appear in the UI. Adding a new flag to a module's manifest without a
+// label gets a camelCase-split fallback (lawnding_camel_to_label() in
+// admin/config.php) at render time.
+function lawnding_site_config_labels(): array {
+    $labels = ['_modules' => []];
+    foreach (lawnding_discover_module_ids() as $moduleId) {
+        $schema = lawnding_module_site_config($moduleId);
+        if (empty($schema)) {
+            continue;
+        }
+        $moduleLabel = $schema['label'] ?? '';
+        if ($moduleLabel !== '') {
+            $labels['_modules'][$moduleId] = $moduleLabel;
+        }
+        $bucket = [];
+        foreach ($schema['settings'] ?? [] as $setting) {
+            $key = $setting['key'] ?? '';
+            $entryLabel = $setting['label'] ?? '';
+            if ($key !== '' && $entryLabel !== '') {
+                $bucket[$key] = $entryLabel;
+            }
+        }
+        if (!empty($bucket)) {
+            $labels[$moduleId] = $bucket;
+        }
+    }
+    return $labels;
 }
 
 function lawnding_site_config_path(): string {

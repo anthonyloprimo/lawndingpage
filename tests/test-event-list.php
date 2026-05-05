@@ -165,6 +165,19 @@ $result = event_list_apply_events($baseExisting, [
 test_assert($result['events'][2]['id'] === '8' && $result['events'][3]['id'] === '9',
     'apply_events: sequential ids assigned across multiple creates in one call');
 
+// Server applies deletes before creates — id allocation uses post-delete max.
+// admin.js's applyPostSaveState must mirror this: client prediction excludes
+// deletedIds from its maxId scan, otherwise client and server diverge.
+$result = event_list_apply_events($baseExisting, [
+    'changes' => [
+        'delete' => ['7'],
+        'create' => [array_merge($validEvent, ['name' => 'New'])],
+    ],
+]);
+test_assert(count($result['events']) === 2
+        && $result['events'][1]['id'] === '6',
+    'apply_events: create after delete uses post-delete max+1 (5+1=6, not 7+1=8)');
+
 // mixed: delete + update + create in one call
 $result = event_list_apply_events($baseExisting, [
     'changes' => [

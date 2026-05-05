@@ -247,10 +247,15 @@
 
         // Post-save: predict server ids for new cards (sequential from snapshot
         // max), refresh snapshot, clear deletedIds, re-render in date order.
+        // Server applies deletes BEFORE creates, so deletedIds must be excluded
+        // from the maxId calculation — otherwise deleting the highest-id event
+        // and creating a new one in the same save desyncs client and server.
         function applyPostSaveState() {
             let maxId = 0;
             snapshot.forEach((ev) => {
-                const n = parseInt(ev && ev.id, 10);
+                const idStr = String(ev && ev.id ? ev.id : '');
+                if (deletedIds.has(idStr)) { return; }
+                const n = parseInt(idStr, 10);
                 if (Number.isFinite(n) && n > maxId) { maxId = n; }
             });
             getEventCards().each(function () {

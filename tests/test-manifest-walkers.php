@@ -128,21 +128,15 @@ test_assert(
     'site_config label read from mediaGallery manifest'
 );
 test_assert(
-    isset($schema['settings']) && is_array($schema['settings']) && count($schema['settings']) === 3,
-    'site_config returns 3 settings entries (customThumbs, changeMedia, maxUploadSizeMB)'
+    isset($schema['settings']) && is_array($schema['settings']) && count($schema['settings']) === 2,
+    'site_config returns 2 settings entries (customThumbs, changeMedia)'
 );
 $keys = array_column($schema['settings'], 'key');
 test_assert(
-    in_array('maxUploadSizeMB', $keys, true),
-    'site_config carries maxUploadSizeMB entry'
+    !in_array('maxUploadSizeMB', $keys, true),
+    'site_config no longer carries maxUploadSizeMB (promoted to _app namespace)'
 );
 foreach ($schema['settings'] as $entry) {
-    if ($entry['key'] === 'maxUploadSizeMB') {
-        test_assert(
-            $entry['type'] === 'int' && $entry['default'] === 5,
-            'maxUploadSizeMB declared as int with default 5'
-        );
-    }
     if ($entry['key'] === 'customThumbs') {
         test_assert(
             $entry['type'] === 'bool' && $entry['default'] === false,
@@ -210,8 +204,8 @@ test_assert(
     'walker reproduces mediaGallery.customThumbs default (false)'
 );
 test_assert(
-    isset($defaults['mediaGallery']['maxUploadSizeMB']) && $defaults['mediaGallery']['maxUploadSizeMB'] === 5,
-    'walker reproduces mediaGallery.maxUploadSizeMB default (5, int)'
+    isset($defaults['_app']['maxUploadSizeMB']) && $defaults['_app']['maxUploadSizeMB'] === 5,
+    'walker carries _app.maxUploadSizeMB default (5, int) — top-level namespace'
 );
 
 // ---- lawnding_site_config_labels (sibling walker) ----
@@ -226,8 +220,12 @@ test_assert(
     'walker reproduces customThumbs label'
 );
 test_assert(
-    isset($labels['mediaGallery']['maxUploadSizeMB']) && $labels['mediaGallery']['maxUploadSizeMB'] === 'Max upload size (MB)',
-    'walker reproduces maxUploadSizeMB label'
+    isset($labels['_modules']['_app']) && $labels['_modules']['_app'] === 'App',
+    '_app fieldset legend is "App" (overloads _modules sub-bucket for non-module legends)'
+);
+test_assert(
+    isset($labels['_app']['maxUploadSizeMB']) && $labels['_app']['maxUploadSizeMB'] === 'Max upload size (MB)',
+    'walker carries _app.maxUploadSizeMB label'
 );
 
 // Modules without site_config block don't appear in labels

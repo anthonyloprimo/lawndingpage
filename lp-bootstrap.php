@@ -722,14 +722,7 @@ function lawnding_validate_and_save_image(
 // can still cap below this; their lower value wins.
 function lawnding_app_upload_max_bytes(): int {
     $siteConfig = lawnding_load_site_config();
-    // FIXME(coupling): app-wide upload cap is currently sourced from
-    // mediaGallery's site_config namespace because Site Config
-    // infrastructure originated with the gallery feature in v1.13.0.
-    // Tracked under project_promote_max_upload_to_global_setting —
-    // promote to a top-level _app namespace when the next module
-    // needs an app-wide tunable.
-    // allow-module-coupling: pre-existing v1.13.0 namespace; backlog memory
-    $mb = isset($siteConfig['mediaGallery']['maxUploadSizeMB']) ? (int) $siteConfig['mediaGallery']['maxUploadSizeMB'] : 5;
+    $mb = isset($siteConfig['_app']['maxUploadSizeMB']) ? (int) $siteConfig['_app']['maxUploadSizeMB'] : 5;
     if ($mb <= 0) {
         $mb = 5;
     }
@@ -1151,8 +1144,19 @@ function lawnding_load_panes(string $path): array {
 // items.json) shadow these values when the pane has useSiteDefaults ===
 // false. Per-request memoized via lawnding_module_site_config()'s
 // upstream cache + lawnding_discover_module_ids()'s static cache.
+//
+// The `_app` namespace (underscore prefix sidesteps the module-id regex
+// used in security paths) is reserved for app-wide settings that belong
+// to no module — currently just maxUploadSizeMB, which is enforced by
+// every upload endpoint regardless of which module owns the destination.
+// It renders first in the Site Config UI by being inserted before the
+// per-module loop.
 function lawnding_site_config_defaults(): array {
-    $defaults = [];
+    $defaults = [
+        '_app' => [
+            'maxUploadSizeMB' => 5,
+        ],
+    ];
     foreach (lawnding_discover_module_ids() as $moduleId) {
         $schema = lawnding_module_site_config($moduleId);
         $settings = $schema['settings'] ?? [];
@@ -1183,9 +1187,18 @@ function lawnding_site_config_defaults(): array {
 // and per-setting labels. Modules without a site_config block don't
 // appear in the UI. Adding a new flag to a module's manifest without a
 // label gets a camelCase-split fallback (lawnding_camel_to_label() in
-// admin/config.php) at render time.
+// admin/config.php) at render time. The `_modules` sub-bucket also
+// holds the legend for the `_app` namespace (overloaded — it's now the
+// "fieldset legends" registry, not strictly modules).
 function lawnding_site_config_labels(): array {
-    $labels = ['_modules' => []];
+    $labels = [
+        '_modules' => [
+            '_app' => 'App',
+        ],
+        '_app' => [
+            'maxUploadSizeMB' => 'Max upload size (MB)',
+        ],
+    ];
     foreach (lawnding_discover_module_ids() as $moduleId) {
         $schema = lawnding_module_site_config($moduleId);
         if (empty($schema)) {
@@ -1221,6 +1234,23 @@ function lawnding_site_config_path(): string {
 function lawnding_load_site_config(): array {
     $defaults = lawnding_site_config_defaults();
     $saved = lawnding_read_json(lawnding_site_config_path());
+    // One-shot v1.16 migration: pre-promotion, the app-wide upload cap
+    // lived under the legacy mediaGallery.maxUploadSizeMB path. Copy any
+    // saved value to the canonical _app.maxUploadSizeMB the first time
+    // we see the old shape, then persist so subsequent loads skip this
+    // branch. The old key is left in the saved JSON; the next admin save
+    // drops it via save-config.php's walks-defaults-only handler. Errors
+    // here are swallowed — if the rewrite fails, the in-memory $saved
+    // still carries the migrated value and the next admin save will
+    // succeed (or surface its own error via the admin UI).
+    // allow-module-coupling: transitional migration; delete this block
+    // one release cycle after v1.16 ships. Tracked under
+    // project_promote_max_upload_to_global_setting follow-up.
+    $legacyMaxUpload = $saved['mediaGallery']['maxUploadSizeMB'] ?? null;
+    if ($legacyMaxUpload !== null && !isset($saved['_app']['maxUploadSizeMB'])) {
+        $saved['_app']['maxUploadSizeMB'] = $legacyMaxUpload;
+        @lawnding_save_site_config($saved);
+    }
     $merged = $defaults;
     foreach ($defaults as $module => $flags) {
         if (!is_array($saved[$module] ?? null)) {

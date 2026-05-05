@@ -1234,23 +1234,6 @@ function lawnding_site_config_path(): string {
 function lawnding_load_site_config(): array {
     $defaults = lawnding_site_config_defaults();
     $saved = lawnding_read_json(lawnding_site_config_path());
-    // One-shot v1.16 migration: pre-promotion, the app-wide upload cap
-    // lived under the legacy mediaGallery.maxUploadSizeMB path. Copy any
-    // saved value to the canonical _app.maxUploadSizeMB the first time
-    // we see the old shape, then persist so subsequent loads skip this
-    // branch. The old key is left in the saved JSON; the next admin save
-    // drops it via save-config.php's walks-defaults-only handler. Errors
-    // here are swallowed — if the rewrite fails, the in-memory $saved
-    // still carries the migrated value and the next admin save will
-    // succeed (or surface its own error via the admin UI).
-    // allow-module-coupling: transitional migration; delete this block
-    // one release cycle after v1.16 ships. Tracked under
-    // project_promote_max_upload_to_global_setting follow-up.
-    $legacyMaxUpload = $saved['mediaGallery']['maxUploadSizeMB'] ?? null;
-    if ($legacyMaxUpload !== null && !isset($saved['_app']['maxUploadSizeMB'])) {
-        $saved['_app']['maxUploadSizeMB'] = $legacyMaxUpload;
-        @lawnding_save_site_config($saved);
-    }
     $merged = $defaults;
     foreach ($defaults as $module => $flags) {
         if (!is_array($saved[$module] ?? null)) {

@@ -12,10 +12,7 @@ if ($postMaxBytes > 0 && $contentLength > $postMaxBytes) {
 
 $identity = media_gallery_require_edit_site();
 
-$paneId = $_POST['paneId'] ?? '';
-if (!is_string($paneId) || $paneId === '' || !media_gallery_is_valid_pane_id($paneId)) {
-    media_gallery_json_response(['error' => 'Invalid pane id.'], 400);
-}
+$paneId = (string) ($_POST['paneId'] ?? '');
 
 $upload = $_FILES['mediaFile'] ?? null;
 if (!$upload || !is_array($upload)) {
@@ -51,26 +48,13 @@ if ($mime === '' || strpos($mime, 'image/') !== 0) {
     media_gallery_json_response(['error' => $errorMsg], 400);
 }
 
-$paths = media_gallery_paths();
-$panes = media_gallery_load_panes($paths['panes_path']);
-$pane = media_gallery_find_pane($panes, $paneId);
-if (!$pane) {
-    media_gallery_json_response(['error' => 'Pane not found.'], 404);
-}
+$state = media_gallery_load_pane_state($paneId);
 
-$jsonFile = media_gallery_pane_json_file($pane, $paneId);
-$jsonPath = rtrim($paths['data_dir'], '/\\') . '/' . $jsonFile;
-$data = media_gallery_load_data($jsonPath);
-$items = $data['items'] ?? [];
-if (!is_array($items)) {
-    $items = [];
-}
-
-$existingIds = media_gallery_collect_ids($items);
+$existingIds = media_gallery_collect_ids($state['items']);
 $newId = media_gallery_generate_id($existingIds);
 
 $ext = media_gallery_safe_ext((string) ($upload['name'] ?? ''), $mime);
-$mediaDir = media_gallery_media_dir($paths['data_dir'], $paneId);
+$mediaDir = media_gallery_media_dir($state['paths']['data_dir'], $paneId);
 media_gallery_ensure_dir($mediaDir);
 $filename = 'media-' . $newId . '.' . $ext;
 $targetPath = rtrim($mediaDir, '/\\') . '/' . $filename;
@@ -99,13 +83,13 @@ if ($focalXRaw !== null && $focalXRaw !== '' && $focalYRaw !== null && $focalYRa
     $focalY = max(0.0, min(1.0, (float) $focalYRaw));
 }
 
-$thumbRelative = media_gallery_derive_thumb($targetPath, $paths['data_dir'], $paneId, $newId, $isVideo, $focalX, $focalY);
+$thumbRelative = media_gallery_derive_thumb($targetPath, $state['paths']['data_dir'], $paneId, $newId, $isVideo, $focalX, $focalY);
 
 $type = $isVideo ? 'video' : 'image';
 $relativePath = 'res/data/mediaGalleryContent-' . $paneId . '/' . $filename;
 
 $maxOrder = 0;
-foreach ($items as $item) {
+foreach ($state['items'] as $item) {
     if (is_array($item) && isset($item['order'])) {
         $order = (int) $item['order'];
         if ($order > $maxOrder) {
@@ -114,7 +98,7 @@ foreach ($items as $item) {
     }
 }
 
-$items[] = [
+$state['items'][] = [
     'id'            => $newId,
     'type'          => $type,
     'file'          => lawnding_normalize_asset_path($relativePath),
@@ -129,15 +113,8 @@ $items[] = [
     'uploaded_by'   => isset($identity['authUser']) ? (string) $identity['authUser'] : '',
 ];
 
-$items = media_gallery_reindex_orders($items);
-$data['items'] = $items;
-media_gallery_write_data($jsonPath, $data);
-
-$uploadResponse = [
-    'items' => media_gallery_build_payload($items),
-    'id' => $newId,
-];
+$extras = ['id' => $newId];
 if (!extension_loaded('gd')) {
-    $uploadResponse['gd_unavailable'] = true;
+    $extras['gd_unavailable'] = true;
 }
-media_gallery_json_response($uploadResponse);
+media_gallery_save_and_respond($state['json_path'], $state['data'], $state['items'], $extras);

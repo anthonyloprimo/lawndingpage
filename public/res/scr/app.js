@@ -675,7 +675,7 @@ function renderEventLists() {
             if (!paneId || !eventId) {
                 return '';
             }
-            return `/res/scr/event-ical.php?pane=${encodeURIComponent(paneId)}&event=${encodeURIComponent(eventId)}`;
+            return `/res/scr/module-endpoint.php?module=eventList&endpoint=ical&pane=${encodeURIComponent(paneId)}&event=${encodeURIComponent(eventId)}`;
         }
 
         function buildGoogleUrl(event) {

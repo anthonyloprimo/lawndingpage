@@ -277,6 +277,28 @@ test_assert(media_gallery_thumb_is_custom(['thumb_origin' => 'custom']) === true
 test_assert(media_gallery_thumb_is_custom(['thumb_origin' => 'auto']) === false,  'thumb_is_custom: auto -> false');
 test_assert(media_gallery_thumb_is_custom([]) === false,                          'thumb_is_custom: missing field -> false (defensive default)');
 
+// ---- generate_id: sequential int allocation, decoupled from content ----
+test_assert(media_gallery_generate_id([]) === 1,
+    'generate_id: empty list -> 1');
+test_assert(media_gallery_generate_id([['id' => '5', 'title' => 'a']]) === 6,
+    'generate_id: single record with id "5" -> 6');
+test_assert(media_gallery_generate_id([
+        ['id' => '2'], ['id' => '7'], ['id' => '4']
+    ]) === 8,
+    'generate_id: max id wins regardless of position');
+test_assert(media_gallery_generate_id([['id' => 12]]) === 13,
+    'generate_id: int id (not string) handled');
+test_assert(media_gallery_generate_id([['id' => 'abc']]) === 1,
+    'generate_id: non-numeric id casts to 0, returns 1 from empty-effective list');
+test_assert(media_gallery_generate_id([['title' => 'no id field']]) === 1,
+    'generate_id: missing id field treated as 0');
+test_assert(media_gallery_generate_id(['not-an-array', ['id' => '3']]) === 4,
+    'generate_id: non-array entries skipped defensively');
+// 4-digit-random-era ids (mediaGallery pre-Phase 1) cast cleanly: a gallery
+// carrying old "4827" continues sequentially from 4828, not from 1.
+test_assert(media_gallery_generate_id([['id' => '4827']]) === 4828,
+    'generate_id: legacy 4-digit ids continue sequentially (no reset)');
+
 // ---- load_pane_state happy path (return-shape contract) ----
 // Failure paths exit via media_gallery_json_response and aren't catchable
 // without test-mode plumbing. Failure logic reduces to is_valid_pane_id

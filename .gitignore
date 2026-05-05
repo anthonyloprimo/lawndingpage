@@ -13,6 +13,7 @@ admin/lp-tgMembershipCache.json
 admin/lp-siteConfig.json
 admin/remember_tokens.json
 admin/lp-loginAttempts.json
+admin/lp-mutationAttempts.json
 # Per-plugin runtime state (caches, scratch dirs). Plugins should write
 # their runtime state under avatars/ or cache/ so it is ignored by default.
 # .htaccess files that guard those dirs stay tracked.

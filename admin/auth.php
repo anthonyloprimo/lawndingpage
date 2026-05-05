@@ -299,6 +299,23 @@ function lawnding_require_admin_mutation(
         };
     }
 
+    // Failure-throttle: catches CSRF-replay and session-hijack probing
+    // platform-wide. Mirrors the login pattern (5 fails / 15-min window
+    // → 15-min lockout) on its own state file.
+    require_once __DIR__ . '/lib/rate-limit.php';
+    $rateLimitPath = lawnding_admin_mutation_rate_limit_path();
+    $clientIp = function_exists('lawnding_client_ip') ? lawnding_client_ip() : '';
+    $sessionUser = isset($_SESSION['auth_user']) && is_string($_SESSION['auth_user'])
+        ? $_SESSION['auth_user']
+        : '';
+
+    $lock = lawnding_rate_limit_check($clientIp, $sessionUser, $rateLimitPath);
+    if ($lock !== null) {
+        $minutes = max(1, (int) ceil($lock['seconds_remaining'] / 60));
+        $suffix = $minutes === 1 ? '' : 's';
+        $errorFn("Too many failed mutation attempts. Try again in {$minutes} minute{$suffix}.", 429);
+    }
+
     $usersPath = function_exists('lawnding_config')
         ? lawnding_config('users_path', dirname(__DIR__) . '/admin/users.json')
         : dirname(__DIR__) . '/admin/users.json';
@@ -307,10 +324,24 @@ function lawnding_require_admin_mutation(
 
     $identity = lawnding_resolve_admin_identity($tgConfig, $users, $allowedPermissions);
 
+    $logRejection = static function (string $kind) use ($sessionUser): void {
+        if (function_exists('lawnding_log_event')) {
+            lawnding_log_event('info', 'mutation_rejected', [
+                'kind' => $kind,
+                'user' => $sessionUser,
+                'uri'  => $_SERVER['REQUEST_URI'] ?? '',
+            ]);
+        }
+    };
+
     if (!$identity['isAuthenticated']) {
+        $logRejection('unauth');
+        lawnding_rate_limit_record_failure($clientIp, $sessionUser, $rateLimitPath);
         $errorFn('Unauthorized', 401);
     }
     if (!$identity['context'][$requiredPerm]) {
+        $logRejection('forbidden');
+        lawnding_rate_limit_record_failure($clientIp, $sessionUser, $rateLimitPath);
         $errorFn('Forbidden', 403);
     }
 
@@ -321,6 +352,8 @@ function lawnding_require_admin_mutation(
             || !is_string($postedToken) || $postedToken === ''
             || !hash_equals($sessionToken, $postedToken)
         ) {
+            $logRejection('csrf');
+            lawnding_rate_limit_record_failure($clientIp, $sessionUser, $rateLimitPath);
             $errorFn('Security token invalid', 403);
         }
     }

@@ -142,3 +142,86 @@ test_assert(
     lawnding_rate_limit_prune_state([], $now, $window) === ['by_ip' => [], 'by_user' => []],
     'empty input → empty buckets'
 );
+
+// ---- mutation-rate-limit path is separate from login-rate-limit path ----
+$loginPath = lawnding_rate_limit_path();
+$mutationPath = lawnding_admin_mutation_rate_limit_path();
+test_assert($loginPath !== $mutationPath, 'mutation rate-limit path is separate from login path');
+test_assert(
+    str_ends_with($mutationPath, 'lp-mutationAttempts.json'),
+    'mutation rate-limit path resolves to lp-mutationAttempts.json'
+);
+
+// ---- require_admin_mutation: lockout fires before identity resolution ----
+// Seed a locked entry for a fixture IP, then call the mutation gate with
+// an injected errorFn that throws (instead of exit). The locked IP should
+// hit 429 without resolving identity.
+require_once __DIR__ . '/../admin/auth.php';
+
+$fixtureDir = sys_get_temp_dir() . '/lp-test-mutation-lock-' . uniqid();
+mkdir($fixtureDir, 0775, true);
+$fixtureFile = $fixtureDir . '/lp-mutationAttempts.json';
+$nowMut = time();
+lawnding_rate_limit_write($fixtureFile, [
+    'by_ip' => ['10.0.0.1' => ['fails' => array_fill(0, 5, $nowMut), 'locked_until' => $nowMut + 900]],
+    'by_user' => [],
+]);
+
+$origRemoteAddr = $_SERVER['REMOTE_ADDR'] ?? null;
+$origRealIp = $_SERVER['HTTP_X_REAL_IP'] ?? null;
+$origForwardedFor = $_SERVER['HTTP_X_FORWARDED_FOR'] ?? null;
+$origAdminDir = lawnding_config('admin_dir');
+$origAuthUser = $_SESSION['auth_user'] ?? null;
+$captured = null;
+$captureErrorFn = function (string $msg, int $code) use (&$captured) {
+    $captured = ['msg' => $msg, 'code' => $code];
+    throw new RuntimeException('errorFn fired');
+};
+
+// try/finally guards $GLOBALS mutation so a fatal anywhere in the
+// integration path doesn't poison admin_dir for tail tests.
+try {
+    // Defend against stale proxy headers from earlier tests in the runner —
+    // lawnding_client_ip() checks X-Real-IP first, then X-Forwarded-For,
+    // then REMOTE_ADDR. Without unsetting, the locked fixture IP wouldn't
+    // match what client_ip returns and the test would pass for the wrong
+    // reason (401 fallthrough instead of 429 lockout).
+    unset($_SERVER['HTTP_X_REAL_IP'], $_SERVER['HTTP_X_FORWARDED_FOR']);
+    $_SERVER['REMOTE_ADDR'] = '10.0.0.1';
+    unset($_SESSION['auth_user']);
+    $GLOBALS['LAWNDING_CONFIG']['admin_dir'] = $fixtureDir;
+
+    try {
+        lawnding_require_admin_mutation(null, $captureErrorFn);
+    } catch (RuntimeException $e) {
+        // expected — captureErrorFn threw to halt without exit()
+    }
+
+    test_assert($captured !== null, 'require_admin_mutation: lockout invokes errorFn');
+    test_assert(
+        isset($captured['code']) && $captured['code'] === 429,
+        'require_admin_mutation: lockout returns 429'
+    );
+    test_assert(
+        isset($captured['msg']) && strpos($captured['msg'], 'Too many failed mutation attempts') === 0,
+        'require_admin_mutation: lockout message names the failure mode'
+    );
+} finally {
+    $GLOBALS['LAWNDING_CONFIG']['admin_dir'] = $origAdminDir;
+    if ($origRemoteAddr !== null) {
+        $_SERVER['REMOTE_ADDR'] = $origRemoteAddr;
+    } else {
+        unset($_SERVER['REMOTE_ADDR']);
+    }
+    if ($origRealIp !== null) {
+        $_SERVER['HTTP_X_REAL_IP'] = $origRealIp;
+    }
+    if ($origForwardedFor !== null) {
+        $_SERVER['HTTP_X_FORWARDED_FOR'] = $origForwardedFor;
+    }
+    if ($origAuthUser !== null) {
+        $_SESSION['auth_user'] = $origAuthUser;
+    }
+    @unlink($fixtureFile);
+    @rmdir($fixtureDir);
+}

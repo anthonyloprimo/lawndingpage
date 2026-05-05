@@ -73,7 +73,8 @@ $existingThumbPath = is_array($item) ? (string) ($item['thumb'] ?? '') : '';
 $existingFocalX = is_array($item) && isset($item['focal_x']) && is_numeric($item['focal_x']) ? (float) $item['focal_x'] : null;
 $existingFocalY = is_array($item) && isset($item['focal_y']) && is_numeric($item['focal_y']) ? (float) $item['focal_y'] : null;
 $thumbRelative = $existingThumbPath;
-if (!media_gallery_thumb_is_custom($existingThumbPath)) {
+$thumbWasCustom = media_gallery_thumb_is_custom($item);
+if (!$thumbWasCustom) {
     $absOldThumb = media_gallery_abs_from_asset($state['paths']['data_dir'], $existingThumbPath);
     if ($absOldThumb && is_readable($absOldThumb)) {
         unlink($absOldThumb);
@@ -87,6 +88,7 @@ $relativePath = 'res/data/mediaGalleryContent-' . $paneId . '/' . $filename;
 $state['items'][$index]['file']          = lawnding_normalize_asset_path($relativePath);
 $state['items'][$index]['type']          = $type;
 $state['items'][$index]['thumb']         = $thumbRelative;
+$state['items'][$index]['thumb_origin']  = $thumbWasCustom ? 'custom' : 'auto';
 $state['items'][$index]['original_size'] = $originalSize;
 $state['items'][$index]['saved_size']    = $savedSize;
 

@@ -21,6 +21,7 @@ if ($clear === '1') {
         unlink($absOldThumb);
     }
     $state['items'][$index]['thumb'] = '';
+    $state['items'][$index]['thumb_origin'] = 'auto';
     media_gallery_save_and_respond($state['json_path'], $state['data'], $state['items']);
 }
 
@@ -71,5 +72,6 @@ if ($absOldThumb && is_readable($absOldThumb)) {
 
 $relativePath = 'res/data/mediaGalleryContent-' . $paneId . '/thumbs/' . $filename;
 $state['items'][$index]['thumb'] = lawnding_normalize_asset_path($relativePath);
+$state['items'][$index]['thumb_origin'] = 'custom';
 
 media_gallery_save_and_respond($state['json_path'], $state['data'], $state['items']);

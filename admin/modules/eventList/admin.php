@@ -6,16 +6,35 @@ if (!isset($pane) || !is_array($pane)) {
     return;
 }
 
-// Inject admin styles once per request.
-static $eventListAdminStylesInjected = false;
-if (!$eventListAdminStylesInjected) {
-    $eventListAdminStylesInjected = true;
+// Inject admin styles/scripts and the shared delete-confirm modal once per request.
+static $eventListAdminAssetsInjected = false;
+if (!$eventListAdminAssetsInjected) {
+    $eventListAdminAssetsInjected = true;
     $styleUrl = function_exists('lawnding_asset_url')
         ? lawnding_asset_url('res/scr/module-style.php?module=eventList')
         : '/res/scr/module-style.php?module=eventList';
     echo '<link rel="stylesheet" href="'
         . htmlspecialchars($styleUrl, ENT_QUOTES, 'UTF-8')
         . '">';
+
+    $scriptUrl = function_exists('lawnding_asset_url')
+        ? lawnding_asset_url('res/scr/module-script.php?module=eventList&file=admin.js')
+        : '/res/scr/module-script.php?module=eventList&file=admin.js';
+    echo '<script src="'
+        . htmlspecialchars($scriptUrl, ENT_QUOTES, 'UTF-8')
+        . '" defer></script>';
+
+    if (function_exists('lawnding_modal_open') && function_exists('lawnding_modal_close')) {
+        lawnding_modal_open('eventDeleteConfirmModal', 'Remove Event');
+        ?>
+        <p class="usersHint">Are you sure you want to remove this event?</p>
+        <div class="userModalActions">
+            <button class="usersButton usersDanger" type="button" id="eventDeleteConfirmYes" data-modal-confirm="true" autofocus>Remove</button>
+            <button class="usersButton userModalClose" type="button">Cancel</button>
+        </div>
+        <?php
+        lawnding_modal_close();
+    }
 }
 
 // Pane metadata used for IDs, labels, and data file resolution.
@@ -221,4 +240,10 @@ $dataHint = $dataFiles ? 'saves to ' . implode(', ', $dataFiles) : '';
     </div>
 
     <textarea class="eventListPayload" name="pane[<?php echo htmlspecialchars($paneId); ?>][events]" aria-label="<?php echo htmlspecialchars($paneName); ?> events" hidden></textarea>
+    <script type="application/json" class="eventListAdminData"><?php echo json_encode([
+        'showPast' => $showPast,
+        'showCalendar' => $showCalendar,
+        'calendarDefault' => $calendarDefault,
+        'events' => $events,
+    ], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?></script>
 </div>

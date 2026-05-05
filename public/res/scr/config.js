@@ -312,7 +312,6 @@ $(document).ready(function() {
     bindUserActions();
     bindPaneManagement();
     bindMigrationFlow();
-    bindEventListEditors();
     bindMarkdownToolbars();
     bindHeadlineEditingMode();
     bindBackgroundEditingMode();
@@ -1470,81 +1469,16 @@ $(document).ready(function() {
         };
     }
 
-    function isEndBeforeStart(startDate, startTime, endDate, endTime) {
-        if (!startDate || !startTime || !endDate || !endTime) {
-            return false;
-        }
-        const startKey = `${startDate} ${startTime}`;
-        const endKey = `${endDate} ${endTime}`;
-        return endKey < startKey;
-    }
-
-    // Validate all event list panes and show inline errors.
+    // Save All gate. Inline per-card validation in eventList/admin.js
+    // populates .eventValidation on every input event; this just checks
+    // whether any pane currently shows a non-empty error.
     function validateEventLists() {
         let isValid = true;
-        $('[data-pane-type="eventList"]').each(function() {
-            const $pane = $(this);
-            const paneId = $pane.data('pane-id') || $pane.attr('id') || '';
-            const payloadField = $pane.find('.eventListPayload');
-            if (!payloadField.length) {
-                return;
-            }
-            let parsed = null;
-            try {
-                parsed = JSON.parse(payloadField.val() || '{}');
-            } catch (err) {
+        $('[data-pane-type="eventList"] .eventValidation').each(function() {
+            if (($(this).text() || '').trim() !== '') {
                 isValid = false;
-                return;
+                return false;
             }
-            const events = Array.isArray(parsed.events) ? parsed.events : [];
-            const seen = new Set();
-            events.forEach((event, idx) => {
-                const $card = $pane.find('.eventCard').eq(idx);
-                const $message = $card.find('.eventValidation');
-                if (!$message.length) {
-                    return;
-                }
-                $message.text('');
-                if (!event || typeof event !== 'object') {
-                    $message.text('Invalid event data.');
-                    isValid = false;
-                    return;
-                }
-                const errors = [];
-                if (!event.name) {
-                    errors.push('Name is required.');
-                }
-                if (!event.startDate) {
-                    errors.push('Start date is required.');
-                }
-                if (!event.startTime) {
-                    errors.push('Start time is required.');
-                }
-                if ((event.endDate && !event.endTime) || (!event.endDate && event.endTime)) {
-                    errors.push('End date and time must both be set or both be blank.');
-                }
-                if (event.endDate && event.endTime && isEndBeforeStart(event.startDate, event.startTime, event.endDate, event.endTime)) {
-                    errors.push('End date/time cannot be earlier than start date/time.');
-                }
-                if (!event.address) {
-                    errors.push('Address is required.');
-                }
-                if (!event.description) {
-                    errors.push('Description is required.');
-                }
-                const dedupeKey = `${String(event.name || '').toLowerCase()}|${event.startDate || ''}|${event.startTime || ''}`;
-                if (event.name && event.startDate && event.startTime) {
-                    if (seen.has(dedupeKey)) {
-                        errors.push('Duplicate event (name + date + time).');
-                    } else {
-                        seen.add(dedupeKey);
-                    }
-                }
-                if (errors.length) {
-                    $message.text(errors.join(' '));
-                    isValid = false;
-                }
-            });
         });
         return isValid;
     }
@@ -3161,6 +3095,10 @@ $(document).ready(function() {
         });
     }
 
+    // Exposed on window so eventList/admin.js (and future modules' admin.js)
+    // can render the same toolbar markup without duplicating it.
+    window.buildMarkdownToolbarHtml = buildMarkdownToolbarHtml;
+
     function buildMarkdownToolbarHtml() {
         return `
             <div class="markdownToolbar" role="toolbar" aria-label="Markdown formatting">
@@ -3518,307 +3456,6 @@ $(document).ready(function() {
         const urlEnd = urlStart + url.length;
         textarea.selectionStart = urlStart;
         textarea.selectionEnd = urlEnd;
-    }
-
-    // Event list module: serialize events, validate fields, and manage card UI.
-    function bindEventListEditors() {
-        const $eventPanes = $('[data-pane-type="eventList"]');
-        if (!$eventPanes.length) {
-            return;
-        }
-
-        const paneApis = [];
-        let pendingEventDelete = null;
-
-        function openEventDeleteModal(action) {
-            pendingEventDelete = action;
-            openAdminModal($('#eventDeleteConfirmModal'));
-        }
-
-        $(document).on('click', '#eventDeleteConfirmYes', function() {
-            if (typeof pendingEventDelete === 'function') {
-                pendingEventDelete();
-            }
-            pendingEventDelete = null;
-            closeAdminModal($('#eventDeleteConfirmModal'));
-        });
-
-        $(document).on('click', '#eventDeleteConfirmModal .userModalClose', function() {
-            pendingEventDelete = null;
-            closeAdminModal($('#eventDeleteConfirmModal'));
-        });
-
-        $eventPanes.each(function() {
-            const $pane = $(this);
-            const paneId = $pane.data('pane-id') || $pane.attr('id') || '';
-            const $list = $pane.find('.eventList');
-            const $payload = $pane.find('.eventListPayload');
-            const $toggle = $pane.find('.eventShowPast');
-            const $showCalendar = $pane.find('.eventShowCalendar');
-            const $calendarDefault = $pane.find('.eventCalendarDefault');
-
-            function getBrowserTimeZone() {
-                if (typeof Intl !== 'undefined' && Intl.DateTimeFormat) {
-                    return Intl.DateTimeFormat().resolvedOptions().timeZone || '';
-                }
-                return '';
-            }
-
-            function normalizeEventId(name, startDate, startTime) {
-                const base = `${name}-${startDate}-${startTime}`.toLowerCase();
-                return base.replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-            }
-
-            function getEventCards() {
-                return $list.find('.eventCard');
-            }
-
-            function collectEvents() {
-                const events = [];
-                getEventCards().each(function() {
-                    const $card = $(this);
-                    const name = ($card.find('.eventNameInput').val() || '').trim();
-                    const startDate = ($card.find('.eventStartDateInput').val() || '').trim();
-                    const startTime = ($card.find('.eventStartTimeInput').val() || '').trim();
-                    const endDate = ($card.find('.eventEndDateInput').val() || '').trim();
-                    const endTime = ($card.find('.eventEndTimeInput').val() || '').trim();
-                    const timeZone = ($card.find('.eventTimezoneInput').val() || '').trim() || getBrowserTimeZone();
-                    const address = ($card.find('.eventAddressInput').val() || '').trim();
-                    const description = ($card.find('.eventDescriptionInput').val() || '').trim();
-                    const id = normalizeEventId(name, startDate, startTime);
-                    events.push({
-                        id,
-                        name,
-                        startDate,
-                        startTime,
-                        endDate,
-                        endTime,
-                        timeZone,
-                        address,
-                        description
-                    });
-                });
-                // Sort newest to oldest for storage and reload order.
-                events.sort(compareEventsDesc);
-                return events;
-            }
-
-            function validateEvents(events) {
-                let isValid = true;
-                const seen = new Set();
-
-                getEventCards().each(function(index) {
-                    const $card = $(this);
-                    const $message = $card.find('.eventValidation');
-                    $message.text('');
-                    const event = events[index];
-                    if (!event) {
-                        return;
-                    }
-
-                    const errors = [];
-                    if (!event.name) {
-                        errors.push('Name is required.');
-                    }
-                    if (!event.startDate) {
-                        errors.push('Start date is required.');
-                    }
-                    if (!event.startTime) {
-                        errors.push('Start time is required.');
-                    }
-                    if ((event.endDate && !event.endTime) || (!event.endDate && event.endTime)) {
-                        errors.push('End date and time must both be set or both be blank.');
-                    }
-                    if (event.endDate && event.endTime && isEndBeforeStart(event.startDate, event.startTime, event.endDate, event.endTime)) {
-                        errors.push('End date/time cannot be earlier than start date/time.');
-                    }
-                    if (!event.address) {
-                        errors.push('Address is required.');
-                    }
-                    if (!event.description) {
-                        errors.push('Description is required.');
-                    }
-
-                    const dedupeKey = `${event.name.toLowerCase()}|${event.startDate}|${event.startTime}`;
-                    if (event.name && event.startDate && event.startTime) {
-                        if (seen.has(dedupeKey)) {
-                            errors.push('Duplicate event (name + date + time).');
-                        } else {
-                            seen.add(dedupeKey);
-                        }
-                    }
-
-                    if (errors.length) {
-                        $message.text(errors.join(' '));
-                        isValid = false;
-                    }
-                });
-
-                return isValid;
-            }
-
-            function updatePayload() {
-                const events = collectEvents();
-                const payload = {
-                    showPast: $toggle.is(':checked'),
-                    showCalendar: $showCalendar.is(':checked'),
-                    calendarDefault: $calendarDefault.is(':checked'),
-                    events
-                };
-                $payload.val(JSON.stringify(payload));
-                return events;
-            }
-
-            function refreshValidation() {
-                const events = updatePayload();
-                return validateEvents(events);
-            }
-
-            function ensureEmptyState() {
-                const hasCards = getEventCards().length > 0;
-                $list.find('.eventEmpty').remove();
-                if (!hasCards) {
-                    $list.append('<div class="eventEmpty">No events yet. Click Add Event to create one.</div>');
-                }
-            }
-
-            function addEventCard(data, prepend) {
-                const markdownToolbar = buildMarkdownToolbarHtml();
-                const template = `
-                    <div class=\"eventCard\">
-                        <div class=\"eventNameRow\">
-                            <label class=\"eventNameLabel\">
-                                <span class=\"eventFieldTitle\">Event Name</span>
-                                <input type=\"text\" class=\"eventNameInput\" placeholder=\"Event name\">
-                            </label>
-                            <div class=\"eventCardActions\">
-                                <button class=\"deleteLink iconButton\" type=\"button\" title=\"Remove event\" aria-label=\"Remove event\">${$('.linksConfig .deleteLink').first().html() || ''}</button>
-                            </div>
-                        </div>
-                        <div class=\"eventSectionDivider\" aria-hidden=\"true\"></div>
-                        <div class=\"eventTimeRow\">
-                            <div class=\"eventFieldTitle eventFieldTitleRow\">When</div>
-                            <div class=\"eventTimeFields\">
-                                <div class=\"eventTimeGroup\">
-                                    <span class=\"eventTimeLabel\">From</span>
-                                    <input type=\"date\" class=\"eventStartDateInput\" aria-label=\"Start date\">
-                                    <input type=\"time\" class=\"eventStartTimeInput\" aria-label=\"Start time\">
-                                </div>
-                                <div class=\"eventTimeDash\">-</div>
-                                <div class=\"eventTimeGroup\">
-                                    <span class=\"eventTimeLabel\">To</span>
-                                    <input type=\"date\" class=\"eventEndDateInput\" aria-label=\"End date\">
-                                    <input type=\"time\" class=\"eventEndTimeInput\" aria-label=\"End time\">
-                                </div>
-                            </div>
-                        </div>
-                        <div class=\"eventSectionDivider\" aria-hidden=\"true\"></div>
-                        <div class=\"eventTimeZoneRow\">
-                            <span class=\"eventFieldTitle\">Time Zone</span>
-                            <input type=\"text\" class=\"eventTimezoneInput\" placeholder=\"America/New_York\" aria-label=\"Time zone\">
-                        </div>
-                        <div class=\"eventSectionDivider\" aria-hidden=\"true\"></div>
-                        <div class=\"eventAddressRow\">
-                            <div class=\"eventFieldTitle\">Address</div>
-                            <input type=\"text\" class=\"eventAddressInput\" placeholder=\"123 Main St, City, State\" aria-label=\"Address\">
-                        </div>
-                        <div class=\"eventSectionDivider\" aria-hidden=\"true\"></div>
-                        <div class=\"eventDescriptionLabel\">
-                            <span class=\"eventFieldTitle\">Description</span>
-                            <div class=\"markdownEditor\">
-                                ${markdownToolbar}
-                                <textarea class=\"eventDescriptionInput markdownTextarea\" rows=\"4\" placeholder=\"Details, host, venue, etc.\"></textarea>
-                                <div class=\"markdownPreview\" aria-live=\"polite\" hidden></div>
-                            </div>
-                        </div>
-                        <div class=\"eventValidation\" aria-live=\"polite\"></div>
-                    </div>\n                `;
-                const $card = $(template);
-                if (data) {
-                    $card.find('.eventNameInput').val(data.name || '');
-                    $card.find('.eventStartDateInput').val(data.startDate || data.date || '');
-                    $card.find('.eventStartTimeInput').val(data.startTime || '');
-                    $card.find('.eventEndDateInput').val(data.endDate || (data.endTime ? (data.startDate || data.date || '') : ''));
-                    $card.find('.eventEndTimeInput').val(data.endTime || '');
-                    $card.find('.eventTimezoneInput').val(data.timeZone || getBrowserTimeZone());
-                    $card.find('.eventAddressInput').val(data.address || '');
-                    $card.find('.eventDescriptionInput').val(data.description || '');
-                } else {
-                    $card.find('.eventTimezoneInput').val(getBrowserTimeZone());
-                }
-                if (prepend) {
-                    $list.prepend($card);
-                } else {
-                    $list.append($card);
-                }
-                const $scroll = $pane.find('.eventListScroll');
-                if ($scroll.length) {
-                    $scroll.scrollTop(0);
-                }
-                ensureEmptyState();
-                refreshValidation();
-            }
-
-            function compareEventsDesc(a, b) {
-                const aKey = `${a.startDate || a.date || ''} ${a.startTime || ''}`;
-                const bKey = `${b.startDate || b.date || ''} ${b.startTime || ''}`;
-                return bKey.localeCompare(aKey);
-            }
-
-            function renderFromEvents(events) {
-                $list.empty();
-                if (!events.length) {
-                    ensureEmptyState();
-                    refreshValidation();
-                    return;
-                }
-                const sorted = events.slice().sort(compareEventsDesc);
-                sorted.forEach((event) => addEventCard(event, false));
-                ensureEmptyState();
-                refreshValidation();
-            }
-
-            $pane.on('click', '.eventAddButton', function() {
-                addEventCard(null, true);
-            });
-
-            $pane.on('click', '.eventCard .deleteLink', function() {
-                const $card = $(this).closest('.eventCard');
-                openEventDeleteModal(function() {
-                    $card.remove();
-                    ensureEmptyState();
-                    refreshValidation();
-                });
-            });
-
-            $pane.on('input change', '.eventCard input, .eventCard textarea, .eventShowPast, .eventShowCalendar, .eventCalendarDefault', function() {
-                refreshValidation();
-            });
-
-            // Ensure initial ordering and payload on load.
-            renderFromEvents(collectEvents());
-
-            paneApis.push({
-                refresh: function() {
-                    let parsed = null;
-                    try {
-                        parsed = JSON.parse($payload.val() || '{}');
-                    } catch (err) {
-                        parsed = null;
-                    }
-                    const events = parsed && Array.isArray(parsed.events) ? parsed.events : [];
-                    renderFromEvents(events);
-                }
-            });
-        });
-
-        window.refreshEventListUIs = function() {
-            paneApis.forEach(function(api) {
-                if (api && typeof api.refresh === 'function') {
-                    api.refresh();
-                }
-            });
-        };
     }
 
     function applySiteEditPermissions() {

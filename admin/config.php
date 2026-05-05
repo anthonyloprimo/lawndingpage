@@ -1412,15 +1412,6 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
         </div>
     <?php lawnding_modal_close(); ?>
 
-    <?php // Event delete confirmation modal. ?>
-    <?php lawnding_modal_open('eventDeleteConfirmModal', 'Remove Event'); ?>
-        <p class="usersHint">Are you sure you want to remove this event?</p>
-        <div class="userModalActions">
-            <button class="usersButton usersDanger" type="button" id="eventDeleteConfirmYes" data-modal-confirm="true" autofocus>Remove</button>
-            <button class="usersButton userModalClose" type="button">Cancel</button>
-        </div>
-    <?php lawnding_modal_close(); ?>
-
     <?php // Migration modal: preview and apply panes.json upgrade/downgrade. ?>
     <?php lawnding_modal_open('migrationModal', 'Pane Migration'); ?>
         <p class="usersHint">Review the proposed changes before applying migration. Migration will reset pane fields; copy your data first. This will reload the page.</p>

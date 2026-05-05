@@ -5,10 +5,10 @@
 // $migratedModules and this test ratchets up to prevent regression.
 //
 // Trade-off (intentional): this test is opt-in by module. Modules NOT in
-// $migratedModules (today: eventList, externalLink) still have hardcoded
-// branches; they have their own backlog memories tracking the work. The
-// test exists to keep mediaGallery clean and to make the next migration
-// trivial — add the id to the list and the guard rail is up.
+// $migratedModules (today: externalLink) still have hardcoded branches;
+// they have their own backlog memories tracking the work. The test exists
+// to keep migrated modules clean and to make the next migration trivial —
+// add the id to the list and the guard rail is up.
 //
 // Opt-out marker: a line containing `allow-module-coupling:` (in a
 // comment, on the same line as the violation OR in a contiguous comment
@@ -19,6 +19,7 @@ require_once __DIR__ . '/bootstrap.php';
 
 $migratedModules = [
     'mediaGallery',
+    'eventList',
 ];
 
 // Core files that participate in the manifest-driven dispatch and should

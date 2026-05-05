@@ -276,3 +276,41 @@ test_assert(
 test_assert(media_gallery_thumb_is_custom(['thumb_origin' => 'custom']) === true, 'thumb_is_custom: custom -> true');
 test_assert(media_gallery_thumb_is_custom(['thumb_origin' => 'auto']) === false,  'thumb_is_custom: auto -> false');
 test_assert(media_gallery_thumb_is_custom([]) === false,                          'thumb_is_custom: missing field -> false (defensive default)');
+
+// ---- load_pane_state happy path (return-shape contract) ----
+// Failure paths exit via media_gallery_json_response and aren't catchable
+// without test-mode plumbing. Failure logic reduces to is_valid_pane_id
+// (covered) + find_pane (trivial), so happy-path only here.
+$fixtureRoot = sys_get_temp_dir() . '/lp-test-load-pane-state-' . uniqid();
+mkdir($fixtureRoot . '/mediaGalleryContent-fixture', 0775, true);
+file_put_contents($fixtureRoot . '/panes.json', json_encode([
+    'panes' => [['id' => 'fixture', 'module' => 'mediaGallery']],
+]));
+file_put_contents($fixtureRoot . '/mediaGalleryContent-fixture/items.json', json_encode([
+    'items' => [['id' => 'abc', 'thumb_origin' => 'auto']],
+]));
+
+$origDataDirSet = isset($GLOBALS['LAWNDING_CONFIG']['data_dir']);
+$origDataDir = $GLOBALS['LAWNDING_CONFIG']['data_dir'] ?? null;
+try {
+    $GLOBALS['LAWNDING_CONFIG']['data_dir'] = $fixtureRoot;
+    $state = media_gallery_load_pane_state('fixture');
+    test_assert(
+        array_keys($state) === ['paths', 'json_path', 'data', 'items'],
+        'load_pane_state: returns documented keys ([paths, json_path, data, items])'
+    );
+    test_assert(
+        count($state['items']) === 1 && ($state['items'][0]['id'] ?? '') === 'abc',
+        'load_pane_state: surfaces items from items.json'
+    );
+} finally {
+    if ($origDataDirSet) {
+        $GLOBALS['LAWNDING_CONFIG']['data_dir'] = $origDataDir;
+    } else {
+        unset($GLOBALS['LAWNDING_CONFIG']['data_dir']);
+    }
+    @unlink($fixtureRoot . '/mediaGalleryContent-fixture/items.json');
+    @rmdir($fixtureRoot . '/mediaGalleryContent-fixture');
+    @unlink($fixtureRoot . '/panes.json');
+    @rmdir($fixtureRoot);
+}

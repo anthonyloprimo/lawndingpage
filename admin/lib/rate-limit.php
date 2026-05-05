@@ -35,6 +35,15 @@ function lawnding_rate_limit_path(): string {
         : __DIR__ . '/../lp-loginAttempts.json';
 }
 
+// Separate state file for mutation-endpoint failures. Kept apart from login
+// attempts so a successful login doesn't clear an accumulated mutation-fail
+// history.
+function lawnding_admin_mutation_rate_limit_path(): string {
+    return function_exists('lawnding_admin_path')
+        ? lawnding_admin_path('lp-mutationAttempts.json')
+        : __DIR__ . '/../lp-mutationAttempts.json';
+}
+
 function lawnding_rate_limit_filter_recent(array $timestamps, int $now, int $window): array {
     $cutoff = $now - $window;
     $kept = [];

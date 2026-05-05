@@ -104,6 +104,65 @@ function media_gallery_write_data(string $path, array $payload): void {
     }
 }
 
+// Load and validate the per-request pane state. Validates paneId, resolves
+// paths, finds the pane, builds the items.json path, loads it, and returns
+// the loaded state. On any validation failure, calls
+// media_gallery_json_response with a 4xx and exits — does not return.
+//
+// Endpoints invariably need {paths, jsonPath, data, items} together; the
+// 12-line preamble that produced these by hand was duplicated across all
+// 7 endpoints before this helper landed.
+function media_gallery_load_pane_state(string $paneId): array {
+    if (!media_gallery_is_valid_pane_id($paneId)) {
+        media_gallery_json_response(['error' => 'Invalid pane id.'], 400);
+    }
+    $paths = media_gallery_paths();
+    $panes = media_gallery_load_panes($paths['panes_path']);
+    $pane = media_gallery_find_pane($panes, $paneId);
+    if (!$pane) {
+        media_gallery_json_response(['error' => 'Pane not found.'], 404);
+    }
+    $jsonFile = media_gallery_pane_json_file($pane, $paneId);
+    $jsonPath = rtrim($paths['data_dir'], '/\\') . '/' . $jsonFile;
+    $data = media_gallery_load_data($jsonPath);
+    $items = $data['items'] ?? [];
+    if (!is_array($items)) {
+        $items = [];
+    }
+    return [
+        'paths'     => $paths,
+        'json_path' => $jsonPath,
+        'data'      => $data,
+        'items'     => $items,
+    ];
+}
+
+// Resolve an item index by id, 4xx-ing on invalid/missing inputs. Mirrors
+// load_pane_state's "validate-or-exit" contract so call sites stay flat.
+function media_gallery_require_item(array $items, string $itemId): int {
+    if ($itemId === '') {
+        media_gallery_json_response(['error' => 'Invalid item id.'], 400);
+    }
+    $index = media_gallery_find_item_index($items, $itemId);
+    if ($index < 0) {
+        media_gallery_json_response(['error' => 'Media not found.'], 404);
+    }
+    return $index;
+}
+
+// Reindex orders, write the items.json, and emit the canonical JSON
+// response shape ({items: build_payload(items), ...extras}). Reindexing
+// is idempotent for already-sorted arrays, so callers don't need to
+// branch on whether their mutation affected order. Extras are merged on
+// the right of 'items' so callers can't accidentally clobber it.
+function media_gallery_save_and_respond(string $jsonPath, array $data, array $items, array $extras = []): void {
+    $items = media_gallery_reindex_orders($items);
+    $data['items'] = $items;
+    media_gallery_write_data($jsonPath, $data);
+    $response = ['items' => media_gallery_build_payload($items)] + $extras;
+    media_gallery_json_response($response);
+}
+
 function media_gallery_media_dir(string $dataDir, string $paneId): string {
     return rtrim($dataDir, '/\\') . '/mediaGalleryContent-' . $paneId;
 }

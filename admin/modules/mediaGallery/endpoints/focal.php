@@ -44,7 +44,7 @@ $state['items'][$index]['focal_y'] = $focalY;
 // Re-derive the auto-thumb with the new focal coords. Skip for videos
 // (no thumb to derive) and for items whose thumb is admin-uploaded
 // (custom thumbs are explicit user intent and survive focal changes).
-if (!$isVideo && !media_gallery_thumb_is_custom($existingThumbPath)) {
+if (!$isVideo && !media_gallery_thumb_is_custom($item)) {
     $absSrcFile = media_gallery_abs_from_asset($state['paths']['data_dir'], $itemFile);
     if ($absSrcFile !== null && is_readable($absSrcFile)) {
         $absOldThumb = media_gallery_abs_from_asset($state['paths']['data_dir'], $existingThumbPath);
@@ -61,6 +61,7 @@ if (!$isVideo && !media_gallery_thumb_is_custom($existingThumbPath)) {
             $focalY
         );
         $state['items'][$index]['thumb'] = $newThumb;
+        $state['items'][$index]['thumb_origin'] = 'auto';
     }
 }
 

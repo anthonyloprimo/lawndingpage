@@ -271,3 +271,8 @@ test_assert(
     $updated['items'][0]['file'] === 'res/data/mediaGalleryContent-foobar/x.jpg',
     'update_paths leaves "foobar" alone when renaming "foo" -> "baz" (trailing slash anchors the match)'
 );
+
+// ---- thumb_is_custom reads thumb_origin directly ----
+test_assert(media_gallery_thumb_is_custom(['thumb_origin' => 'custom']) === true, 'thumb_is_custom: custom -> true');
+test_assert(media_gallery_thumb_is_custom(['thumb_origin' => 'auto']) === false,  'thumb_is_custom: auto -> false');
+test_assert(media_gallery_thumb_is_custom([]) === false,                          'thumb_is_custom: missing field -> false (defensive default)');

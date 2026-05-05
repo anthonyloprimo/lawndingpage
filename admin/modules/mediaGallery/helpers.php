@@ -393,19 +393,8 @@ function media_gallery_derive_thumb(string $srcAbsPath, string $dataDir, string 
     return $thumbRelative;
 }
 
-// Distinguish admin-uploaded custom thumbnails (thumb-{itemId}.{ext},
-// written by endpoints/thumb.php) from auto-derived ones
-// (media-{itemId}-thumb.{ext}, written by media_gallery_derive_thumb).
-// Source-replace keeps custom thumbs intact and re-derives the rest.
-// Prefix-based check is fragile to renames; if the naming conventions
-// change in either endpoints/thumb.php or derive_thumb above, update
-// both at once.
-function media_gallery_thumb_is_custom(string $thumbPath): bool {
-    if ($thumbPath === '') {
-        return false;
-    }
-    $basename = basename($thumbPath);
-    return $basename !== '' && str_starts_with($basename, 'thumb-');
+function media_gallery_thumb_is_custom(array $item): bool {
+    return ($item['thumb_origin'] ?? null) === 'custom';
 }
 
 // Merge a save_map mediaChanges payload into the existing items array.

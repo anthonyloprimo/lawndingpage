@@ -103,6 +103,7 @@ $state['items'][] = [
     'type'          => $type,
     'file'          => lawnding_normalize_asset_path($relativePath),
     'thumb'         => $thumbRelative,
+    'thumb_origin'  => 'auto',
     'title'         => '',
     'order'         => $maxOrder + 1,
     'original_size' => $originalSize,

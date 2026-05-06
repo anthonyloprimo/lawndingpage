@@ -48,6 +48,9 @@ if (!is_array($events)) {
     $events = [];
 }
 
+require_once __DIR__ . '/helpers.php';
+$categories = event_list_load_categories();
+
 // View-state flags live in the per-pane settings sidecar (v1.16.0+);
 // resolver falls back to lp-siteConfig defaults when no override.
 $settingsPath = function_exists('lawnding_module_settings_path')
@@ -99,6 +102,7 @@ $eventsJson = json_encode([
     'showCalendar' => $showCalendar,
     'calendarDefault' => $calendarDefault,
     'events' => $events,
+    'categories' => $categories,
 ], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
 ?>
 <div class="pane glassConvex<?php echo $showCalendar ? ' eventListCalendarEnabled' : ''; ?>" id="<?php echo htmlspecialchars($paneId); ?>" data-pane-type="eventList">

@@ -320,6 +320,14 @@
     }
 
     function init() {
+        // Reparent the shared delete-confirm modal to <body> so its
+        // position:fixed isn't anchored to a transformed/contained ancestor
+        // (per ARCHITECTURE.md trait #9). Idempotent — only moves once.
+        const $modal = $('#eventDeleteConfirmModal');
+        if ($modal.length && !$modal.parent().is('body')) {
+            $modal.appendTo('body');
+        }
+
         $('[data-pane-type="eventList"]').each(function () {
             const $pane = $(this);
             const api = setupPane($pane);

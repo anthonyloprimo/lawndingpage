@@ -874,15 +874,6 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
                     </div>
                 </div>
             </div>
-            <script>
-                (function() {
-                    var authLinksConfig = document.getElementById('authLinksConfig');
-                    if (!authLinksConfig) {
-                        return;
-                    }
-                    authLinksConfig.setAttribute('data-needs-normalization', <?php echo $authLinksNeedsNormalization ? "'true'" : "'false'"; ?>);
-                }());
-            </script>
         </div>
         <div class="pane glassConvex" id="users">
             <h3>USERS</h3>

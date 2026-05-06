@@ -212,7 +212,10 @@
                         params.append(key, String(authData[key]));
                     });
                     params.append('return', window.location.pathname || '/');
-                    window.location.href = tgAuthEndpoint + '?' + params.toString();
+                    // tgAuthEndpoint already carries the proxy's plugin/endpoint
+                    // query string, so append auth params with & rather than ?.
+                    var sep = tgAuthEndpoint.indexOf('?') === -1 ? '?' : '&';
+                    window.location.href = tgAuthEndpoint + sep + params.toString();
                 });
             }).catch(function () {
                 showError('Could not load Telegram login. Check your network connection.');

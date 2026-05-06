@@ -1,10 +1,10 @@
 <?php
 // Telegram bot test endpoint. Admin-gated (canEditSite + CSRF).
 // Probes the configured bot token via getMe. Returns ok=true on success.
-require_once __DIR__ . '/../../../lp-bootstrap.php';
+require_once __DIR__ . '/../../../../lp-bootstrap.php';
 $tgBotPath = function_exists('lawnding_admin_path')
     ? lawnding_admin_path('lib/tg-bot.php')
-    : __DIR__ . '/../../../admin/lib/tg-bot.php';
+    : __DIR__ . '/../../../../admin/lib/tg-bot.php';
 require_once $tgBotPath;
 
 lawnding_init_session();
@@ -24,7 +24,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 // Resolve admin identity (bcrypt or Telegram-derived).
 $adminAuthPath = function_exists('lawnding_admin_path')
     ? lawnding_admin_path('auth.php')
-    : dirname(__DIR__, 3) . '/admin/auth.php';
+    : dirname(__DIR__, 4) . '/admin/auth.php';
 require_once $adminAuthPath;
 
 $tgConfig = lawnding_load_tg_config();

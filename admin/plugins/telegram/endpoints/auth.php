@@ -1,9 +1,9 @@
 <?php
 // Telegram login auth endpoint (redirect mode).
-require_once __DIR__ . '/../../../lp-bootstrap.php';
+require_once __DIR__ . '/../../../../lp-bootstrap.php';
 $tgAuthPath = function_exists('lawnding_admin_path')
     ? lawnding_admin_path('lib/tg-auth.php')
-    : __DIR__ . '/../../../admin/lib/tg-auth.php';
+    : __DIR__ . '/../../../../admin/lib/tg-auth.php';
 require_once $tgAuthPath;
 
 lawnding_init_session();
@@ -18,8 +18,11 @@ if (!is_string($redirectTarget) || $redirectTarget === '') {
 }
 
 $payload = $_GET;
-// Ignore local routing params that are not part of Telegram's signed payload.
-unset($payload['return']);
+// Strip routing params that aren't part of Telegram's signed payload:
+// `return` is our own redirect target; `plugin`/`endpoint` are the proxy's
+// own dispatch keys. Including them in the data-check string would cause the
+// HMAC to mismatch and the login to silently fail.
+unset($payload['return'], $payload['plugin'], $payload['endpoint']);
 $hashOk = lawnding_tg_verify_login_payload($payload, (string) ($tgConfig['bot_token'] ?? ''));
 $authDate = isset($payload['auth_date']) ? (int) $payload['auth_date'] : 0;
 $authFresh = $authDate > 0 && (time() - $authDate) <= 86400;

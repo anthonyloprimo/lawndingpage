@@ -231,7 +231,7 @@ if (!empty($tgBotData['blacklist_user_ids']) && is_array($tgBotData['blacklist_u
 $tgBotBlacklistUserIdsText = implode("\n", array_map(fn(array $e): string => $e['id'] . ' ' . strtoupper($e['content']), $tgBotBlacklistUserIds));
 $webhookBase = lawnding_request_is_secure() ? 'https' : 'http';
 $webhookHost = $_SERVER['HTTP_HOST'] ?? 'your-domain.com';
-$webhookUrl = $webhookBase . '://' . $webhookHost . ($assetBase ?? '') . '/plugins/telegram/webhook.php';
+$webhookUrl = $webhookBase . '://' . $webhookHost . ($assetBase ?? '') . '/res/scr/plugin-endpoint.php?plugin=telegram&endpoint=webhook';
 
 // Load header configuration, with defaults when JSON is missing.
 $headerJsonPath = $dataPath('header.json');
@@ -502,6 +502,7 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
     <link rel="stylesheet" href="<?php echo htmlspecialchars($assetBase . '/res/config.css', ENT_QUOTES, 'UTF-8'); ?>">
 
     <script src="<?php echo htmlspecialchars($assetBase . '/res/scr/jquery-3.7.1.min.js', ENT_QUOTES, 'UTF-8'); ?>"></script>
+    <?php if (function_exists('lawnding_run_hook')) { lawnding_run_hook('head_assets'); } ?>
 </head>
 <body data-header-json="<?php echo $headerDataJson; ?>" data-app-config-json="<?php echo $appConfigJson; ?>">
     <!-- Keyboard skip target — reveals on focus, jumps past header + tools. -->

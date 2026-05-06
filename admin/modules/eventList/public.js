@@ -599,13 +599,13 @@ function renderEventLists() {
                 $calendarMenu.removeClass('hidden');
                 $calendarToggle.prop('disabled', false).removeClass('hidden');
                 $calendarToggle.data('pane-id', paneId || '');
-                $calendarToggle.data('event-id', event.id || '');
+                $calendarToggle.attr('data-event-id', event.id || '');
             } else {
                 closeCalendarMenus();
                 $calendarMenu.addClass('hidden');
                 $calendarToggle.prop('disabled', true).addClass('hidden');
                 $calendarToggle.data('pane-id', '');
-                $calendarToggle.data('event-id', '');
+                $calendarToggle.attr('data-event-id', '');
             }
             closeCalendarMenus();
             $overlay.removeClass('hidden');
@@ -620,7 +620,7 @@ function renderEventLists() {
             if ($(event.target).closest('.eventCalendarMenu').length) {
                 return;
             }
-            const eventId = $(this).data('event-id') || '';
+            const eventId = $(this).attr('data-event-id') || '';
             if (!eventId) {
                 return;
             }
@@ -662,7 +662,7 @@ function renderEventLists() {
 
         $dayBody.off('click.eventCalendarDayItem').on('click.eventCalendarDayItem', '.eventItem', function(event) {
             if ($(event.target).closest('.eventCalendarMenu').length) { return; }
-            const eventId = $(this).data('event-id') || '';
+            const eventId = $(this).attr('data-event-id') || '';
             if (!eventId) { return; }
             const match = events.find((item) => item && item.id === eventId);
             openModal(match, eventCanBeSaved(match), paneId);
@@ -685,7 +685,7 @@ function renderEventLists() {
             event.stopPropagation();
             const provider = $(this).data('calendar-provider') || '';
             const $menu = $(this).closest('.eventCalendarMenu');
-            const eventId = $menu.find('.eventCalendarToggle').data('event-id') || '';
+            const eventId = $menu.find('.eventCalendarToggle').attr('data-event-id') || '';
             const match = events.find((item) => item && item.id === eventId);
             closeCalendarMenus();
             if (match && eventCanBeSaved(match)) { performCalendarAction(provider, match, paneId); }
@@ -707,7 +707,7 @@ function renderEventLists() {
             event.stopPropagation();
             const provider = $(this).data('calendar-provider') || '';
             const $menu = $(this).closest('.eventCalendarMenu');
-            const eventId = $menu.find('.eventCalendarToggle').data('event-id') || '';
+            const eventId = $menu.find('.eventCalendarToggle').attr('data-event-id') || '';
             const actionPaneId = $menu.find('.eventCalendarToggle').data('pane-id') || paneId;
             const match = [].concat(happening, upcoming).find((item) => item && item.id === eventId);
             closeCalendarMenus();
@@ -751,7 +751,7 @@ function renderEventLists() {
         $calendarDropdown.off('click.eventCalendarOption').on('click.eventCalendarOption', '.eventCalendarOption', function(event) {
             event.stopPropagation();
             const provider = $(this).data('calendar-provider') || '';
-            const modalEventId = $calendarToggle.data('event-id') || '';
+            const modalEventId = $calendarToggle.attr('data-event-id') || '';
             const modalPaneId = $calendarToggle.data('pane-id') || paneId;
             const match = [].concat(happening, upcoming).find((item) => item && item.id === modalEventId);
             closeCalendarMenus();

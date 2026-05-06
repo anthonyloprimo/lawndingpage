@@ -292,8 +292,11 @@ $authEndpoint = function_exists('lawnding_asset_url')
 $logoutEndpoint = function_exists('lawnding_asset_url')
     ? lawnding_asset_url('res/scr/plugin-endpoint.php?plugin=telegram&endpoint=logout')
     : '/res/scr/plugin-endpoint.php?plugin=telegram&endpoint=logout';
-$tgAuthUrl = lawnding_public_absolute_url($authEndpoint . '?return=' . rawurlencode($returnPath));
-$tgLogoutUrl = $logoutEndpoint . '?return=' . rawurlencode($returnPath);
+// $authEndpoint / $logoutEndpoint already carry ?plugin=...&endpoint=...,
+// so return joins with '&'. Using '?' produced a double-query the proxy
+// rejected as "Invalid endpoint name."
+$tgAuthUrl = lawnding_public_absolute_url($authEndpoint . '&return=' . rawurlencode($returnPath));
+$tgLogoutUrl = $logoutEndpoint . '&return=' . rawurlencode($returnPath);
 $authLinksState = 'logged_out';
 $authLinksUserLevel = '';
 $markdownGateClearance = 'none';

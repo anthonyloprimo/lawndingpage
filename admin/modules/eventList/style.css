@@ -601,6 +601,9 @@
     flex-direction: column;
     gap: 6px;
     cursor: pointer;
+    /* Category flag — public.js sets --bar-accent per item; default fallback
+       is transparent so uncategorized items show no flag. */
+    box-shadow: inset 3px 0 0 0 var(--bar-accent, transparent);
 }
 .eventItemTitle {
     font-weight: 600;

@@ -359,7 +359,7 @@
         });
 
         $pane.on('input change',
-            '.eventCard input, .eventCard textarea',
+            '.eventCard input, .eventCard textarea, .eventCard select',
             function () {
                 refreshValidation();
             });

@@ -297,14 +297,26 @@ function renderEventLists() {
             const addressLink = address ? buildMapsUrl(address) : '';
             const rawDescription = event.description || '';
             const truncated = truncateDescription(rawDescription);
+            const cat = event.categoryId ? categoriesById[String(event.categoryId)] : null;
+            const catAttrs = cat && cat.color ? ` data-cat-color=\"${lpEscapeHtml(cat.color)}\"` : '';
             return `
-                <div class=\"eventItem\" data-event-id=\"${lpEscapeHtml(event.id || '')}\" data-pane-id=\"${lpEscapeHtml(paneId)}\">
+                <div class=\"eventItem\" data-event-id=\"${lpEscapeHtml(event.id || '')}\" data-pane-id=\"${lpEscapeHtml(paneId)}\"${catAttrs}>
                     <div class=\"eventItemTitle\">${lpEscapeHtml(event.name || 'Untitled')}</div>
                     <div class=\"eventItemMeta\">${lpEscapeHtml(timeRange)}</div>
                     ${address ? `<div class=\"eventItemMeta\"><a href=\"${lpEscapeHtml(addressLink)}\" target=\"_blank\" rel=\"noopener\">${lpEscapeHtml(address)}</a></div>` : ''}
                     ${details ? `<div class=\"eventItemMeta\">${lpEscapeHtml(truncated)}</div>` : ''}
                 </div>
             `;
+        }
+
+        // renderEventItem returns an HTML string, so colors arrive via
+        // data-cat-color (CSP-safe). Post-process applies the CSS var.
+        function applyEventItemCategoryColors($scope) {
+            $scope.find('.eventItem[data-cat-color]').each(function () {
+                const $item = $(this);
+                $item.css('--bar-accent', $item.attr('data-cat-color'));
+                $item.removeAttr('data-cat-color');
+            });
         }
 
         const happening = [];
@@ -636,6 +648,8 @@ function renderEventLists() {
             $pastColumn.addClass('hidden');
         }
 
+        applyEventItemCategoryColors($pane);
+
         if (!showPast) {
             $pane.find('.eventSplit').addClass('eventSplitSingle');
         } else {
@@ -722,6 +736,7 @@ function renderEventLists() {
                 renderDayEventSection('Upcoming', future) +
                 renderDayEventSection('Past Events', completed)
             );
+            applyEventItemCategoryColors($dayBody);
             $dayOverlay.removeClass('hidden');
         }
 

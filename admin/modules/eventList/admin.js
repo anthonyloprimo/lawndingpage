@@ -16,9 +16,6 @@
         const paneId = $pane.data('pane-id') || $pane.attr('id') || '';
         const $list = $pane.find('.eventList');
         const $payload = $pane.find('.eventListPayload');
-        const $toggle = $pane.find('.eventShowPast');
-        const $showCalendar = $pane.find('.eventShowCalendar');
-        const $calendarDefault = $pane.find('.eventCalendarDefault');
 
         // Snapshot of server state at last load/save. Mutated on save success.
         let snapshot = readSnapshot($pane);
@@ -94,13 +91,7 @@
         }
 
         function updatePayload() {
-            const payload = {
-                showPast: $toggle.is(':checked'),
-                showCalendar: $showCalendar.is(':checked'),
-                calendarDefault: $calendarDefault.is(':checked'),
-                changes: computeChangeset()
-            };
-            $payload.val(JSON.stringify(payload));
+            $payload.val(JSON.stringify({ changes: computeChangeset() }));
         }
 
         function isEndBeforeStart(startDate, startTime, endDate, endTime) {
@@ -309,7 +300,7 @@
         });
 
         $pane.on('input change',
-            '.eventCard input, .eventCard textarea, .eventShowPast, .eventShowCalendar, .eventCalendarDefault',
+            '.eventCard input, .eventCard textarea',
             function () {
                 refreshValidation();
             });

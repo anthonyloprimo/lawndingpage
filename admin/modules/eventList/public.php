@@ -43,13 +43,20 @@ $decoded = $raw !== '' ? json_decode($raw, true) : null;
 if (!is_array($decoded)) {
     $decoded = [];
 }
-$showPast = !empty($decoded['showPast']);
-$showCalendar = !empty($decoded['showCalendar']);
-$calendarDefault = !array_key_exists('calendarDefault', $decoded) || !empty($decoded['calendarDefault']);
 $events = $decoded['events'] ?? [];
 if (!is_array($events)) {
     $events = [];
 }
+
+// View-state flags live in the per-pane settings sidecar (v1.16.0+);
+// resolver falls back to lp-siteConfig defaults when no override.
+$settingsPath = function_exists('lawnding_module_settings_path')
+    ? lawnding_module_settings_path('eventList', $paneId)
+    : '';
+$paneSettings = $settingsPath !== '' ? lawnding_load_pane_settings($settingsPath) : [];
+$showCalendar    = lawnding_resolve_pane_setting($paneSettings, 'eventList', 'showCalendar');
+$calendarDefault = lawnding_resolve_pane_setting($paneSettings, 'eventList', 'calendarDefault');
+$showPast        = lawnding_resolve_pane_setting($paneSettings, 'eventList', 'showPast');
 
 // Add parsed HTML descriptions for markdown-safe rendering.
 if (!empty($events)) {
@@ -187,8 +194,6 @@ $eventsJson = json_encode([
                     <button class="eventCalendarOption" type="button" data-calendar-provider="google" role="menuitem">Add to Google Calendar</button>
                     <button class="eventCalendarOption" type="button" data-calendar-provider="outlook" role="menuitem">Add to Outlook Calendar</button>
                     <button class="eventCalendarOption" type="button" data-calendar-provider="m365" role="menuitem">Add to Microsoft 365 Calendar</button>
-                    <button class="eventCalendarOption" type="button" data-calendar-provider="yahoo" role="menuitem">Add to Yahoo! Calendar</button>
-                    <button class="eventCalendarOption" type="button" data-calendar-provider="aol" role="menuitem">Add to AOL Calendar</button>
                 </div>
             </div>
         </div>

@@ -75,9 +75,6 @@ test_assert(event_list_event_is_valid(array_merge($validEvent, [
 // ---- apply_events: pure-transform additive merge ----
 
 $baseExisting = [
-    'showPast' => false,
-    'showCalendar' => false,
-    'calendarDefault' => true,
     'events' => [
         array_merge($validEvent, ['id' => '5', 'name' => 'Existing']),
         array_merge($validEvent, ['id' => '7', 'name' => 'Other']),
@@ -86,9 +83,6 @@ $baseExisting = [
 
 // create assigns sequential id and appends
 $result = event_list_apply_events($baseExisting, [
-    'showPast' => false,
-    'showCalendar' => false,
-    'calendarDefault' => true,
     'changes' => ['create' => [array_merge($validEvent, ['name' => 'New'])]],
 ]);
 test_assert(count($result['events']) === 3 && $result['events'][2]['id'] === '8'
@@ -137,18 +131,18 @@ $result = event_list_apply_events($baseExisting, [
 test_assert(count($result['events']) === 2,
     'apply_events: delete with non-existent id is no-op');
 
-// boolean coercion: showPast/showCalendar/calendarDefault
+// view-state flags (showPast/showCalendar/calendarDefault) live in the
+// per-pane settings sidecar after v1.16.0 — validator drops them silently
+// even if a stale client posts them.
 $result = event_list_apply_events([], [
-    'showPast' => 'yes', 'showCalendar' => 0, 'calendarDefault' => '',
+    'showPast' => true, 'showCalendar' => true, 'calendarDefault' => false,
 ]);
-test_assert($result['showPast'] === true && $result['showCalendar'] === false
-        && $result['calendarDefault'] === false,
-    'apply_events: boolean coercion of header flags');
-
-// calendarDefault defaults to true when key missing
-$result = event_list_apply_events([], []);
-test_assert($result['calendarDefault'] === true,
-    'apply_events: missing calendarDefault defaults to true');
+test_assert(!array_key_exists('showPast', $result)
+        && !array_key_exists('showCalendar', $result)
+        && !array_key_exists('calendarDefault', $result),
+    'apply_events: legacy view-state flags dropped from output');
+test_assert(array_keys($result) === ['events'],
+    'apply_events: output is exactly {events: [...]}');
 
 // malformed payload (changes not an array) returns sane defaults
 $result = event_list_apply_events($baseExisting, ['changes' => 'not-an-array']);
@@ -190,3 +184,22 @@ test_assert(count($result['events']) === 2
         && $result['events'][0]['name'] === 'Updated'
         && $result['events'][1]['name'] === 'Fresh',
     'apply_events: mixed delete + update + create applied in one pass');
+
+// ---- ics_filename: download filename from event name ----
+
+test_assert(event_list_ics_filename('Summer Fursuit Walk', '5') === 'Summer-Fursuit-Walk.ics',
+    'ics_filename: spaces become single hyphens, name preferred over id');
+test_assert(event_list_ics_filename('2026 Awards Ceremony!', '12') === '2026-Awards-Ceremony.ics',
+    'ics_filename: punctuation runs collapsed; trailing punctuation stripped');
+test_assert(event_list_ics_filename('Hello,    World---test', '1') === 'Hello-World-test.ics',
+    'ics_filename: long whitespace + multiple separators collapse to one hyphen');
+test_assert(event_list_ics_filename('   leading and trailing   ', '1') === 'leading-and-trailing.ics',
+    'ics_filename: leading/trailing whitespace stripped');
+test_assert(event_list_ics_filename('', '7') === '7.ics',
+    'ics_filename: empty name falls back to event id');
+test_assert(event_list_ics_filename('!!!', '7') === '7.ics',
+    'ics_filename: punctuation-only name falls back to event id');
+test_assert(event_list_ics_filename('', '') === 'event.ics',
+    'ics_filename: both empty -> literal "event"');
+test_assert(event_list_ics_filename('café concert', '1') === 'caf-concert.ics',
+    'ics_filename: unicode chars treated as separators, ascii preserved');

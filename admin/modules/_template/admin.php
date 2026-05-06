@@ -26,15 +26,6 @@ if (isset($renderPaneIcon) && is_callable($renderPaneIcon)) {
 if ($iconHtml === '') {
     $iconHtml = '<span class="paneIconFallback">Icon</span>';
 }
-$dataFiles = [];
-if (!empty($paneData) && is_array($paneData)) {
-    foreach ($paneData as $file) {
-        if (is_string($file) && $file !== '') {
-            $dataFiles[] = $file;
-        }
-    }
-}
-$dataHint = $dataFiles ? 'saves to ' . implode(', ', $dataFiles) : '';
 ?>
 <div class="pane glassConvex" id="<?php echo htmlspecialchars($paneId); ?>">
     <div class="paneHeader">
@@ -43,9 +34,6 @@ $dataHint = $dataFiles ? 'saves to ' . implode(', ', $dataFiles) : '';
         </span>
         <div class="paneHeaderTitle">
             <span class="paneTitle"><?php echo htmlspecialchars($paneName); ?></span>
-            <?php if ($dataHint !== ''): ?>
-                <span class="paneDataHint"><?php echo htmlspecialchars('(' . $dataHint . ')'); ?></span>
-            <?php endif; ?>
         </div>
         <button class="paneSettingsButton iconButton" type="button" data-pane-id="<?php echo htmlspecialchars($paneId); ?>" aria-label="Pane settings" title="Pane settings"><?php echo lawnding_icon_svg('settings'); ?></button>
     </div>

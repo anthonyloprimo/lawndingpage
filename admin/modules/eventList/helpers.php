@@ -79,12 +79,24 @@ function event_list_apply_events(array $existing, array $payload): array {
     }
 
     return [
-        'showPast'        => !empty($payload['showPast']),
-        'showCalendar'    => !empty($payload['showCalendar']),
-        'calendarDefault' => !array_key_exists('calendarDefault', $payload)
-                             || !empty($payload['calendarDefault']),
-        'events'          => $events,
+        'events' => $events,
     ];
+}
+
+// Build the .ics download filename from the event name, falling back to
+// the (post-v1.15.1 sequential int) event id, then a literal 'event'.
+// Word separators preserved as '-' so the file reads cleanly in a
+// Downloads folder, unlike the ICS UID which strips them entirely.
+function event_list_ics_filename(string $name, string $eventId): string {
+    $base = preg_replace('/[^A-Za-z0-9]+/', '-', $name);
+    $base = trim((string) $base, '-');
+    if ($base === '') {
+        $base = preg_replace('/[^A-Za-z0-9_-]/', '', $eventId);
+    }
+    if ($base === '') {
+        $base = 'event';
+    }
+    return $base . '.ics';
 }
 
 // Required fields, paired end date/time, end >= start, valid markdown gating.

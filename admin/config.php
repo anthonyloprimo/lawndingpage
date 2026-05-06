@@ -231,7 +231,7 @@ if (!empty($tgBotData['blacklist_user_ids']) && is_array($tgBotData['blacklist_u
 $tgBotBlacklistUserIdsText = implode("\n", array_map(fn(array $e): string => $e['id'] . ' ' . strtoupper($e['content']), $tgBotBlacklistUserIds));
 $webhookBase = lawnding_request_is_secure() ? 'https' : 'http';
 $webhookHost = $_SERVER['HTTP_HOST'] ?? 'your-domain.com';
-$webhookUrl = $webhookBase . '://' . $webhookHost . ($assetBase ?? '') . '/plugins/telegram/webhook.php';
+$webhookUrl = $webhookBase . '://' . $webhookHost . ($assetBase ?? '') . '/res/scr/plugin-endpoint.php?plugin=telegram&endpoint=webhook';
 
 // Load header configuration, with defaults when JSON is missing.
 $headerJsonPath = $dataPath('header.json');

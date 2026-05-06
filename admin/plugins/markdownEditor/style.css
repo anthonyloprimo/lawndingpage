@@ -1,0 +1,130 @@
+/* Markdown editor toolbar — shared by every module that opts into the
+   editor. Per-module wrappers (.markdownEditor body, .markdownTextarea,
+   .markdownPreview) stay in each module's style.css because they have
+   legitimate per-module layout context (eventList nests inside .eventCard
+   with min-height; basicText fills its parent with flex). */
+.markdownToolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 6px;
+    border: 1px solid #FFFFFF33;
+    border-bottom: 1px solid #FFFFFF22;
+    border-radius: 4px 4px 0 0;
+    background: #00000033;
+}
+
+.markdownToolbarGroup,
+.markdownToolbarPreview {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+}
+
+.markdownToolbarPreview {
+    margin-left: auto;
+}
+
+.mdToolbarButton {
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    min-width: 0;
+    font-size: 0.75rem;
+    line-height: 1;
+    border-radius: 6px;
+}
+
+.mdTagButton {
+    width: auto;
+    min-width: 48px;
+    padding: 0 8px;
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+}
+
+.markdownGatingControls {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.markdownGatingLabel {
+    font-size: 0.66rem;
+    font-weight: 600;
+    opacity: 0.9;
+}
+
+.markdownGatingMeter {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.mdGatingButton {
+    height: 28px;
+    min-width: 50px;
+    padding: 0 8px;
+    font-size: 0.62rem;
+    font-weight: 700;
+    border: 1px solid #FFFFFF44;
+    background: #00000055;
+    color: inherit;
+    border-radius: 6px;
+}
+
+.mdGatingButtonPair {
+    border-radius: 0;
+}
+
+.mdGatingButtonPairStart {
+    border-top-left-radius: 6px;
+    border-bottom-left-radius: 6px;
+    margin-right: -4px;
+}
+
+.mdGatingButtonPairEnd {
+    border-top-right-radius: 6px;
+    border-bottom-right-radius: 6px;
+}
+
+.mdGatingButton.isActive {
+    border-color: #FFFFFFAA;
+    background: #FFFFFF22;
+}
+
+.markdownHeadingSelect {
+    padding: 4px 6px;
+    border-radius: 4px;
+    border: 1px solid #FFFFFF33;
+    background: #00000044;
+    color: inherit;
+    font-size: 0.75rem;
+}
+
+.mdToolbarButton svg {
+    width: 18px;
+    height: 18px;
+    display: block;
+    fill: currentColor;
+}
+
+.mdToolbarButton.mdTextIcon {
+    font-size: 0.65rem;
+}
+
+.mdToolbarButton.isActive {
+    border-color: #FFFFFFAA;
+    background: #FFFFFF22;
+}
+
+.markdownEditor.isPreviewing .markdownTextarea {
+    display: none;
+}
+
+.markdownEditor.isPreviewing .markdownPreview {
+    display: block;
+}

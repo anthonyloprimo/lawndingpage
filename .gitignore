@@ -22,7 +22,7 @@ public/res/data/*Content-*/
 # Per-plugin runtime state (caches, scratch dirs). Plugins should write
 # their runtime state under avatars/ or cache/ so it is ignored by default.
 # .htaccess files that guard those dirs stay tracked.
-public/plugins/*/avatars/*
-!public/plugins/*/avatars/.htaccess
-public/plugins/*/cache/*
-!public/plugins/*/cache/.htaccess
+admin/plugins/*/avatars/*
+!admin/plugins/*/avatars/.htaccess
+admin/plugins/*/cache/*
+!admin/plugins/*/cache/.htaccess

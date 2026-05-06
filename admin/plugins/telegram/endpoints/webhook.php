@@ -1,9 +1,9 @@
 <?php
 // Telegram webhook handler for LawndingPage bot commands.
-require_once __DIR__ . '/../../../lp-bootstrap.php';
+require_once __DIR__ . '/../../../../lp-bootstrap.php';
 $tgAuthPath = function_exists('lawnding_admin_path')
     ? lawnding_admin_path('lib/tg-auth.php')
-    : __DIR__ . '/../../../admin/lib/tg-auth.php';
+    : __DIR__ . '/../../../../admin/lib/tg-auth.php';
 require_once $tgAuthPath;
 
 header('Content-Type: application/json');
@@ -17,7 +17,7 @@ if ($token === '') {
 
 $tgBotPath = function_exists('lawnding_admin_path')
     ? lawnding_admin_path('lib/tg-bot.php')
-    : __DIR__ . '/../../../admin/lib/tg-bot.php';
+    : __DIR__ . '/../../../../admin/lib/tg-bot.php';
 require_once $tgBotPath;
 $bot = new TgBotClient($token);
 

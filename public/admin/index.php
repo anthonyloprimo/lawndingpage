@@ -22,6 +22,10 @@ $versionPath = function_exists('lawnding_public_path')
     : __DIR__ . '/../res/version.php';
 require_once $versionPath;
 
+// Load plugins so admin-side hook callbacks are registered before the
+// head emits and fires head_assets.
+lawnding_load_plugins();
+
 // Content Security Policy for the admin entrypoint + clickjacking protection.
 // img-src includes blob: so URL.createObjectURL output (used by
 // smartcrop.js client-side analysis in the gallery upload flow) can
@@ -890,6 +894,7 @@ if ($authRecord && !$forcePasswordChange) {
     <link rel="icon" href="<?php echo htmlspecialchars($faviconUrl, ENT_QUOTES, 'UTF-8'); ?>">
     <link rel="stylesheet" href="<?php echo htmlspecialchars($assetBase . '/res/style.css', ENT_QUOTES, 'UTF-8'); ?>">
     <link rel="stylesheet" href="<?php echo htmlspecialchars($assetBase . '/res/admin.css', ENT_QUOTES, 'UTF-8'); ?>">
+    <?php lawnding_run_hook('head_assets'); ?>
 </head>
 <body>
     <?php

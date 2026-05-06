@@ -9,11 +9,11 @@
 // stays unchanged, and blocks direct-URL avatar harvesting via the session
 // check plus the avatars/.htaccess deny-all.
 
-require_once __DIR__ . '/../../../lp-bootstrap.php';
+require_once __DIR__ . '/../../../../lp-bootstrap.php';
 lawnding_init_session();
 
 function lawnding_tgprofile_serve_fallback(): void {
-    $path = __DIR__ . '/default-avatar.svg';
+    $path = __DIR__ . '/../default-avatar.svg';
     if (is_readable($path)) {
         header('Content-Type: image/svg+xml');
         header('Cache-Control: private, max-age=300');
@@ -43,11 +43,11 @@ foreach ($allowedHosts as $allowed) {
     }
 }
 if (!$hostAllowed) {
-    error_log('plugins/telegram/avatar.php: rejected photo_url host: ' . $host);
+    error_log('admin/plugins/telegram/endpoints/avatar.php: rejected photo_url host: ' . $host);
     lawnding_tgprofile_serve_fallback();
 }
 
-$cacheDir = __DIR__ . '/avatars';
+$cacheDir = __DIR__ . '/../avatars';
 if (!is_dir($cacheDir)) {
     @mkdir($cacheDir, 0755, true);
 }
@@ -66,12 +66,12 @@ if (!is_file($cachePath) || (time() - (int) @filemtime($cachePath)) > $maxAgeSec
     ]);
     $bytes = @file_get_contents($photoUrl, false, $ctx);
     if (!is_string($bytes) || strlen($bytes) < 64) {
-        error_log('plugins/telegram/avatar.php: fetch from ' . $host . ' failed (got ' . (is_string($bytes) ? strlen($bytes) . ' bytes' : gettype($bytes)) . ')');
+        error_log('admin/plugins/telegram/endpoints/avatar.php: fetch from ' . $host . ' failed (got ' . (is_string($bytes) ? strlen($bytes) . ' bytes' : gettype($bytes)) . ')');
         lawnding_tgprofile_serve_fallback();
     }
     $tmp = $cachePath . '.tmp';
     if (file_put_contents($tmp, $bytes, LOCK_EX) === false) {
-        error_log('plugins/telegram/avatar.php: cache write failed at ' . $tmp . ' — check directory permissions for the web-server user');
+        error_log('admin/plugins/telegram/endpoints/avatar.php: cache write failed at ' . $tmp . ' — check directory permissions for the web-server user');
         lawnding_tgprofile_serve_fallback();
     }
     rename($tmp, $cachePath);

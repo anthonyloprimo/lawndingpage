@@ -40,31 +40,11 @@ ini_set('display_errors', '0');
 header("Content-Security-Policy: default-src 'self'; script-src 'self' https://telegram.org; style-src 'self'; img-src 'self' data: https://www.google.com https://t0.gstatic.com https://t1.gstatic.com https://t2.gstatic.com https://t3.gstatic.com; font-src 'self' data:; connect-src 'self'; frame-src https://telegram.org https://oauth.telegram.org; frame-ancestors 'none'");
 header('X-Frame-Options: DENY');
 
-// Plugin hook primitive. Plugins opt in by shipping public/plugins/<id>/init.php
-// that calls lawnding_register_hook('<point>', fn). Points fire at fixed spots
-// in the template via lawnding_run_hook('<point>', $ctx). Intentionally minimal
-// — no priorities, no filters, no deregistration. Add those only if a concrete
-// plugin needs them.
-if (!isset($GLOBALS['LAWNDING_HOOKS'])) {
-    $GLOBALS['LAWNDING_HOOKS'] = [];
-}
-function lawnding_register_hook(string $point, callable $fn): void {
-    $GLOBALS['LAWNDING_HOOKS'][$point][] = $fn;
-}
-function lawnding_run_hook(string $point, array $ctx = []): void {
-    foreach ($GLOBALS['LAWNDING_HOOKS'][$point] ?? [] as $fn) {
-        $fn($ctx);
-    }
-}
-// Endpoints-only plugins (e.g. the existing `telegram/` directory) simply have
-// no init.php and are not loaded here — their URLs are hit directly.
-$pluginInitGlob = function_exists('lawnding_public_path')
-    ? lawnding_public_path('plugins/*/init.php')
-    : __DIR__ . '/plugins/*/init.php';
-foreach (glob($pluginInitGlob) ?: [] as $_pluginInit) {
-    require_once $_pluginInit;
-}
-unset($_pluginInit, $pluginInitGlob);
+// Hook primitive + plugin autoload now live in lp-bootstrap.php so
+// both entrypoints can register and fire hooks. Public-only fallback
+// for header_auth_area registers below, after plugins load, so plugin
+// callbacks have first crack and the fallback only fires when none did.
+lawnding_load_plugins();
 
 // Core: render the upper-right header for non-Telegram auth states. The
 // Telegram plugin's own header_auth_area callback owns its chip; this
@@ -304,11 +284,11 @@ $tgBotId = isset($tgConfig['bot_token']) && is_string($tgConfig['bot_token'])
     : '';
 $returnPath = '/';
 $authEndpoint = function_exists('lawnding_asset_url')
-    ? lawnding_asset_url('plugins/telegram/auth.php')
-    : '/plugins/telegram/auth.php';
+    ? lawnding_asset_url('res/scr/plugin-endpoint.php?plugin=telegram&endpoint=auth')
+    : '/res/scr/plugin-endpoint.php?plugin=telegram&endpoint=auth';
 $logoutEndpoint = function_exists('lawnding_asset_url')
-    ? lawnding_asset_url('plugins/telegram/logout.php')
-    : '/plugins/telegram/logout.php';
+    ? lawnding_asset_url('res/scr/plugin-endpoint.php?plugin=telegram&endpoint=logout')
+    : '/res/scr/plugin-endpoint.php?plugin=telegram&endpoint=logout';
 $tgAuthUrl = lawnding_public_absolute_url($authEndpoint . '?return=' . rawurlencode($returnPath));
 $tgLogoutUrl = $logoutEndpoint . '?return=' . rawurlencode($returnPath);
 $authLinksState = 'logged_out';
@@ -670,7 +650,7 @@ $isLinksHidden = !$showLinks;
     $lpShowLoginModal = empty($_SESSION['auth_user']) && empty($tgUser);
     if ($lpShowLoginModal):
         $lpLoginEndpoint = lawnding_asset_url('res/scr/login.php');
-        $lpTgAuthEndpoint = lawnding_asset_url('plugins/telegram/auth.php');
+        $lpTgAuthEndpoint = lawnding_asset_url('res/scr/plugin-endpoint.php?plugin=telegram&endpoint=auth');
     ?>
     <div id="lpLoginModal" class="lpLoginModal" role="dialog" aria-modal="true"
          aria-labelledby="lpLoginModalTitle" hidden

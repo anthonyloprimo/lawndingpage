@@ -1446,3 +1446,39 @@ function lawnding_init_session(): void {
         $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
     }
 }
+
+// Plugin hook primitive. Plugins ship admin/plugins/<id>/init.php that
+// calls lawnding_register_hook('<point>', fn). Points fire at fixed
+// spots in entrypoint templates via lawnding_run_hook('<point>', $ctx).
+// Intentionally minimal -- no priorities, filters, or deregistration.
+if (!isset($GLOBALS['LAWNDING_HOOKS'])) {
+    $GLOBALS['LAWNDING_HOOKS'] = [];
+}
+function lawnding_register_hook(string $point, callable $fn): void {
+    $GLOBALS['LAWNDING_HOOKS'][$point][] = $fn;
+}
+function lawnding_run_hook(string $point, array $ctx = []): void {
+    foreach ($GLOBALS['LAWNDING_HOOKS'][$point] ?? [] as $fn) {
+        $fn($ctx);
+    }
+}
+
+// Autoload all plugin init.php files. Idempotent -- safe to call from
+// both entrypoints. Plugins live at admin/plugins/<id>/ alongside
+// admin/modules/. URL-routed plugin endpoints (auth callbacks, webhooks,
+// proxied static assets) reach the same folder via plugin-endpoint.php /
+// plugin-style.php / plugin-script.php. Endpoint-only plugins simply
+// have no init.php and are not loaded here.
+function lawnding_load_plugins(): void {
+    static $loaded = false;
+    if ($loaded) {
+        return;
+    }
+    $loaded = true;
+    $dir = function_exists('lawnding_admin_path')
+        ? lawnding_admin_path('plugins')
+        : __DIR__ . '/admin/plugins';
+    foreach (glob(rtrim($dir, '/\\') . '/*/init.php') ?: [] as $init) {
+        require_once $init;
+    }
+}

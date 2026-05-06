@@ -1,6 +1,6 @@
 <?php
 // Clear Telegram site session state and return to public homepage.
-require_once __DIR__ . '/../../../lp-bootstrap.php';
+require_once __DIR__ . '/../../../../lp-bootstrap.php';
 
 lawnding_init_session();
 unset($_SESSION['tg_user'], $_SESSION['tg_user_id'], $_SESSION['tg_login_error']);

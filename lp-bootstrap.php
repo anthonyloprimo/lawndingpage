@@ -1463,6 +1463,40 @@ function lawnding_run_hook(string $point, array $ctx = []): void {
     }
 }
 
+// Restore missing public/res/data/ files (panes.json, header.json, etc.)
+// from admin/seed/data/ seeds. Never overwrites: admin edits survive
+// deploys.
+function lawnding_ensure_data_files(): void {
+    static $ensured = false;
+    if ($ensured) {
+        return;
+    }
+    $ensured = true;
+    $seedDir = function_exists('lawnding_admin_path')
+        ? lawnding_admin_path('seed/data')
+        : __DIR__ . '/admin/seed/data';
+    $liveDir = function_exists('lawnding_data_path')
+        ? lawnding_data_path('')
+        : __DIR__ . '/public/res/data';
+    if (!is_dir($seedDir) || !is_dir($liveDir)) {
+        return;
+    }
+    foreach (glob(rtrim($seedDir, '/\\') . '/*') ?: [] as $seedPath) {
+        if (!is_file($seedPath)) {
+            continue;
+        }
+        $basename = basename($seedPath);
+        if ($basename === '' || $basename[0] === '.') {
+            continue;
+        }
+        $livePath = rtrim($liveDir, '/\\') . '/' . $basename;
+        if (file_exists($livePath)) {
+            continue;
+        }
+        @copy($seedPath, $livePath);
+    }
+}
+
 // Autoload all plugin init.php files. Idempotent -- safe to call from
 // both entrypoints. Plugins live at admin/plugins/<id>/ alongside
 // admin/modules/. URL-routed plugin endpoints (auth callbacks, webhooks,

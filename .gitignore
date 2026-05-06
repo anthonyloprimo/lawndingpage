@@ -19,6 +19,11 @@ admin/lp-mutationAttempts.json
 # uploads, etc.). Never tracked. Files committed here would land on
 # deploy with the wrong owner and break web-side writes (EACCES).
 public/res/data/*Content-*/
+# Top-level site-content data files — admin-written runtime state.
+# Seeded from admin/seed/data/ on first request when missing.
+public/res/data/*.json
+public/res/data/*.md
+!public/res/data/.htaccess
 # Per-plugin runtime state (caches, scratch dirs). Plugins should write
 # their runtime state under avatars/ or cache/ so it is ignored by default.
 # .htaccess files that guard those dirs stay tracked.

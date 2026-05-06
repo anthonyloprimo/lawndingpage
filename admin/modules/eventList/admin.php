@@ -85,7 +85,20 @@ if (!empty($paneData) && is_array($paneData)) {
 }
 $dataHint = $dataFiles ? 'saves to ' . implode(', ', $dataFiles) : '';
 ?>
-<div class="pane glassConvex eventListPane" id="<?php echo htmlspecialchars($paneId); ?>" data-pane-type="eventList">
+<?php
+    // Snapshot of the on-disk state, embedded as a data-* attribute so it
+    // sidesteps script-src CSP entirely. admin.js reads + parses it on init.
+    $snapshotJson = json_encode([
+        'showPast' => $showPast,
+        'showCalendar' => $showCalendar,
+        'calendarDefault' => $calendarDefault,
+        'events' => $events,
+    ], JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
+    if ($snapshotJson === false) {
+        $snapshotJson = '{"events":[]}';
+    }
+?>
+<div class="pane glassConvex eventListPane" id="<?php echo htmlspecialchars($paneId); ?>" data-pane-type="eventList" data-snapshot="<?php echo htmlspecialchars($snapshotJson, ENT_QUOTES, 'UTF-8'); ?>">
     <div class="paneHeader eventListPaneHeader">
         <div class="eventListPaneIdentity">
             <span class="paneIconDisplay" aria-hidden="true">
@@ -240,10 +253,4 @@ $dataHint = $dataFiles ? 'saves to ' . implode(', ', $dataFiles) : '';
     </div>
 
     <textarea class="eventListPayload" name="pane[<?php echo htmlspecialchars($paneId); ?>][events]" aria-label="<?php echo htmlspecialchars($paneName); ?> events" hidden></textarea>
-    <script type="application/json" class="eventListAdminData"><?php echo json_encode([
-        'showPast' => $showPast,
-        'showCalendar' => $showCalendar,
-        'calendarDefault' => $calendarDefault,
-        'events' => $events,
-    ], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?></script>
 </div>

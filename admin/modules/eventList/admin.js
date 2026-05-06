@@ -25,9 +25,11 @@
         const deletedIds = new Set();
 
         function readSnapshot($p) {
-            const $island = $p.find('.eventListAdminData').first();
+            // Snapshot lives on data-snapshot of the pane root (set by admin.php).
+            // Attribute form sidesteps CSP script-src; jQuery's .data() would
+            // auto-parse but cache aggressively, so we use .attr() + JSON.parse.
             try {
-                const parsed = JSON.parse($island.text() || '{}');
+                const parsed = JSON.parse($p.attr('data-snapshot') || '{}');
                 return Array.isArray(parsed.events) ? parsed.events.slice() : [];
             } catch (err) {
                 return [];

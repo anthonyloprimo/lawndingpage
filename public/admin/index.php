@@ -22,6 +22,9 @@ $versionPath = function_exists('lawnding_public_path')
     : __DIR__ . '/../res/version.php';
 require_once $versionPath;
 
+// Seed missing data files from admin/seed/data/ on first request after deploy.
+lawnding_ensure_data_files();
+
 // Load plugins so admin-side hook callbacks are registered before the
 // head emits and fires head_assets.
 lawnding_load_plugins();

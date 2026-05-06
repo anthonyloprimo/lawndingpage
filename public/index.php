@@ -40,6 +40,9 @@ ini_set('display_errors', '0');
 header("Content-Security-Policy: default-src 'self'; script-src 'self' https://telegram.org; style-src 'self'; img-src 'self' data: https://www.google.com https://t0.gstatic.com https://t1.gstatic.com https://t2.gstatic.com https://t3.gstatic.com; font-src 'self' data:; connect-src 'self'; frame-src https://telegram.org https://oauth.telegram.org; frame-ancestors 'none'");
 header('X-Frame-Options: DENY');
 
+// Seed missing data files from admin/seed/data/ on first request after deploy.
+lawnding_ensure_data_files();
+
 // Hook primitive + plugin autoload now live in lp-bootstrap.php so
 // both entrypoints can register and fire hooks. Public-only fallback
 // for header_auth_area registers below, after plugins load, so plugin

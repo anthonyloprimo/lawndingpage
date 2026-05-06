@@ -1168,8 +1168,8 @@ $(document).ready(function() {
                 return;
             }
 
-            if (!validateEventLists()) {
-                addAdminNotice('danger', 'Please fix event list errors before saving.');
+            if (!validatePaneInlineErrors()) {
+                addAdminNotice('danger', 'Please fix the highlighted errors before saving.');
                 return;
             }
 
@@ -1199,7 +1199,6 @@ $(document).ready(function() {
                     let refreshPromise = Promise.resolve();
                     if (typeof window.refreshEventListUIs === 'function') {
                         window.refreshEventListUIs();
-                        addAdminNotice('ok', 'Event list re-sorted.');
                     }
                     if (typeof window.refreshMediaGalleryUIs === 'function') {
                         const result = window.refreshMediaGalleryUIs();
@@ -1469,12 +1468,12 @@ $(document).ready(function() {
         };
     }
 
-    // Save All gate. Inline per-card validation in eventList/admin.js
-    // populates .eventValidation on every input event; this just checks
-    // whether any pane currently shows a non-empty error.
-    function validateEventLists() {
+    // Save All gate. Modules that do inline per-card validation populate
+    // .eventValidation elements on input; this checks whether any pane
+    // currently shows a non-empty error and blocks the save if so.
+    function validatePaneInlineErrors() {
         let isValid = true;
-        $('[data-pane-type="eventList"] .eventValidation').each(function() {
+        $('.eventValidation').each(function() {
             if (($(this).text() || '').trim() !== '') {
                 isValid = false;
                 return false;

@@ -57,9 +57,6 @@ $decoded = $raw !== '' ? json_decode($raw, true) : null;
 if (!is_array($decoded)) {
     $decoded = [];
 }
-$showPast = !empty($decoded['showPast']);
-$showCalendar = !empty($decoded['showCalendar']);
-$calendarDefault = !array_key_exists('calendarDefault', $decoded) || !empty($decoded['calendarDefault']);
 $events = $decoded['events'] ?? [];
 if (!is_array($events)) {
     $events = [];
@@ -74,24 +71,11 @@ if ($iconHtml === '') {
     $iconHtml = '<span class="paneIconFallback">Icon</span>';
 }
 
-// Build the "saves to ..." hint from the pane data map.
-$dataFiles = [];
-if (!empty($paneData) && is_array($paneData)) {
-    foreach ($paneData as $file) {
-        if (is_string($file) && $file !== '') {
-            $dataFiles[] = $file;
-        }
-    }
-}
-$dataHint = $dataFiles ? 'saves to ' . implode(', ', $dataFiles) : '';
 ?>
 <?php
     // Snapshot of the on-disk state, embedded as a data-* attribute so it
     // sidesteps script-src CSP entirely. admin.js reads + parses it on init.
     $snapshotJson = json_encode([
-        'showPast' => $showPast,
-        'showCalendar' => $showCalendar,
-        'calendarDefault' => $calendarDefault,
         'events' => $events,
     ], JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
     if ($snapshotJson === false) {
@@ -106,20 +90,7 @@ $dataHint = $dataFiles ? 'saves to ' . implode(', ', $dataFiles) : '';
             </span>
             <div class="paneHeaderTitle">
                 <span class="paneTitle"><?php echo htmlspecialchars($paneName); ?></span>
-                <?php if ($dataHint !== ''): ?>
-                    <span class="paneDataHint"><?php echo htmlspecialchars('(' . $dataHint . ')'); ?></span>
-                <?php endif; ?>
             </div>
-        </div>
-        <div class="eventListHeaderControls">
-            <label class="eventListToggle">
-                <input type="checkbox" class="eventShowCalendar" <?php echo $showCalendar ? 'checked' : ''; ?>>
-                Toggle calendar view
-            </label>
-            <label class="eventListToggle">
-                <input type="checkbox" class="eventCalendarDefault" <?php echo $calendarDefault ? 'checked' : ''; ?>>
-                Make calendar the default view
-            </label>
         </div>
         <button class="paneSettingsButton iconButton" type="button" data-pane-id="<?php echo htmlspecialchars($paneId); ?>" aria-label="Pane settings" title="Pane settings"><?php echo lawnding_icon_svg('settings'); ?></button>
     </div>
@@ -245,10 +216,6 @@ $dataHint = $dataFiles ? 'saves to ' . implode(', ', $dataFiles) : '';
     </div>
 
     <div class="eventListControls">
-        <label class="eventListToggle">
-            <input type="checkbox" class="eventShowPast" <?php echo $showPast ? 'checked' : ''; ?>>
-            Show past events on the site
-        </label>
         <button class="eventAddButton" type="button">Add Event</button>
     </div>
 

@@ -21,7 +21,6 @@ function renderEventLists() {
         const events = Array.isArray(parsed.events) ? parsed.events : [];
         const now = new Date();
         const nowTime = now.getTime();
-        const next24h = nowTime + 24 * 60 * 60 * 1000;
         let calendarMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
         function parseEventDate(event) {
@@ -231,18 +230,6 @@ function renderEventLists() {
             return `https://${host}/calendar/0/action/compose?${params.toString()}`;
         }
 
-        function buildYahooLikeUrl(event, host) {
-            const params = new URLSearchParams();
-            params.set('desc', event.description);
-            params.set('dur', event.isAllDay ? 'allday' : 'false');
-            params.set('et', event.isAllDay ? formatDateOnly(event.endDt) : formatUtcDateTime(event.endDt));
-            params.set('in_loc', event.address);
-            params.set('st', event.isAllDay ? formatDateOnly(event.startDt) : formatUtcDateTime(event.startDt));
-            params.set('title', event.name);
-            params.set('v', '60');
-            return `https://${host}/?${params.toString()}`;
-        }
-
         function buildCalendarActionUrl(provider, event, paneId) {
             const normalized = normalizeCalendarEvent(event);
             if (!normalized) {
@@ -260,12 +247,6 @@ function renderEventLists() {
             if (provider === 'm365') {
                 return buildOutlookUrl(normalized, 'outlook.office.com');
             }
-            if (provider === 'yahoo') {
-                return buildYahooLikeUrl(normalized, 'calendar.yahoo.com');
-            }
-            if (provider === 'aol') {
-                return buildYahooLikeUrl(normalized, 'calendar.aol.com');
-            }
             return '';
         }
 
@@ -281,37 +262,11 @@ function renderEventLists() {
             window.open(url, '_blank', 'noopener');
         }
 
-        function buildCalendarMenuHtml(paneId, eventId) {
-            return `
-                <div class=\"eventCalendarMenu\">
-                    <button
-                        class=\"eventCalendarButton eventCalendarToggle\"
-                        type=\"button\"
-                        data-pane-id=\"${lpEscapeHtml(paneId)}\"
-                        data-event-id=\"${lpEscapeHtml(eventId || '')}\"
-                        aria-haspopup=\"true\"
-                        aria-expanded=\"false\"
-                    >
-                        Save to Calendar
-                    </button>
-                    <div class=\"eventCalendarDropdown hidden\" role=\"menu\" aria-label=\"Calendar options\">
-                        <button class=\"eventCalendarOption\" type=\"button\" data-calendar-provider=\"ics\" role=\"menuitem\">Download ICS File</button>
-                        <button class=\"eventCalendarOption\" type=\"button\" data-calendar-provider=\"google\" role=\"menuitem\">Add to Google Calendar</button>
-                        <button class=\"eventCalendarOption\" type=\"button\" data-calendar-provider=\"outlook\" role=\"menuitem\">Add to Outlook Calendar</button>
-                        <button class=\"eventCalendarOption\" type=\"button\" data-calendar-provider=\"m365\" role=\"menuitem\">Add to Microsoft 365 Calendar</button>
-                        <button class=\"eventCalendarOption\" type=\"button\" data-calendar-provider=\"yahoo\" role=\"menuitem\">Add to Yahoo! Calendar</button>
-                        <button class=\"eventCalendarOption\" type=\"button\" data-calendar-provider=\"aol\" role=\"menuitem\">Add to AOL Calendar</button>
-                    </div>
-                </div>
-            `;
-        }
-
-        function renderEventItem(event, allowCalendar, paneId) {
+        function renderEventItem(event, paneId) {
             const timeRange = formatEventRange(event);
             const details = event.descriptionHtml ? event.descriptionHtml : '';
             const address = event.address || '';
             const addressLink = address ? buildMapsUrl(address) : '';
-            const button = allowCalendar ? buildCalendarMenuHtml(paneId, event.id || '') : '';
             const rawDescription = event.description || '';
             const truncated = truncateDescription(rawDescription);
             return `
@@ -320,7 +275,6 @@ function renderEventLists() {
                     <div class=\"eventItemMeta\">${lpEscapeHtml(timeRange)}</div>
                     ${address ? `<div class=\"eventItemMeta\"><a href=\"${lpEscapeHtml(addressLink)}\" target=\"_blank\" rel=\"noopener\">${lpEscapeHtml(address)}</a></div>` : ''}
                     ${details ? `<div class=\"eventItemMeta\">${lpEscapeHtml(truncated)}</div>` : ''}
-                    ${button}
                 </div>
             `;
         }
@@ -338,7 +292,7 @@ function renderEventLists() {
             const startTime = startDate.getTime();
             const endTime = endDate ? endDate.getTime() : startTime;
 
-            const isHappening = startTime <= next24h && endTime >= nowTime;
+            const isHappening = startTime <= nowTime && endTime >= nowTime;
             if (isHappening) {
                 happening.push(event);
             } else if (startTime > nowTime) {
@@ -461,19 +415,19 @@ function renderEventLists() {
         const paneId = $pane.data('pane-id') || $container.attr('id') || '';
 
         if (happening.length) {
-            happening.forEach((event) => $happening.append(renderEventItem(event, true, paneId)));
+            happening.forEach((event) => $happening.append(renderEventItem(event, paneId)));
         } else {
             $happening.append('<div class=\"eventItem\">No events happening now.</div>');
         }
 
         if (upcoming.length) {
-            upcoming.forEach((event) => $upcomingBody.append(renderEventItem(event, true, paneId)));
+            upcoming.forEach((event) => $upcomingBody.append(renderEventItem(event, paneId)));
         } else {
             $upcomingBody.append('<div class=\"eventItem\">No upcoming events.</div>');
         }
 
         if (showPast && past.length) {
-            past.slice(0, 5).forEach((event) => $pastBody.append(renderEventItem(event, false, paneId)));
+            past.slice(0, 5).forEach((event) => $pastBody.append(renderEventItem(event, paneId)));
             $pastColumn.removeClass('hidden');
         } else {
             $pastColumn.addClass('hidden');
@@ -519,23 +473,6 @@ function renderEventLists() {
         const $calendarToast = $('#eventCalendarToast');
         let calendarToastTimer = null;
 
-        function positionFixedCalendarDropdown($menu) {
-            const $toggle = $menu.find('.eventCalendarToggle').first();
-            const $dropdown = $menu.find('.eventCalendarDropdown').first();
-            const toggleEl = $toggle.get(0);
-            if (!toggleEl || !$dropdown.length) { return; }
-            const rect = toggleEl.getBoundingClientRect();
-            const viewportPadding = 12;
-            const dropdownWidth = Math.min(260, Math.max(240, window.innerWidth - viewportPadding * 2));
-            const left = Math.min(
-                Math.max(viewportPadding, rect.left),
-                window.innerWidth - dropdownWidth - viewportPadding
-            );
-            $dropdown
-                .addClass('eventCalendarDropdownFixed')
-                .css({ top: `${rect.bottom + 6}px`, left: `${left}px`, width: `${dropdownWidth}px`, minWidth: `${dropdownWidth}px` });
-        }
-
         function closeDayModal() {
             closeCalendarMenus();
             $dayOverlay.addClass('hidden');
@@ -556,7 +493,7 @@ function renderEventLists() {
 
         function renderDayEventSection(title, sectionEvents) {
             if (!sectionEvents.length) { return ''; }
-            return `<div class="eventCalendarDaySection"><h4>${lpEscapeHtml(title)}</h4><div class="eventSectionBody">${sectionEvents.map((event) => renderEventItem(event, eventCanBeSaved(event), paneId)).join('')}</div></div>`;
+            return `<div class="eventCalendarDaySection"><h4>${lpEscapeHtml(title)}</h4><div class="eventSectionBody">${sectionEvents.map((event) => renderEventItem(event, paneId)).join('')}</div></div>`;
         }
 
         function openDayModal(dayStart) {
@@ -616,10 +553,7 @@ function renderEventLists() {
             $overlay.addClass('hidden');
         }
 
-        $pane.off('click.eventModal').on('click.eventModal', '.eventItem', function(event) {
-            if ($(event.target).closest('.eventCalendarMenu').length) {
-                return;
-            }
+        $pane.off('click.eventModal').on('click.eventModal', '.eventItem', function() {
             const eventId = $(this).attr('data-event-id') || '';
             if (!eventId) {
                 return;
@@ -660,60 +594,11 @@ function renderEventLists() {
             closeDayModal();
         });
 
-        $dayBody.off('click.eventCalendarDayItem').on('click.eventCalendarDayItem', '.eventItem', function(event) {
-            if ($(event.target).closest('.eventCalendarMenu').length) { return; }
+        $dayBody.off('click.eventCalendarDayItem').on('click.eventCalendarDayItem', '.eventItem', function() {
             const eventId = $(this).attr('data-event-id') || '';
             if (!eventId) { return; }
             const match = events.find((item) => item && item.id === eventId);
             openModal(match, eventCanBeSaved(match), paneId);
-        });
-
-        $dayBody.off('click.eventCalendarDayToggle').on('click.eventCalendarDayToggle', '.eventCalendarToggle', function(event) {
-            event.stopPropagation();
-            const $menu = $(this).closest('.eventCalendarMenu');
-            const isOpen = $menu.hasClass('isOpen');
-            closeCalendarMenus();
-            if (!isOpen) {
-                $menu.addClass('isOpen');
-                $menu.find('.eventCalendarDropdown').removeClass('hidden');
-                positionFixedCalendarDropdown($menu);
-                $(this).attr('aria-expanded', 'true');
-            }
-        });
-
-        $dayBody.off('click.eventCalendarDayOption').on('click.eventCalendarDayOption', '.eventCalendarOption', function(event) {
-            event.stopPropagation();
-            const provider = $(this).data('calendar-provider') || '';
-            const $menu = $(this).closest('.eventCalendarMenu');
-            const eventId = $menu.find('.eventCalendarToggle').attr('data-event-id') || '';
-            const match = events.find((item) => item && item.id === eventId);
-            closeCalendarMenus();
-            if (match && eventCanBeSaved(match)) { performCalendarAction(provider, match, paneId); }
-        });
-
-        $pane.off('click.eventCalendarToggle').on('click.eventCalendarToggle', '.eventCalendarToggle', function(event) {
-            event.stopPropagation();
-            const $menu = $(this).closest('.eventCalendarMenu');
-            const isOpen = $menu.hasClass('isOpen');
-            closeCalendarMenus();
-            if (!isOpen) {
-                $menu.addClass('isOpen');
-                $menu.find('.eventCalendarDropdown').removeClass('hidden');
-                $(this).attr('aria-expanded', 'true');
-            }
-        });
-
-        $pane.off('click.eventCalendarOption').on('click.eventCalendarOption', '.eventCalendarOption', function(event) {
-            event.stopPropagation();
-            const provider = $(this).data('calendar-provider') || '';
-            const $menu = $(this).closest('.eventCalendarMenu');
-            const eventId = $menu.find('.eventCalendarToggle').attr('data-event-id') || '';
-            const actionPaneId = $menu.find('.eventCalendarToggle').data('pane-id') || paneId;
-            const match = [].concat(happening, upcoming).find((item) => item && item.id === eventId);
-            closeCalendarMenus();
-            if (match) {
-                performCalendarAction(provider, match, actionPaneId);
-            }
         });
 
         $pane.off('click.eventAddress').on('click.eventAddress', '.eventItem a', function(event) {

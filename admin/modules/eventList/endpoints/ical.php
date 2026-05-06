@@ -4,6 +4,8 @@
 // — module-endpoint.php loads the bootstrap and validates module/endpoint
 // names against [a-zA-Z0-9_-] before including this handler.
 
+require_once lawnding_admin_path('modules/eventList/helpers.php');
+
 function respond_status(int $code): void {
     http_response_code($code);
     exit;
@@ -193,12 +195,7 @@ $lines = array_values(array_filter($lines, function($line) {
     return $line !== null;
 }));
 
-$filenameBase = $eventId !== '' ? $eventId : $uidName;
-$filenameBase = preg_replace('/[^A-Za-z0-9_-]/', '', $filenameBase);
-if ($filenameBase === '') {
-    $filenameBase = 'event';
-}
-$filename = $filenameBase . '.ics';
+$filename = event_list_ics_filename($name, $eventId);
 
 header('Content-Type: text/calendar; charset=utf-8');
 header('Content-Disposition: attachment; filename="' . $filename . '"');

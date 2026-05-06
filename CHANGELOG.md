@@ -1,6 +1,13 @@
 ### Changelog
 
 
+#### v1.16.0
+- Event list panes now use the per-pane Settings dialog for their three view options ("Show calendar view", "Open in calendar view by default", "Show past events on the public site"). Click the gear icon on any event-list pane to flip them; the inline checkboxes in the pane header and footer are gone.
+- Added matching defaults to Site Config under "Event List", so a full admin can set the defaults once and every event-list pane inherits them. Tick "Use site defaults" off in the per-pane dialog to override per pane.
+- Removed the "(saves to filename.json)" file hint that used to appear next to a pane's title in the admin editor. The data file location is implementation detail and didn't belong there.
+
+-----
+
 #### v1.15.0
 - Every pane in the admin panel now has a gear icon. Click it to open a per-pane Settings dialog covering the pane's icon and any module-specific options the pane's type provides. Previously, only the gallery had a gear (and only for its per-item override toggles); other pane types had to be edited via the inline icon popover.
 - The pane icon (upper-left of each pane header) is now display-only. The gear icon (upper-right) is the single entry point for editing per-pane settings.

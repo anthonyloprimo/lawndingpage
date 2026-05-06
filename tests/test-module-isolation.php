@@ -25,12 +25,16 @@ $migratedModules = [
 // Core files that participate in the manifest-driven dispatch and should
 // stay module-agnostic. Files inside admin/modules/<id>/ are excluded by
 // definition (module-id references inside their own folder are allowed).
+// PHP and JS share `//` and `/* */` comment syntax, so the same comment-
+// stripping logic below handles both — keeping them in one list.
 $coreFiles = [
     'lp-bootstrap.php',
     'public/index.php',
     'public/admin/index.php',
     'public/res/scr/save-config.php',
     'admin/config.php',
+    'public/res/scr/config.js',
+    'public/res/scr/app.js',
 ];
 
 $repoRoot = realpath(__DIR__ . '/..');

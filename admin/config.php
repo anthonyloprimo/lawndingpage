@@ -874,15 +874,6 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
                     </div>
                 </div>
             </div>
-            <script>
-                (function() {
-                    var authLinksConfig = document.getElementById('authLinksConfig');
-                    if (!authLinksConfig) {
-                        return;
-                    }
-                    authLinksConfig.setAttribute('data-needs-normalization', <?php echo $authLinksNeedsNormalization ? "'true'" : "'false'"; ?>);
-                }());
-            </script>
         </div>
         <div class="pane glassConvex" id="users">
             <h3>USERS</h3>
@@ -1408,15 +1399,6 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
         <p class="usersHint" id="paneDeleteConfirmMessage">Are you sure you want to remove this pane? This will delete its data files.</p>
         <div class="userModalActions">
             <button class="usersButton usersDanger" type="button" id="paneDeleteConfirmYes" data-modal-confirm="true">Delete</button>
-            <button class="usersButton userModalClose" type="button">Cancel</button>
-        </div>
-    <?php lawnding_modal_close(); ?>
-
-    <?php // Event delete confirmation modal. ?>
-    <?php lawnding_modal_open('eventDeleteConfirmModal', 'Remove Event'); ?>
-        <p class="usersHint">Are you sure you want to remove this event?</p>
-        <div class="userModalActions">
-            <button class="usersButton usersDanger" type="button" id="eventDeleteConfirmYes" data-modal-confirm="true" autofocus>Remove</button>
             <button class="usersButton userModalClose" type="button">Cancel</button>
         </div>
     <?php lawnding_modal_close(); ?>

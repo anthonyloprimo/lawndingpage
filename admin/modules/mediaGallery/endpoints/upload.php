@@ -50,8 +50,7 @@ if ($mime === '' || strpos($mime, 'image/') !== 0) {
 
 $state = media_gallery_load_pane_state($paneId);
 
-$existingIds = media_gallery_collect_ids($state['items']);
-$newId = media_gallery_generate_id($existingIds);
+$newId = (string) media_gallery_generate_id($state['items']);
 
 $ext = media_gallery_safe_ext((string) ($upload['name'] ?? ''), $mime);
 $mediaDir = media_gallery_media_dir($state['paths']['data_dir'], $paneId);

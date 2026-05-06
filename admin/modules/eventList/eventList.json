@@ -9,6 +9,6 @@
     { "type": "json", "pattern": "{paneId}.json" }
   ],
   "save_map": [
-    { "key": "events", "type": "json", "file": "{paneId}.json" }
+    { "key": "events", "type": "json", "file": "{paneId}.json", "validator": "event_list_apply_events" }
   ]
 }

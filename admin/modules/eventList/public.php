@@ -6,16 +6,23 @@ if (!isset($pane) || !is_array($pane)) {
     return;
 }
 
-// Inject public styles once per request.
-static $eventListPublicStylesInjected = false;
-if (!$eventListPublicStylesInjected) {
-    $eventListPublicStylesInjected = true;
+// Inject public styles/scripts once per request.
+static $eventListPublicAssetsInjected = false;
+if (!$eventListPublicAssetsInjected) {
+    $eventListPublicAssetsInjected = true;
     $styleUrl = function_exists('lawnding_asset_url')
         ? lawnding_asset_url('res/scr/module-style.php?module=eventList')
         : '/res/scr/module-style.php?module=eventList';
     echo '<link rel="stylesheet" href="'
         . htmlspecialchars($styleUrl, ENT_QUOTES, 'UTF-8')
         . '">';
+
+    $scriptUrl = function_exists('lawnding_asset_url')
+        ? lawnding_asset_url('res/scr/module-script.php?module=eventList&file=public.js')
+        : '/res/scr/module-script.php?module=eventList&file=public.js';
+    echo '<script src="'
+        . htmlspecialchars($scriptUrl, ENT_QUOTES, 'UTF-8')
+        . '" defer></script>';
 }
 
 // Pane metadata used for IDs and data file resolution.

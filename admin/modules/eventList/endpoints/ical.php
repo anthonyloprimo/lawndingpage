@@ -1,7 +1,8 @@
 <?php
-require_once __DIR__ . '/../../../lp-bootstrap.php';
-
 // Generate a single-event iCal file from the Event List module data.
+// Reached via /res/scr/module-endpoint.php?module=eventList&endpoint=ical
+// — module-endpoint.php loads the bootstrap and validates module/endpoint
+// names against [a-zA-Z0-9_-] before including this handler.
 
 function respond_status(int $code): void {
     http_response_code($code);
@@ -59,9 +60,7 @@ if ($paneId === '' || $eventId === '') {
     respond_status(400);
 }
 
-$panesPath = function_exists('lawnding_data_path')
-    ? lawnding_data_path('panes.json')
-    : dirname(__DIR__, 2) . '/data/panes.json';
+$panesPath = lawnding_data_path('panes.json');
 $panesRaw = is_readable($panesPath) ? file_get_contents($panesPath) : '';
 $panesJson = $panesRaw !== '' ? json_decode($panesRaw, true) : null;
 if (!is_array($panesJson)) {
@@ -88,9 +87,7 @@ if (!is_string($jsonFile) || $jsonFile === '') {
     respond_status(404);
 }
 
-$eventsPath = function_exists('lawnding_data_path')
-    ? lawnding_data_path($jsonFile)
-    : dirname(__DIR__, 2) . '/data/' . $jsonFile;
+$eventsPath = lawnding_data_path($jsonFile);
 $eventsRaw = is_readable($eventsPath) ? file_get_contents($eventsPath) : '';
 $eventsJson = $eventsRaw !== '' ? json_decode($eventsRaw, true) : null;
 if (!is_array($eventsJson)) {
@@ -152,9 +149,7 @@ if (!$endDt) {
     $endDt = $startDt->modify('+1 hour');
 }
 
-$headerPath = function_exists('lawnding_data_path')
-    ? lawnding_data_path('header.json')
-    : dirname(__DIR__, 2) . '/data/header.json';
+$headerPath = lawnding_data_path('header.json');
 $headerRaw = is_readable($headerPath) ? file_get_contents($headerPath) : '';
 $headerJson = $headerRaw !== '' ? json_decode($headerRaw, true) : [];
 $communityName = is_array($headerJson) && !empty($headerJson['title']) ? $headerJson['title'] : 'LawndingPage';

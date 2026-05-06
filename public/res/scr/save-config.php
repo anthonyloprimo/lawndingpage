@@ -1334,28 +1334,6 @@ if (is_array($panePayload)) {
                         'iconMode' => $iconMode,
                     ];
                 }
-                if ($moduleId === 'eventList' && $key === 'events') {
-                    $decoded['showPast'] = !empty($decoded['showPast']);
-                    $decoded['showCalendar'] = !empty($decoded['showCalendar']);
-                    $decoded['calendarDefault'] = !array_key_exists('calendarDefault', $decoded) || !empty($decoded['calendarDefault']);
-                    $events = $decoded['events'] ?? [];
-                    if (!is_array($events)) {
-                        respond(['error' => 'Invalid events payload for pane ' . $paneId . '.'], 400);
-                    }
-                    foreach ($events as $eventIndex => $event) {
-                        if (!is_array($event)) {
-                            continue;
-                        }
-                        $description = $event['description'] ?? '';
-                        if (!is_string($description) || $description === '') {
-                            continue;
-                        }
-                        $eventLabel = isset($event['id']) && is_string($event['id']) && $event['id'] !== ''
-                            ? $event['id']
-                            : ('event #' . ((int) $eventIndex + 1));
-                        validate_markdown_gating_or_fail($description, 'pane ' . $paneId . ', ' . $eventLabel);
-                    }
-                }
                 write_json_file($targetPath, $decoded, 'Failed to write pane data for ' . $paneId . '.');
             } else {
                 if ($type === 'md') {

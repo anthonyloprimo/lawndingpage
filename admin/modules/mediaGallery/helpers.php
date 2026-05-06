@@ -181,31 +181,18 @@ function media_gallery_ensure_dir(string $dir): void {
     }
 }
 
-function media_gallery_collect_ids(array $items): array {
-    $ids = [];
-    foreach ($items as $item) {
-        if (!is_array($item)) {
+function media_gallery_generate_id(array $existing): int {
+    $max = 0;
+    foreach ($existing as $rec) {
+        if (!is_array($rec)) {
             continue;
         }
-        $id = $item['id'] ?? '';
-        if (is_string($id) && $id !== '') {
-            $ids[$id] = true;
+        $id = (int) ($rec['id'] ?? 0);
+        if ($id > $max) {
+            $max = $id;
         }
     }
-    return $ids;
-}
-
-function media_gallery_generate_id(array $existingIds): string {
-    if (count($existingIds) >= 9000) {
-        media_gallery_json_response(['error' => 'Media gallery is full.'], 400);
-    }
-    for ($i = 0; $i < 200; $i += 1) {
-        $candidate = (string) random_int(1000, 9999);
-        if (!isset($existingIds[$candidate])) {
-            return $candidate;
-        }
-    }
-    media_gallery_json_response(['error' => 'Unable to allocate media id.'], 500);
+    return $max + 1;
 }
 
 function media_gallery_find_item_index(array $items, string $itemId): int {

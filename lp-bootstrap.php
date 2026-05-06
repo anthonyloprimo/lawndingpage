@@ -1268,6 +1268,55 @@ function lawnding_save_site_config(array $config): bool {
     return file_put_contents(lawnding_site_config_path(), $encoded, LOCK_EX) !== false;
 }
 
+// Emit the standard SITE CONFIG <fieldset> for a module's manifest-declared
+// site_config.settings. Modules that only need bool/int rendering omit
+// site_config.render and let the dispatcher in admin/config.php auto-call
+// this; modules that want richer blocks (custom record editors, status
+// indicators, etc.) declare site_config.render and call this themselves
+// to keep the standard fieldset on top.
+//
+// Static-memoizes the three site-config reads so a multi-module page does
+// one read each instead of N. No-op when the module has no settings.
+function lawnding_render_site_config_fieldset(string $moduleId): void {
+    static $config = null;
+    static $defaults = null;
+    static $labels = null;
+    if ($config === null) {
+        $config = lawnding_load_site_config();
+        $defaults = lawnding_site_config_defaults();
+        $labels = lawnding_site_config_labels();
+    }
+    $flags = $defaults[$moduleId] ?? [];
+    if (!is_array($flags) || empty($flags)) {
+        return;
+    }
+    $moduleLabels = is_array($labels['_modules'] ?? null) ? $labels['_modules'] : [];
+    $moduleLabel = $moduleLabels[$moduleId] ?? lawnding_camel_to_label($moduleId);
+    ?>
+    <fieldset class="siteConfigGroup">
+        <legend><?php echo htmlspecialchars($moduleLabel); ?></legend>
+        <?php foreach ($flags as $flagKey => $defaultValue): ?>
+            <?php
+                $flagLabel = $labels[$moduleId][$flagKey] ?? lawnding_camel_to_label($flagKey);
+                $name = 'siteConfig[' . $moduleId . '][' . $flagKey . ']';
+                $current = $config[$moduleId][$flagKey] ?? $defaultValue;
+            ?>
+            <?php if (is_bool($defaultValue)): ?>
+                <label class="siteConfigToggle">
+                    <input type="checkbox" name="<?php echo htmlspecialchars($name); ?>" <?php echo !empty($current) ? 'checked' : ''; ?>>
+                    <span><?php echo htmlspecialchars($flagLabel); ?></span>
+                </label>
+            <?php elseif (is_int($defaultValue)): ?>
+                <label class="siteConfigField">
+                    <span><?php echo htmlspecialchars($flagLabel); ?></span>
+                    <input type="number" min="1" step="1" name="<?php echo htmlspecialchars($name); ?>" value="<?php echo htmlspecialchars((string) (int) $current); ?>">
+                </label>
+            <?php endif; ?>
+        <?php endforeach; ?>
+    </fieldset>
+    <?php
+}
+
 // Per-pane settings live in a sidecar settings.json inside each pane's
 // content directory (e.g. public/res/data/mediaGalleryContent-<paneId>/
 // settings.json). The file is sparse — present only when the admin has

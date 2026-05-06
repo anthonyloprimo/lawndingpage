@@ -12,6 +12,26 @@
     const paneApis = new Map();
     let pendingDelete = null;
 
+    // Source: SITE CONFIG fieldset's data-categories (canonical) or first
+    // pane's data-snapshot (fallback when admin lacks canEditSite). Runtime
+    // updates flow via the lp:eventListCategoriesUpdated jQuery event.
+    let currentCategories = [];
+
+    // Orphan ids fall back to (none) in the dropdown; the stored categoryId
+    // is preserved so the renderer can pick the default flag color.
+    function populateCategorySelect($select, categories, selectedId) {
+        const safeSelected = String(selectedId == null ? '' : selectedId);
+        $select.empty();
+        $select.append($('<option>').attr('value', '').text('(none)'));
+        categories.forEach((cat) => {
+            const id = cat && cat.id != null ? String(cat.id) : '';
+            const name = cat && cat.name != null ? String(cat.name) : '';
+            if (id === '') { return; }
+            $select.append($('<option>').attr('value', id).text(name));
+        });
+        $select.val(safeSelected);
+    }
+
     function setupPane($pane) {
         const paneId = $pane.data('pane-id') || $pane.attr('id') || '';
         const $list = $pane.find('.eventList');
@@ -49,6 +69,7 @@
             return {
                 id: $card.attr('data-event-id') || '',
                 name: ($card.find('.eventNameInput').val() || '').trim(),
+                categoryId: ($card.find('.eventCategoryInput').val() || '').trim(),
                 startDate: ($card.find('.eventStartDateInput').val() || '').trim(),
                 startTime: allDay ? '' : ($card.find('.eventStartTimeInput').val() || '').trim(),
                 endDate: ($card.find('.eventEndDateInput').val() || '').trim(),
@@ -61,7 +82,7 @@
         }
 
         function eventFieldsEqual(a, b) {
-            const fields = ['name', 'startDate', 'startTime', 'endDate', 'endTime',
+            const fields = ['name', 'categoryId', 'startDate', 'startTime', 'endDate', 'endTime',
                 'timeZone', 'address', 'description'];
             for (const f of fields) {
                 if ((a[f] || '') !== (b[f] || '')) { return false; }
@@ -177,6 +198,12 @@
                             <button class="deleteLink iconButton" type="button" title="Remove event" aria-label="Remove event">${$('.linksConfig .deleteLink').first().html() || ''}</button>
                         </div>
                     </div>
+                    <div class="eventCategoryFieldRow">
+                        <label class="eventCategoryFieldLabel">
+                            <span class="eventFieldTitle">Category</span>
+                            <select class="eventCategoryInput" aria-label="Category"></select>
+                        </label>
+                    </div>
                     <div class="eventSectionDivider" aria-hidden="true"></div>
                     <div class="eventAllDayRow">
                         <label class="eventAllDayLabel">
@@ -223,6 +250,13 @@
                 </div>
             `;
             const $card = $(template);
+            // Dropdown options: render unconditionally — even a new card
+            // (data === null) needs the (none) + categories <option>s.
+            populateCategorySelect(
+                $card.find('.eventCategoryInput'),
+                currentCategories,
+                data && data.categoryId ? data.categoryId : ''
+            );
             if (data) {
                 $card.find('.eventNameInput').val(data.name || '');
                 $card.find('.eventStartDateInput').val(data.startDate || '');
@@ -325,7 +359,7 @@
         });
 
         $pane.on('input change',
-            '.eventCard input, .eventCard textarea',
+            '.eventCard input, .eventCard textarea, .eventCard select',
             function () {
                 refreshValidation();
             });
@@ -333,6 +367,131 @@
         refreshValidation();
 
         return { applyPostSaveState, deleteCard };
+    }
+
+    // SITE CONFIG categories CRUD UI. Soft-delete + batched save: nothing
+    // hits the server until "Save Categories." Server response is the
+    // post-merge truth; broadcast via lp:eventListCategoriesUpdated.
+    function setupCategoriesEditor() {
+        const $fieldset = $('.eventListCategoriesConfig');
+        if (!$fieldset.length) { return; }
+        const $list = $fieldset.find('.eventCategoriesList');
+        const $addBtn = $fieldset.find('.eventCategoriesAdd');
+        const $saveBtn = $fieldset.find('.eventCategoriesSave');
+        const $status = $fieldset.find('.eventCategoriesStatus');
+
+        let serverCategories = currentCategories.slice();
+
+        function renderEmpty() {
+            $list.html('<div class="eventCategoriesEmpty">No categories yet. Click Add Category to create one.</div>');
+        }
+
+        function renderRow(category) {
+            const id = category && category.id != null ? String(category.id) : '';
+            const name = category && category.name != null ? String(category.name) : '';
+            const color = category && category.color ? String(category.color) : '#7ec7ed';
+            const $row = $('<div class="eventCategoryRow"></div>').attr('data-category-id', id);
+            $row.append($('<input type="color" class="eventCategoryColorInput" aria-label="Category color">').val(color));
+            $row.append($('<input type="text" class="eventCategoryNameInput" placeholder="Category name" aria-label="Category name">').val(name));
+            const deleteIcon = $('.linksConfig .deleteLink').first().html() || '×';
+            $row.append('<button type="button" class="eventCategoryDelete iconButton" aria-label="Remove category" title="Remove category">' + deleteIcon + '</button>');
+            $list.find('.eventCategoriesEmpty').remove();
+            $list.append($row);
+            return $row;
+        }
+
+        function renderAll() {
+            $list.empty();
+            if (!serverCategories.length) { renderEmpty(); return; }
+            serverCategories.forEach((cat) => renderRow(cat));
+        }
+
+        function readLocalState() {
+            const rows = [];
+            $list.find('.eventCategoryRow').each(function () {
+                const $row = $(this);
+                rows.push({
+                    id: $row.attr('data-category-id') || '',
+                    name: ($row.find('.eventCategoryNameInput').val() || '').trim(),
+                    color: ($row.find('.eventCategoryColorInput').val() || '').trim(),
+                    isDeleted: $row.hasClass('isDeleted')
+                });
+            });
+            return rows;
+        }
+
+        function computeChangeset() {
+            const create = [], update = [], deleteIds = [];
+            readLocalState().forEach((row) => {
+                if (row.id === '') {
+                    if (!row.isDeleted) { create.push({ name: row.name, color: row.color }); }
+                    return;
+                }
+                if (row.isDeleted) { deleteIds.push(row.id); return; }
+                const orig = serverCategories.find((c) => String(c.id) === String(row.id));
+                if (!orig || orig.name !== row.name || orig.color !== row.color) {
+                    update.push({ id: row.id, name: row.name, color: row.color });
+                }
+            });
+            return { create, update, delete: deleteIds };
+        }
+
+        function refreshSaveButton() {
+            const cs = computeChangeset();
+            $saveBtn.prop('disabled', !(cs.create.length || cs.update.length || cs.delete.length));
+        }
+
+        function save() {
+            const changeset = computeChangeset();
+            $saveBtn.prop('disabled', true);
+            $status.text('Saving…');
+            const csrf = (window.appConfig && window.appConfig.csrfToken) || '';
+            const body = 'csrf_token=' + encodeURIComponent(csrf)
+                + '&changes=' + encodeURIComponent(JSON.stringify(changeset));
+            fetch('/res/scr/module-endpoint.php?module=eventList&endpoint=categories', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: body
+            }).then(async (res) => {
+                const json = await res.json().catch(() => ({}));
+                if (!res.ok) { throw new Error(json.error || ('HTTP ' + res.status)); }
+                return json;
+            }).then((json) => {
+                const cats = Array.isArray(json.categories) ? json.categories : [];
+                serverCategories = cats.slice();
+                currentCategories = cats.slice();
+                renderAll();
+                refreshSaveButton();
+                $(document).trigger('lp:eventListCategoriesUpdated', [{ categories: cats.slice() }]);
+                $status.text('Saved.');
+                setTimeout(() => $status.text(''), 2000);
+            }).catch((err) => {
+                $status.text('');
+                const msg = (err && err.message) || 'Failed to save categories.';
+                if (window.addAdminNotice) {
+                    window.addAdminNotice('danger', 'Categories: ' + msg);
+                }
+                refreshSaveButton();
+            });
+        }
+
+        $addBtn.on('click', function () { renderRow(null); refreshSaveButton(); });
+        $list.on('click', '.eventCategoryDelete', function () {
+            const $row = $(this).closest('.eventCategoryRow');
+            if ($row.attr('data-category-id') === '') {
+                $row.remove();
+                if (!$list.find('.eventCategoryRow').length) { renderEmpty(); }
+            } else {
+                $row.toggleClass('isDeleted');
+            }
+            refreshSaveButton();
+        });
+        $list.on('input change', '.eventCategoryRow input', refreshSaveButton);
+        $saveBtn.on('click', save);
+
+        renderAll();
+        refreshSaveButton();
     }
 
     function init() {
@@ -344,11 +503,41 @@
             $modal.appendTo('body');
         }
 
+        // Must run before setupPane: renderCard reads currentCategories.
+        const $catFieldset = $('.eventListCategoriesConfig');
+        const sourceAttr = $catFieldset.length ? $catFieldset.attr('data-categories') : null;
+        if (sourceAttr) {
+            try {
+                const parsed = JSON.parse(sourceAttr);
+                currentCategories = Array.isArray(parsed.categories) ? parsed.categories.slice() : [];
+            } catch (err) { currentCategories = []; }
+        } else {
+            const $firstPane = $('[data-pane-type="eventList"]').first();
+            try {
+                const snap = JSON.parse($firstPane.attr('data-snapshot') || '{}');
+                currentCategories = Array.isArray(snap.categories) ? snap.categories.slice() : [];
+            } catch (err) { currentCategories = []; }
+        }
+
         $('[data-pane-type="eventList"]').each(function () {
             const $pane = $(this);
             const api = setupPane($pane);
             const paneId = $pane.data('pane-id') || $pane.attr('id') || '';
             if (paneId) { paneApis.set(paneId, api); }
+        });
+
+        setupCategoriesEditor();
+
+        // Live broadcast: refresh every event-card dropdown's options when
+        // the categories list changes. Selection preserved where possible;
+        // orphan ids fall back to (none) per populateCategorySelect.
+        $(document).on('lp:eventListCategoriesUpdated', function (event, payload) {
+            const cats = payload && Array.isArray(payload.categories) ? payload.categories : [];
+            currentCategories = cats.slice();
+            $('.eventCategoryInput').each(function () {
+                const $select = $(this);
+                populateCategorySelect($select, currentCategories, $select.val());
+            });
         });
 
         $(document).on('click', '#eventDeleteConfirmYes', function () {

@@ -1,6 +1,11 @@
 ### Changelog
 
 
+#### v1.19.0
+- Added colored event categories. Set up a shared list under Site Config (name + color each), then assign one to each event from the per-event editor. The chosen color shows on the calendar grid bars and in a small legend above the grid. Deleting a category leaves existing events intact — they fall back to the default color until you reassign them.
+
+-----
+
 #### v1.16.0
 - Event list panes now use the per-pane Settings dialog for their three view options ("Show calendar view", "Open in calendar view by default", "Show past events on the public site"). Click the gear icon on any event-list pane to flip them; the inline checkboxes in the pane header and footer are gone.
 - Added matching defaults to Site Config under "Event List", so a full admin can set the defaults once and every event-list pane inherits them. Tick "Use site defaults" off in the per-pane dialog to override per pane.

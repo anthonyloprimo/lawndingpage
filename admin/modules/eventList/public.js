@@ -19,6 +19,16 @@ function renderEventLists() {
         const showCalendar = !!parsed.showCalendar;
         const calendarDefault = !Object.prototype.hasOwnProperty.call(parsed, 'calendarDefault') || !!parsed.calendarDefault;
         const events = Array.isArray(parsed.events) ? parsed.events : [];
+        const categories = Array.isArray(parsed.categories) ? parsed.categories : [];
+        // Lookup table for O(1) event-to-color resolution at bar render time.
+        // Orphan ids (referencing deleted categories) miss the lookup → default
+        // flag color via CSS var fallback.
+        const categoriesById = {};
+        categories.forEach((cat) => {
+            if (cat && cat.id != null && cat.color) {
+                categoriesById[String(cat.id)] = cat;
+            }
+        });
         const now = new Date();
         const nowTime = now.getTime();
         let calendarMonth = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -287,14 +297,26 @@ function renderEventLists() {
             const addressLink = address ? buildMapsUrl(address) : '';
             const rawDescription = event.description || '';
             const truncated = truncateDescription(rawDescription);
+            const cat = event.categoryId ? categoriesById[String(event.categoryId)] : null;
+            const catAttrs = cat && cat.color ? ` data-cat-color=\"${lpEscapeHtml(cat.color)}\"` : '';
             return `
-                <div class=\"eventItem\" data-event-id=\"${lpEscapeHtml(event.id || '')}\" data-pane-id=\"${lpEscapeHtml(paneId)}\">
+                <div class=\"eventItem\" data-event-id=\"${lpEscapeHtml(event.id || '')}\" data-pane-id=\"${lpEscapeHtml(paneId)}\"${catAttrs}>
                     <div class=\"eventItemTitle\">${lpEscapeHtml(event.name || 'Untitled')}</div>
                     <div class=\"eventItemMeta\">${lpEscapeHtml(timeRange)}</div>
                     ${address ? `<div class=\"eventItemMeta\"><a href=\"${lpEscapeHtml(addressLink)}\" target=\"_blank\" rel=\"noopener\">${lpEscapeHtml(address)}</a></div>` : ''}
                     ${details ? `<div class=\"eventItemMeta\">${lpEscapeHtml(truncated)}</div>` : ''}
                 </div>
             `;
+        }
+
+        // renderEventItem returns an HTML string, so colors arrive via
+        // data-cat-color (CSP-safe). Post-process applies the CSS var.
+        function applyEventItemCategoryColors($scope) {
+            $scope.find('.eventItem[data-cat-color]').each(function () {
+                const $item = $(this);
+                $item.css('--bar-accent', $item.attr('data-cat-color'));
+                $item.removeAttr('data-cat-color');
+            });
         }
 
         const happening = [];
@@ -502,6 +524,11 @@ function renderEventLists() {
                     .attr('data-event-id', re.event && re.event.id ? re.event.id : '')
                     .attr('aria-label', accessibleLabel)
                     .attr('title', accessibleLabel);
+                // Category color via runtime CSS-var set (CSP-safe; no inline
+                // style attribute). Default flag color stays in CSS for
+                // uncategorized + orphan-id events.
+                const cat = re.event && re.event.categoryId ? categoriesById[String(re.event.categoryId)] : null;
+                if (cat && cat.color) { $bar.css('--bar-accent', cat.color); }
                 if (isAllDay) { $bar.addClass('isAllDay'); }
                 if (isMultiDayEvent) {
                     $bar.addClass('isSpan');
@@ -527,6 +554,21 @@ function renderEventLists() {
                 );
             }
             $cell.find('.eventCalendarCellInner').append($bars);
+        }
+        // Static once per page (categories list is fixed at render time).
+        // Runtime CSS-var set on the swatch keeps the markup CSP-safe.
+        function renderLegend() {
+            if (!showCalendar || !categories.length) { return; }
+            const $view = $pane.find('.eventCalendarView');
+            if (!$view.length || $view.find('.eventCategoryLegend').length) { return; }
+            const $legend = $('<div class="eventCategoryLegend" aria-label="Event category legend"></div>');
+            categories.forEach((cat) => {
+                const $chip = $('<span class="eventCategoryLegendChip"></span>');
+                $chip.append($('<span class="eventCategoryLegendSwatch" aria-hidden="true"></span>').css('--bar-accent', cat.color));
+                $chip.append($('<span class="eventCategoryLegendName"></span>').text(cat.name));
+                $legend.append($chip);
+            });
+            $view.prepend($legend);
         }
         function renderCalendar() {
             if (!showCalendar) { return; }
@@ -606,6 +648,8 @@ function renderEventLists() {
             $pastColumn.addClass('hidden');
         }
 
+        applyEventItemCategoryColors($pane);
+
         if (!showPast) {
             $pane.find('.eventSplit').addClass('eventSplitSingle');
         } else {
@@ -616,6 +660,7 @@ function renderEventLists() {
         const calendarSuppressedByViewport = window.matchMedia
             && window.matchMedia('(max-width: 600px)').matches;
         if (showCalendar && !calendarSuppressedByViewport) {
+            renderLegend();
             renderCalendar();
             setEventView(calendarDefault ? 'calendar' : 'events');
         } else {
@@ -691,6 +736,7 @@ function renderEventLists() {
                 renderDayEventSection('Upcoming', future) +
                 renderDayEventSection('Past Events', completed)
             );
+            applyEventItemCategoryColors($dayBody);
             $dayOverlay.removeClass('hidden');
         }
 

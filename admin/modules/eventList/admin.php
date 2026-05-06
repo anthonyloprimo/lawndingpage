@@ -62,6 +62,11 @@ if (!is_array($events)) {
     $events = [];
 }
 
+// Loaded for the per-event-card dropdown. Read-side access doesn't gate
+// on canEditSite — assigning a category != managing the list.
+require_once __DIR__ . '/helpers.php';
+$categories = event_list_load_categories();
+
 // Render icon HTML using the shared helper injected by admin/config.php.
 $iconHtml = '';
 if (isset($renderPaneIcon) && is_callable($renderPaneIcon)) {
@@ -77,9 +82,10 @@ if ($iconHtml === '') {
     // sidesteps script-src CSP entirely. admin.js reads + parses it on init.
     $snapshotJson = json_encode([
         'events' => $events,
+        'categories' => $categories,
     ], JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
     if ($snapshotJson === false) {
-        $snapshotJson = '{"events":[]}';
+        $snapshotJson = '{"events":[],"categories":[]}';
     }
 ?>
 <div class="pane glassConvex eventListPane" id="<?php echo htmlspecialchars($paneId); ?>" data-pane-type="eventList" data-snapshot="<?php echo htmlspecialchars($snapshotJson, ENT_QUOTES, 'UTF-8'); ?>">
@@ -118,6 +124,7 @@ if ($iconHtml === '') {
                 $address = $event['address'] ?? '';
                 $description = $event['description'] ?? '';
                 $allDay = !empty($event['allDay']);
+                $eventCategoryId = isset($event['categoryId']) && is_string($event['categoryId']) ? $event['categoryId'] : '';
             ?>
                 <div class="eventCard" data-event-index="<?php echo (int) $index; ?>" data-event-id="<?php echo htmlspecialchars($eventId); ?>">
                     <div class="eventNameRow">
@@ -130,6 +137,17 @@ if ($iconHtml === '') {
                                 <?php echo lawnding_icon_svg('delete'); ?>
                             </button>
                         </div>
+                    </div>
+                    <div class="eventCategoryFieldRow">
+                        <label class="eventCategoryFieldLabel">
+                            <span class="eventFieldTitle">Category</span>
+                            <select class="eventCategoryInput" aria-label="Category">
+                                <option value=""<?php echo $eventCategoryId === '' ? ' selected' : ''; ?>>(none)</option>
+                                <?php foreach ($categories as $cat): ?>
+                                    <option value="<?php echo htmlspecialchars($cat['id'], ENT_QUOTES, 'UTF-8'); ?>"<?php echo $cat['id'] === $eventCategoryId ? ' selected' : ''; ?>><?php echo htmlspecialchars($cat['name'], ENT_QUOTES, 'UTF-8'); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </label>
                     </div>
                     <div class="eventSectionDivider" aria-hidden="true"></div>
                     <div class="eventAllDayRow">

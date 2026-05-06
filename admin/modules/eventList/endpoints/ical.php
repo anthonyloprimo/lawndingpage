@@ -121,6 +121,16 @@ $endDate = is_string($event['endDate'] ?? null) ? $event['endDate'] : '';
 $endTime = is_string($event['endTime'] ?? null) ? $event['endTime'] : '';
 $timeZoneName = is_string($event['timeZone'] ?? null) ? trim($event['timeZone']) : '';
 $allDay = !empty($event['allDay']);
+$categoryId = is_string($event['categoryId'] ?? null) ? $event['categoryId'] : '';
+$categoryName = '';
+if ($categoryId !== '') {
+    foreach (event_list_load_categories() as $cat) {
+        if (($cat['id'] ?? '') === $categoryId) {
+            $categoryName = (string) ($cat['name'] ?? '');
+            break;
+        }
+    }
+}
 
 if ($startDate === '') {
     respond_status(404);
@@ -213,6 +223,7 @@ $lines = [
     ics_fold('SUMMARY:' . ics_escape($name !== '' ? $name : 'Event')),
     $address !== '' ? ics_fold('LOCATION:' . ics_escape($address)) : null,
     $description !== '' ? ics_fold('DESCRIPTION:' . ics_escape($description)) : null,
+    $categoryName !== '' ? ics_fold('CATEGORIES:' . ics_escape($categoryName)) : null,
     'END:VEVENT',
     'END:VCALENDAR',
 ];

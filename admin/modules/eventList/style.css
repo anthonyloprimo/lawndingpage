@@ -66,6 +66,7 @@
 .eventNameRow,
 .eventTimeRow,
 .eventTimeZoneRow,
+.eventCategoryFieldRow,
 .eventAddressRow {
     display: grid;
     gap: 6px;
@@ -139,7 +140,8 @@
     flex-direction: column;
     gap: 4px;
 }
-.eventTimeZoneRow {
+.eventTimeZoneRow,
+.eventCategoryFieldRow {
     grid-template-columns: 80px minmax(0, 1fr);
 }
 
@@ -178,7 +180,8 @@
     }
 }
 .eventCard input,
-.eventCard textarea {
+.eventCard textarea,
+.eventCard select {
     padding: 6px 8px;
     border-radius: 4px;
     border: 1px solid #FFFFFF33;
@@ -786,4 +789,106 @@
     background: #00000055;
     color: inherit;
     cursor: pointer;
+}
+
+/* SITE CONFIG categories editor (rendered by event_list_render_site_config). */
+.eventListCategoriesConfig .eventCategoriesEditor {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 10px;
+}
+.eventCategoriesList {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.eventCategoriesEmpty {
+    font-size: 13px;
+    opacity: 0.65;
+    padding: 6px 0;
+}
+.eventCategoryRow {
+    display: grid;
+    grid-template-columns: 36px minmax(0, 1fr) auto;
+    gap: 8px;
+    align-items: center;
+}
+/* Soft-delete: row stays editable so admin can untoggle, but visibly marked. */
+.eventCategoryRow.isDeleted .eventCategoryNameInput,
+.eventCategoryRow.isDeleted .eventCategoryColorInput {
+    text-decoration: line-through;
+    opacity: 0.5;
+}
+.eventCategoryColorInput {
+    width: 36px;
+    height: 32px;
+    padding: 0;
+    border: 1px solid #FFFFFF33;
+    border-radius: 4px;
+    background: #00000033;
+    cursor: pointer;
+}
+.eventCategoryNameInput {
+    height: 32px;
+    padding: 6px 8px;
+    border-radius: 4px;
+    border: 1px solid #FFFFFF33;
+    background: #00000033;
+    color: inherit;
+    font-family: inherit;
+}
+.eventCategoriesActions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+.eventCategoriesAdd,
+.eventCategoriesSave {
+    padding: 6px 10px;
+    border-radius: 6px;
+    border: 1px solid #FFFFFF44;
+    background: #00000055;
+    color: inherit;
+    cursor: pointer;
+}
+.eventCategoriesAdd:hover,
+.eventCategoriesSave:not([disabled]):hover {
+    background: #77777733;
+    border-color: #FFFFFFBB;
+}
+.eventCategoriesSave[disabled] {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+.eventCategoriesStatus {
+    font-size: 12px;
+    opacity: 0.75;
+}
+
+/* Public-side legend above the calendar grid. Each chip's swatch carries
+   its category color via runtime --bar-accent set in public.js. */
+.eventCategoryLegend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 8px;
+    padding: 4px 6px;
+    font-size: 12px;
+    align-items: center;
+    opacity: 0.85;
+}
+.eventCategoryLegendChip {
+    --bar-accent: #7ec7ed;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+.eventCategoryLegendSwatch {
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+    background: var(--bar-accent);
+    flex-shrink: 0;
 }

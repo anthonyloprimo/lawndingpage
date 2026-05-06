@@ -1088,45 +1088,38 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
         <?php endif; ?>
         <?php // Site Config: site-wide module defaults. New panes inherit these; per-pane overrides live in the gear-icon modal on each gallery. Gated on edit_site for now; tighten to full_admin if these flags ever drive security-sensitive behavior. ?>
         <?php if (!empty($canEditSite)): ?>
-        <?php
-            // Walk lawnding_site_config_defaults() so adding a new flag in
-            // code auto-renders here. Labels come from the site-config
-            // label registry above; missing labels fall back to a
-            // camelCase-split version of the key.
-            $siteConfig = lawnding_load_site_config();
-            $siteConfigDefaults = lawnding_site_config_defaults();
-            $siteConfigLabels = lawnding_site_config_labels();
-            $moduleLabels = is_array($siteConfigLabels['_modules'] ?? null) ? $siteConfigLabels['_modules'] : [];
-        ?>
         <div class="pane glassConvex" id="siteConfig">
             <h3>SITE CONFIG</h3>
             <p class="paneHint">Defaults that newly created panes inherit. Existing panes can opt out per-instance via the gear icon on each pane.</p>
             <input type="hidden" name="siteConfig[__rendered]" value="1">
-            <?php foreach ($siteConfigDefaults as $moduleKey => $flags): ?>
-                <?php if (!is_array($flags) || empty($flags)) continue; ?>
-                <?php $moduleLabel = $moduleLabels[$moduleKey] ?? lawnding_camel_to_label($moduleKey); ?>
-                <fieldset class="siteConfigGroup">
-                    <legend><?php echo htmlspecialchars($moduleLabel); ?></legend>
-                    <?php foreach ($flags as $flagKey => $defaultValue): ?>
-                        <?php
-                            $flagLabel = $siteConfigLabels[$moduleKey][$flagKey] ?? lawnding_camel_to_label($flagKey);
-                            $name = 'siteConfig[' . $moduleKey . '][' . $flagKey . ']';
-                            $current = $siteConfig[$moduleKey][$flagKey] ?? $defaultValue;
-                        ?>
-                        <?php if (is_bool($defaultValue)): ?>
-                            <label class="siteConfigToggle">
-                                <input type="checkbox" name="<?php echo htmlspecialchars($name); ?>" <?php echo !empty($current) ? 'checked' : ''; ?>>
-                                <span><?php echo htmlspecialchars($flagLabel); ?></span>
-                            </label>
-                        <?php elseif (is_int($defaultValue)): ?>
-                            <label class="siteConfigField">
-                                <span><?php echo htmlspecialchars($flagLabel); ?></span>
-                                <input type="number" min="1" step="1" name="<?php echo htmlspecialchars($name); ?>" value="<?php echo htmlspecialchars((string) (int) $current); ?>">
-                            </label>
-                        <?php endif; ?>
-                    <?php endforeach; ?>
-                </fieldset>
-            <?php endforeach; ?>
+            <?php
+                // Centralized SITE CONFIG dispatch. Iterates every key
+                // in lawnding_site_config_defaults() — that's both the
+                // _app slot (platform-wide settings like maxUploadSizeMB)
+                // AND each discoverable module with a site_config block,
+                // matching the source of truth the prior inline loop used.
+                //
+                // For each: prefer manifest-declared site_config.render
+                // (lazy-load helpers.php, dispatch by name — same shape as
+                // save_map.validator / on_rename callbacks); otherwise
+                // auto-render the standard manifest-driven fieldset via
+                // lawnding_render_site_config_fieldset(). The _app slot
+                // has no manifest so always falls through to the helper.
+                foreach (array_keys(lawnding_site_config_defaults()) as $moduleId) {
+                    $manifest = lawnding_module_manifest($moduleId);
+                    $callback = isset($manifest['site_config']['render']) && is_string($manifest['site_config']['render'])
+                        ? $manifest['site_config']['render']
+                        : '';
+                    if ($callback !== '') {
+                        lawnding_module_load_helpers($moduleId);
+                        if (function_exists($callback)) {
+                            $callback();
+                            continue;
+                        }
+                    }
+                    lawnding_render_site_config_fieldset($moduleId);
+                }
+            ?>
         </div>
         <?php endif; ?>
         <?php // Render each dynamic pane using its module admin template. ?>

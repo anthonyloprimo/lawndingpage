@@ -117,6 +117,7 @@ if ($iconHtml === '') {
                 $timeZone = $event['timeZone'] ?? '';
                 $address = $event['address'] ?? '';
                 $description = $event['description'] ?? '';
+                $allDay = !empty($event['allDay']);
             ?>
                 <div class="eventCard" data-event-index="<?php echo (int) $index; ?>" data-event-id="<?php echo htmlspecialchars($eventId); ?>">
                     <div class="eventNameRow">
@@ -131,7 +132,13 @@ if ($iconHtml === '') {
                         </div>
                     </div>
                     <div class="eventSectionDivider" aria-hidden="true"></div>
-                    <div class="eventTimeRow">
+                    <div class="eventAllDayRow">
+                        <label class="eventAllDayLabel">
+                            <input type="checkbox" class="eventAllDayInput"<?php if ($allDay): ?> checked<?php endif; ?>>
+                            <span>All day</span>
+                        </label>
+                    </div>
+                    <div class="eventTimeRow<?php if ($allDay): ?> isAllDay<?php endif; ?>">
                         <div class="eventFieldTitle eventFieldTitleRow">When</div>
                         <div class="eventTimeFields">
                             <div class="eventTimeGroup">

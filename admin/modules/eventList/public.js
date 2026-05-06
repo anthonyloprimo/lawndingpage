@@ -25,27 +25,30 @@ function renderEventLists() {
 
         function parseEventDate(event) {
             const date = event.startDate || event.date || '';
-            const start = event.startTime || '';
-            if (!date || !start) {
-                return null;
+            if (!date) { return null; }
+            if (event.allDay) {
+                const parsed = new Date(`${date}T00:00:00`);
+                return isNaN(parsed.getTime()) ? null : parsed;
             }
-            const iso = `${date}T${start}`;
-            const parsedDate = new Date(iso);
-            return isNaN(parsedDate.getTime()) ? null : parsedDate;
+            const start = event.startTime || '';
+            if (!start) { return null; }
+            const parsed = new Date(`${date}T${start}`);
+            return isNaN(parsed.getTime()) ? null : parsed;
         }
 
         function eventEnd(event) {
             const startDate = parseEventDate(event);
-            if (!startDate) {
-                return null;
+            if (!startDate) { return null; }
+            if (event.allDay) {
+                const endDateValue = event.endDate || event.startDate || event.date || '';
+                const parsed = new Date(`${endDateValue}T23:59:59`);
+                return isNaN(parsed.getTime()) ? null : parsed;
             }
             if (event.endTime) {
                 const endDateValue = event.endDate || event.startDate || event.date || '';
                 const iso = `${endDateValue}T${event.endTime}`;
                 const endDate = new Date(iso);
-                if (!isNaN(endDate.getTime())) {
-                    return endDate;
-                }
+                if (!isNaN(endDate.getTime())) { return endDate; }
             }
             return new Date(startDate.getTime() + 60 * 60 * 1000);
         }
@@ -61,10 +64,25 @@ function renderEventLists() {
         }
 
         // Format event date/time range with same-day and overnight handling.
+        // All-day events drop the time half: "All day, Sat Mar 14 2026" (single)
+        // or "All day, Sat Mar 14 2026 - Mon Mar 16 2026" (multi-day).
         function formatEventRange(event) {
             const startDateTime = parseEventDate(event);
             if (!startDateTime) {
                 return '';
+            }
+            if (event.allDay) {
+                const dateOpts = { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' };
+                const startDateText = startDateTime.toLocaleDateString(undefined, dateOpts);
+                const endDateValue = event.endDate || event.startDate || event.date || '';
+                if (endDateValue && endDateValue !== (event.startDate || event.date)) {
+                    const endDateTime = new Date(`${endDateValue}T00:00:00`);
+                    if (!isNaN(endDateTime.getTime())) {
+                        const endDateText = endDateTime.toLocaleDateString(undefined, dateOpts);
+                        return `All day, ${startDateText} - ${endDateText}`;
+                    }
+                }
+                return `All day, ${startDateText}`;
             }
             const startLabel = formatDateTime(startDateTime);
             if (!event.endTime) {
@@ -358,6 +376,158 @@ function renderEventLists() {
                 $(this).toggleClass('hidden', !isActive);
             });
         }
+        // 12h clock with single-letter am/pm, minutes only when non-zero ("7p", "7:30p").
+        function formatBarTime(dateObj) {
+            if (!dateObj) { return ''; }
+            const h = dateObj.getHours();
+            const m = dateObj.getMinutes();
+            const ampm = h >= 12 ? 'p' : 'a';
+            const h12 = ((h + 11) % 12) + 1;
+            return m === 0 ? `${h12}${ampm}` : `${h12}:${padDatePart(m)}${ampm}`;
+        }
+        // Visible tracks per cell capped at 3. Events at higher tracks roll
+        // up into a "+ N more" overflow link per day.
+        const TRACKS_VISIBLE_MAX = 3;
+        // Allocate each row event a stable track index 0..N so multi-day spans
+        // render at the same Y position in every cell they cross. Three tiers:
+        //   1. allDay events       (top of stack)
+        //   2. timed multi-day     (middle)
+        //   3. timed single-day    (bottom, ascending by start time)
+        function allocateRowTracks(rowEvents) {
+            const isMultiDay = (re) => re.rowStartDay !== re.rowEndDay
+                || re.continuesFromPriorRow
+                || re.continuesToNextRow;
+            const tierOf = (re) => re.event.allDay ? 1 : (isMultiDay(re) ? 2 : 3);
+            const sorted = rowEvents.slice().sort((a, b) => {
+                const aTier = tierOf(a);
+                const bTier = tierOf(b);
+                if (aTier !== bTier) { return aTier - bTier; }
+                if (aTier <= 2) {
+                    // Tier 1 (allDay) or 2 (multi-day): longer spans first.
+                    const aLen = a.rowEndDay - a.rowStartDay;
+                    const bLen = b.rowEndDay - b.rowStartDay;
+                    if (bLen !== aLen) { return bLen - aLen; }
+                }
+                const aStart = parseEventDate(a.event);
+                const bStart = parseEventDate(b.event);
+                return (aStart ? aStart.getTime() : 0) - (bStart ? bStart.getTime() : 0);
+            });
+            const occupied = [];
+            sorted.forEach((re) => {
+                let track = 0;
+                for (;;) {
+                    if (!occupied[track]) {
+                        occupied[track] = [false, false, false, false, false, false, false];
+                    }
+                    let conflict = false;
+                    for (let d = re.rowStartDay; d <= re.rowEndDay; d++) {
+                        if (occupied[track][d]) { conflict = true; break; }
+                    }
+                    if (!conflict) {
+                        for (let d = re.rowStartDay; d <= re.rowEndDay; d++) {
+                            occupied[track][d] = true;
+                        }
+                        re.track = track;
+                        break;
+                    }
+                    track++;
+                }
+            });
+            return sorted;
+        }
+        function buildRowAllocation(weekStart) {
+            const weekEnd = addDays(weekStart, 6);
+            const weekEndExclusive = addDays(weekEnd, 1);
+            const rowEvents = [];
+            calendarEvents.forEach((event) => {
+                const start = parseEventDate(event);
+                if (!start) { return; }
+                const end = eventEnd(event) || start;
+                if (start.getTime() >= weekEndExclusive.getTime()) { return; }
+                if (end.getTime() <= weekStart.getTime()) { return; }
+                const startDay = startOfDay(start);
+                const endDay = startOfDay(new Date(end.getTime() - 1));
+                const rawStart = Math.round((startDay - weekStart) / 86400000);
+                const rawEnd = Math.round((endDay - weekStart) / 86400000);
+                const rowStartDay = Math.max(0, rawStart);
+                const rowEndDay = Math.min(6, rawEnd);
+                rowEvents.push({
+                    event,
+                    rowStartDay,
+                    rowEndDay,
+                    continuesFromPriorRow: rawStart < 0,
+                    continuesToNextRow: rawEnd > 6,
+                });
+            });
+            return allocateRowTracks(rowEvents);
+        }
+        function renderCalendarBars($cell, dayIndex, allocated) {
+            const occupants = allocated.filter((re) =>
+                re.rowStartDay <= dayIndex && re.rowEndDay >= dayIndex
+            );
+            if (!occupants.length) { return; }
+            const $bars = $('<div class="eventCalendarBars"></div>');
+            const visibleOccupants = occupants.filter((re) => re.track < TRACKS_VISIBLE_MAX);
+            const overflowOccupants = occupants.filter((re) => re.track >= TRACKS_VISIBLE_MAX);
+            const visibleByTrack = {};
+            visibleOccupants.forEach((re) => { visibleByTrack[re.track] = re; });
+            const maxVisibleTrack = visibleOccupants.reduce((m, re) => Math.max(m, re.track), -1);
+            for (let track = 0; track <= maxVisibleTrack; track++) {
+                const re = visibleByTrack[track];
+                if (!re) {
+                    $bars.append('<div class="eventCalendarBarSlot" aria-hidden="true"></div>');
+                    continue;
+                }
+                const isMultiCellInRow = re.rowStartDay !== re.rowEndDay;
+                const isFirstInRow = re.rowStartDay === dayIndex;
+                // Continuation cells of a multi-cell row segment: render only a slot.
+                // The bar lives in the first cell, sized to span the whole segment.
+                if (isMultiCellInRow && !isFirstInRow) {
+                    $bars.append('<div class="eventCalendarBarSlot" aria-hidden="true"></div>');
+                    continue;
+                }
+                const isAllDay = !!re.event.allDay;
+                const isMultiDayEvent = isMultiCellInRow
+                    || re.continuesFromPriorRow
+                    || re.continuesToNextRow;
+                const start = parseEventDate(re.event);
+                const time = isAllDay ? '' : formatBarTime(start);
+                const title = String(re.event && re.event.name ? re.event.name : 'Event');
+                const accessibleLabel = isAllDay
+                    ? `${title}, all day`
+                    : (isMultiDayEvent
+                        ? `${title}, multi-day event`
+                        : (time ? `${time} ${title}` : title));
+                const $bar = $('<button type="button" class="eventCalendarBar"></button>')
+                    .attr('data-event-id', re.event && re.event.id ? re.event.id : '')
+                    .attr('aria-label', accessibleLabel)
+                    .attr('title', accessibleLabel);
+                if (isAllDay) { $bar.addClass('isAllDay'); }
+                if (isMultiDayEvent) {
+                    $bar.addClass('isSpan');
+                    const spanCells = re.rowEndDay - re.rowStartDay + 1;
+                    $bar.css('--span-cells', String(spanCells));
+                    if (re.continuesFromPriorRow) { $bar.addClass('isContinuesFromPrior'); }
+                    if (re.continuesToNextRow) { $bar.addClass('isContinuesToNext'); }
+                    $bar.append($('<span class="eventCalendarBarTitle"></span>').text(title));
+                } else {
+                    if (time) {
+                        $bar.append($('<span class="eventCalendarBarTime"></span>').text(time));
+                    }
+                    $bar.append($('<span class="eventCalendarBarTitle"></span>').text(title));
+                }
+                $bars.append($bar);
+            }
+            if (overflowOccupants.length) {
+                const more = overflowOccupants.length;
+                $bars.append(
+                    $('<button type="button" class="eventCalendarBarMore"></button>')
+                        .text(`+${more} More…`)
+                        .attr('aria-label', `${more} more event${more === 1 ? '' : 's'}, view all`)
+                );
+            }
+            $cell.find('.eventCalendarCellInner').append($bars);
+        }
         function renderCalendar() {
             if (!showCalendar) { return; }
             const $monthLabel = $pane.find('.eventCalendarMonthText');
@@ -372,31 +542,34 @@ function renderEventLists() {
             const gridStart = addDays(firstOfMonth, -firstOfMonth.getDay());
             const todayKey = dateKey(now);
             for (let week = 0; week < 6; week++) {
+                const weekStart = addDays(gridStart, week * 7);
+                const allocated = buildRowAllocation(weekStart);
                 const $row = $('<tr></tr>');
                 for (let day = 0; day < 7; day++) {
-                    const cellDate = addDays(gridStart, week * 7 + day);
+                    const cellDate = addDays(weekStart, day);
                     const cellDayStart = startOfDay(cellDate);
                     const key = dateKey(cellDayStart);
-                    const dayEvents = getDayEvents(cellDayStart);
                     const inCurrentMonth = cellDate.getMonth() === calendarMonth.getMonth();
                     const isToday = key === todayKey;
-                    const count = dayEvents.length;
-                    const countLabel = count > 99 ? '99+' : String(count);
+                    const count = allocated.filter((re) => re.rowStartDay <= day && re.rowEndDay >= day).length;
                     const $cell = $('<td></td>')
                         .addClass('eventCalendarCell')
                         .toggleClass('isAdjacentMonth', !inCurrentMonth)
                         .toggleClass('isToday', isToday)
                         .toggleClass('hasEvents', count > 0)
                         .attr('data-date', key);
-                    const $button = $('<button type="button" class="eventCalendarDayButton"></button>')
-                        .attr('aria-label', `${formatCalendarDayTitle(cellDayStart)}${count ? `, ${count} event${count === 1 ? '' : 's'}` : ''}`);
-                    const $inner = $('<span class="eventCalendarCellInner"></span>');
-                    $inner.append($('<span class="eventCalendarDateNumber"></span>').text(cellDate.getDate()));
+                    const $inner = $('<div class="eventCalendarCellInner"></div>');
+                    const dayTitleLabel = `${formatCalendarDayTitle(cellDayStart)}${count ? `, ${count} event${count === 1 ? '' : 's'}` : ''}`;
                     if (count > 0) {
-                        $inner.append($('<span class="eventCalendarEventBadge"></span>').text(countLabel));
+                        const $header = $('<button type="button" class="eventCalendarDayHeader"></button>')
+                            .attr('aria-label', dayTitleLabel);
+                        $header.append($('<span class="eventCalendarDateNumber"></span>').text(cellDate.getDate()));
+                        $inner.append($header);
+                    } else {
+                        $inner.append($('<span class="eventCalendarDateNumber"></span>').text(cellDate.getDate()));
                     }
-                    $button.append($inner);
-                    $cell.append($button);
+                    $cell.append($inner);
+                    renderCalendarBars($cell, day, allocated);
                     $row.append($cell);
                 }
                 $body.append($row);
@@ -439,7 +612,10 @@ function renderEventLists() {
             $pane.find('.eventSplit').removeClass('eventSplitSingle');
         }
 
-        if (showCalendar) {
+        // Mobile (<600px): force EVENTS view; calendar tab is hidden by CSS too.
+        const calendarSuppressedByViewport = window.matchMedia
+            && window.matchMedia('(max-width: 600px)').matches;
+        if (showCalendar && !calendarSuppressedByViewport) {
             renderCalendar();
             setEventView(calendarDefault ? 'calendar' : 'events');
         } else {
@@ -580,11 +756,21 @@ function renderEventLists() {
             renderCalendar();
         });
 
-        $pane.off('click.eventCalendarDay').on('click.eventCalendarDay', '.eventCalendarDayButton', function() {
-            const dateValue = $(this).closest('.eventCalendarCell').attr('data-date') || '';
+        function openDayModalFromCell(el) {
+            const dateValue = $(el).closest('.eventCalendarCell').attr('data-date') || '';
             const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateValue);
             if (!match) { return; }
             openDayModal(new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
+        }
+        $pane.off('click.eventCalendarDay').on('click.eventCalendarDay',
+            '.eventCalendarDayHeader, .eventCalendarBarMore', function() {
+            openDayModalFromCell(this);
+        });
+        $pane.off('click.eventCalendarBar').on('click.eventCalendarBar', '.eventCalendarBar', function() {
+            const eventId = $(this).attr('data-event-id') || '';
+            const match = events.find((item) => item && item.id === eventId);
+            if (!match) { return; }
+            openModal(match, eventCanBeSaved(match), paneId);
         });
 
         $dayOverlay.off('click.eventCalendarDayModalClose').on('click.eventCalendarDayModalClose', function(event) {

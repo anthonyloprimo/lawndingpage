@@ -45,23 +45,28 @@
         }
 
         function readEventFromCard($card) {
+            const allDay = $card.find('.eventAllDayInput').is(':checked');
             return {
                 id: $card.attr('data-event-id') || '',
                 name: ($card.find('.eventNameInput').val() || '').trim(),
                 startDate: ($card.find('.eventStartDateInput').val() || '').trim(),
-                startTime: ($card.find('.eventStartTimeInput').val() || '').trim(),
+                startTime: allDay ? '' : ($card.find('.eventStartTimeInput').val() || '').trim(),
                 endDate: ($card.find('.eventEndDateInput').val() || '').trim(),
-                endTime: ($card.find('.eventEndTimeInput').val() || '').trim(),
+                endTime: allDay ? '' : ($card.find('.eventEndTimeInput').val() || '').trim(),
                 timeZone: ($card.find('.eventTimezoneInput').val() || '').trim() || getBrowserTimeZone(),
                 address: ($card.find('.eventAddressInput').val() || '').trim(),
-                description: ($card.find('.eventDescriptionInput').val() || '').trim()
+                description: ($card.find('.eventDescriptionInput').val() || '').trim(),
+                allDay: allDay
             };
         }
 
         function eventFieldsEqual(a, b) {
             const fields = ['name', 'startDate', 'startTime', 'endDate', 'endTime',
                 'timeZone', 'address', 'description'];
-            return fields.every((f) => (a[f] || '') === (b[f] || ''));
+            for (const f of fields) {
+                if ((a[f] || '') !== (b[f] || '')) { return false; }
+            }
+            return !!a.allDay === !!b.allDay;
         }
 
         function snapshotById(id) {
@@ -112,18 +117,23 @@
                 const errors = [];
                 if (!event.name) { errors.push('Name is required.'); }
                 if (!event.startDate) { errors.push('Start date is required.'); }
-                if (!event.startTime) { errors.push('Start time is required.'); }
-                if ((event.endDate && !event.endTime) || (!event.endDate && event.endTime)) {
+                if (!event.allDay && !event.startTime) { errors.push('Start time is required.'); }
+                if (!event.allDay
+                    && ((event.endDate && !event.endTime) || (!event.endDate && event.endTime))) {
                     errors.push('End date and time must both be set or both be blank.');
                 }
-                if (event.endDate && event.endTime
+                if (event.allDay && event.endDate && event.endDate < event.startDate) {
+                    errors.push('End date cannot be earlier than start date.');
+                } else if (!event.allDay && event.endDate && event.endTime
                     && isEndBeforeStart(event.startDate, event.startTime, event.endDate, event.endTime)) {
                     errors.push('End date/time cannot be earlier than start date/time.');
                 }
                 if (!event.address) { errors.push('Address is required.'); }
                 if (!event.description) { errors.push('Description is required.'); }
-                const dedupeKey = `${event.name.toLowerCase()}|${event.startDate}|${event.startTime}`;
-                if (event.name && event.startDate && event.startTime) {
+                const dedupeKey = event.allDay
+                    ? `${event.name.toLowerCase()}|${event.startDate}|allday`
+                    : `${event.name.toLowerCase()}|${event.startDate}|${event.startTime}`;
+                if (event.name && event.startDate && (event.allDay || event.startTime)) {
                     if (seen.has(dedupeKey)) {
                         errors.push('Duplicate event (name + date + time).');
                     } else {
@@ -168,6 +178,12 @@
                         </div>
                     </div>
                     <div class="eventSectionDivider" aria-hidden="true"></div>
+                    <div class="eventAllDayRow">
+                        <label class="eventAllDayLabel">
+                            <input type="checkbox" class="eventAllDayInput">
+                            <span>All day</span>
+                        </label>
+                    </div>
                     <div class="eventTimeRow">
                         <div class="eventFieldTitle eventFieldTitleRow">When</div>
                         <div class="eventTimeFields">
@@ -216,6 +232,10 @@
                 $card.find('.eventTimezoneInput').val(data.timeZone || getBrowserTimeZone());
                 $card.find('.eventAddressInput').val(data.address || '');
                 $card.find('.eventDescriptionInput').val(data.description || '');
+                if (data.allDay) {
+                    $card.find('.eventAllDayInput').prop('checked', true);
+                    $card.find('.eventTimeRow').addClass('isAllDay');
+                }
             } else {
                 $card.find('.eventTimezoneInput').val(getBrowserTimeZone());
             }
@@ -297,6 +317,11 @@
             if (window.openAdminModal) {
                 window.openAdminModal($('#eventDeleteConfirmModal'));
             }
+        });
+
+        $pane.on('change', '.eventAllDayInput', function () {
+            const $card = $(this).closest('.eventCard');
+            $card.find('.eventTimeRow').toggleClass('isAllDay', this.checked);
         });
 
         $pane.on('input change',

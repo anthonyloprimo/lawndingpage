@@ -100,9 +100,15 @@ function event_list_ics_filename(string $name, string $eventId): string {
 }
 
 // Required fields, paired end date/time, end >= start, valid markdown gating.
+// All-day events skip startTime/endTime requirements but must still have
+// startDate (and an endDate >= startDate when set).
 // No dedup (admin-UX concern, not data integrity).
 function event_list_event_is_valid(array $event): bool {
-    foreach (['name', 'startDate', 'startTime', 'address', 'description'] as $field) {
+    $allDay = !empty($event['allDay']);
+    $required = $allDay
+        ? ['name', 'startDate', 'address', 'description']
+        : ['name', 'startDate', 'startTime', 'address', 'description'];
+    foreach ($required as $field) {
         $val = $event[$field] ?? '';
         if (!is_string($val) || trim($val) === '') {
             return false;
@@ -110,14 +116,20 @@ function event_list_event_is_valid(array $event): bool {
     }
     $endDate = (string) ($event['endDate'] ?? '');
     $endTime = (string) ($event['endTime'] ?? '');
-    if (($endDate === '' && $endTime !== '') || ($endDate !== '' && $endTime === '')) {
-        return false;
-    }
-    if ($endDate !== '' && $endTime !== '') {
-        $startKey = (string) $event['startDate'] . ' ' . (string) $event['startTime'];
-        $endKey = $endDate . ' ' . $endTime;
-        if ($endKey < $startKey) {
+    if ($allDay) {
+        if ($endDate !== '' && $endDate < (string) $event['startDate']) {
             return false;
+        }
+    } else {
+        if (($endDate === '' && $endTime !== '') || ($endDate !== '' && $endTime === '')) {
+            return false;
+        }
+        if ($endDate !== '' && $endTime !== '') {
+            $startKey = (string) $event['startDate'] . ' ' . (string) $event['startTime'];
+            $endKey = $endDate . ' ' . $endTime;
+            if ($endKey < $startKey) {
+                return false;
+            }
         }
     }
     $gated = lawnding_markdown_gate_apply((string) $event['description'], 'admin', false);

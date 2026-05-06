@@ -120,8 +120,12 @@ $startTime = is_string($event['startTime'] ?? null) ? $event['startTime'] : '';
 $endDate = is_string($event['endDate'] ?? null) ? $event['endDate'] : '';
 $endTime = is_string($event['endTime'] ?? null) ? $event['endTime'] : '';
 $timeZoneName = is_string($event['timeZone'] ?? null) ? trim($event['timeZone']) : '';
+$allDay = !empty($event['allDay']);
 
-if ($startDate === '' || $startTime === '') {
+if ($startDate === '') {
+    respond_status(404);
+}
+if (!$allDay && $startTime === '') {
     respond_status(404);
 }
 
@@ -130,7 +134,7 @@ if ($endTime !== '' && $endDate === '') {
 }
 
 $tz = null;
-if ($timeZoneName !== '') {
+if (!$allDay && $timeZoneName !== '') {
     try {
         $tz = new DateTimeZone($timeZoneName);
     } catch (Exception $e) {
@@ -138,17 +142,31 @@ if ($timeZoneName !== '') {
     }
 }
 
-$startDt = build_datetime($startDate, $startTime, $tz);
-if (!$startDt) {
-    respond_status(404);
-}
-
-$endDt = null;
-if ($endDate !== '' && $endTime !== '') {
-    $endDt = build_datetime($endDate, $endTime, $tz);
-}
-if (!$endDt) {
-    $endDt = $startDt->modify('+1 hour');
+if ($allDay) {
+    // DATE-valued DTSTART/DTEND per RFC 5545: DTEND is EXCLUSIVE for date
+    // values, so a single-day all-day event ending May 7 has DTEND=May 8.
+    $startDt = build_datetime($startDate, '00:00', null);
+    if (!$startDt) {
+        respond_status(404);
+    }
+    $endDateValue = $endDate !== '' ? $endDate : $startDate;
+    $endDt = build_datetime($endDateValue, '00:00', null);
+    if (!$endDt) {
+        respond_status(404);
+    }
+    $endDt = $endDt->modify('+1 day');
+} else {
+    $startDt = build_datetime($startDate, $startTime, $tz);
+    if (!$startDt) {
+        respond_status(404);
+    }
+    $endDt = null;
+    if ($endDate !== '' && $endTime !== '') {
+        $endDt = build_datetime($endDate, $endTime, $tz);
+    }
+    if (!$endDt) {
+        $endDt = $startDt->modify('+1 hour');
+    }
 }
 
 $headerPath = lawnding_data_path('header.json');
@@ -169,9 +187,17 @@ if ($uidName === '') {
 $uid = $uidName . '@' . $orgName . '-' . $uidDate . '.lawndingpage';
 
 $dtstamp = (new DateTimeImmutable('now', new DateTimeZone('UTC')))->format('Ymd\THis\Z');
-$tzPrefix = $tz ? 'TZID=' . $timeZoneName . ':' : '';
-$dtstart = $startDt->format('Ymd\THis');
-$dtend = $endDt->format('Ymd\THis');
+
+if ($allDay) {
+    $dtstartLine = 'DTSTART;VALUE=DATE:' . $startDt->format('Ymd');
+    $dtendLine = 'DTEND;VALUE=DATE:' . $endDt->format('Ymd');
+} else {
+    $tzPrefix = $tz ? 'TZID=' . $timeZoneName . ':' : '';
+    $dtstart = $startDt->format('Ymd\THis');
+    $dtend = $endDt->format('Ymd\THis');
+    $dtstartLine = 'DTSTART' . ($tzPrefix ? ';' . $tzPrefix : ':') . $dtstart;
+    $dtendLine = 'DTEND' . ($tzPrefix ? ';' . $tzPrefix : ':') . $dtend;
+}
 
 $lines = [
     'BEGIN:VCALENDAR',
@@ -182,8 +208,8 @@ $lines = [
     'BEGIN:VEVENT',
     ics_fold('UID:' . ics_escape($uid)),
     'DTSTAMP:' . $dtstamp,
-    'DTSTART' . ($tzPrefix ? ';' . $tzPrefix : ':') . $dtstart,
-    'DTEND' . ($tzPrefix ? ';' . $tzPrefix : ':') . $dtend,
+    $dtstartLine,
+    $dtendLine,
     ics_fold('SUMMARY:' . ics_escape($name !== '' ? $name : 'Event')),
     $address !== '' ? ics_fold('LOCATION:' . ics_escape($address)) : null,
     $description !== '' ? ics_fold('DESCRIPTION:' . ics_escape($description)) : null,

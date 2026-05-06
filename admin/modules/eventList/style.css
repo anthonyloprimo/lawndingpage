@@ -101,6 +101,24 @@
     gap: 6px;
     align-items: center;
 }
+.eventAllDayRow {
+    display: flex;
+}
+.eventAllDayLabel {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    font-size: 13px;
+}
+/* All-day mode: hide the time inputs and let the date inputs claim the width. */
+.eventTimeRow.isAllDay .eventStartTimeInput,
+.eventTimeRow.isAllDay .eventEndTimeInput {
+    display: none;
+}
+.eventTimeRow.isAllDay .eventTimeGroup {
+    grid-template-columns: auto minmax(0, 1fr);
+}
 
 .eventTimeLabel {
     font-size: 11px;
@@ -384,33 +402,14 @@
 .eventCalendarCell.isToday {
     background: linear-gradient(180deg, #CFEFFF55, #7FC6E933);
 }
-.eventCalendarDayButton {
-    display: block;
-    width: 100%;
-    height: auto;
-    padding: 0;
-    border: 0;
-    background: transparent;
-    color: inherit;
-    font: inherit;
-    cursor: pointer;
-    text-align: left;
-}
-.eventCalendarDayButton:hover,
-.eventCalendarDayButton:focus-visible {
-    outline: none;
-    background: #FFFFFF12;
-}
 .eventCalendarCellInner {
     width: 100%;
-    height: auto;
-    aspect-ratio: 4 / 3;
-    min-height: 0;
+    min-height: 84px;
     display: flex;
     flex-direction: column;
-    align-items: flex-start;
-    justify-content: space-between;
-    padding: 7px;
+    align-items: stretch;
+    padding: 4px;
+    gap: 2px;
     box-sizing: border-box;
 }
 .eventCalendarCell.isAdjacentMonth .eventCalendarCellInner {
@@ -419,23 +418,136 @@
 .eventCalendarDateNumber {
     font-weight: 700;
     text-shadow: 0 1px 2px #000000AA;
+    padding: 2px 4px;
+    align-self: flex-start;
 }
-.eventCalendarEventBadge {
-    align-self: flex-end;
-    min-width: 30px;
-    height: 30px;
-    padding: 0 7px;
-    border-radius: 999px;
-    display: inline-flex;
+.eventCalendarDayHeader {
+    align-self: flex-start;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+    border-radius: 3px;
+}
+.eventCalendarDayHeader:hover,
+.eventCalendarDayHeader:focus-visible {
+    background: #FFFFFF22;
+    outline: none;
+}
+.eventCalendarBars {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-top: 2px;
+}
+.eventCalendarBar {
+    /* Single source of color truth -- flag border, background shade, and
+       hover brighten all derive from --bar-accent. Categories will override
+       per-bar via inline style. */
+    --bar-accent: #7ec7ed;
+    display: flex;
     align-items: center;
+    gap: 4px;
+    padding: 2px 4px 2px 6px;
+    background: color-mix(in srgb, var(--bar-accent) 22%, transparent);
+    border: 0;
+    border-left: 3px solid var(--bar-accent);
+    border-radius: 2px;
+    color: inherit;
+    cursor: pointer;
+    font: inherit;
+    font-size: 11px;
+    text-align: left;
+    min-width: 0;
+    overflow: hidden;
+}
+.eventCalendarBar:hover,
+.eventCalendarBar:focus-visible {
+    background: color-mix(in srgb, var(--bar-accent) 36%, transparent);
+    outline: none;
+}
+/* Multi-day events: one bar in the first cell of each row segment, sized
+   via --span-cells to cover the whole segment width. Continuation cells
+   render an empty .eventCalendarBarSlot only. */
+/* All-day bars (single-day or multi-day) center their title. Multi-day
+   bars additionally span cells via --span-cells and z-raise the title. */
+.eventCalendarBar.isAllDay,
+.eventCalendarBar.isSpan {
     justify-content: center;
-    border: 1px solid #FDF3A8;
-    outline: 1px solid #5F4B00;
-    background: linear-gradient(180deg, #FFFF76 0%, #FFFF76 50%, #BFBF36 51%, #BFBF36 100%);
-    color: #272000;
-    font-size: 12px;
-    font-weight: 800;
-    box-shadow: inset 0 1px 0 #FFFFFFAA, 0 2px 7px #00000066;
+    text-align: center;
+}
+.eventCalendarBar.isAllDay .eventCalendarBarTitle,
+.eventCalendarBar.isSpan .eventCalendarBarTitle {
+    flex: 0 1 auto;
+}
+.eventCalendarBar.isSpan {
+    width: calc(var(--span-cells, 1) * 100% + (var(--span-cells, 1) - 1) * 9px);
+    overflow: visible;
+    position: relative;
+    z-index: 1;
+}
+.eventCalendarBar.isSpan .eventCalendarBarTitle {
+    overflow: visible;
+    text-overflow: clip;
+}
+/* Span continues into the next week-row: drop right-side rounding and bleed
+   past the cell border so the visual signals "this isn't the end." */
+.eventCalendarBar.isSpan.isContinuesToNext {
+    margin-right: -5px;
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+}
+.eventCalendarBar.isSpan.isContinuesFromPrior {
+    margin-left: -5px;
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+    /* Event began in a prior week — no "start" flag on this segment. */
+    border-left-width: 0;
+    padding-left: 9px;
+}
+/* Empty placeholder so cells passing through at higher tracks keep alignment. */
+.eventCalendarBarSlot {
+    height: 18px;
+    pointer-events: none;
+}
+.eventCalendarBarTime {
+    flex-shrink: 0;
+    font-weight: 700;
+    opacity: 0.85;
+}
+.eventCalendarBarTitle {
+    flex: 1;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.eventCalendarBarMore {
+    align-self: stretch;
+    padding: 1px 4px;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+    font: inherit;
+    font-size: 11px;
+    font-weight: 700;
+    text-align: center;
+    opacity: 0.75;
+}
+.eventCalendarBarMore:hover,
+.eventCalendarBarMore:focus-visible {
+    opacity: 1;
+    text-decoration: underline;
+    outline: none;
+}
+@media (max-width: 600px) {
+    /* Calendar grid loses readability below this width; force EVENTS list view. */
+    .eventViewTab[data-event-view="calendar"] {
+        display: none;
+    }
 }
 .eventCalendarDaySection {
     display: flex;

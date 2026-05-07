@@ -692,6 +692,16 @@ function renderEventLists() {
         const $dayBody = $('#eventCalendarDayModalBody');
         const $dayClose = $('#eventCalendarDayModalClose');
         const $calendarToast = $('#eventCalendarToast');
+
+        // Reparent to <body> so position:fixed escapes <main>'s stacking
+        // context; otherwise the page-level <nav> sibling paints over the
+        // modal on small screens. Same pattern as admin.js (trait #9).
+        if ($overlay.length && !$overlay.parent().is('body')) {
+            $overlay.appendTo('body');
+        }
+        if ($dayOverlay.length && !$dayOverlay.parent().is('body')) {
+            $dayOverlay.appendTo('body');
+        }
         let calendarToastTimer = null;
 
         function closeDayModal() {

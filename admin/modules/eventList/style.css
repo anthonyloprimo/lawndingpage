@@ -492,10 +492,6 @@
     z-index: 1;
 }
 .eventCalendarBar.isSpan .eventCalendarBarTitle {
-    /* Clip at the bar's calculated multi-cell width with ellipsis when the
-       title is too long to fit. Was overflow:visible — looked OK for short
-       names but long ones (e.g. furrycons "Furry Weekend Atlanta") punched
-       past the right edge of the bar. */
     overflow: hidden;
     text-overflow: ellipsis;
 }

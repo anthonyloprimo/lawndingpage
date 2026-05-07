@@ -110,9 +110,7 @@
         var r = ui.filterRegion || '';
         var currentYear = String(new Date().getFullYear());
         var visible = events.filter(function (e) {
-            // Default scope is "events starting in the current calendar year"
-            // so the picker doesn't bury today's choices under next-year cons
-            // the source has already announced.
+            // Current calendar year only — keeps next-year cons out of the picker.
             if (!e.startDate || e.startDate.indexOf(currentYear + '-') !== 0) return false;
             if (q) {
                 var hay = (e.name + ' ' + (e.location || '')).toLowerCase();
@@ -172,8 +170,7 @@
     }
 
     function updateFeedSelectionCount(blockEl, feed, ui) {
-        // Count within the visible scope (current year) so admin sees a
-        // count matching the table on screen.
+        // Count within visible scope (current year) so it matches the table.
         var currentYear = String(new Date().getFullYear());
         var inScope = ((feed.catalogue && feed.catalogue.events) || [])
             .filter(function (e) { return e.startDate && e.startDate.indexOf(currentYear + '-') === 0; });
@@ -207,8 +204,6 @@
         renderFeedList(blockEl, feed, ui);
         updateFeedSelectionCount(blockEl, feed, ui);
 
-        // Dirty-state tracking — any change to label / default category /
-        // selections marks the feed dirty until next successful Save feed.
         function markDirty() {
             ui.dirty = true;
             var indicator = blockEl.querySelector('.eventScraperDirtyIndicator');
@@ -244,8 +239,7 @@
                 }
                 statusText.textContent = msg + '.';
                 statusText.className = 'eventScraperFeedStatusText eventScraperFeedStatusText--ok';
-                // Hold the success message visible for ~4s before rerenderAll
-                // overwrites it with the ambient "Last refresh: ..." line.
+                // Hold success message ~4s before rerenderAll overwrites it.
                 return fetchCatalogue().then(function () {
                     setTimeout(function () { rerenderAll(); }, 4000);
                 });
@@ -421,12 +415,6 @@
     }
 
     // ---- Per-pane modal contribution ----
-    //
-    // jQuery is the ambient DOM lib for config.js's lp:* events. We use
-    // document.addEventListener for native compatibility but jQuery's
-    // trigger fires both jQuery and native handlers for non-bubbling
-    // custom events when wrapped in $.Event — keep listening via jQuery
-    // when available, fall back to native.
 
     function injectPerPaneSection($modal, paneId, useSiteDefaults) {
         // Strip any prior injection so reopen replaces stale state.

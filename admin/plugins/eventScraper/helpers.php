@@ -52,9 +52,6 @@ function event_scraper_last_scrape_path(string $adapterId): string {
 // Config (lp-eventScraperConfig.json)
 // ------------------------------------------------------------------------
 
-// New shape (v1.20.1+): feeds map; each feed carries label/adapterId/
-// defaultCategoryId/allowlist/lastReviewedAt. Old top-level targetPaneId,
-// defaultCategoryId, allowlist are gone.
 function event_scraper_config_defaults(): array {
     return [
         'enabled'                  => false,
@@ -79,7 +76,6 @@ function event_scraper_load_config(): array {
         return $defaults;
     }
     $merged = array_replace($defaults, $decoded);
-    // Defensive shape coercion — protects against hand-edited files.
     if (!is_array($merged['feeds'])) {
         $merged['feeds'] = [];
     }
@@ -144,9 +140,7 @@ function event_scraper_describe_write_failure(string $path): string {
 // Adapters + feed lookup
 // ------------------------------------------------------------------------
 
-// Glob adapters/*.json. Returns map keyed by adapter id, sorted by id.
-// Cheap (~10 files max) — called on every admin render. Per Rule of Three,
-// memoize when a third call site appears.
+// Glob adapters/*.json. Memoize when a third call site appears.
 function event_scraper_discover_adapters(): array {
     $files = glob(__DIR__ . '/adapters/*.json');
     if (!$files) {
@@ -172,9 +166,7 @@ function event_scraper_discover_adapters(): array {
     return $out;
 }
 
-// Resolve a feed entry — config values where set, adapter-defaults otherwise.
-// isConfigured tells callers whether the admin has saved this feed yet (UI
-// renders "configure" placeholders for unconfigured feeds).
+// isConfigured = admin has saved this feed; UI renders placeholders otherwise.
 function event_scraper_get_feed(string $feedId, array $config): array {
     $feed = is_array($config['feeds'][$feedId] ?? null) ? $config['feeds'][$feedId] : [];
     $adapter = event_scraper_load_adapter($feedId);
@@ -446,9 +438,7 @@ function event_scraper_build_ingest_changes(
 // Subscription resolution
 // ------------------------------------------------------------------------
 
-// Effective subscriptions for one pane: per-pane override when "Use site
-// defaults" is unticked, site default list otherwise. Pure-ish — only I/O
-// is reading the per-pane settings.json sidecar.
+// Per-pane override when "Use site defaults" is unticked; site default otherwise.
 function event_scraper_pane_subscriptions(string $paneId, ?array $config = null): array {
     if ($config === null) {
         $config = event_scraper_load_config();
@@ -771,9 +761,7 @@ function event_scraper_run_refresh(string $adapterId, string $trigger): array {
     ];
 }
 
-// Apply one feed's catalogue to ALL eventList panes that subscribe to it.
-// Called from run_refresh and from save-selections (after admin edits the
-// allowlist; re-runs ingest without re-fetching).
+// Apply one feed's catalogue to every subscribing eventList pane.
 function event_scraper_apply_ingest(string $feedId, array $catalogue, array $config): array {
     $feed = event_scraper_get_feed($feedId, $config);
     if (!$feed['isConfigured']) {
@@ -802,10 +790,7 @@ function event_scraper_apply_ingest(string $feedId, array $catalogue, array $con
     return ['status' => $allOk ? 'ok' : 'error', 'panes' => $results];
 }
 
-// Per-pane ingest primitive. Reused by apply_ingest (cron path) AND by
-// save-pane-subscriptions (when a pane subscribes to a new feed mid-flight).
-// Pass empty $allowlistUids to wipe all events tagged with this feed from
-// the pane (used when a pane unsubscribes).
+// Empty $allowlistUids wipes this feed's events from the pane (unsubscribe path).
 function event_scraper_apply_feed_to_pane(
     string $feedId,
     string $paneId,
@@ -838,10 +823,7 @@ function event_scraper_apply_feed_to_pane(
     ];
 }
 
-// Outer loop for cron + admin "Refresh now" — runs every configured feed,
-// failure-isolated. One feed's error doesn't stop the others.
-// Top-level status is 'ok' only when EVERY feed succeeds (per advisor:
-// "ok if any" is monitoring-hostile).
+// Failure-isolated multi-feed loop. Top-level status 'ok' only when every feed succeeds.
 function event_scraper_run_all_feeds(string $trigger): array {
     $config = event_scraper_load_config();
     $feeds = is_array($config['feeds'] ?? null) ? $config['feeds'] : [];
@@ -886,9 +868,6 @@ function event_scraper_eventlist_panes(): array {
         if (!is_array($pane)) {
             continue;
         }
-        // panes.json uses 'module' (per admin/config.php, public/index.php,
-        // admin/lib/per-pane-settings.php). I had 'moduleId'/'type' here in
-        // v1.20.0 — silently produced empty results and broke ingest.
         $moduleId = (string) ($pane['module'] ?? '');
         if ($moduleId !== 'eventList') {
             continue;

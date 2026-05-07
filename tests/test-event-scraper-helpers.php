@@ -207,3 +207,44 @@ test_assert(event_scraper_load_adapter('furrycons-na') !== null, 'real adapter l
 test_assert(event_scraper_load_adapter('../../../etc/passwd') === null, 'path-traversal adapter id rejected');
 test_assert(event_scraper_load_adapter('does-not-exist') === null, 'missing adapter returns null');
 test_assert(event_scraper_load_adapter('') === null, 'empty adapter id rejected');
+
+// ------------------------------------------------------------------------
+// event_scraper_pick_user_agent
+// ------------------------------------------------------------------------
+
+test_assert(
+    event_scraper_pick_user_agent(['userAgent' => 'Mozilla/5.0 fixed']) === 'Mozilla/5.0 fixed',
+    'fixed string UA returned as-is'
+);
+
+test_assert(
+    event_scraper_pick_user_agent([]) === '',
+    'missing userAgent returns empty'
+);
+
+$pool = ['UA-A', 'UA-B', 'UA-C'];
+$seen = [];
+for ($i = 0; $i < 50; $i++) {
+    $picked = event_scraper_pick_user_agent(['userAgent' => $pool]);
+    test_assert(in_array($picked, $pool, true), 'array UA picks from pool');
+    $seen[$picked] = true;
+}
+test_assert(count($seen) >= 2, 'array UA actually rotates (probability of single value over 50 picks ~ 3 * (1/3)^50 ~ 0)');
+
+$rotateSeen = [];
+for ($i = 0; $i < 50; $i++) {
+    $picked = event_scraper_pick_user_agent(['userAgent' => '@rotate']);
+    test_assert(strpos($picked, 'Mozilla/5.0') === 0, '@rotate produces a real-browser-shaped UA');
+    $rotateSeen[$picked] = true;
+}
+test_assert(count($rotateSeen) >= 2, '@rotate rotates across the built-in pool');
+
+// Defensive: array-of-non-strings is filtered out.
+test_assert(
+    event_scraper_pick_user_agent(['userAgent' => [123, null, 'real-ua']]) === 'real-ua',
+    'non-string entries in array pool are filtered'
+);
+test_assert(
+    event_scraper_pick_user_agent(['userAgent' => []]) === '',
+    'empty array returns empty (caller bails on missing UA)'
+);

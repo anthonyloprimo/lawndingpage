@@ -485,8 +485,41 @@ function event_scraper_panes_subscribed_to(string $feedId, array $allEventListPa
 // I/O wrappers
 // ------------------------------------------------------------------------
 
-// Fetch via cURL with the adapter's User-Agent. Returns ['status', 'body',
-// 'error']. Tolerant of cURL errors (returns status 0 with error message).
+// Built-in pool of recent real-browser UAs. Used when the adapter declares
+// userAgent: "@rotate" (or when a future caller passes an empty UA — defensive).
+// Update opportunistically; UAs decay over years but stay reasonable for a long
+// time as long as the major-version number stays plausible.
+function event_scraper_random_browser_ua(): string {
+    static $pool = [
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:120.0) Gecko/20100101 Firefox/120.0',
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:120.0) Gecko/20100101 Firefox/120.0',
+        'Mozilla/5.0 (X11; Linux x86_64; rv:120.0) Gecko/20100101 Firefox/120.0',
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15',
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0',
+    ];
+    return $pool[array_rand($pool)];
+}
+
+// Resolve adapter['userAgent'] to a concrete UA string. Accepts:
+//   string         -> used as-is (existing fixed-UA behavior)
+//   "@rotate"      -> random pick from the built-in browser pool
+//   array<string>  -> random pick from the adapter's own pool
+function event_scraper_pick_user_agent(array $adapter): string {
+    $ua = $adapter['userAgent'] ?? '';
+    if (is_array($ua)) {
+        $ua = array_values(array_filter($ua, 'is_string'));
+        return $ua ? $ua[array_rand($ua)] : '';
+    }
+    if ($ua === '@rotate') {
+        return event_scraper_random_browser_ua();
+    }
+    return (string) $ua;
+}
+
+// Fetch via cURL. Tolerant of cURL errors (returns status 0 with message).
 function event_scraper_fetch_url(string $url, string $userAgent, int $timeoutSeconds = 15): array {
     if (!function_exists('curl_init')) {
         // Surface in Diagnostics. Without curl the daily refresh is silently
@@ -613,7 +646,7 @@ function event_scraper_run_refresh(string $adapterId, string $trigger): array {
     }
 
     $url = (string) ($adapter['url'] ?? '');
-    $userAgent = (string) ($adapter['userAgent'] ?? '');
+    $userAgent = event_scraper_pick_user_agent($adapter);
     if ($url === '' || $userAgent === '') {
         $err = 'Adapter is missing required url or userAgent';
         event_scraper_log('error', 'adapter_invalid', [

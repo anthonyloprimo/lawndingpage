@@ -68,10 +68,6 @@ $mkResults = function (array $event): string {
     return json_encode(['results' => [$event]]);
 };
 
-// `$baseEvent` (not `$base`) — the test runner does `require $file` in a
-// loop and uses its own `$base` variable for the filename label, so any
-// top-level `$base` here would shadow it and the runner would print
-// "PASS Array" instead of the test filename.
 $baseEvent = [
     'id' => '1', 'title' => 'X',
     'startDate' => ['date' => '2026-01-01'],
@@ -217,3 +213,4 @@ $mixed = ['results' => [
 $result = event_scraper_extract_indico(json_encode($mixed), $adapter);
 test_assert(count($result) === 2, 'valid events kept, invalid dropped');
 test_assert($result[0]['sourceUid'] === '1' && $result[1]['sourceUid'] === '3', 'invalid skipped without disrupting array order');
+

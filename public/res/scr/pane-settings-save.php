@@ -52,6 +52,11 @@ if (empty($declared)) {
     pane_settings_json_response(['status' => 'ok', 'persisted' => false]);
 }
 
+$settingsPath = lawnding_module_settings_path($moduleId, $paneId);
+if ($settingsPath === '') {
+    pane_settings_json_response(['error' => 'Module has no settings_file declaration.'], 500);
+}
+
 $useSiteDefaults = !isset($_POST['useSiteDefaults']) || $_POST['useSiteDefaults'] !== '0';
 
 // Preserve unknown keys (plugin contributions like subscribedFeeds). This
@@ -73,11 +78,6 @@ if (!$useSiteDefaults) {
             $settings[$key] = !empty($_POST[$key]);
         }
     }
-}
-
-$settingsPath = lawnding_module_settings_path($moduleId, $paneId);
-if ($settingsPath === '') {
-    pane_settings_json_response(['error' => 'Module has no settings_file declaration.'], 500);
 }
 
 if (!lawnding_save_pane_settings($settingsPath, $settings)) {

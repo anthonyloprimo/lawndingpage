@@ -191,6 +191,7 @@
         // Restore saved selections from allowlist into the per-feed UI state.
         ui.selected = {};
         Object.keys(feed.allowlist || {}).forEach(function (uid) { ui.selected[uid] = true; });
+        ui.dirty = false;
 
         // Status line.
         var statusText = blockEl.querySelector('.eventScraperFeedStatusText');
@@ -205,6 +206,21 @@
         rebuildRegionFilter(blockEl, feed);
         renderFeedList(blockEl, feed, ui);
         updateFeedSelectionCount(blockEl, feed, ui);
+
+        // Dirty-state tracking — any change to label / default category /
+        // selections marks the feed dirty until next successful Save feed.
+        function markDirty() {
+            ui.dirty = true;
+            var indicator = blockEl.querySelector('.eventScraperDirtyIndicator');
+            if (indicator) indicator.removeAttribute('hidden');
+        }
+        function clearDirty() {
+            ui.dirty = false;
+            var indicator = blockEl.querySelector('.eventScraperDirtyIndicator');
+            if (indicator) indicator.setAttribute('hidden', 'hidden');
+        }
+        blockEl.querySelector('.eventScraperFeedLabel').addEventListener('input', markDirty);
+        blockEl.querySelector('.eventScraperDefaultCategory').addEventListener('change', markDirty);
 
         // Wire handlers (delegated would be cleaner, but per-block keeps state local).
         blockEl.querySelector('.eventScraperRefreshBtn').addEventListener('click', function () {
@@ -259,6 +275,7 @@
             var row = t.closest('tr');
             if (row) row.classList.toggle('eventScraperRowSelected', t.checked);
             updateFeedSelectionCount(blockEl, feed, ui);
+            markDirty();
         });
 
         blockEl.querySelector('.eventScraperSaveBtn').addEventListener('click', function () {
@@ -277,13 +294,14 @@
             }).then(function (r) {
                 btn.disabled = false;
                 if (!r.ok || !r.data || r.data.error) {
-                    statusEl.textContent = 'Save failed: ' + ((r.data && r.data.error) || ('HTTP ' + r.status));
+                    statusEl.textContent = '✗ Save failed: ' + ((r.data && r.data.error) || ('HTTP ' + r.status));
                     statusEl.className = 'eventScraperSaveStatus eventScraperSaveStatus--error';
                     return;
                 }
                 var paneCount = (r.data.ingest && r.data.ingest.panes && r.data.ingest.panes.length) || 0;
-                statusEl.textContent = 'Saved (' + r.data.selectedCount + ' selected, applied to ' + paneCount + ' pane' + (paneCount === 1 ? '' : 's') + ').';
+                statusEl.textContent = '✓ Saved (' + r.data.selectedCount + ' selected, applied to ' + paneCount + ' pane' + (paneCount === 1 ? '' : 's') + ').';
                 statusEl.className = 'eventScraperSaveStatus eventScraperSaveStatus--ok';
+                clearDirty();
                 return fetchCatalogue().then(function () { rerenderAll(); });
             }).catch(function (err) {
                 btn.disabled = false;

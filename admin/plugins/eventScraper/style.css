@@ -143,6 +143,11 @@
     font-size: 0.9rem;
     flex: 1 1 auto;
 }
+.eventScraperConfig .eventScraperDirtyIndicator {
+    color: #ffe88c;
+    font-size: 0.85rem;
+    font-style: italic;
+}
 .eventScraperConfig .eventScraperSaveStatus {
     color: #ffffffaa;
     font-size: 0.9rem;

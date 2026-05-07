@@ -1002,7 +1002,8 @@ function event_scraper_render_eventlist_extras(): void {
 
                     <div class="eventScraperActions">
                         <span class="eventScraperSelectionCount" aria-live="polite">0 of 0 selected</span>
-                        <button type="button" class="eventScraperSaveBtn">Save selections</button>
+                        <span class="eventScraperDirtyIndicator" aria-live="polite" hidden>* unsaved changes</span>
+                        <button type="button" class="eventScraperSaveBtn">Save feed</button>
                         <span class="eventScraperSaveStatus" aria-live="polite"></span>
                     </div>
                 </fieldset>

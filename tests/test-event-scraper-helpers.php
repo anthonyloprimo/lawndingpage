@@ -91,7 +91,7 @@ $record = event_scraper_to_eventlist_record($normalized, 'furrycons-na', '7');
 test_assert($record['name'] === 'Furry Weekend Atlanta 2026', 'name preserved');
 test_assert($record['startDate'] === '2026-05-07', 'startDate preserved');
 test_assert($record['endDate'] === '2026-05-10', 'endDate preserved');
-test_assert($record['allDay'] === true, 'scraped events are all-day');
+test_assert($record['allDay'] === true, 'date-only normalized event maps to all-day');
 test_assert($record['startTime'] === '' && $record['endTime'] === '', 'no times for all-day');
 test_assert($record['address'] === 'Atlanta Marriott Marquis, Atlanta, GA', 'address from location');
 test_assert(strpos($record['description'], 'A convention.') === 0, 'description starts with original');
@@ -102,6 +102,31 @@ test_assert($record['source'] === 'eventScraper', 'source tag set');
 test_assert($record['sourceAdapter'] === 'furrycons-na', 'sourceAdapter tag set');
 test_assert($record['sourceUid'] === '26609', 'sourceUid preserved');
 
+require_once __DIR__ . '/../admin/modules/eventList/helpers.php';
+
+// When the extractor sets startTime, the mapper honors it (not all-day).
+$timed = [
+    'sourceUid' => '89',
+    'name'      => 'NYFurs TF2 Night',
+    'startDate' => '2026-03-30',
+    'endDate'   => '2026-03-30',
+    'startTime' => '19:30',
+    'endTime'   => '23:59',
+    'location'  => 'Discord Server',
+    'url'       => 'https://events.nyfurs.org/event/89/',
+];
+$timedRecord = event_scraper_to_eventlist_record($timed, 'nyfurs', '7');
+test_assert($timedRecord['allDay'] === false, 'startTime present -> mapper sets allDay=false');
+test_assert($timedRecord['startTime'] === '19:30', 'startTime passed through');
+test_assert($timedRecord['endTime'] === '23:59', 'endTime passed through');
+test_assert(event_list_event_is_valid($timedRecord), 'timed scraped record passes eventList validator');
+
+// Defensive: endTime without startTime is normalized to all-day, not a half-timed event.
+$halfTimed = ['sourceUid' => '90', 'name' => 'X', 'startDate' => '2026-04-01', 'endTime' => '14:00'];
+$halfRecord = event_scraper_to_eventlist_record($halfTimed, 'nyfurs', '');
+test_assert($halfRecord['allDay'] === true, 'endTime alone (no startTime) normalizes to all-day');
+test_assert($halfRecord['endTime'] === '', 'endTime cleared when startTime is empty');
+
 // Empty-fields fall back so the eventList validator doesn't silently drop the record.
 $bareMinimum = ['sourceUid' => '99', 'name' => 'E', 'startDate' => '2026-06-01'];
 $record = event_scraper_to_eventlist_record($bareMinimum, 'furrycons-na', '');
@@ -109,8 +134,6 @@ test_assert($record['address'] === 'Location TBA', 'empty location falls back to
 test_assert($record['description'] === 'E', 'empty description falls back to event name');
 test_assert($record['endDate'] === '', 'absent endDate normalizes to empty string');
 
-// Validation gate: scraped record must pass event_list_event_is_valid.
-require_once __DIR__ . '/../admin/modules/eventList/helpers.php';
 test_assert(event_list_event_is_valid($record), 'scraped record passes eventList validator');
 $rich = event_scraper_to_eventlist_record($normalized, 'furrycons-na', '7');
 test_assert(event_list_event_is_valid($rich), 'rich scraped record also passes validator');

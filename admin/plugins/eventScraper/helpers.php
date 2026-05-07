@@ -330,13 +330,25 @@ function event_scraper_to_eventlist_record(array $event, string $adapterId, stri
         $address = 'Location TBA';
     }
 
+    // allDay is derived from the extractor's data: when an extractor sets
+    // startTime, the source had a real time and we honor it; otherwise the
+    // event is all-day (date-only sources like furrycons-na's JSON-LD).
+    $startTime = trim((string) ($event['startTime'] ?? ''));
+    $endTime = trim((string) ($event['endTime'] ?? ''));
+    if ($startTime === '') {
+        $endTime = '';
+        $allDay = true;
+    } else {
+        $allDay = false;
+    }
+
     return [
         'name'          => (string) ($event['name'] ?? ''),
         'startDate'     => (string) ($event['startDate'] ?? ''),
         'endDate'       => (string) ($event['endDate'] ?? ''),
-        'startTime'     => '',
-        'endTime'       => '',
-        'allDay'        => true,
+        'startTime'     => $startTime,
+        'endTime'       => $endTime,
+        'allDay'        => $allDay,
         'address'       => $address,
         'description'   => $description,
         'categoryId'    => $defaultCategoryId,

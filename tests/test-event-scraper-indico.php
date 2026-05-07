@@ -56,6 +56,8 @@ test_assert($result[0]['sourceUid'] === '89', 'sourceUid taken from top-level id
 test_assert($result[0]['name'] === 'NYFurs TF2 Night', 'name taken from title');
 test_assert($result[0]['startDate'] === '2026-03-30', 'startDate.date extracted');
 test_assert($result[0]['endDate'] === '2026-03-30', 'endDate.date extracted');
+test_assert($result[0]['startTime'] === '19:30', 'startTime extracted from startDate.time (seconds stripped)');
+test_assert($result[0]['endTime'] === '23:59', 'endTime extracted from endDate.time');
 test_assert($result[0]['location'] === 'Discord Server', 'location-only fills location');
 test_assert($result[0]['description'] === 'Join us for fragging!', 'description HTML stripped to plaintext');
 test_assert($result[0]['url'] === 'https://events.nyfurs.org/event/89/', 'url passed through');
@@ -117,11 +119,25 @@ test_assert(event_scraper_indico_pick_date(null) === '', 'null date returns empt
 test_assert(event_scraper_indico_pick_date(['time' => '12:00']) === '', 'array without date key returns empty string');
 test_assert(event_scraper_indico_pick_date(['date' => '  2026-05-07  ']) === '2026-05-07', 'date trimmed');
 
-// ---- Optional endDate ----
+// ---- Time variations ----
+
+test_assert(event_scraper_indico_pick_time(['time' => '19:30:00', 'tz' => 'X']) === '19:30', 'HH:MM:SS strips seconds');
+test_assert(event_scraper_indico_pick_time(['time' => '19:30']) === '19:30', 'already-HH:MM passes through');
+test_assert(event_scraper_indico_pick_time(['time' => '00:00:00']) === '00:00', 'midnight (00:00:00) returns 00:00 honestly — caller decides what that means');
+test_assert(event_scraper_indico_pick_time(['time' => '  09:15:30  ']) === '09:15', 'whitespace trimmed before parse');
+test_assert(event_scraper_indico_pick_time(null) === '', 'null returns empty string');
+test_assert(event_scraper_indico_pick_time([]) === '', 'array without time key returns empty string');
+test_assert(event_scraper_indico_pick_time(['date' => '2026-01-01']) === '', 'array with only date key returns empty string');
+test_assert(event_scraper_indico_pick_time(['time' => 'not a time']) === '', 'non-time-shaped string returns empty string');
+test_assert(event_scraper_indico_pick_time(['time' => '']) === '', 'empty time string returns empty string');
+test_assert(event_scraper_indico_pick_time('19:30:00') === '', 'top-level string fallback NOT supported (Indico time only ever appears in the wrapped shape)');
+
+// ---- Date-only event has empty times ----
 
 $noEnd = ['results' => [$baseEvent]];
 $result = event_scraper_extract_indico(json_encode($noEnd), $adapter);
 test_assert($result[0]['endDate'] === '', 'missing endDate normalizes to empty string');
+test_assert($result[0]['startTime'] === '' && $result[0]['endTime'] === '', 'date-only event has empty time fields');
 
 // ---- Location formatter shapes ----
 

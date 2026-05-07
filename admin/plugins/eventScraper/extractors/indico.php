@@ -55,6 +55,8 @@ function event_scraper_indico_normalize_event(array $item): ?array {
         'name'            => $name,
         'startDate'       => $startDate,
         'endDate'         => event_scraper_indico_pick_date($item['endDate'] ?? null),
+        'startTime'       => event_scraper_indico_pick_time($item['startDate'] ?? null),
+        'endTime'         => event_scraper_indico_pick_time($item['endDate'] ?? null),
         'location'        => event_scraper_indico_format_location(
             $item['location'] ?? '',
             $item['address'] ?? ''
@@ -68,15 +70,26 @@ function event_scraper_indico_normalize_event(array $item): ?array {
     ];
 }
 
-// Indico dates come as {date, time, tz}. Older / partial responses may use
-// a string fallback; tolerate both. Time + tz are intentionally dropped
-// (eventScraper canonical shape is YYYY-MM-DD only).
+// Indico dates are {date, time, tz}; tolerate string fallback.
+// Tz is dropped — eventList stores HH:MM in viewer-local time today.
 function event_scraper_indico_pick_date($value): string {
     if (is_array($value) && isset($value['date']) && is_string($value['date'])) {
         return trim($value['date']);
     }
     if (is_string($value)) {
         return trim($value);
+    }
+    return '';
+}
+
+// Strip seconds: Indico emits "HH:MM:SS"; eventList stores "HH:MM" to
+// match <input type="time">. Empty when source has no time field.
+function event_scraper_indico_pick_time($value): string {
+    if (!is_array($value) || !isset($value['time']) || !is_string($value['time'])) {
+        return '';
+    }
+    if (preg_match('/^(\d{2}):(\d{2})/', trim($value['time']), $m)) {
+        return $m[1] . ':' . $m[2];
     }
     return '';
 }

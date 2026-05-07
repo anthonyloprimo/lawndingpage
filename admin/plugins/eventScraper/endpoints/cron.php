@@ -1,16 +1,8 @@
 <?php
-// Cron endpoint — token-gated, runs the daily refresh.
-//
-// Reached via /res/scr/plugin-endpoint.php?plugin=eventScraper&endpoint=cron
-// with header X-Scraper-Cron-Token: <secret>. The secret is stored in
-// admin/lp-eventScraperConfig.json; the admin UI renders the curl line
-// ready to paste into crontab.
-//
-// Token in a header (not a query string) so the secret doesn't land in
-// webserver access logs.
-//
-// Returns JSON. HTTP 200 even on extractor errors so cron callers don't
-// retry storms; the JSON body carries status: ok|error.
+// Cron endpoint — token-gated, runs every configured feed.
+// Header X-Scraper-Cron-Token holds the secret (kept out of access logs).
+// Returns HTTP 200 with aggregated per-feed status; top-level "ok" only when
+// every feed succeeded so cron monitors can alert on partial failures.
 
 require_once __DIR__ . '/../../../../lp-bootstrap.php';
 require_once __DIR__ . '/../helpers.php';
@@ -29,9 +21,5 @@ if ($expected === '' || $presented === '' || !hash_equals($expected, $presented)
     exit;
 }
 
-$adapterId = isset($_GET['adapter']) && is_string($_GET['adapter'])
-    ? $_GET['adapter']
-    : 'furrycons-na';
-
-$result = event_scraper_run_refresh($adapterId, 'cron');
+$result = event_scraper_run_all_feeds('cron');
 echo json_encode($result, JSON_UNESCAPED_SLASHES);

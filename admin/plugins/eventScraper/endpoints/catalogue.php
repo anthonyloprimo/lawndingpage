@@ -1,10 +1,7 @@
 <?php
-// Read-only: returns the currently-cached catalogue + last-scrape metadata
-// + admin's saved config (allowlist, targetPaneId, defaultCategoryId).
-//
-// Session-gated (any logged-in admin can read; the USERS-pane visibility
-// rule applies — read access is wider than write access). No CSRF needed
-// for a GET that returns a JSON snapshot.
+// Read-only: returns everything admin.js needs to render the multi-feed UI
+// + per-pane modal contributions. Session-gated (any logged-in admin can
+// read; no CSRF needed for GET).
 
 require_once __DIR__ . '/../../../../lp-bootstrap.php';
 require_once lawnding_admin_path('auth.php');
@@ -21,42 +18,72 @@ $usersPath = function_exists('lawnding_config')
     : dirname(__DIR__, 3) . '/users.json';
 $users = function_exists('lawnding_load_users_file') ? lawnding_load_users_file($usersPath) : [];
 $identity = lawnding_resolve_admin_identity($tgConfig, $users, ['full_admin', 'add_users', 'edit_users', 'remove_users', 'edit_site']);
-
 if (!$identity['isAuthenticated']) {
     http_response_code(403);
     echo json_encode(['error' => 'Unauthorized']);
     exit;
 }
 
-$adapterId = isset($_GET['adapter']) && is_string($_GET['adapter']) && preg_match('/^[a-zA-Z0-9_-]+$/', $_GET['adapter'])
-    ? $_GET['adapter']
-    : 'furrycons-na';
-
-$adapter = event_scraper_load_adapter($adapterId);
-$catalogue = event_scraper_load_catalogue($adapterId);
 $config = event_scraper_load_config();
+$adapters = event_scraper_discover_adapters();
 
-$lastScrapePath = event_scraper_last_scrape_path($adapterId);
-$lastScrape = null;
-if (is_readable($lastScrapePath)) {
-    $raw = file_get_contents($lastScrapePath);
-    if (is_string($raw)) {
-        $decoded = json_decode($raw, true);
-        if (is_array($decoded)) {
-            $lastScrape = $decoded;
+$feeds = [];
+foreach ($adapters as $adapterId => $adapter) {
+    $adapterId = (string) $adapterId;
+    $feed = event_scraper_get_feed($adapterId, $config);
+    $catalogue = event_scraper_load_catalogue($adapterId);
+    $lastScrape = null;
+    $lastPath = event_scraper_last_scrape_path($adapterId);
+    if (is_readable($lastPath)) {
+        $raw = @file_get_contents($lastPath);
+        if (is_string($raw)) {
+            $decoded = json_decode($raw, true);
+            if (is_array($decoded)) {
+                $lastScrape = $decoded;
+            }
         }
     }
+    $feeds[$adapterId] = [
+        'id'           => $adapterId,
+        'label'        => $feed['label'],
+        'isConfigured' => $feed['isConfigured'],
+        'adapter'      => [
+            'label'     => (string) ($adapter['label'] ?? $adapterId),
+            'url'       => (string) ($adapter['url'] ?? ''),
+            'extractor' => (string) ($adapter['extractor'] ?? ''),
+        ],
+        'defaultCategoryId' => $feed['defaultCategoryId'],
+        'allowlist'         => $feed['allowlist'],
+        'lastReviewedAt'    => $feed['lastReviewedAt'],
+        'catalogue'         => $catalogue,
+        'lastScrape'        => $lastScrape,
+    ];
+}
+
+// Per-pane subscription map for the per-pane modal injection.
+$paneSubscriptions = [];
+foreach (event_scraper_eventlist_panes() as $pane) {
+    $paneId = (string) ($pane['id'] ?? '');
+    if ($paneId === '') {
+        continue;
+    }
+    $sidecarPath = function_exists('lawnding_module_settings_path')
+        ? lawnding_module_settings_path('eventList', $paneId)
+        : '';
+    $settings = ($sidecarPath !== '' && function_exists('lawnding_load_pane_settings'))
+        ? lawnding_load_pane_settings($sidecarPath)
+        : [];
+    $paneSubscriptions[$paneId] = [
+        'override'        => is_array($settings['subscribedFeeds'] ?? null) ? array_values($settings['subscribedFeeds']) : [],
+        'useSiteDefaults' => !isset($settings['useSiteDefaults']) || $settings['useSiteDefaults'] === true,
+    ];
 }
 
 echo json_encode([
-    'adapter'    => $adapter ? ['id' => $adapter['id'] ?? $adapterId, 'label' => $adapter['label'] ?? $adapterId, 'url' => $adapter['url'] ?? ''] : null,
-    'catalogue'  => $catalogue,
-    'lastScrape' => $lastScrape,
-    'config'     => [
-        'enabled'           => (bool) ($config['enabled'] ?? false),
-        'targetPaneId'      => (string) ($config['targetPaneId'] ?? ''),
-        'defaultCategoryId' => (string) ($config['defaultCategoryId'] ?? ''),
-        'lastReviewedAt'    => (string) ($config['lastReviewedAt'] ?? ''),
-        'allowlist'         => is_array($config['allowlist'] ?? null) ? $config['allowlist'] : new stdClass(),
+    'feeds'                    => $feeds,
+    'siteDefaultSubscriptions' => is_array($config['siteDefaultSubscriptions'] ?? null) ? array_values($config['siteDefaultSubscriptions']) : [],
+    'paneSubscriptions'        => $paneSubscriptions,
+    'config'                   => [
+        'enabled' => (bool) ($config['enabled'] ?? false),
     ],
 ], JSON_UNESCAPED_SLASHES);

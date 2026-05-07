@@ -1,13 +1,8 @@
 <?php
-// Save the admin's selections + target pane + default category.
-//
-// POST {csrf_token, adapter?, targetPaneId, defaultCategoryId,
-//       selections: [<sourceUid>, ...]}
-//
-// Only validates that selected UIDs are present in the cached catalogue;
-// unknown UIDs are silently dropped (defensive against stale form data).
-// Re-runs ingest immediately so the eventList pane reflects the new
-// selection without requiring a separate refresh.
+// Save a single feed's allowlist + display name + default category.
+// POST {csrf_token, feed: <feedId>, label, defaultCategoryId, selections: <json-array>}.
+// Re-runs ingest immediately for this feed (no network fetch — uses
+// cached catalogue) so all subscribing panes pick up the new selection.
 
 require_once __DIR__ . '/../../../../lp-bootstrap.php';
 require_once lawnding_admin_path('auth.php');
@@ -31,21 +26,24 @@ lawnding_require_admin_mutation(null, static function (string $msg, int $code): 
     event_scraper_save_respond(['error' => $msg], $code);
 });
 
-$adapterId = isset($_POST['adapter']) && is_string($_POST['adapter']) && $_POST['adapter'] !== ''
-    ? $_POST['adapter']
-    : 'furrycons-na';
+$feedId = isset($_POST['feed']) && is_string($_POST['feed']) ? trim($_POST['feed']) : '';
+if ($feedId === '' || !preg_match('/^[a-zA-Z0-9_-]+$/', $feedId)) {
+    event_scraper_save_respond(['error' => 'Invalid or missing feed id.'], 400);
+}
 
-$targetPaneId = isset($_POST['targetPaneId']) && is_string($_POST['targetPaneId'])
-    ? trim($_POST['targetPaneId'])
-    : '';
+$adapter = event_scraper_load_adapter($feedId);
+if (!$adapter) {
+    event_scraper_save_respond(['error' => 'Adapter not found.'], 404);
+}
+
+$label = isset($_POST['label']) && is_string($_POST['label']) ? trim($_POST['label']) : '';
+if ($label === '') {
+    $label = (string) ($adapter['label'] ?? $feedId);
+}
 
 $defaultCategoryId = isset($_POST['defaultCategoryId']) && is_string($_POST['defaultCategoryId'])
     ? trim($_POST['defaultCategoryId'])
     : '';
-
-if ($targetPaneId === '' || !preg_match('/^[a-zA-Z0-9_-]+$/', $targetPaneId)) {
-    event_scraper_save_respond(['error' => 'Invalid or missing targetPaneId.'], 400);
-}
 
 $selectionsRaw = $_POST['selections'] ?? '[]';
 if (!is_string($selectionsRaw)) {
@@ -56,8 +54,8 @@ if (!is_array($selections)) {
     event_scraper_save_respond(['error' => 'Invalid JSON in selections.'], 400);
 }
 
-// Validate every selection against the current catalogue. Drop unknown.
-$catalogue = event_scraper_load_catalogue($adapterId);
+// Validate every selection against the cached catalogue. Drop unknowns.
+$catalogue = event_scraper_load_catalogue($feedId);
 $catalogueUids = [];
 foreach ($catalogue['events'] ?? [] as $event) {
     if (is_array($event) && isset($event['sourceUid'])) {
@@ -78,20 +76,16 @@ foreach ($selections as $uid) {
     $allowlistEntries[$uid] = ['addedAt' => $now];
 }
 
-// Merge into existing config; preserve other adapters' allowlists.
+// Merge into config — preserve other feeds' state.
 $config = event_scraper_load_config();
-$allowlist = is_array($config['allowlist'] ?? null) ? $config['allowlist'] : [];
-$allowlist[$adapterId] = $allowlistEntries;
-
-$config['allowlist'] = $allowlist;
-$config['targetPaneId'] = $targetPaneId;
-$config['defaultCategoryId'] = $defaultCategoryId;
-$config['lastReviewedAt'] = $now;
+$config['feeds'][$feedId] = [
+    'label'             => $label,
+    'adapterId'         => $feedId,
+    'defaultCategoryId' => $defaultCategoryId,
+    'allowlist'         => $allowlistEntries,
+    'lastReviewedAt'    => $now,
+];
 $config['enabled'] = true;
-
-// Bootstrap the cron token on first save so the admin doesn't have to click
-// Rotate just to get an initial value. Keeps later saves idempotent — only
-// generates if no token exists yet.
 if (empty($config['cronToken'])) {
     $config['cronToken'] = bin2hex(random_bytes(32));
 }
@@ -100,32 +94,28 @@ if (!event_scraper_save_config($config)) {
     event_scraper_save_respond(['error' => 'Failed to write config.'], 500);
 }
 
-// Re-run ingest using the cached catalogue (no network fetch).
-$ingest = event_scraper_apply_ingest($adapterId, $catalogue['events'] ?? [], $config);
+// Re-ingest into all subscribing panes (cached catalogue, no network).
+$ingest = event_scraper_apply_ingest($feedId, $catalogue['events'] ?? [], $config);
 
-// Surface ingest failures (e.g. pane events write failed). The save above
-// already succeeded, so the allowlist persists; only the calendar update
-// failed. The admin needs to know the picker state diverged from the pane.
 if (($ingest['status'] ?? '') === 'error') {
     event_scraper_save_respond([
         'status'        => 'error',
-        'error'         => 'Selections saved, but applying them to the calendar failed: ' . ($ingest['reason'] ?? 'unknown'),
+        'error'         => 'Selections saved but ingest failed for one or more panes — see Diagnostics.',
         'selectedCount' => count($allowlistEntries),
         'ingest'        => $ingest,
     ], 500);
 }
 
 event_scraper_log('info', 'selections_saved', [
-    'adapter'        => $adapterId,
-    'targetPaneId'   => $targetPaneId,
+    'feed'           => $feedId,
+    'label'          => $label,
     'selectedCount'  => count($allowlistEntries),
-    'ingestCreated'  => $ingest['created'] ?? 0,
-    'ingestUpdated'  => $ingest['updated'] ?? 0,
-    'ingestDeleted'  => $ingest['deleted'] ?? 0,
+    'paneCount'      => count($ingest['panes'] ?? []),
 ]);
 
 event_scraper_save_respond([
     'status'        => 'ok',
+    'feedId'        => $feedId,
     'selectedCount' => count($allowlistEntries),
     'ingest'        => $ingest,
 ], 200);

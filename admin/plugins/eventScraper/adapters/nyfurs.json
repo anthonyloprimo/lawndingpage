@@ -1,0 +1,9 @@
+{
+  "id": "nyfurs",
+  "label": "NY Furs",
+  "url": "https://events.nyfurs.org/export/categ/0.json",
+  "extractor": "indico",
+  "userAgent": "@rotate",
+  "crawlDelaySeconds": 0.5,
+  "categoryDefault": null
+}

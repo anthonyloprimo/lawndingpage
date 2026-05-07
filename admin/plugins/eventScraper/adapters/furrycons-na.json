@@ -1,0 +1,10 @@
+{
+  "id": "furrycons-na",
+  "label": "FurryCons.com — North America",
+  "url": "https://furrycons.com/calendar/calendar.php?loc=na",
+  "extractor": "jsonld",
+  "userAgent": "Mozilla/5.0 (compatible; LawndingPage eventScraper; +https://lifurs.org/)",
+  "crawlDelaySeconds": 0.5,
+  "uidFromUrlPattern": "#/event/(\\d+)/#",
+  "categoryDefault": null
+}

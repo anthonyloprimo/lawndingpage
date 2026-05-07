@@ -1,0 +1,184 @@
+/* Event Scraper admin UI styles. All selectors scoped under
+   .eventScraperConfig so this stylesheet is harmless on the public site
+   (where the host class is never rendered). Color palette mirrors
+   config.css's existing raw-hex conventions (no token system yet — see
+   the CSS architecture refactor backlog). */
+
+.eventScraperConfig .eventScraperStatus {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 6px 0;
+    margin-bottom: 8px;
+    color: #ffffffcc;
+    font-size: 0.92rem;
+}
+
+.eventScraperConfig .eventScraperRefreshBtn {
+    flex: 0 0 auto;
+}
+
+.eventScraperConfig .eventScraperControls,
+.eventScraperConfig .eventScraperFilter {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin: 6px 0;
+}
+
+.eventScraperConfig .eventScraperControl {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex: 1 1 200px;
+    min-width: 180px;
+}
+.eventScraperConfig .eventScraperControl > span {
+    font-size: 0.85rem;
+    color: #ffffffaa;
+}
+.eventScraperConfig .eventScraperControl select,
+.eventScraperConfig .eventScraperControl input[type="search"] {
+    padding: 6px 8px;
+    background: #00000055;
+    border: 1px solid #ffffff22;
+    border-radius: 4px;
+    color: inherit;
+    font: inherit;
+}
+
+.eventScraperConfig .eventScraperList {
+    margin: 8px 0;
+    border: 1px solid #ffffff22;
+    border-radius: 6px;
+    background: #00000033;
+    max-height: 360px;
+    overflow-y: auto;
+}
+.eventScraperConfig .eventScraperListEmpty {
+    padding: 16px;
+    color: #ffffffaa;
+    font-style: italic;
+    margin: 0;
+}
+
+.eventScraperConfig .eventScraperTable {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.92rem;
+    color: #ffffffdd;
+}
+.eventScraperConfig .eventScraperTable thead th {
+    position: sticky;
+    top: 0;
+    background: #00000088;
+    text-align: left;
+    padding: 6px 10px;
+    border-bottom: 1px solid #ffffff22;
+    font-weight: 600;
+    font-size: 0.82rem;
+    color: #ffffffaa;
+}
+.eventScraperConfig .eventScraperTable td {
+    padding: 6px 10px;
+    border-bottom: 1px solid #ffffff11;
+    vertical-align: middle;
+}
+.eventScraperConfig .eventScraperTable tbody tr:last-child td {
+    border-bottom: none;
+}
+.eventScraperConfig .eventScraperRowSelected {
+    background: #00000044;
+}
+.eventScraperConfig .eventScraperRowName {
+    font-weight: 500;
+}
+
+.eventScraperConfig .eventScraperBadge {
+    display: inline-block;
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    vertical-align: middle;
+    margin-left: 4px;
+}
+.eventScraperConfig .eventScraperBadgeNew {
+    background: #4A3B1488;
+    color: #ffe88c;
+    border: 1px solid #ffe88c44;
+}
+
+.eventScraperConfig .eventScraperActions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    padding: 6px 0;
+    margin-top: 6px;
+}
+.eventScraperConfig .eventScraperSelectionCount {
+    color: #ffffffaa;
+    font-size: 0.9rem;
+    flex: 1 1 auto;
+}
+.eventScraperConfig .eventScraperSaveStatus {
+    color: #ffffffaa;
+    font-size: 0.9rem;
+}
+.eventScraperConfig .eventScraperSaveStatus--ok {
+    color: #9be39b;
+}
+.eventScraperConfig .eventScraperSaveStatus--error {
+    color: #ff9999;
+}
+
+.eventScraperConfig .eventScraperCronSection {
+    margin-top: 14px;
+    padding: 8px 10px;
+    background: #00000033;
+    border: 1px solid #ffffff22;
+    border-radius: 6px;
+}
+.eventScraperConfig .eventScraperCronSection summary {
+    cursor: pointer;
+    color: #ffffffcc;
+    font-size: 0.92rem;
+    padding: 2px 0;
+}
+.eventScraperConfig .eventScraperCronLine {
+    margin: 8px 0;
+    padding: 8px 10px;
+    background: #00000088;
+    border: 1px solid #ffffff22;
+    border-radius: 4px;
+    color: #ffffffdd;
+    font-family: ui-monospace, "Cascadia Code", "Source Code Pro", Menlo, monospace;
+    font-size: 0.82rem;
+    overflow-x: auto;
+    white-space: pre;
+}
+.eventScraperConfig .eventScraperCronActions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+.eventScraperConfig .eventScraperCronStatus {
+    color: #ffffffaa;
+    font-size: 0.85rem;
+}
+
+.eventScraperConfig .visuallyHidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}

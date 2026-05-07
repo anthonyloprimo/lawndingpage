@@ -1,6 +1,16 @@
 ### Changelog
 
 
+#### v1.20.1
+- Reshaped the Event Scraper around feeds and subscriptions. Each source is now a "feed" that any number of Event List panes can subscribe to — pick which conventions a feed publishes once, then pick which panes show that feed. Site Config has a Default subscribed feeds block under Event List for new panes to inherit; the gear icon on each pane lets you override per pane. A single cron command refreshes every configured feed in sequence and isolates failures, so one source going down doesn't stall the rest. New feeds appear automatically when an adapter file is added to the install.
+
+-----
+
+#### v1.20.0
+- Added the Event Scraper. Pull convention dates from FurryCons.com into one of your Event List panes — pick which conventions you want to show, and the list refreshes itself daily. Scraped events sit alongside anything you've added manually (manual entries are never touched), new conventions are flagged in the picker so you can decide whether to include them, and date or location changes apply on the next refresh. Site Config carries a Daily cron setup section with the exact crontab line to paste.
+
+-----
+
 #### v1.19.1
 - The Telegram webhook now requires a per-install secret token. After saving your bot config to generate one, click the new Register webhook button (next to Test bot) to push it to Telegram in one call. A manual curl command is shown alongside as an alternative.
 

@@ -2760,6 +2760,16 @@ $(document).ready(function() {
             }
 
             syncPerPaneOverridesEnabled();
+
+            // Plugin contribution slot — fired after core's modal data is
+            // wired up but before it's shown. Listeners filter by moduleId.
+            $(document).trigger('lp:perPaneModalOpening', [{
+                $modal: $perPaneSettingsModal,
+                paneId: paneId,
+                moduleId: paneData.module,
+                useSiteDefaults: !!paneData.useSiteDefaults,
+            }]);
+
             openAdminModal($perPaneSettingsModal);
         }
 

@@ -321,4 +321,14 @@ function event_list_render_site_config(): void {
         </div>
     </fieldset>
     <?php
+
+    // Plugin contribution slot. Plugins extend the eventList SITE CONFIG
+    // section by registering for this hook and emitting their own sibling
+    // fieldset(s). Per admin/plugins/README.md, plugins do not register their
+    // own SITE CONFIG sections — they extend their host module's.
+    if (function_exists('lawnding_run_hook')) {
+        lawnding_run_hook('eventlist_site_config_extras', [
+            'moduleId' => 'eventList',
+        ]);
+    }
 }

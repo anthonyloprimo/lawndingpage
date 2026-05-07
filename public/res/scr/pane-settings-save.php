@@ -52,9 +52,23 @@ if (empty($declared)) {
     pane_settings_json_response(['status' => 'ok', 'persisted' => false]);
 }
 
+$settingsPath = lawnding_module_settings_path($moduleId, $paneId);
+if ($settingsPath === '') {
+    pane_settings_json_response(['error' => 'Module has no settings_file declaration.'], 500);
+}
+
 $useSiteDefaults = !isset($_POST['useSiteDefaults']) || $_POST['useSiteDefaults'] !== '0';
 
-$settings = ['useSiteDefaults' => $useSiteDefaults];
+// Preserve unknown keys (plugin contributions like subscribedFeeds). This
+// endpoint owns useSiteDefaults + manifest-declared keys; everything else
+// passes through unmodified so plugins can contribute to the same sidecar.
+$existing = lawnding_load_pane_settings($settingsPath);
+$ownedKeys = ['useSiteDefaults'];
+foreach ($declared as $entry) {
+    $ownedKeys[] = $entry['key'];
+}
+$settings = array_diff_key($existing, array_flip($ownedKeys));
+$settings['useSiteDefaults'] = $useSiteDefaults;
 if (!$useSiteDefaults) {
     foreach ($declared as $entry) {
         $key = $entry['key'];
@@ -64,11 +78,6 @@ if (!$useSiteDefaults) {
             $settings[$key] = !empty($_POST[$key]);
         }
     }
-}
-
-$settingsPath = lawnding_module_settings_path($moduleId, $paneId);
-if ($settingsPath === '') {
-    pane_settings_json_response(['error' => 'Module has no settings_file declaration.'], 500);
 }
 
 if (!lawnding_save_pane_settings($settingsPath, $settings)) {

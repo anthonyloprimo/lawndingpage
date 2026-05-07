@@ -492,8 +492,8 @@
     z-index: 1;
 }
 .eventCalendarBar.isSpan .eventCalendarBarTitle {
-    overflow: visible;
-    text-overflow: clip;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 /* Span continues into the next week-row: drop right-side rounding and bleed
    past the cell border so the visual signals "this isn't the end." */

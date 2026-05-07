@@ -1,0 +1,11 @@
+{
+  "id": "furrycons-na",
+  "label": "FurryCons.com — North America",
+  "url": "https://furrycons.com/calendar/calendar.php?loc=na",
+  "extractor": "jsonld",
+  "userAgent": "@rotate",
+  "crawlDelaySeconds": 0.5,
+  "uidFromUrlPattern": "#/event/(\\d+)/#",
+  "stripYearSuffix": true,
+  "categoryDefault": null
+}

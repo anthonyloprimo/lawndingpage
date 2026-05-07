@@ -30,6 +30,7 @@ function event_scraper_extract_jsonld(string $html, array $adapter): array {
     }
 
     $uidPattern = (string) ($adapter['uidFromUrlPattern'] ?? '');
+    $stripYearSuffix = !empty($adapter['stripYearSuffix']);
     $events = [];
 
     foreach ($blocks as $raw) {
@@ -53,7 +54,7 @@ function event_scraper_extract_jsonld(string $html, array $adapter): array {
             if ($type !== 'Event') {
                 continue;
             }
-            $normalized = event_scraper_normalize_jsonld_event($item, $uidPattern);
+            $normalized = event_scraper_normalize_jsonld_event($item, $uidPattern, $stripYearSuffix);
             if ($normalized !== null) {
                 $events[] = $normalized;
             }
@@ -120,12 +121,16 @@ function event_scraper_jsonld_blocks(string $html): array {
 // Pure transform: schema.org Event object -> plugin's normalized shape.
 // Returns null when required fields are missing or the URL doesn't match
 // the adapter's UID pattern.
-function event_scraper_normalize_jsonld_event(array $item, string $uidPattern): ?array {
+function event_scraper_normalize_jsonld_event(array $item, string $uidPattern, bool $stripYearSuffix = false): ?array {
     $name = isset($item['name']) && is_string($item['name']) ? trim($item['name']) : '';
     $startDate = isset($item['startDate']) && is_string($item['startDate']) ? trim($item['startDate']) : '';
     $url = isset($item['url']) && is_string($item['url']) ? trim($item['url']) : '';
     if ($name === '' || $startDate === '' || $url === '') {
         return null;
+    }
+
+    if ($stripYearSuffix) {
+        $name = event_scraper_strip_year_suffix($name);
     }
 
     $sourceUid = event_scraper_extract_uid($url, $uidPattern);
@@ -147,6 +152,13 @@ function event_scraper_normalize_jsonld_event(array $item, string $uidPattern): 
         'registrationUrl' => event_scraper_pick_offer_url($item['offers'] ?? null),
         'image'           => event_scraper_pick_first_string($item['image'] ?? null),
     ];
+}
+
+// Strip a trailing 19xx/20xx year (with surrounding whitespace) from an event
+// name. Conservative: only matches year-shaped tokens at end of string so
+// accidental 4-digit numbers mid-name aren't touched.
+function event_scraper_strip_year_suffix(string $name): string {
+    return rtrim(preg_replace('/\s+(?:19|20)\d{2}\s*$/', '', $name));
 }
 
 // Apply the adapter's UID pattern; empty pattern = no UID derivable.

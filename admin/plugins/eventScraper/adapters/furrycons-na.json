@@ -6,5 +6,6 @@
   "userAgent": "Mozilla/5.0 (compatible; LawndingPage eventScraper; +https://lifurs.org/)",
   "crawlDelaySeconds": 0.5,
   "uidFromUrlPattern": "#/event/(\\d+)/#",
+  "stripYearSuffix": true,
   "categoryDefault": null
 }

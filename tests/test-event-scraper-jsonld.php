@@ -233,6 +233,49 @@ $result = event_scraper_extract_jsonld($dirtyBlock, $adapter);
 test_assert(count($result) === 1, 'event with raw-newline description survives sanitization');
 test_assert($result[0]['description'] === "Line one\nLine two", 'description preserves the original newline as a real \\n');
 
+// ---- Year-suffix stripping ----
+
+test_assert(
+    event_scraper_strip_year_suffix('Furry Weekend Atlanta 2026') === 'Furry Weekend Atlanta',
+    'trailing 4-digit year stripped'
+);
+test_assert(
+    event_scraper_strip_year_suffix('AnthrOhio 2026') === 'AnthrOhio',
+    'one-word name with trailing year'
+);
+test_assert(
+    event_scraper_strip_year_suffix('Convention 1992') === 'Convention',
+    'historical 19xx year stripped'
+);
+test_assert(
+    event_scraper_strip_year_suffix('Furry Weekend Atlanta') === 'Furry Weekend Atlanta',
+    'no year, no change'
+);
+test_assert(
+    event_scraper_strip_year_suffix('Convention 0123') === 'Convention 0123',
+    'four-digit number that is not a 19xx/20xx year is left alone'
+);
+test_assert(
+    event_scraper_strip_year_suffix('Event 2026 Spring Edition') === 'Event 2026 Spring Edition',
+    'year mid-name (not trailing) is left alone'
+);
+test_assert(
+    event_scraper_strip_year_suffix('Furry Weekend Atlanta 2026 ') === 'Furry Weekend Atlanta',
+    'trailing whitespace after year is normalized'
+);
+
+// stripYearSuffix flag toggles the behavior at extractor entry.
+$adapterOff = ['uidFromUrlPattern' => '#/event/(\d+)/#'];
+$adapterOn  = ['uidFromUrlPattern' => '#/event/(\d+)/#', 'stripYearSuffix' => true];
+$block = '<script type="application/ld+json">' . json_encode([
+    '@type' => 'Event', 'name' => 'Furry Weekend Atlanta 2026', 'startDate' => '2026-05-07',
+    'url' => 'http://furrycons.com/event/26609/x',
+]) . '</script>';
+$resultOff = event_scraper_extract_jsonld($block, $adapterOff);
+$resultOn  = event_scraper_extract_jsonld($block, $adapterOn);
+test_assert($resultOff[0]['name'] === 'Furry Weekend Atlanta 2026', 'flag off keeps year');
+test_assert($resultOn[0]['name'] === 'Furry Weekend Atlanta', 'flag on strips year');
+
 // ---- Realistic full-page sample (mirrors furrycons.com shape) ----
 
 $realistic = file_get_contents(__DIR__ . '/fixtures/event-scraper-furrycons-sample.html');

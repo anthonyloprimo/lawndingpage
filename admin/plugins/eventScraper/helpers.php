@@ -6,6 +6,17 @@
 // the every-request load.
 
 // ------------------------------------------------------------------------
+// Logging — thin wrapper around lawnding_log_event so call sites stay
+// one-liners. Diagnostics admin UI surfaces these via the standard feed.
+// ------------------------------------------------------------------------
+
+function event_scraper_log(string $severity, string $eventSlug, array $context = []): void {
+    if (function_exists('lawnding_log_event')) {
+        lawnding_log_event($severity, 'event_scraper.' . $eventSlug, $context);
+    }
+}
+
+// ------------------------------------------------------------------------
 // Paths
 // ------------------------------------------------------------------------
 
@@ -78,14 +89,47 @@ function event_scraper_save_config(array $config): bool {
     $clean = array_replace(event_scraper_config_defaults(), $config);
     $json = json_encode($clean, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
     if ($json === false) {
+        event_scraper_log('error', 'config_write_failed', [
+            'path'  => $path,
+            'phase' => 'json_encode',
+        ]);
         return false;
     }
     $ok = @file_put_contents($path, $json, LOCK_EX);
     if ($ok === false) {
+        event_scraper_log('error', 'config_write_failed', [
+            'path'   => $path,
+            'phase'  => 'file_put_contents',
+            'reason' => event_scraper_describe_write_failure($path),
+        ]);
         return false;
     }
     @chmod($path, 0640);
     return true;
+}
+
+// Best-effort post-mortem on a failed write — checks whether the directory
+// is writable and whether the file already exists with the wrong owner.
+// Pure inspection (read-only), feeds the diagnostics log so admins can
+// see "permission denied vs. directory missing vs. file owned by SSH user
+// while web is www-data" without SSHing in.
+function event_scraper_describe_write_failure(string $path): string {
+    $dir = dirname($path);
+    if (!is_dir($dir)) {
+        return 'parent directory does not exist: ' . $dir;
+    }
+    if (!is_writable($dir)) {
+        $statDir = @stat($dir);
+        $owner = $statDir ? ('uid=' . $statDir['uid'] . ' gid=' . $statDir['gid']) : 'unknown';
+        $procUser = function_exists('posix_geteuid') ? ('uid=' . posix_geteuid() . ' gid=' . posix_getegid()) : 'unknown';
+        return 'directory not writable by web process (' . $procUser . '); directory owner is ' . $owner;
+    }
+    if (file_exists($path) && !is_writable($path)) {
+        $statFile = @stat($path);
+        $owner = $statFile ? ('uid=' . $statFile['uid'] . ' gid=' . $statFile['gid']) : 'unknown';
+        return 'file exists but is not writable by web process; file owner is ' . $owner;
+    }
+    return 'unknown (file_put_contents returned false; check disk space and SELinux/AppArmor)';
 }
 
 // ------------------------------------------------------------------------
@@ -133,9 +177,23 @@ function event_scraper_save_catalogue(string $adapterId, array $catalogue): bool
     $path = event_scraper_catalogue_path($adapterId);
     $json = json_encode($catalogue, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
     if ($json === false) {
+        event_scraper_log('error', 'catalogue_write_failed', [
+            'adapter' => $adapterId,
+            'path'    => $path,
+            'phase'   => 'json_encode',
+        ]);
         return false;
     }
-    return @file_put_contents($path, $json, LOCK_EX) !== false;
+    if (@file_put_contents($path, $json, LOCK_EX) === false) {
+        event_scraper_log('error', 'catalogue_write_failed', [
+            'adapter' => $adapterId,
+            'path'    => $path,
+            'phase'   => 'file_put_contents',
+            'reason'  => event_scraper_describe_write_failure($path),
+        ]);
+        return false;
+    }
+    return true;
 }
 
 // ------------------------------------------------------------------------
@@ -399,6 +457,11 @@ function event_scraper_load_pane_events(string $paneId): array {
 // uses; LOCK_EX is the project standard (the project docs File I/O section).
 function event_scraper_save_pane_events(string $paneId, array $events): bool {
     if (!preg_match('/^[a-zA-Z0-9_-]+$/', $paneId)) {
+        event_scraper_log('error', 'pane_events_write_failed', [
+            'paneId' => $paneId,
+            'phase'  => 'validate',
+            'reason' => 'paneId failed allowlist regex (defense against path traversal)',
+        ]);
         return false;
     }
     $path = function_exists('lawnding_data_path')
@@ -407,9 +470,23 @@ function event_scraper_save_pane_events(string $paneId, array $events): bool {
     $payload = ['events' => array_values($events)];
     $json = json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
     if ($json === false) {
+        event_scraper_log('error', 'pane_events_write_failed', [
+            'paneId' => $paneId,
+            'path'   => $path,
+            'phase'  => 'json_encode',
+        ]);
         return false;
     }
-    return @file_put_contents($path, $json, LOCK_EX) !== false;
+    if (@file_put_contents($path, $json, LOCK_EX) === false) {
+        event_scraper_log('error', 'pane_events_write_failed', [
+            'paneId' => $paneId,
+            'path'   => $path,
+            'phase'  => 'file_put_contents',
+            'reason' => event_scraper_describe_write_failure($path),
+        ]);
+        return false;
+    }
+    return true;
 }
 
 // ------------------------------------------------------------------------
@@ -422,16 +499,23 @@ function event_scraper_run_refresh(string $adapterId, string $trigger): array {
     $now = gmdate('c');
     $writeLast = function (array $payload) use ($adapterId): void {
         $path = event_scraper_last_scrape_path($adapterId);
-        @file_put_contents(
-            $path,
-            json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES),
-            LOCK_EX
-        );
+        $json = json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+        if ($json === false) {
+            return;
+        }
+        if (@file_put_contents($path, $json, LOCK_EX) === false) {
+            event_scraper_log('warn', 'last_scrape_write_failed', [
+                'adapter' => $adapterId,
+                'path'    => $path,
+                'reason'  => event_scraper_describe_write_failure($path),
+            ]);
+        }
     };
 
     $adapter = event_scraper_load_adapter($adapterId);
     if (!$adapter) {
         $err = "Adapter not found: $adapterId";
+        event_scraper_log('error', 'adapter_not_found', ['adapter' => $adapterId]);
         $writeLast(['ranAt' => $now, 'status' => 'error', 'count' => 0, 'error' => $err, 'trigger' => $trigger]);
         return ['status' => 'error', 'count' => 0, 'error' => $err];
     }
@@ -440,6 +524,10 @@ function event_scraper_run_refresh(string $adapterId, string $trigger): array {
     $userAgent = (string) ($adapter['userAgent'] ?? '');
     if ($url === '' || $userAgent === '') {
         $err = 'Adapter is missing required url or userAgent';
+        event_scraper_log('error', 'adapter_invalid', [
+            'adapter' => $adapterId,
+            'reason'  => 'missing url or userAgent',
+        ]);
         $writeLast(['ranAt' => $now, 'status' => 'error', 'count' => 0, 'error' => $err, 'trigger' => $trigger]);
         return ['status' => 'error', 'count' => 0, 'error' => $err];
     }
@@ -448,13 +536,11 @@ function event_scraper_run_refresh(string $adapterId, string $trigger): array {
     if ($fetched['status'] !== 200 || $fetched['body'] === '') {
         $err = 'Fetch failed: HTTP ' . $fetched['status'] . ' ' . (string) $fetched['error'];
         $writeLast(['ranAt' => $now, 'status' => 'error', 'count' => 0, 'error' => $err, 'trigger' => $trigger]);
-        if (function_exists('lawnding_log_event')) {
-            lawnding_log_event('error', 'event_scraper.fetch_failed', [
-                'adapter' => $adapterId,
-                'status'  => $fetched['status'],
-                'error'   => $fetched['error'],
-            ]);
-        }
+        event_scraper_log('error', 'fetch_failed', [
+            'adapter' => $adapterId,
+            'status'  => $fetched['status'],
+            'error'   => $fetched['error'],
+        ]);
         return ['status' => 'error', 'count' => 0, 'error' => $err];
     }
     // Capture payload size now; reused in the success log below.
@@ -464,6 +550,11 @@ function event_scraper_run_refresh(string $adapterId, string $trigger): array {
     $extractorPath = __DIR__ . '/extractors/' . $extractor . '.php';
     if (!preg_match('/^[a-zA-Z0-9_-]+$/', $extractor) || !is_readable($extractorPath)) {
         $err = "Extractor not found: $extractor";
+        event_scraper_log('error', 'extractor_not_found', [
+            'adapter'   => $adapterId,
+            'extractor' => $extractor,
+            'path'      => $extractorPath,
+        ]);
         $writeLast(['ranAt' => $now, 'status' => 'error', 'count' => 0, 'error' => $err, 'trigger' => $trigger]);
         return ['status' => 'error', 'count' => 0, 'error' => $err];
     }
@@ -471,6 +562,11 @@ function event_scraper_run_refresh(string $adapterId, string $trigger): array {
     $extractFn = 'event_scraper_extract_' . $extractor;
     if (!function_exists($extractFn)) {
         $err = "Extractor function missing: $extractFn";
+        event_scraper_log('error', 'extractor_function_missing', [
+            'adapter'    => $adapterId,
+            'extractor'  => $extractor,
+            'expectedFn' => $extractFn,
+        ]);
         $writeLast(['ranAt' => $now, 'status' => 'error', 'count' => 0, 'error' => $err, 'trigger' => $trigger]);
         return ['status' => 'error', 'count' => 0, 'error' => $err];
     }
@@ -484,57 +580,69 @@ function event_scraper_run_refresh(string $adapterId, string $trigger): array {
     // empty one.
     if (count($events) === 0) {
         $err = 'Extractor produced 0 events; refusing to overwrite the catalogue. Previous data retained.';
+        event_scraper_log('error', 'empty_result', [
+            'adapter'   => $adapterId,
+            'payloadKb' => $payloadSizeKb,
+        ]);
         $writeLast(['ranAt' => $now, 'status' => 'error', 'count' => 0, 'error' => $err, 'trigger' => $trigger]);
-        if (function_exists('lawnding_log_event')) {
-            lawnding_log_event('error', 'event_scraper.empty_result', [
-                'adapter'   => $adapterId,
-                'payloadKb' => $payloadSizeKb,
-            ]);
-        }
         return ['status' => 'error', 'count' => 0, 'error' => $err];
     }
 
     $prev = event_scraper_load_catalogue($adapterId);
     $diff = event_scraper_diff($prev['events'] ?? [], $events);
 
-    // Rotate: prev <- old; current <- new.
-    @copy(event_scraper_catalogue_path($adapterId), event_scraper_catalogue_prev_path($adapterId));
-    event_scraper_save_catalogue($adapterId, [
+    // Rotate: prev <- old; current <- new. The copy is best-effort (the
+    // diff is already computed; rotation only matters for the next scrape's
+    // historical view), so a failure logs at warn, not error.
+    $cataloguePath = event_scraper_catalogue_path($adapterId);
+    if (file_exists($cataloguePath)) {
+        if (!@copy($cataloguePath, event_scraper_catalogue_prev_path($adapterId))) {
+            event_scraper_log('warn', 'catalogue_rotate_failed', [
+                'adapter' => $adapterId,
+                'reason'  => event_scraper_describe_write_failure(event_scraper_catalogue_prev_path($adapterId)),
+            ]);
+        }
+    }
+
+    if (!event_scraper_save_catalogue($adapterId, [
         'fetchedAt' => $now,
         'sourceUrl' => $url,
         'events'    => $events,
-    ]);
+    ])) {
+        // catalogue_write_failed already logged inside event_scraper_save_catalogue.
+        $err = 'Fetched ' . count($events) . ' events, but failed to write the catalogue file. Check Diagnostics for the file-permissions detail.';
+        $writeLast(['ranAt' => $now, 'status' => 'error', 'count' => count($events), 'error' => $err, 'trigger' => $trigger]);
+        return ['status' => 'error', 'count' => count($events), 'error' => $err];
+    }
 
     // Diagnostics for changes admins might want to know about, plus a
     // single "scrape completed" info entry that always fires (even when
     // nothing changed) so admins can see the cron is alive in the feed.
-    if (function_exists('lawnding_log_event')) {
-        foreach ($diff['changed'] as $change) {
-            lawnding_log_event('info', 'event_scraper.event_changed', [
-                'adapter' => $adapterId,
-                'uid'     => $change['uid'],
-                'name'    => $change['event']['name'] ?? '',
-                'fields'  => $change['fields'],
-            ]);
-        }
-        foreach ($diff['removed'] as $event) {
-            lawnding_log_event('info', 'event_scraper.event_removed', [
-                'adapter'   => $adapterId,
-                'uid'       => $event['sourceUid'] ?? '',
-                'name'      => $event['name'] ?? '',
-                'startDate' => $event['startDate'] ?? '',
-            ]);
-        }
-        lawnding_log_event('info', 'event_scraper.scrape_completed', [
-            'adapter'    => $adapterId,
-            'trigger'    => $trigger,
-            'count'      => count($events),
-            'newCount'   => count($diff['new']),
-            'changed'    => count($diff['changed']),
-            'removed'    => count($diff['removed']),
-            'payloadKb'  => $payloadSizeKb,
+    foreach ($diff['changed'] as $change) {
+        event_scraper_log('info', 'event_changed', [
+            'adapter' => $adapterId,
+            'uid'     => $change['uid'],
+            'name'    => $change['event']['name'] ?? '',
+            'fields'  => $change['fields'],
         ]);
     }
+    foreach ($diff['removed'] as $event) {
+        event_scraper_log('info', 'event_removed', [
+            'adapter'   => $adapterId,
+            'uid'       => $event['sourceUid'] ?? '',
+            'name'      => $event['name'] ?? '',
+            'startDate' => $event['startDate'] ?? '',
+        ]);
+    }
+    event_scraper_log('info', 'scrape_completed', [
+        'adapter'   => $adapterId,
+        'trigger'   => $trigger,
+        'count'     => count($events),
+        'newCount'  => count($diff['new']),
+        'changed'   => count($diff['changed']),
+        'removed'   => count($diff['removed']),
+        'payloadKb' => $payloadSizeKb,
+    ]);
 
     // Ingest pass — only if a target pane is configured.
     $config = event_scraper_load_config();
@@ -590,7 +698,14 @@ function event_scraper_apply_ingest(string $adapterId, array $catalogue, array $
 
     require_once dirname(__DIR__, 2) . '/modules/eventList/helpers.php';
     $merged = event_list_apply_events(['events' => $existingEvents], ['changes' => $changes]);
-    event_scraper_save_pane_events($paneId, $merged['events'] ?? []);
+    if (!event_scraper_save_pane_events($paneId, $merged['events'] ?? [])) {
+        // pane_events_write_failed already logged inside the save helper.
+        return [
+            'status' => 'error',
+            'reason' => 'failed to write pane events file (see Diagnostics for permission detail)',
+            'paneId' => $paneId,
+        ];
+    }
 
     return [
         'status'  => 'ok',

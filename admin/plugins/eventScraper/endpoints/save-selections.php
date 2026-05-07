@@ -103,6 +103,27 @@ if (!event_scraper_save_config($config)) {
 // Re-run ingest using the cached catalogue (no network fetch).
 $ingest = event_scraper_apply_ingest($adapterId, $catalogue['events'] ?? [], $config);
 
+// Surface ingest failures (e.g. pane events write failed). The save above
+// already succeeded, so the allowlist persists; only the calendar update
+// failed. The admin needs to know the picker state diverged from the pane.
+if (($ingest['status'] ?? '') === 'error') {
+    event_scraper_save_respond([
+        'status'        => 'error',
+        'error'         => 'Selections saved, but applying them to the calendar failed: ' . ($ingest['reason'] ?? 'unknown'),
+        'selectedCount' => count($allowlistEntries),
+        'ingest'        => $ingest,
+    ], 500);
+}
+
+event_scraper_log('info', 'selections_saved', [
+    'adapter'        => $adapterId,
+    'targetPaneId'   => $targetPaneId,
+    'selectedCount'  => count($allowlistEntries),
+    'ingestCreated'  => $ingest['created'] ?? 0,
+    'ingestUpdated'  => $ingest['updated'] ?? 0,
+    'ingestDeleted'  => $ingest['deleted'] ?? 0,
+]);
+
 event_scraper_save_respond([
     'status'        => 'ok',
     'selectedCount' => count($allowlistEntries),

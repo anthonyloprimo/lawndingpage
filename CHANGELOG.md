@@ -1,6 +1,11 @@
 ### Changelog
 
 
+#### v1.19.1
+- The Telegram webhook now requires a per-install secret token. After saving your bot config to generate one, click the new Register webhook button (next to Test bot) to push it to Telegram in one call. A manual curl command is shown alongside as an alternative.
+
+-----
+
 #### v1.19.0
 - Added colored event categories. Set up a shared list under Site Config (name + color each), then assign one to each event from the per-event editor. The chosen color shows on the calendar grid bars and in a small legend above the grid. Deleting a category leaves existing events intact — they fall back to the default color until you reassign them.
 

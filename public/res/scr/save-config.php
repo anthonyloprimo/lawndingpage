@@ -478,6 +478,7 @@ function normalize_tg_bot_payload($payload): array {
     $defaults = [
         'bot_username' => '',
         'bot_token' => '',
+        'webhook_secret_token' => '',
         'group_ids' => [],
         'whitelist_user_ids' => [],
         'blacklist_user_ids' => [],
@@ -611,9 +612,11 @@ function normalize_tg_bot_payload($payload): array {
     usort($groupIds, function ($a, $b) {
         return strnatcmp((string) ($a['id'] ?? ''), (string) ($b['id'] ?? ''));
     });
+    $secretToken = isset($payload['webhook_secret_token']) ? trim((string) $payload['webhook_secret_token']) : '';
     return [
         'bot_username' => $username,
         'bot_token' => $token,
+        'webhook_secret_token' => $secretToken,
         'group_ids' => $groupIds,
         'whitelist_user_ids' => $normalizeUserIds($payload['whitelist_user_ids'] ?? []),
         'blacklist_user_ids' => $normalizeUserIds($payload['blacklist_user_ids'] ?? []),
@@ -1400,7 +1403,27 @@ if (is_array($authLinksOut)) {
 
 if (is_array($tgBotData)) {
     $normalized = normalize_tg_bot_payload($tgBotData);
+    // Lazy-generate webhook_secret_token: preserve existing, generate on
+    // first save with a bot_token, clear when bot_token cleared. Flash
+    // warns admin to re-register — Telegram deliveries reject otherwise.
+    $existingTgBot = is_readable($tgBotPath) ? lawnding_read_json($tgBotPath) : [];
+    $existingSecret = is_string($existingTgBot['webhook_secret_token'] ?? null)
+        ? trim($existingTgBot['webhook_secret_token']) : '';
+    $secretFreshlyGenerated = false;
+    if ($normalized['bot_token'] !== '') {
+        if ($existingSecret !== '' && $normalized['webhook_secret_token'] === '') {
+            $normalized['webhook_secret_token'] = $existingSecret;
+        } elseif ($normalized['webhook_secret_token'] === '') {
+            $normalized['webhook_secret_token'] = bin2hex(random_bytes(32));
+            $secretFreshlyGenerated = true;
+        }
+    } else {
+        $normalized['webhook_secret_token'] = '';
+    }
     write_json_file($tgBotPath, $normalized, 'Failed to write Telegram bot data');
+    if ($secretFreshlyGenerated && function_exists('lawnding_flash_set')) {
+        lawnding_flash_set('warning', 'Webhook secret_token generated. Re-register the webhook (curl snippet in AUTH LINKS) so Telegram delivers the new header — until then, incoming updates are silently rejected.');
+    }
 }
 
 // Site Config: walk the canonical defaults and mirror each key's checkbox

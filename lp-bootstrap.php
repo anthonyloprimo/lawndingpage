@@ -1228,10 +1228,30 @@ function lawnding_site_config_path(): string {
     return rtrim((string) $adminDir, '/\\') . '/lp-siteConfig.json';
 }
 
+// Per-request cache slot for lawnding_load_site_config(). $replace
+// overwrites (write-through on save); $reset clears (tests).
+function lawnding_site_config_cache_slot(?array $replace = null, bool $reset = false): ?array {
+    static $cache = null;
+    if ($reset) {
+        $cache = null;
+        return null;
+    }
+    if ($replace !== null) {
+        $cache = $replace;
+    }
+    return $cache;
+}
+
 // Loads admin/lp-siteConfig.json and merges it on top of defaults. Values
 // missing or of the wrong type fall back to their default — defensive
 // against hand-edited JSON or schema additions made between sessions.
+// Memoized via lawnding_site_config_cache_slot() — N×K
+// resolve_pane_setting calls per admin render collapse to one read.
 function lawnding_load_site_config(): array {
+    $cached = lawnding_site_config_cache_slot();
+    if ($cached !== null) {
+        return $cached;
+    }
     $defaults = lawnding_site_config_defaults();
     $saved = lawnding_read_json(lawnding_site_config_path());
     $merged = $defaults;
@@ -1254,18 +1274,25 @@ function lawnding_load_site_config(): array {
             }
         }
     }
+    lawnding_site_config_cache_slot($merged);
     return $merged;
 }
 
 // Persist a fully-formed site-config array. Caller is responsible for shape
 // (typically: load defaults, override with admin form values, pass here).
 // Uses LOCK_EX matching the project standard. Returns true on success.
+// Write-throughs to the load cache so read→write→read in one process
+// (test runner, future endpoints) sees the just-saved state.
 function lawnding_save_site_config(array $config): bool {
     $encoded = json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
     if ($encoded === false) {
         return false;
     }
-    return file_put_contents(lawnding_site_config_path(), $encoded, LOCK_EX) !== false;
+    $ok = file_put_contents(lawnding_site_config_path(), $encoded, LOCK_EX) !== false;
+    if ($ok) {
+        lawnding_site_config_cache_slot($config);
+    }
+    return $ok;
 }
 
 // Emit the standard SITE CONFIG <fieldset> for a module's manifest-declared
@@ -1275,17 +1302,17 @@ function lawnding_save_site_config(array $config): bool {
 // indicators, etc.) declare site_config.render and call this themselves
 // to keep the standard fieldset on top.
 //
-// Static-memoizes the three site-config reads so a multi-module page does
-// one read each instead of N. No-op when the module has no settings.
+// Memoizes the manifest walks (defaults + labels) so a multi-module page
+// walks them once. The site config itself is cached in
+// lawnding_load_site_config(). No-op when the module has no settings.
 function lawnding_render_site_config_fieldset(string $moduleId): void {
-    static $config = null;
     static $defaults = null;
     static $labels = null;
-    if ($config === null) {
-        $config = lawnding_load_site_config();
+    if ($defaults === null) {
         $defaults = lawnding_site_config_defaults();
         $labels = lawnding_site_config_labels();
     }
+    $config = lawnding_load_site_config();
     $flags = $defaults[$moduleId] ?? [];
     if (!is_array($flags) || empty($flags)) {
         return;

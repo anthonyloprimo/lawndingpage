@@ -138,3 +138,48 @@ test_assert(
     lawnding_app_upload_max_bytes() === 5 * 1024 * 1024,
     'app upload cap reads site config default (5 MB) when no saved file'
 );
+
+// ---- lawnding_load_site_config cache + invalidation ----
+// Test runner is single-process; prior assertions above warmed the cache.
+// Each phase resets first so it starts from a known state, and the finally
+// block restores any pre-existing siteConfig file before later tests run.
+
+$siteConfigPath = lawnding_site_config_path();
+$priorExisted = is_file($siteConfigPath);
+$priorContent = $priorExisted ? file_get_contents($siteConfigPath) : null;
+
+try {
+    // Cold load reads disk; subsequent load returns the cached array even
+    // when the file is mutated out-of-band — proves the cache is live.
+    lawnding_site_config_cache_slot(null, true);
+    file_put_contents($siteConfigPath, json_encode(['mediaGallery' => ['customThumbs' => true, 'changeMedia' => false]]));
+    $coldLoad = lawnding_load_site_config();
+    test_assert(
+        ($coldLoad['mediaGallery']['customThumbs'] ?? null) === true,
+        'cold load (after cache reset) returns disk state'
+    );
+    file_put_contents($siteConfigPath, json_encode(['mediaGallery' => ['customThumbs' => false, 'changeMedia' => false]]));
+    $hotLoad = lawnding_load_site_config();
+    test_assert(
+        ($hotLoad['mediaGallery']['customThumbs'] ?? null) === true,
+        'hot load returns cached value (ignores out-of-band file change)'
+    );
+
+    // save → load returns just-saved value. Without write-through, the
+    // cache from the cold-load above would still hold (customThumbs=true)
+    // and this assertion would fail.
+    lawnding_save_site_config(['mediaGallery' => ['customThumbs' => false, 'changeMedia' => true]]);
+    $afterSave = lawnding_load_site_config();
+    test_assert(
+        ($afterSave['mediaGallery']['customThumbs'] ?? null) === false
+        && ($afterSave['mediaGallery']['changeMedia'] ?? null) === true,
+        'save invalidates cache (load reflects just-saved value)'
+    );
+} finally {
+    if ($priorExisted) {
+        file_put_contents($siteConfigPath, $priorContent);
+    } else {
+        @unlink($siteConfigPath);
+    }
+    lawnding_site_config_cache_slot(null, true);
+}

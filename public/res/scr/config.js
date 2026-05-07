@@ -525,6 +525,7 @@ $(document).ready(function() {
         const $toggle = $('#authLinksToggle');
         const $tokenToggle = $('.authLinksTokenToggle');
         const $testBot = $('.authLinksTestBotButton');
+        const $registerWebhook = $('.authLinksRegisterWebhookButton');
         const $validateGroups = $('.authLinksValidateGroupsButton');
         const $groupList = $('#tgBotGroupList');
         const $addGroupButton = $('.addTgBotGroup');
@@ -603,11 +604,14 @@ $(document).ready(function() {
         if ($tokenToggle.length) {
             $tokenToggle.on('click', function() {
                 const $button = $(this);
-                const $input = $('#tgBotToken');
+                const targetSelector = $button.data('target') || '#tgBotToken';
+                const $input = $(targetSelector);
                 const isVisible = $button.attr('data-visible') === 'true';
+                const labelShow = $button.data('aria-show') || 'Show token';
+                const labelHide = $button.data('aria-hide') || 'Hide token';
                 $input.attr('type', isVisible ? 'password' : 'text');
                 $button.attr('data-visible', isVisible ? 'false' : 'true');
-                $button.attr('aria-label', isVisible ? 'Show token' : 'Hide token');
+                $button.attr('aria-label', isVisible ? labelShow : labelHide);
                 const icon = isVisible
                     ? $button.data('icon-closed')
                     : $button.data('icon-open');
@@ -646,6 +650,28 @@ $(document).ready(function() {
                     })
                     .catch((err) => {
                         alert(`FAILED: ${err && err.message ? err.message : 'Request failed.'}\nExpected: ok=true with a bot username/id if the token is valid.`);
+                    });
+            });
+        }
+
+        if ($registerWebhook.length) {
+            $registerWebhook.on('click', function() {
+                const basePath = lpGetBasePath();
+                const proxyPath = '/res/scr/plugin-endpoint.php?plugin=telegram&endpoint=register-webhook';
+                const url = basePath ? `${basePath}${proxyPath}` : proxyPath;
+                const csrfToken = (window.appConfig && window.appConfig.csrfToken) || '';
+                const body = new URLSearchParams();
+                body.append('csrf_token', csrfToken);
+                fetch(url, { method: 'POST', body })
+                    .then((resp) => resp.json())
+                    .then((data) => {
+                        const ok = data && data.ok;
+                        const desc = data && data.description ? String(data.description) : 'No response message.';
+                        const expected = 'Expected: ok=true with the registered webhook URL.';
+                        alert(`${ok ? 'OK' : 'FAILED'}: ${desc}\n${expected}`);
+                    })
+                    .catch((err) => {
+                        alert(`FAILED: ${err && err.message ? err.message : 'Request failed.'}\nExpected: ok=true with the registered webhook URL.`);
                     });
             });
         }
@@ -1330,6 +1356,7 @@ $(document).ready(function() {
 
     function getTgBotData() {
         const token = ($('#tgBotToken').val() || '').trim();
+        const webhookSecret = ($('#tgBotWebhookSecret').val() || '').trim();
         const username = ($('#tgBotUsername').val() || '').trim();
         const ttlRaw = ($('#tgBotCacheTtl').val() || '').trim();
         const ttlValue = parseInt(ttlRaw, 10);
@@ -1344,6 +1371,7 @@ $(document).ready(function() {
         return {
             bot_username: username,
             bot_token: token,
+            webhook_secret_token: webhookSecret,
             group_ids: entries,
             whitelist_user_ids: whitelistEntries,
             blacklist_user_ids: blacklistEntries,

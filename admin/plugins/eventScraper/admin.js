@@ -460,18 +460,9 @@
         });
         section.appendChild(list);
 
-        var actions = document.createElement('div');
-        actions.className = 'panePerPaneSettingsModuleActions';
-        var saveBtn = document.createElement('button');
-        saveBtn.type = 'button';
-        saveBtn.className = 'eventScraperPerPaneSaveBtn';
-        saveBtn.textContent = 'Save subscriptions';
-        var statusEl = document.createElement('span');
-        statusEl.className = 'eventScraperPerPaneStatus';
-        statusEl.setAttribute('aria-live', 'polite');
-        actions.appendChild(saveBtn);
-        actions.appendChild(statusEl);
-        section.appendChild(actions);
+        // Save handled by the modal's main Save button via
+        // lp:per-pane-settings-saved (single click saves icon + bool flags +
+        // subscriptions). No separate Save button here.
 
         // Module section is the right anchor; insert after it.
         var anchor = modalEl.querySelector('.panePerPaneSettingsModuleSection');
@@ -482,31 +473,6 @@
             var body = modalEl.querySelector('.adminModalBody') || modalEl;
             body.appendChild(section);
         }
-
-        saveBtn.addEventListener('click', function () {
-            var useSiteDefaultsNow = (modalEl.querySelector('#panePerPaneSettingsUseDefaultsInput') || {}).checked;
-            var checked = Array.prototype.slice.call(
-                section.querySelectorAll('.eventScraperPerPaneCheckbox:checked')
-            ).map(function (cb) { return cb.getAttribute('data-feed-id'); });
-            saveBtn.disabled = true;
-            statusEl.textContent = 'Saving…';
-            postForm('save-pane-subscriptions', {
-                paneId: paneId,
-                useSiteDefaults: useSiteDefaultsNow ? '1' : '0',
-                subscriptions: JSON.stringify(checked)
-            }).then(function (r) {
-                saveBtn.disabled = false;
-                if (!r.ok || !r.data || r.data.error) {
-                    statusEl.textContent = 'Save failed: ' + ((r.data && r.data.error) || ('HTTP ' + r.status));
-                    return;
-                }
-                statusEl.textContent = 'Saved.';
-                state.paneSubscriptions[paneId] = {
-                    override: checked,
-                    useSiteDefaults: !!useSiteDefaultsNow
-                };
-            });
-        });
 
         // Mirror core's "Use site defaults" toggle — when ticked, lock our
         // checkboxes too so the modal feels like one cohesive override.
@@ -524,10 +490,9 @@
 
     function bindPerPaneModal() {
         if (typeof window.jQuery === 'undefined') return;
-        window.jQuery(document).on('lp:perPaneModalOpening', function (ev, ctx) {
+        var $j = window.jQuery;
+        $j(document).on('lp:perPaneModalOpening', function (ev, ctx) {
             if (!ctx || ctx.moduleId !== 'eventList') return;
-            // If catalogue not yet loaded (page just opened), refresh it
-            // first so the injection has the feed list.
             if (!state.loaded) {
                 fetchCatalogue().then(function () {
                     injectPerPaneSection(ctx.$modal, ctx.paneId, ctx.useSiteDefaults);
@@ -535,6 +500,29 @@
             } else {
                 injectPerPaneSection(ctx.$modal, ctx.paneId, ctx.useSiteDefaults);
             }
+        });
+        // Piggyback on core's pane-settings-saved fire — single Save click in
+        // the modal also persists our subscribedFeeds + re-runs ingest.
+        $j(document).on('lp:per-pane-settings-saved', function (ev, ctx) {
+            if (!ctx || ctx.module !== 'eventList') return;
+            var section = document.querySelector('.eventScraperPerPaneSection');
+            if (!section) return;
+            var useSiteDefaultsNow = !!ctx.useSiteDefaults;
+            var checked = Array.prototype.slice.call(
+                section.querySelectorAll('.eventScraperPerPaneCheckbox:checked')
+            ).map(function (cb) { return cb.getAttribute('data-feed-id'); });
+            postForm('save-pane-subscriptions', {
+                paneId: ctx.paneId,
+                useSiteDefaults: useSiteDefaultsNow ? '1' : '0',
+                subscriptions: JSON.stringify(checked)
+            }).then(function (r) {
+                if (r.ok && r.data && !r.data.error) {
+                    state.paneSubscriptions[ctx.paneId] = {
+                        override: checked,
+                        useSiteDefaults: useSiteDefaultsNow
+                    };
+                }
+            });
         });
     }
 

@@ -108,7 +108,12 @@
 
         var q = (ui.filterText || '').toLowerCase();
         var r = ui.filterRegion || '';
+        var currentYear = String(new Date().getFullYear());
         var visible = events.filter(function (e) {
+            // Default scope is "events starting in the current calendar year"
+            // so the picker doesn't bury today's choices under next-year cons
+            // the source has already announced.
+            if (!e.startDate || e.startDate.indexOf(currentYear + '-') !== 0) return false;
             if (q) {
                 var hay = (e.name + ' ' + (e.location || '')).toLowerCase();
                 if (hay.indexOf(q) === -1) return false;
@@ -167,9 +172,13 @@
     }
 
     function updateFeedSelectionCount(blockEl, feed, ui) {
-        var total = ((feed.catalogue && feed.catalogue.events) || []).length;
-        var selected = Object.keys(ui.selected).length;
-        blockEl.querySelector('.eventScraperSelectionCount').textContent = selected + ' of ' + total + ' selected';
+        // Count within the visible scope (current year) so admin sees a
+        // count matching the table on screen.
+        var currentYear = String(new Date().getFullYear());
+        var inScope = ((feed.catalogue && feed.catalogue.events) || [])
+            .filter(function (e) { return e.startDate && e.startDate.indexOf(currentYear + '-') === 0; });
+        var selected = inScope.filter(function (e) { return ui.selected[e.sourceUid]; }).length;
+        blockEl.querySelector('.eventScraperSelectionCount').textContent = selected + ' of ' + inScope.length + ' selected';
     }
 
     function bindFeedBlock(blockEl) {
@@ -201,14 +210,32 @@
         blockEl.querySelector('.eventScraperRefreshBtn').addEventListener('click', function () {
             this.disabled = true;
             statusText.textContent = 'Refreshing…';
+            statusText.className = 'eventScraperFeedStatusText';
             postForm('refresh', { feed: feedId }).then(function (r) {
                 if (!r.ok || (r.data && r.data.status === 'error')) {
-                    statusText.textContent = 'Refresh failed: ' + ((r.data && r.data.error) || ('HTTP ' + r.status));
+                    statusText.textContent = '✗ Refresh failed: ' + ((r.data && r.data.error) || ('HTTP ' + r.status));
+                    statusText.className = 'eventScraperFeedStatusText eventScraperFeedStatusText--error';
                     return;
                 }
-                return fetchCatalogue().then(function () { rerenderAll(); });
+                var d = r.data;
+                var msg = '✓ Refreshed ' + d.count + ' events';
+                if (d.diff) {
+                    var bits = [];
+                    if (d.diff.new && d.diff.new.length) bits.push(d.diff.new.length + ' new');
+                    if (d.diff.changed && d.diff.changed.length) bits.push(d.diff.changed.length + ' changed');
+                    if (d.diff.removed && d.diff.removed.length) bits.push(d.diff.removed.length + ' removed');
+                    if (bits.length) msg += ' (' + bits.join(', ') + ')';
+                }
+                statusText.textContent = msg + '.';
+                statusText.className = 'eventScraperFeedStatusText eventScraperFeedStatusText--ok';
+                // Hold the success message visible for ~4s before rerenderAll
+                // overwrites it with the ambient "Last refresh: ..." line.
+                return fetchCatalogue().then(function () {
+                    setTimeout(function () { rerenderAll(); }, 4000);
+                });
             }).catch(function (err) {
-                statusText.textContent = 'Refresh failed: ' + err.message;
+                statusText.textContent = '✗ Refresh failed: ' + err.message;
+                statusText.className = 'eventScraperFeedStatusText eventScraperFeedStatusText--error';
             }).finally(function () {
                 blockEl.querySelector('.eventScraperRefreshBtn').disabled = false;
             });
@@ -561,14 +588,25 @@
             refreshAllBtn.addEventListener('click', function () {
                 refreshAllBtn.disabled = true;
                 globalStatus.textContent = 'Refreshing all feeds…';
+                globalStatus.className = 'eventScraperGlobalStatusText';
                 postForm('refresh', {}).then(function (r) {
+                    refreshAllBtn.disabled = false;
                     if (!r.ok || !r.data) {
-                        globalStatus.textContent = 'Refresh failed: HTTP ' + r.status;
-                        refreshAllBtn.disabled = false;
+                        globalStatus.textContent = '✗ Refresh failed: HTTP ' + r.status;
+                        globalStatus.className = 'eventScraperGlobalStatusText eventScraperGlobalStatusText--error';
                         return;
                     }
-                    globalStatus.textContent = (r.data.feeds || []).length + ' feeds refreshed (' + r.data.status + ').';
-                    return fetchCatalogue().then(function () { rerenderAll(); refreshAllBtn.disabled = false; });
+                    var feedResults = r.data.feeds || [];
+                    var ok = feedResults.filter(function (f) { return f.status === 'ok'; }).length;
+                    var fail = feedResults.length - ok;
+                    if (r.data.status === 'ok') {
+                        globalStatus.textContent = '✓ Refreshed ' + ok + ' feed' + (ok === 1 ? '' : 's') + ' successfully.';
+                        globalStatus.className = 'eventScraperGlobalStatusText eventScraperGlobalStatusText--ok';
+                    } else {
+                        globalStatus.textContent = '✗ ' + fail + ' of ' + feedResults.length + ' feeds failed (see Diagnostics).';
+                        globalStatus.className = 'eventScraperGlobalStatusText eventScraperGlobalStatusText--error';
+                    }
+                    return fetchCatalogue().then(function () { rerenderAll(); });
                 });
             });
         }

@@ -4,7 +4,9 @@
    config.css's existing raw-hex conventions (no token system yet — see
    the CSS architecture refactor backlog). */
 
-.eventScraperConfig .eventScraperStatus {
+.eventScraperConfig .eventScraperStatus,
+.eventScraperConfig .eventScraperFeedStatus,
+.eventScraperConfig .eventScraperGlobalStatus {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -15,8 +17,25 @@
     font-size: 0.92rem;
 }
 
-.eventScraperConfig .eventScraperRefreshBtn {
+.eventScraperConfig .eventScraperRefreshBtn,
+.eventScraperConfig .eventScraperRefreshAllBtn {
     flex: 0 0 auto;
+}
+
+/* Visual separation between feed blocks so they read as distinct units. */
+.eventScraperConfig .eventScraperFeedBlock {
+    border: 1px solid #ffffff22;
+    border-radius: 6px;
+    padding: 10px 14px 12px 14px;
+    margin: 12px 0;
+}
+.eventScraperConfig .eventScraperFeedBlock legend {
+    padding: 0 6px;
+    font-size: 0.95rem;
+    color: #ffffffcc;
+}
+.eventScraperConfig .eventScraperFeedBlock[data-configured="0"] {
+    background: #00000022;
 }
 
 .eventScraperConfig .eventScraperControls,
@@ -128,10 +147,14 @@
     color: #ffffffaa;
     font-size: 0.9rem;
 }
-.eventScraperConfig .eventScraperSaveStatus--ok {
+.eventScraperConfig .eventScraperSaveStatus--ok,
+.eventScraperConfig .eventScraperFeedStatusText--ok,
+.eventScraperConfig .eventScraperGlobalStatusText--ok {
     color: #9be39b;
 }
-.eventScraperConfig .eventScraperSaveStatus--error {
+.eventScraperConfig .eventScraperSaveStatus--error,
+.eventScraperConfig .eventScraperFeedStatusText--error,
+.eventScraperConfig .eventScraperGlobalStatusText--error {
     color: #ff9999;
 }
 

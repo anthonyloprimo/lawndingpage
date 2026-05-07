@@ -886,7 +886,10 @@ function event_scraper_eventlist_panes(): array {
         if (!is_array($pane)) {
             continue;
         }
-        $moduleId = (string) ($pane['moduleId'] ?? $pane['type'] ?? '');
+        // panes.json uses 'module' (per admin/config.php, public/index.php,
+        // admin/lib/per-pane-settings.php). I had 'moduleId'/'type' here in
+        // v1.20.0 — silently produced empty results and broke ingest.
+        $moduleId = (string) ($pane['module'] ?? '');
         if ($moduleId !== 'eventList') {
             continue;
         }

@@ -15,6 +15,18 @@ if ($token === '') {
     exit;
 }
 
+// Silent {"ok": true} on header mismatch mirrors Telegram's docs and
+// avoids leaking the live webhook URL to anonymous probes. Empty
+// config secret = fresh install — accept until first save populates it.
+$expectedSecret = isset($config['webhook_secret_token']) ? trim((string) $config['webhook_secret_token']) : '';
+if ($expectedSecret !== '') {
+    $headerSecret = $_SERVER['HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN'] ?? '';
+    if (!is_string($headerSecret) || !hash_equals($expectedSecret, $headerSecret)) {
+        echo json_encode(['ok' => true]);
+        exit;
+    }
+}
+
 $tgBotPath = function_exists('lawnding_admin_path')
     ? lawnding_admin_path('lib/tg-bot.php')
     : __DIR__ . '/../../../../admin/lib/tg-bot.php';

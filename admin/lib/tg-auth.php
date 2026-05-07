@@ -6,6 +6,7 @@ function lawnding_tg_config_defaults(): array {
     return [
         'bot_username' => '',
         'bot_token' => '',
+        'webhook_secret_token' => '',
         'group_ids' => [],
         'whitelist_user_ids' => [],
         'blacklist_user_ids' => [],
@@ -185,6 +186,7 @@ function lawnding_load_tg_config(): array {
 
     $merged['bot_username'] = is_string($merged['bot_username']) ? ltrim(trim($merged['bot_username']), '@') : '';
     $merged['bot_token'] = is_string($merged['bot_token']) ? trim($merged['bot_token']) : '';
+    $merged['webhook_secret_token'] = is_string($merged['webhook_secret_token'] ?? null) ? trim($merged['webhook_secret_token']) : '';
     $merged['unauthorized_message'] = is_string($merged['unauthorized_message'])
         ? trim($merged['unauthorized_message'])
         : $defaults['unauthorized_message'];

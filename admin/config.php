@@ -703,6 +703,16 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
                                 </div>
                                 <div class="authLinksFieldActions">
                                     <button class="usersButton usersWarning authLinksTestBotButton" type="button">Test bot</button>
+                                    <button class="usersButton usersWarning authLinksRegisterWebhookButton" type="button">Register webhook</button>
+                                </div>
+                            </label>
+                            <label class="linksConfigField" title="Authenticates Telegram-to-site webhook deliveries. Generated server-side on first save with a bot token; click Register webhook (above) so Telegram starts sending the new header.">
+                                <span class="linksConfigLabelText">Webhook secret_token</span>
+                                <div class="authLinksTokenField">
+                                    <input class="linksConfigInput" id="tgBotWebhookSecret" type="password" value="<?php echo htmlspecialchars((string) ($tgBotData['webhook_secret_token'] ?? '')); ?>" readonly autocomplete="off">
+                                    <button class="iconButton authLinksTokenToggle" type="button" aria-label="Show secret_token" title="Show/hide secret_token" data-visible="false" data-target="#tgBotWebhookSecret" data-aria-show="Show secret_token" data-aria-hide="Hide secret_token">
+                                        <?php echo lawnding_icon_svg('eye_closed'); ?>
+                                    </button>
                                 </div>
                             </label>
                             <div class="linksConfigField tgBotGroupsField">
@@ -779,17 +789,25 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
                                 <span class="linksConfigLabelText">Blacklist User IDs</span>
                                 <textarea class="linksConfigInput" id="tgBotBlacklistUserIds" rows="4" placeholder="123456789 NSFW"><?php echo htmlspecialchars($tgBotBlacklistUserIdsText); ?></textarea>
                             </label>
+                            <?php
+                                $webhookSnippetBody = ['url' => $webhookUrl];
+                                if (!empty($tgBotData['webhook_secret_token'])) {
+                                    $webhookSnippetBody['secret_token'] = '<YOUR_WEBHOOK_SECRET>';
+                                }
+                                $webhookSnippetBodyJson = json_encode($webhookSnippetBody, JSON_UNESCAPED_SLASHES);
+                            ?>
                             <div class="authLinksHelpBlock">
                                 <p><strong>Bot setup</strong></p>
                                 <ol>
                                     <li>Create a bot with BotFather and paste the token above.</li>
                                     <li>Set your login domain in BotFather with <code>/setdomain</code> (must match this website host).</li>
                                     <li>Add the bot to your group(s) and make it an admin.</li>
-                                    <li>Register the webhook from a terminal:</li>
+                                    <li>Save the form. A <code>secret_token</code> is generated and shown in the field above.</li>
+                                    <li>Click <strong>Register webhook</strong> (next to Test bot) to push the URL + secret to Telegram in one call. Or, if you prefer to do it manually, run this from a terminal (paste your bot token<?php echo !empty($tgBotData['webhook_secret_token']) ? ' and webhook secret_token' : ''; ?> in place of the placeholders):</li>
                                 </ol>
                                 <pre><code>curl -X POST "https://api.telegram.org/bot&lt;YOUR_BOT_TOKEN&gt;/setWebhook" \
   -H "Content-Type: application/json" \
-  -d '{"url":"<?php echo htmlspecialchars($webhookUrl); ?>"}'</code></pre>
+  -d '<?php echo htmlspecialchars($webhookSnippetBodyJson); ?>'</code></pre>
                                 <p>In each group, type <code>/lpGetGroup</code> and paste the returned ID into Group IDs as <code>ID SFW</code> or <code>ID NSFW</code>.</p>
                                 <p>Bot username can be entered with or without <code>@</code>; it is saved without the prefix.</p>
                             </div>

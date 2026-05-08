@@ -306,7 +306,7 @@ function renderEventLists() {
                 ? `<div class=\"eventItemBadges\">${badges.map((b) => `<span class=\"eventItemBadge\" title=\"${lpEscapeHtml(b.label || '')}\"><span class=\"eventItemBadgeIcon\" aria-hidden=\"true\">${lpEscapeHtml(b.icon || '')}</span><span class=\"eventItemBadgeLabel\">${lpEscapeHtml(b.label || '')}</span></span>`).join('')}</div>`
                 : '';
             const sourceHtml = sourceUrl
-                ? `<a class=\"eventItemSourceLink\" href=\"${lpEscapeHtml(sourceUrl)}\" target=\"_blank\" rel=\"noopener noreferrer\">View source ↗</a>`
+                ? `<a class=\"eventItemSourceLink\" href=\"${lpEscapeHtml(sourceUrl)}\" target=\"_blank\" rel=\"noopener noreferrer\">Visit Site ↗</a>`
                 : '';
             return `
                 <div class=\"eventItem\" data-event-id=\"${lpEscapeHtml(event.id || '')}\" data-pane-id=\"${lpEscapeHtml(paneId)}\"${catAttrs}>

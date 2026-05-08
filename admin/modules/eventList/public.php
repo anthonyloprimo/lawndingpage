@@ -184,7 +184,7 @@ $eventsJson = json_encode([
         <div class="eventModalBadges" id="eventModalBadges" hidden></div>
         <div class="eventModalDescription" id="eventModalDescription"></div>
         <div class="eventModalActions">
-            <a class="eventModalSourceLink hidden" id="eventModalSourceLink" target="_blank" rel="noopener noreferrer">View source ↗</a>
+            <a class="eventModalSourceLink hidden" id="eventModalSourceLink" target="_blank" rel="noopener noreferrer">Visit Site ↗</a>
             <div class="eventCalendarMenu hidden" id="eventModalCalendarMenu">
                 <button
                     class="eventCalendarButton eventCalendarToggle"

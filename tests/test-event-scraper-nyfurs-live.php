@@ -23,10 +23,10 @@ test_require_extension('curl');
 $cachePath     = __DIR__ . '/fixtures/event-scraper-nyfurs-live.json';
 $maxAgeSeconds = 86400;
 $sourceUrl     = 'https://events.nyfurs.org/export/categ/0.json';
-// Match the production scraper's @rotate pool. nyfurs.org doesn't WAF
-// today, but matching production UA future-proofs against upstream
-// policy tightening (see furrycons-live for the cautionary tale).
-$userAgent     = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+// Match the production scraper's request shape. nyfurs.org doesn't WAF
+// today, but mirroring production future-proofs against upstream policy
+// tightening (see furrycons-live for the cautionary tale).
+$userAgent     = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36';
 
 $cacheExists = is_file($cachePath);
 $cacheStale  = !$cacheExists || (time() - filemtime($cachePath)) > $maxAgeSeconds;
@@ -40,6 +40,11 @@ if ($cacheStale) {
         CURLOPT_MAXREDIRS      => 3,
         CURLOPT_CONNECTTIMEOUT => 5,
         CURLOPT_TIMEOUT        => 15,
+        CURLOPT_ENCODING       => '',
+        CURLOPT_HTTPHEADER     => [
+            'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language: en-US,en;q=0.9',
+        ],
     ]);
     $body   = curl_exec($ch);
     $status = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);

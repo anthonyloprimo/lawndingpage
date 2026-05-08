@@ -608,9 +608,65 @@
 .eventItemTitle {
     font-weight: 600;
 }
+.eventItemTitleRow {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+}
 .eventItemMeta {
     font-size: 12px;
     opacity: 0.8;
+}
+.eventItemHost {
+    font-style: italic;
+}
+.eventItemBadges,
+.eventModalBadges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 4px;
+}
+.eventItemBadge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: #FFFFFF11;
+    border: 1px solid #FFFFFF22;
+    font-size: 11px;
+    line-height: 1.4;
+    white-space: nowrap;
+}
+.eventItemBadgeIcon {
+    font-size: 13px;
+    line-height: 1;
+}
+.eventItemBadgeLabel {
+    opacity: 0.9;
+}
+.eventItemSourceLink,
+.eventModalSourceLink {
+    font-size: 11px;
+    opacity: 0.75;
+    text-decoration: none;
+    flex-shrink: 0;
+}
+.eventItemSourceLink:hover,
+.eventModalSourceLink:hover {
+    opacity: 1;
+    text-decoration: underline;
+}
+.eventModalSourceLink {
+    padding: 6px 10px;
+    border-radius: 6px;
+    border: 1px solid #FFFFFF44;
+    background: #00000055;
+    color: inherit;
+    font-size: 12px;
+    opacity: 0.9;
 }
 .eventCalendarButton {
     align-self: flex-start;

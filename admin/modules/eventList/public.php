@@ -180,8 +180,11 @@ $eventsJson = json_encode([
         </div>
         <div class="eventModalMeta" id="eventModalMeta"></div>
         <div class="eventModalMeta" id="eventModalAddress"></div>
+        <div class="eventModalMeta eventModalHost" id="eventModalHost" hidden></div>
+        <div class="eventModalBadges" id="eventModalBadges" hidden></div>
         <div class="eventModalDescription" id="eventModalDescription"></div>
         <div class="eventModalActions">
+            <a class="eventModalSourceLink hidden" id="eventModalSourceLink" target="_blank" rel="noopener noreferrer">View source ↗</a>
             <div class="eventCalendarMenu hidden" id="eventModalCalendarMenu">
                 <button
                     class="eventCalendarButton eventCalendarToggle"

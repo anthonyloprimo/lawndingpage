@@ -299,11 +299,25 @@ function renderEventLists() {
             const truncated = truncateDescription(rawDescription);
             const cat = event.categoryId ? categoriesById[String(event.categoryId)] : null;
             const catAttrs = cat && cat.color ? ` data-cat-color=\"${lpEscapeHtml(cat.color)}\"` : '';
+            const host = event.host || '';
+            const sourceUrl = event.sourceUrl || '';
+            const badges = Array.isArray(event.keywordBadges) ? event.keywordBadges : [];
+            const badgeHtml = badges.length
+                ? `<div class=\"eventItemBadges\">${badges.map((b) => `<span class=\"eventItemBadge\" title=\"${lpEscapeHtml(b.label || '')}\"><span class=\"eventItemBadgeIcon\" aria-hidden=\"true\">${lpEscapeHtml(b.icon || '')}</span><span class=\"eventItemBadgeLabel\">${lpEscapeHtml(b.label || '')}</span></span>`).join('')}</div>`
+                : '';
+            const sourceHtml = sourceUrl
+                ? `<a class=\"eventItemSourceLink\" href=\"${lpEscapeHtml(sourceUrl)}\" target=\"_blank\" rel=\"noopener noreferrer\">View source ↗</a>`
+                : '';
             return `
                 <div class=\"eventItem\" data-event-id=\"${lpEscapeHtml(event.id || '')}\" data-pane-id=\"${lpEscapeHtml(paneId)}\"${catAttrs}>
-                    <div class=\"eventItemTitle\">${lpEscapeHtml(event.name || 'Untitled')}</div>
+                    <div class=\"eventItemTitleRow\">
+                        <div class=\"eventItemTitle\">${lpEscapeHtml(event.name || 'Untitled')}</div>
+                        ${sourceHtml}
+                    </div>
                     <div class=\"eventItemMeta\">${lpEscapeHtml(timeRange)}</div>
                     ${address ? `<div class=\"eventItemMeta\"><a href=\"${lpEscapeHtml(addressLink)}\" target=\"_blank\" rel=\"noopener\">${lpEscapeHtml(address)}</a></div>` : ''}
+                    ${host ? `<div class=\"eventItemMeta eventItemHost\">Hosted by ${lpEscapeHtml(host)}</div>` : ''}
+                    ${badgeHtml}
                     ${details ? `<div class=\"eventItemMeta\">${lpEscapeHtml(truncated)}</div>` : ''}
                 </div>
             `;
@@ -672,6 +686,9 @@ function renderEventLists() {
         const $title = $('#eventModalTitle');
         const $meta = $('#eventModalMeta');
         const $address = $('#eventModalAddress');
+        const $host = $('#eventModalHost');
+        const $badges = $('#eventModalBadges');
+        const $sourceLink = $('#eventModalSourceLink');
         const $description = $('#eventModalDescription');
         const $calendarMenu = $('#eventModalCalendarMenu');
         const $calendarToggle = $('#eventModalCalendarToggle');
@@ -762,6 +779,28 @@ function renderEventLists() {
                 $address.html(`<a href=\"${lpEscapeHtml(link)}\" target=\"_blank\" rel=\"noopener\">${lpEscapeHtml(event.address)}</a>`);
             } else {
                 $address.text('');
+            }
+            const host = event.host || '';
+            if (host) {
+                $host.text('Hosted by ' + host).attr('hidden', null);
+            } else {
+                $host.text('').attr('hidden', 'hidden');
+            }
+            const badges = Array.isArray(event.keywordBadges) ? event.keywordBadges : [];
+            if (badges.length) {
+                $badges.html(badges.map((b) => {
+                    const icon = lpEscapeHtml(b.icon || '');
+                    const label = lpEscapeHtml(b.label || '');
+                    return `<span class=\"eventItemBadge\"><span class=\"eventItemBadgeIcon\" aria-hidden=\"true\">${icon}</span><span class=\"eventItemBadgeLabel\">${label}</span></span>`;
+                }).join('')).attr('hidden', null);
+            } else {
+                $badges.empty().attr('hidden', 'hidden');
+            }
+            const sourceUrl = event.sourceUrl || '';
+            if (sourceUrl) {
+                $sourceLink.attr('href', sourceUrl).removeClass('hidden');
+            } else {
+                $sourceLink.attr('href', '#').addClass('hidden');
             }
             $description.html(event.descriptionHtml || '');
             if (allowCalendar) {

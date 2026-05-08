@@ -94,7 +94,8 @@ function lawnding_modal_open(string $id, string $title, array $options = []): vo
         . '" role="dialog" aria-modal="true" aria-hidden="' . htmlspecialchars($ariaHidden)
         . '" aria-labelledby="' . htmlspecialchars($titleId) . '">';
     echo '<div class="userModal glassConcave">';
-    echo '<h4 id="' . htmlspecialchars($titleId) . '">' . htmlspecialchars($title) . '</h4>';
+    // .userModalHandle is the drag grip wired up by config.js's bindModalDrag.
+    echo '<h4 class="userModalHandle" id="' . htmlspecialchars($titleId) . '">' . htmlspecialchars($title) . '</h4>';
 }
 
 // Close the shared modal wrapper.

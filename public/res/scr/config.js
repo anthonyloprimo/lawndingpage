@@ -221,6 +221,99 @@ $(document).ready(function() {
         }
     }
 
+    // Movable modals — bind pointer drag to the title bar. Drag is expressed
+    // as a translate() transform on the dialog so the overlay's flex centering
+    // remains the origin and reset is just clearing the transform.
+    function bindModalDrag($modal) {
+        const $dialog = $modal.find('.userModal').first();
+        if (!$dialog.length || $dialog.data('lpDragBound')) {
+            return;
+        }
+        const $handle = $dialog.find('.userModalHandle').first();
+        if (!$handle.length) {
+            return;
+        }
+        $dialog.data('lpDragBound', true);
+
+        const dialog = $dialog.get(0);
+        const handle = $handle.get(0);
+        let baseX = 0;
+        let baseY = 0;
+        let startX = 0;
+        let startY = 0;
+        let pointerId = null;
+
+        function readTransform() {
+            const m = /translate\(([-\d.]+)px,\s*([-\d.]+)px\)/.exec(dialog.style.transform || '');
+            return m ? [parseFloat(m[1]), parseFloat(m[2])] : [0, 0];
+        }
+
+        // Clamp so the handle stays grabbable. Computes the projected on-screen
+        // position of the handle for a candidate (x, y) transform, and pulls
+        // the transform back if any edge would push the handle off-screen.
+        function clampToViewport(x, y) {
+            const handleRect = handle.getBoundingClientRect();
+            const minVisible = 48;
+            const vw = window.innerWidth;
+            const vh = window.innerHeight;
+            const projectedLeft = handleRect.left + (x - baseX);
+            const projectedTop = handleRect.top + (y - baseY);
+            let cx = x;
+            let cy = y;
+            if (projectedLeft + handleRect.width < minVisible) {
+                cx = x + (minVisible - (projectedLeft + handleRect.width));
+            } else if (projectedLeft > vw - minVisible) {
+                cx = x - (projectedLeft - (vw - minVisible));
+            }
+            if (projectedTop < 0) {
+                cy = y - projectedTop;
+            } else if (projectedTop > vh - minVisible) {
+                cy = y - (projectedTop - (vh - minVisible));
+            }
+            return [cx, cy];
+        }
+
+        $handle.on('pointerdown', function(event) {
+            if (event.button !== 0) return;
+            // Don't hijack interactive children inside the title bar (none today,
+            // but defensive — close buttons or actions could land here later).
+            if (event.target.closest('button, a, input, select, textarea')) return;
+
+            const t = readTransform();
+            baseX = t[0];
+            baseY = t[1];
+            startX = event.clientX;
+            startY = event.clientY;
+            pointerId = event.pointerId;
+            $dialog.addClass('isDragging');
+            try { handle.setPointerCapture(pointerId); } catch (_) {}
+            event.preventDefault();
+        });
+
+        $handle.on('pointermove', function(event) {
+            if (event.pointerId !== pointerId) return;
+            const x = baseX + (event.clientX - startX);
+            const y = baseY + (event.clientY - startY);
+            const clamped = clampToViewport(x, y);
+            dialog.style.transform = `translate(${clamped[0]}px, ${clamped[1]}px)`;
+        });
+
+        function endDrag(event) {
+            if (event.pointerId !== pointerId) return;
+            pointerId = null;
+            $dialog.removeClass('isDragging');
+        }
+        $handle.on('pointerup pointercancel', endDrag);
+    }
+
+    function resetModalDrag($modal) {
+        const $dialog = $modal.find('.userModal').first();
+        if ($dialog.length) {
+            $dialog.get(0).style.transform = '';
+            $dialog.removeClass('isDragging');
+        }
+    }
+
     function openAdminModal($modal) {
         if (!$modal || !$modal.length) {
             return;
@@ -234,6 +327,7 @@ $(document).ready(function() {
         }
         activeModal = $modal;
         $modal.addClass('isOpen').attr('aria-hidden', 'false');
+        bindModalDrag($modal);
         if (modalStack.length === 1) {
             setModalBackgroundState(true);
         }
@@ -248,6 +342,7 @@ $(document).ready(function() {
         }
         const targetEl = $target.get(0);
         $target.removeClass('isOpen').attr('aria-hidden', 'true');
+        resetModalDrag($target);
         const index = modalStack.indexOf(targetEl);
         if (index !== -1) {
             modalStack.splice(index, 1);
@@ -271,7 +366,8 @@ $(document).ready(function() {
     window.closeAdminModal = closeAdminModal;
 
     function resetAdminModalState() {
-        $('.userModalOverlay').removeClass('isOpen').attr('aria-hidden', 'true');
+        $('.userModalOverlay').removeClass('isOpen').attr('aria-hidden', 'true')
+            .each(function() { resetModalDrag($(this)); });
         modalStack.length = 0;
         activeModal = null;
         setModalBackgroundState(false);

@@ -1,6 +1,11 @@
 ### Changelog
 
 
+#### v1.20.2
+- Added NY Furs as a second Event Scraper feed, and broadened the platform to any Indico-powered events portal. Scraped events now display per-event start/end times when the source provides them, a "Hosted by" line, and small badges for any source-applied tags (All Ages, Fursuit Friendly, Outdoor, etc.). Each event card carries a Visit Site link to the upstream page; the .ics calendar export carries the same link in its URL field. New feeds default to auto-publishing newly-discovered events as they appear — flip the new "Auto-publish new events" toggle off on a feed to fall back to per-event review. Long event descriptions now scroll inside the event-detail modal instead of pushing past the viewport, and the modal stays above the navbar on small screens.
+
+-----
+
 #### v1.20.1
 - Reshaped the Event Scraper around feeds and subscriptions. Each source is now a "feed" that any number of Event List panes can subscribe to — pick which conventions a feed publishes once, then pick which panes show that feed. Site Config has a Default subscribed feeds block under Event List for new panes to inherit; the gear icon on each pane lets you override per pane. A single cron command refreshes every configured feed in sequence and isolates failures, so one source going down doesn't stall the rest. New feeds appear automatically when an adapter file is added to the install.
 

@@ -242,6 +242,10 @@ $(document).ready(function() {
         let startX = 0;
         let startY = 0;
         let pointerId = null;
+        // Handle's rendered rect frozen at pointerdown. Projecting against the
+        // live handle.getBoundingClientRect() during a drag double-counts the
+        // already-applied transform, so the clamp drifts and triggers early.
+        let handleStart = null;
 
         function readTransform() {
             const m = /translate\(([-\d.]+)px,\s*([-\d.]+)px\)/.exec(dialog.style.transform || '');
@@ -261,17 +265,17 @@ $(document).ready(function() {
 
         // Pull the transform back if any edge would push the handle off-screen.
         function clampToViewport(x, y) {
-            const handleRect = handle.getBoundingClientRect();
+            if (!handleStart) return [x, y];
             const minVisible = 48;
             const vw = window.innerWidth;
             const vh = window.innerHeight;
             const top = topClamp();
-            const projectedLeft = handleRect.left + (x - baseX);
-            const projectedTop = handleRect.top + (y - baseY);
+            const projectedLeft = handleStart.left + (x - baseX);
+            const projectedTop = handleStart.top + (y - baseY);
             let cx = x;
             let cy = y;
-            if (projectedLeft + handleRect.width < minVisible) {
-                cx = x + (minVisible - (projectedLeft + handleRect.width));
+            if (projectedLeft + handleStart.width < minVisible) {
+                cx = x + (minVisible - (projectedLeft + handleStart.width));
             } else if (projectedLeft > vw - minVisible) {
                 cx = x - (projectedLeft - (vw - minVisible));
             }
@@ -295,6 +299,8 @@ $(document).ready(function() {
             startX = event.clientX;
             startY = event.clientY;
             pointerId = event.pointerId;
+            const r = handle.getBoundingClientRect();
+            handleStart = { left: r.left, top: r.top, width: r.width };
             $dialog.addClass('isDragging');
             try { handle.setPointerCapture(pointerId); } catch (_) {}
             event.preventDefault();

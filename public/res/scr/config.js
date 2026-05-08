@@ -248,14 +248,24 @@ $(document).ready(function() {
             return m ? [parseFloat(m[1]), parseFloat(m[2])] : [0, 0];
         }
 
-        // Clamp so the handle stays grabbable. Computes the projected on-screen
-        // position of the handle for a candidate (x, y) transform, and pulls
-        // the transform back if any edge would push the handle off-screen.
+        // .adminNotices (z-index 3000) paints above the modal overlay (2000)
+        // and is inert while a modal is open — a handle dragged behind it
+        // becomes ungrabbable. Re-read on every move (notice stack can grow).
+        function topClamp() {
+            const $notices = $('.adminNotices');
+            if (!$notices.length) return 0;
+            const rect = $notices.get(0).getBoundingClientRect();
+            if (rect.height <= 0 || rect.bottom <= 0) return 0;
+            return rect.bottom + 8;
+        }
+
+        // Pull the transform back if any edge would push the handle off-screen.
         function clampToViewport(x, y) {
             const handleRect = handle.getBoundingClientRect();
             const minVisible = 48;
             const vw = window.innerWidth;
             const vh = window.innerHeight;
+            const top = topClamp();
             const projectedLeft = handleRect.left + (x - baseX);
             const projectedTop = handleRect.top + (y - baseY);
             let cx = x;
@@ -265,8 +275,8 @@ $(document).ready(function() {
             } else if (projectedLeft > vw - minVisible) {
                 cx = x - (projectedLeft - (vw - minVisible));
             }
-            if (projectedTop < 0) {
-                cy = y - projectedTop;
+            if (projectedTop < top) {
+                cy = y + (top - projectedTop);
             } else if (projectedTop > vh - minVisible) {
                 cy = y - (projectedTop - (vh - minVisible));
             }

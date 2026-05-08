@@ -271,3 +271,65 @@ test_assert(
     event_scraper_pick_user_agent(['userAgent' => []]) === '',
     'empty array returns empty (caller bails on missing UA)'
 );
+
+// ------------------------------------------------------------------------
+// event_scraper_apply_auto_publish
+// ------------------------------------------------------------------------
+
+$now = '2026-05-08T12:00:00+00:00';
+$baseFeed = [
+    'label'             => 'NY Furs',
+    'adapterId'         => 'nyfurs',
+    'defaultCategoryId' => '7',
+    'allowlist'         => ['existing-1' => ['addedAt' => '2026-05-01T00:00:00Z']],
+    'autoPublish'       => true,
+    'lastReviewedAt'    => '2026-05-01T00:00:00Z',
+];
+
+// First-refresh skip — empty prev catalogue means cold-start. Don't flood.
+[$out, $added] = event_scraper_apply_auto_publish($baseFeed, ['new-1', 'new-2'], true, $now);
+test_assert($added === [], 'first refresh skips auto-publish entirely');
+test_assert($out === $baseFeed, 'first refresh leaves feed config untouched');
+
+// Empty new-uids list — no work to do.
+[$out, $added] = event_scraper_apply_auto_publish($baseFeed, [], false, $now);
+test_assert($added === [] && $out === $baseFeed, 'empty newSourceUids is a no-op');
+
+// autoPublish=false — explicit opt-out.
+$off = $baseFeed; $off['autoPublish'] = false;
+[$out, $added] = event_scraper_apply_auto_publish($off, ['new-1'], false, $now);
+test_assert($added === [] && $out === $off, 'autoPublish=false skips');
+
+// autoPublish key missing — defaults to ON (matches get_feed default).
+$legacy = $baseFeed; unset($legacy['autoPublish']);
+[$out, $added] = event_scraper_apply_auto_publish($legacy, ['new-1'], false, $now);
+test_assert($added === ['new-1'], 'missing autoPublish key defaults to on (legacy configs auto-publish)');
+test_assert(isset($out['allowlist']['new-1']), 'legacy-config new uid added to allowlist');
+
+// Happy path — extends allowlist, returns added uids, marks addedBy=auto.
+[$out, $added] = event_scraper_apply_auto_publish($baseFeed, ['new-1', 'new-2'], false, $now);
+test_assert($added === ['new-1', 'new-2'], 'returns the uids that were added');
+test_assert(isset($out['allowlist']['new-1']) && isset($out['allowlist']['new-2']), 'both uids present in updated allowlist');
+test_assert($out['allowlist']['new-1']['addedAt'] === $now, 'addedAt stamped on auto-added entry');
+test_assert($out['allowlist']['new-1']['addedBy'] === 'auto', 'addedBy=auto distinguishes from admin selections');
+test_assert(isset($out['allowlist']['existing-1']), 'existing allowlist entries preserved');
+
+// Don't overwrite existing allowlist entries — admin's manual choices win.
+$mixed = $baseFeed;
+$mixed['allowlist']['kept'] = ['addedAt' => '2026-05-01T00:00:00Z']; // no addedBy = manual
+[$out, $added] = event_scraper_apply_auto_publish($mixed, ['kept', 'new-3'], false, $now);
+test_assert($added === ['new-3'], 'already-allowlisted uids are not re-added');
+test_assert(!isset($out['allowlist']['kept']['addedBy']), 'pre-existing manual entry not re-stamped');
+test_assert($out['allowlist']['kept']['addedAt'] === '2026-05-01T00:00:00Z', 'pre-existing addedAt preserved');
+
+// Empty/whitespace uids in input are filtered defensively.
+[$out, $added] = event_scraper_apply_auto_publish($baseFeed, ['', '   ', 'real'], false, $now);
+test_assert($added === ['real'], 'empty / whitespace uids filtered (defensive)');
+
+// All proposed uids are already allowlisted — early-return without mutation.
+$saturated = $baseFeed;
+$saturated['allowlist']['n1'] = ['addedAt' => '2026-05-01T00:00:00Z'];
+$saturated['allowlist']['n2'] = ['addedAt' => '2026-05-01T00:00:00Z'];
+[$out, $added] = event_scraper_apply_auto_publish($saturated, ['n1', 'n2'], false, $now);
+test_assert($added === [], 'no new additions returns empty');
+test_assert($out === $saturated, 'config untouched when nothing to add');

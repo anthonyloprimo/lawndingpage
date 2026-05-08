@@ -67,6 +67,23 @@
     font: inherit;
 }
 
+.eventScraperConfig .eventScraperAutoPublishRow {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    column-gap: 8px;
+    align-items: center;
+    margin: 6px 0;
+    cursor: pointer;
+}
+.eventScraperConfig .eventScraperAutoPublishLabel {
+    font-size: 0.95rem;
+}
+.eventScraperConfig .eventScraperAutoPublishHint {
+    grid-column: 2;
+    font-size: 0.8rem;
+    color: #ffffffaa;
+}
+
 .eventScraperConfig .eventScraperList {
     margin: 8px 0;
     border: 1px solid #ffffff22;

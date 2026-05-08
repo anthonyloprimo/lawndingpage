@@ -45,6 +45,10 @@ $defaultCategoryId = isset($_POST['defaultCategoryId']) && is_string($_POST['def
     ? trim($_POST['defaultCategoryId'])
     : '';
 
+// autoPublish: default true on missing key (preserves the default-on
+// behavior for clients that haven't been updated with the checkbox yet).
+$autoPublish = !isset($_POST['autoPublish']) || $_POST['autoPublish'] === '1' || $_POST['autoPublish'] === 'true';
+
 $selectionsRaw = $_POST['selections'] ?? '[]';
 if (!is_string($selectionsRaw)) {
     event_scraper_save_respond(['error' => 'Invalid selections payload.'], 400);
@@ -83,6 +87,7 @@ $config['feeds'][$feedId] = [
     'adapterId'         => $feedId,
     'defaultCategoryId' => $defaultCategoryId,
     'allowlist'         => $allowlistEntries,
+    'autoPublish'       => $autoPublish,
     'lastReviewedAt'    => $now,
 ];
 $config['enabled'] = true;

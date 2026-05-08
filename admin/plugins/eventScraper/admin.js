@@ -190,6 +190,12 @@
         Object.keys(feed.allowlist || {}).forEach(function (uid) { ui.selected[uid] = true; });
         ui.dirty = false;
 
+        // Sync auto-publish checkbox from server state. Default true matches
+        // the server-side default; unsaved checkbox edits are discarded on
+        // rerender, same as unsaved per-event selections above.
+        var autoCb = blockEl.querySelector('.eventScraperAutoPublish');
+        if (autoCb) autoCb.checked = feed.autoPublish !== false;
+
         // Status line.
         var statusText = blockEl.querySelector('.eventScraperFeedStatusText');
         if (feed.lastScrape && feed.lastScrape.ranAt) {
@@ -216,6 +222,7 @@
         }
         blockEl.querySelector('.eventScraperFeedLabel').addEventListener('input', markDirty);
         blockEl.querySelector('.eventScraperDefaultCategory').addEventListener('change', markDirty);
+        if (autoCb) autoCb.addEventListener('change', markDirty);
 
         // Wire handlers (delegated would be cleaner, but per-block keeps state local).
         blockEl.querySelector('.eventScraperRefreshBtn').addEventListener('click', function () {
@@ -284,6 +291,7 @@
                 feed: feedId,
                 label: label,
                 defaultCategoryId: defaultCat,
+                autoPublish: (autoCb && autoCb.checked) ? '1' : '0',
                 selections: JSON.stringify(Object.keys(ui.selected))
             }).then(function (r) {
                 btn.disabled = false;

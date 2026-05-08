@@ -176,6 +176,10 @@ function event_scraper_get_feed(string $feedId, array $config): array {
         'adapterId'         => $feedId,
         'defaultCategoryId' => (string) ($feed['defaultCategoryId'] ?? ''),
         'allowlist'         => is_array($feed['allowlist'] ?? null) ? $feed['allowlist'] : [],
+        // Default true: when the source surfaces a new event, publish it
+        // to subscribed panes without admin click-through. Pre-existing
+        // configs without this key inherit the default.
+        'autoPublish'       => !isset($feed['autoPublish']) || (bool) $feed['autoPublish'],
         'lastReviewedAt'    => (string) ($feed['lastReviewedAt'] ?? ''),
         'isConfigured'      => is_array($config['feeds'][$feedId] ?? null),
     ];
@@ -308,19 +312,91 @@ function event_scraper_event_field_diff(array $prev, array $next): array {
     return $diff;
 }
 
+// Auto-publish: extend a feed's allowlist with any sourceUids new to the
+// catalogue. Returns [updatedFeedConfig, addedUids[]]. Pure — caller passes
+// $now and is responsible for persisting the result.
+//
+// Skip rules (returns the input feed config unchanged + empty addedUids):
+//   - feed not configured (admin hasn't saved it yet → nothing to extend)
+//   - autoPublish flag is false
+//   - $isFirstRefresh true (caller decides; orchestrator passes true when
+//     prev catalogue had zero events, which covers both genuine first-runs
+//     and cache-wipe recovery — avoids flooding the allowlist with every
+//     existing event)
+//   - $newSourceUids empty
+function event_scraper_apply_auto_publish(
+    array $feedConfig,
+    array $newSourceUids,
+    bool $isFirstRefresh,
+    string $now
+): array {
+    if ($isFirstRefresh || !$newSourceUids) {
+        return [$feedConfig, []];
+    }
+    // autoPublish defaults to ON: legacy configs without the key auto-publish.
+    // Only skip when the admin has explicitly set it falsy.
+    if (isset($feedConfig['autoPublish']) && !$feedConfig['autoPublish']) {
+        return [$feedConfig, []];
+    }
+    $allowlist = is_array($feedConfig['allowlist'] ?? null) ? $feedConfig['allowlist'] : [];
+    $added = [];
+    foreach ($newSourceUids as $uid) {
+        $uid = trim((string) $uid);
+        if ($uid === '' || isset($allowlist[$uid])) {
+            continue;
+        }
+        $allowlist[$uid] = ['addedAt' => $now, 'addedBy' => 'auto'];
+        $added[] = $uid;
+    }
+    if (!$added) {
+        return [$feedConfig, []];
+    }
+    $feedConfig['allowlist'] = $allowlist;
+    return [$feedConfig, $added];
+}
+
+// Resolve raw keyword strings into displayable badge records via the
+// adapter's keywordBadges map. Pure. Unmapped keywords are silently
+// dropped (an unmapped keyword usually means either a one-off tag or a
+// keyword the adapter hasn't been updated for; rendering as "?" would
+// be noisy). Adapter shape:
+//   {"All Ages": {"icon": "🚸"}, "Fursuit Friendly": {"icon": "🦊", "label": "Fursuit OK"}}
+// Output:
+//   [{"icon": "🚸", "label": "All Ages"}, {"icon": "🦊", "label": "Fursuit OK"}]
+function event_scraper_resolve_keyword_badges(array $keywords, array $keywordBadgesMap): array {
+    $out = [];
+    foreach ($keywords as $kw) {
+        if (!is_string($kw) || $kw === '') {
+            continue;
+        }
+        $entry = $keywordBadgesMap[$kw] ?? null;
+        if (!is_array($entry)) {
+            continue;
+        }
+        $icon = isset($entry['icon']) && is_string($entry['icon']) ? $entry['icon'] : '';
+        if ($icon === '') {
+            continue;
+        }
+        $label = isset($entry['label']) && is_string($entry['label']) && trim($entry['label']) !== ''
+            ? trim($entry['label'])
+            : $kw;
+        $out[] = ['icon' => $icon, 'label' => $label];
+    }
+    return $out;
+}
+
 // Map a normalized scraper event into an eventList event record. Empty
 // required fields fall back to placeholder strings so the eventList
 // validator (event_list_event_is_valid) doesn't silently drop the record.
-function event_scraper_to_eventlist_record(array $event, string $adapterId, string $defaultCategoryId): array {
+// $keywordBadgesMap is the adapter's keywordBadges block; pass [] when
+// the adapter doesn't declare one (extractor-emitted keywords[] then drop).
+function event_scraper_to_eventlist_record(
+    array $event,
+    string $adapterId,
+    string $defaultCategoryId,
+    array $keywordBadgesMap = []
+): array {
     $description = trim((string) ($event['description'] ?? ''));
-    $url = trim((string) ($event['url'] ?? ''));
-    if ($url !== '') {
-        $description = ($description !== '' ? $description . "\n\n" : '') . 'More info: ' . $url;
-    }
-    $registrationUrl = trim((string) ($event['registrationUrl'] ?? ''));
-    if ($registrationUrl !== '') {
-        $description = ($description !== '' ? $description . "\n" : '') . 'Register: ' . $registrationUrl;
-    }
     if ($description === '') {
         $description = (string) ($event['name'] ?? 'Event');
     }
@@ -330,16 +406,34 @@ function event_scraper_to_eventlist_record(array $event, string $adapterId, stri
         $address = 'Location TBA';
     }
 
+    // allDay is derived from the extractor's data: when an extractor sets
+    // startTime, the source had a real time and we honor it; otherwise the
+    // event is all-day (date-only sources like furrycons-na's JSON-LD).
+    $startTime = trim((string) ($event['startTime'] ?? ''));
+    $endTime = trim((string) ($event['endTime'] ?? ''));
+    if ($startTime === '') {
+        $endTime = '';
+        $allDay = true;
+    } else {
+        $allDay = false;
+    }
+
+    $keywords = is_array($event['keywords'] ?? null) ? $event['keywords'] : [];
+    $keywordBadges = event_scraper_resolve_keyword_badges($keywords, $keywordBadgesMap);
+
     return [
         'name'          => (string) ($event['name'] ?? ''),
         'startDate'     => (string) ($event['startDate'] ?? ''),
         'endDate'       => (string) ($event['endDate'] ?? ''),
-        'startTime'     => '',
-        'endTime'       => '',
-        'allDay'        => true,
+        'startTime'     => $startTime,
+        'endTime'       => $endTime,
+        'allDay'        => $allDay,
         'address'       => $address,
         'description'   => $description,
         'categoryId'    => $defaultCategoryId,
+        'host'          => trim((string) ($event['host'] ?? '')),
+        'sourceUrl'     => trim((string) ($event['url'] ?? '')),
+        'keywordBadges' => $keywordBadges,
         'source'        => 'eventScraper',
         'sourceAdapter' => $adapterId,
         'sourceUid'     => (string) ($event['sourceUid'] ?? ''),
@@ -367,8 +461,14 @@ function event_scraper_build_ingest_changes(
     array $allowlistUids,
     string $adapterId,
     array $existingEvents,
-    string $defaultCategoryId
+    string $defaultCategoryId,
+    ?array $keywordBadgesMap = null
 ): array {
+    if ($keywordBadgesMap === null) {
+        $adapter = event_scraper_load_adapter($adapterId);
+        $keywordBadgesMap = is_array($adapter['keywordBadges'] ?? null) ? $adapter['keywordBadges'] : [];
+    }
+
     $allowlistSet = [];
     foreach ($allowlistUids as $uid) {
         if (is_scalar($uid)) {
@@ -412,7 +512,7 @@ function event_scraper_build_ingest_changes(
         if (!isset($allowlistSet[$uid])) {
             continue;
         }
-        $record = event_scraper_to_eventlist_record($event, $adapterId, $defaultCategoryId);
+        $record = event_scraper_to_eventlist_record($event, $adapterId, $defaultCategoryId, $keywordBadgesMap);
         if (isset($existingByUid[$uid])) {
             $record['id'] = (string) ($existingByUid[$uid]['id'] ?? '');
             $updates[] = $record;
@@ -771,6 +871,47 @@ function event_scraper_run_refresh(string $adapterId, string $trigger): array {
 
     // Ingest pass — only if a target pane is configured.
     $config = event_scraper_load_config();
+
+    // Auto-publish: if the feed has autoPublish on (default true), extend
+    // its allowlist with any sourceUids new to the catalogue so the ingest
+    // step below picks them up. Skipped on first refresh (or post-cache-wipe)
+    // so brand-new feeds don't flood subscribed panes with the entire seed
+    // catalogue. Persistence failure reverts the in-memory change to avoid
+    // publish-then-vanish oscillation on the next scrape.
+    $feedConfigSnapshot = is_array($config['feeds'][$adapterId] ?? null)
+        ? $config['feeds'][$adapterId]
+        : null;
+    if ($feedConfigSnapshot !== null && $diff['new']) {
+        $newUids = [];
+        foreach ($diff['new'] as $e) {
+            if (is_array($e) && isset($e['sourceUid'])) {
+                $newUids[] = (string) $e['sourceUid'];
+            }
+        }
+        $isFirstRefresh = empty($prev['events'] ?? []);
+        [$updatedFeed, $autoAdded] = event_scraper_apply_auto_publish(
+            $feedConfigSnapshot,
+            $newUids,
+            $isFirstRefresh,
+            $now
+        );
+        if ($autoAdded) {
+            $config['feeds'][$adapterId] = $updatedFeed;
+            if (event_scraper_save_config($config)) {
+                event_scraper_log('info', 'events_auto_published', [
+                    'adapter'    => $adapterId,
+                    'count'      => count($autoAdded),
+                    'sourceUids' => $autoAdded,
+                ]);
+            } else {
+                // save_config already logged config_write_failed with the
+                // permission-aware reason. Revert so ingest doesn't publish
+                // events the next scrape's allowlist won't contain.
+                $config['feeds'][$adapterId] = $feedConfigSnapshot;
+            }
+        }
+    }
+
     $ingested = event_scraper_apply_ingest($adapterId, $events, $config);
 
     $writeLast([
@@ -990,6 +1131,13 @@ function event_scraper_render_eventlist_extras(): void {
                             </select>
                         </label>
                     </div>
+
+                    <label class="eventScraperAutoPublishRow">
+                        <input type="checkbox" class="eventScraperAutoPublish"
+                               <?php if ($feed['autoPublish']) echo 'checked'; ?>>
+                        <span class="eventScraperAutoPublishLabel">Auto-publish new events</span>
+                        <span class="eventScraperAutoPublishHint">New events found on refresh are added to subscribed panes automatically. Uncheck to require admin review per event.</span>
+                    </label>
 
                     <div class="eventScraperFeedStatus" aria-live="polite">
                         <span class="eventScraperFeedStatusText">

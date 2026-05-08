@@ -91,16 +91,65 @@ $record = event_scraper_to_eventlist_record($normalized, 'furrycons-na', '7');
 test_assert($record['name'] === 'Furry Weekend Atlanta 2026', 'name preserved');
 test_assert($record['startDate'] === '2026-05-07', 'startDate preserved');
 test_assert($record['endDate'] === '2026-05-10', 'endDate preserved');
-test_assert($record['allDay'] === true, 'scraped events are all-day');
+test_assert($record['allDay'] === true, 'date-only normalized event maps to all-day');
 test_assert($record['startTime'] === '' && $record['endTime'] === '', 'no times for all-day');
 test_assert($record['address'] === 'Atlanta Marriott Marquis, Atlanta, GA', 'address from location');
-test_assert(strpos($record['description'], 'A convention.') === 0, 'description starts with original');
-test_assert(strpos($record['description'], 'More info: http://furrycons.com/event/26609/x') !== false, 'url appended to description');
-test_assert(strpos($record['description'], 'Register: https://x.com/r') !== false, 'registrationUrl appended');
+test_assert($record['description'] === 'A convention.', 'description left clean (no prose-appended url/register)');
+test_assert($record['sourceUrl'] === 'http://furrycons.com/event/26609/x', 'sourceUrl exposed as a structured field');
 test_assert($record['categoryId'] === '7', 'defaultCategoryId applied');
 test_assert($record['source'] === 'eventScraper', 'source tag set');
 test_assert($record['sourceAdapter'] === 'furrycons-na', 'sourceAdapter tag set');
 test_assert($record['sourceUid'] === '26609', 'sourceUid preserved');
+test_assert($record['host'] === '', 'host empty when extractor did not set it (jsonld-shape input)');
+test_assert($record['keywordBadges'] === [], 'keywordBadges empty when no keywords extracted');
+
+require_once __DIR__ . '/../admin/modules/eventList/helpers.php';
+
+// When the extractor sets startTime, the mapper honors it (not all-day).
+$timed = [
+    'sourceUid' => '89',
+    'name'      => 'NYFurs TF2 Night',
+    'startDate' => '2026-03-30',
+    'endDate'   => '2026-03-30',
+    'startTime' => '19:30',
+    'endTime'   => '23:59',
+    'location'  => 'Discord Server',
+    'url'       => 'https://events.nyfurs.org/event/89/',
+];
+$timedRecord = event_scraper_to_eventlist_record($timed, 'nyfurs', '7');
+test_assert($timedRecord['allDay'] === false, 'startTime present -> mapper sets allDay=false');
+test_assert($timedRecord['startTime'] === '19:30', 'startTime passed through');
+test_assert($timedRecord['endTime'] === '23:59', 'endTime passed through');
+test_assert(event_list_event_is_valid($timedRecord), 'timed scraped record passes eventList validator');
+
+// Mapper passes host + sourceUrl + resolved keywordBadges through.
+$mapperBadgeMap = [
+    'All Ages'         => ['icon' => '🚸'],
+    'Fursuit Friendly' => ['icon' => '🦊', 'label' => 'Fursuit OK'],
+];
+$rich = [
+    'sourceUid' => '171',
+    'name'      => 'NYC FurWalk 8',
+    'startDate' => '2025-09-27',
+    'startTime' => '11:00',
+    'endTime'   => '17:00',
+    'location'  => 'Governor\'s Island',
+    'description' => 'Walk',
+    'url'       => 'https://events.nyfurs.org/event/171/',
+    'host'      => 'Zane, Champion',
+    'keywords'  => ['All Ages', 'Fursuit Friendly', 'Mystery Tag'],
+];
+$richRecord = event_scraper_to_eventlist_record($rich, 'nyfurs', '7', $mapperBadgeMap);
+test_assert($richRecord['host'] === 'Zane, Champion', 'host passed through');
+test_assert($richRecord['sourceUrl'] === 'https://events.nyfurs.org/event/171/', 'sourceUrl exposed');
+test_assert(count($richRecord['keywordBadges']) === 2, 'keywords resolved against adapter map (Mystery Tag dropped)');
+test_assert($richRecord['keywordBadges'][1]['label'] === 'Fursuit OK', 'badge label override threaded through to record');
+
+// Defensive: endTime without startTime is normalized to all-day, not a half-timed event.
+$halfTimed = ['sourceUid' => '90', 'name' => 'X', 'startDate' => '2026-04-01', 'endTime' => '14:00'];
+$halfRecord = event_scraper_to_eventlist_record($halfTimed, 'nyfurs', '');
+test_assert($halfRecord['allDay'] === true, 'endTime alone (no startTime) normalizes to all-day');
+test_assert($halfRecord['endTime'] === '', 'endTime cleared when startTime is empty');
 
 // Empty-fields fall back so the eventList validator doesn't silently drop the record.
 $bareMinimum = ['sourceUid' => '99', 'name' => 'E', 'startDate' => '2026-06-01'];
@@ -109,8 +158,6 @@ test_assert($record['address'] === 'Location TBA', 'empty location falls back to
 test_assert($record['description'] === 'E', 'empty description falls back to event name');
 test_assert($record['endDate'] === '', 'absent endDate normalizes to empty string');
 
-// Validation gate: scraped record must pass event_list_event_is_valid.
-require_once __DIR__ . '/../admin/modules/eventList/helpers.php';
 test_assert(event_list_event_is_valid($record), 'scraped record passes eventList validator');
 $rich = event_scraper_to_eventlist_record($normalized, 'furrycons-na', '7');
 test_assert(event_list_event_is_valid($rich), 'rich scraped record also passes validator');
@@ -248,3 +295,103 @@ test_assert(
     event_scraper_pick_user_agent(['userAgent' => []]) === '',
     'empty array returns empty (caller bails on missing UA)'
 );
+
+// ------------------------------------------------------------------------
+// event_scraper_resolve_keyword_badges
+// ------------------------------------------------------------------------
+
+$badgeMap = [
+    'All Ages'         => ['icon' => '🚸'],
+    'Fursuit Friendly' => ['icon' => '🦊', 'label' => 'Fursuit OK'],
+    'Outdoor'          => ['icon' => '🌳'],
+];
+
+$resolved = event_scraper_resolve_keyword_badges(['All Ages', 'Fursuit Friendly', 'Outdoor'], $badgeMap);
+test_assert(count($resolved) === 3, 'all three mapped keywords resolve');
+test_assert($resolved[0] === ['icon' => '🚸', 'label' => 'All Ages'], 'icon-only entry uses keyword as label');
+test_assert($resolved[1] === ['icon' => '🦊', 'label' => 'Fursuit OK'], 'label override applied');
+test_assert($resolved[2] === ['icon' => '🌳', 'label' => 'Outdoor'], 'order preserved');
+
+// Unmapped keywords silently dropped.
+$resolved = event_scraper_resolve_keyword_badges(['All Ages', 'Mystery Tag', 'Outdoor'], $badgeMap);
+test_assert(count($resolved) === 2, 'unmapped keyword silently dropped');
+test_assert($resolved[0]['label'] === 'All Ages' && $resolved[1]['label'] === 'Outdoor', 'mapped neighbors stay in order');
+
+// Empty inputs.
+test_assert(event_scraper_resolve_keyword_badges([], $badgeMap) === [], 'empty keywords -> empty result');
+test_assert(event_scraper_resolve_keyword_badges(['All Ages'], []) === [], 'empty badge map -> all dropped');
+
+// Defensive: malformed map entries skipped.
+$brokenMap = [
+    'NoIcon'   => ['label' => 'No Icon Here'],   // missing icon -> drop
+    'NotArray' => 'just a string',                // wrong type -> drop
+    'Good'     => ['icon' => '✅'],
+];
+$resolved = event_scraper_resolve_keyword_badges(['NoIcon', 'NotArray', 'Good'], $brokenMap);
+test_assert(count($resolved) === 1 && $resolved[0]['icon'] === '✅', 'malformed map entries skipped, valid one kept');
+
+// Defensive: non-string keywords skipped.
+$resolved = event_scraper_resolve_keyword_badges(['', null, 123, 'All Ages'], $badgeMap);
+test_assert(count($resolved) === 1 && $resolved[0]['label'] === 'All Ages', 'non-string and empty keywords filtered');
+
+// ------------------------------------------------------------------------
+// event_scraper_apply_auto_publish
+// ------------------------------------------------------------------------
+
+$now = '2026-05-08T12:00:00+00:00';
+$baseFeed = [
+    'label'             => 'NY Furs',
+    'adapterId'         => 'nyfurs',
+    'defaultCategoryId' => '7',
+    'allowlist'         => ['existing-1' => ['addedAt' => '2026-05-01T00:00:00Z']],
+    'autoPublish'       => true,
+    'lastReviewedAt'    => '2026-05-01T00:00:00Z',
+];
+
+// First-refresh skip — empty prev catalogue means cold-start. Don't flood.
+[$out, $added] = event_scraper_apply_auto_publish($baseFeed, ['new-1', 'new-2'], true, $now);
+test_assert($added === [], 'first refresh skips auto-publish entirely');
+test_assert($out === $baseFeed, 'first refresh leaves feed config untouched');
+
+// Empty new-uids list — no work to do.
+[$out, $added] = event_scraper_apply_auto_publish($baseFeed, [], false, $now);
+test_assert($added === [] && $out === $baseFeed, 'empty newSourceUids is a no-op');
+
+// autoPublish=false — explicit opt-out.
+$off = $baseFeed; $off['autoPublish'] = false;
+[$out, $added] = event_scraper_apply_auto_publish($off, ['new-1'], false, $now);
+test_assert($added === [] && $out === $off, 'autoPublish=false skips');
+
+// autoPublish key missing — defaults to ON (matches get_feed default).
+$legacy = $baseFeed; unset($legacy['autoPublish']);
+[$out, $added] = event_scraper_apply_auto_publish($legacy, ['new-1'], false, $now);
+test_assert($added === ['new-1'], 'missing autoPublish key defaults to on (legacy configs auto-publish)');
+test_assert(isset($out['allowlist']['new-1']), 'legacy-config new uid added to allowlist');
+
+// Happy path — extends allowlist, returns added uids, marks addedBy=auto.
+[$out, $added] = event_scraper_apply_auto_publish($baseFeed, ['new-1', 'new-2'], false, $now);
+test_assert($added === ['new-1', 'new-2'], 'returns the uids that were added');
+test_assert(isset($out['allowlist']['new-1']) && isset($out['allowlist']['new-2']), 'both uids present in updated allowlist');
+test_assert($out['allowlist']['new-1']['addedAt'] === $now, 'addedAt stamped on auto-added entry');
+test_assert($out['allowlist']['new-1']['addedBy'] === 'auto', 'addedBy=auto distinguishes from admin selections');
+test_assert(isset($out['allowlist']['existing-1']), 'existing allowlist entries preserved');
+
+// Don't overwrite existing allowlist entries — admin's manual choices win.
+$mixed = $baseFeed;
+$mixed['allowlist']['kept'] = ['addedAt' => '2026-05-01T00:00:00Z']; // no addedBy = manual
+[$out, $added] = event_scraper_apply_auto_publish($mixed, ['kept', 'new-3'], false, $now);
+test_assert($added === ['new-3'], 'already-allowlisted uids are not re-added');
+test_assert(!isset($out['allowlist']['kept']['addedBy']), 'pre-existing manual entry not re-stamped');
+test_assert($out['allowlist']['kept']['addedAt'] === '2026-05-01T00:00:00Z', 'pre-existing addedAt preserved');
+
+// Empty/whitespace uids in input are filtered defensively.
+[$out, $added] = event_scraper_apply_auto_publish($baseFeed, ['', '   ', 'real'], false, $now);
+test_assert($added === ['real'], 'empty / whitespace uids filtered (defensive)');
+
+// All proposed uids are already allowlisted — early-return without mutation.
+$saturated = $baseFeed;
+$saturated['allowlist']['n1'] = ['addedAt' => '2026-05-01T00:00:00Z'];
+$saturated['allowlist']['n2'] = ['addedAt' => '2026-05-01T00:00:00Z'];
+[$out, $added] = event_scraper_apply_auto_publish($saturated, ['n1', 'n2'], false, $now);
+test_assert($added === [], 'no new additions returns empty');
+test_assert($out === $saturated, 'config untouched when nothing to add');

@@ -1,0 +1,30 @@
+{
+  "id": "nyfurs",
+  "label": "NY Furs",
+  "url": "https://events.nyfurs.org/export/categ/0.json",
+  "extractor": "indico",
+  "userAgent": "@rotate",
+  "crawlDelaySeconds": 0.5,
+  "categoryDefault": null,
+  "keywordBadges": {
+    "All Ages":          {"icon": "🚸"},
+    "18+":               {"icon": "🔞"},
+    "Fursuit Friendly":  {"icon": "🦊", "label": "Fursuit OK"},
+    "Outdoor":           {"icon": "🌳"},
+    "Indoor":            {"icon": "🏢"},
+    "Online":            {"icon": "💻"},
+    "Virtual":           {"icon": "💻", "label": "Online"},
+    "Park":              {"icon": "🌳"},
+    "Photography":       {"icon": "📸"},
+    "Mingle":            {"icon": "🗣️"},
+    "Meet and Greet":    {"icon": "👋", "label": "Meet & Greet"},
+    "Bar Meetup":        {"icon": "🍻", "label": "Bar"},
+    "Bowling":           {"icon": "🎳"},
+    "Gaming":            {"icon": "🎮"},
+    "Rhythm Games":      {"icon": "🎵"},
+    "Artist":            {"icon": "🎨"},
+    "Convention":        {"icon": "🏛️"},
+    "Convention Meetup": {"icon": "🏛️", "label": "Con Meetup"},
+    "Holiday Outing":    {"icon": "🎉", "label": "Holiday"}
+  }
+}

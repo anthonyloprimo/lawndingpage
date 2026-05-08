@@ -15,9 +15,11 @@ admin/remember_tokens.json
 admin/lp-loginAttempts.json
 admin/lp-mutationAttempts.json
 admin/lp-eventScraperConfig.json
-# Live-fixture HTML is auto-refreshed by tests/test-event-scraper-furrycons-live.php
-# (the hand-crafted fixture event-scraper-furrycons-sample.html stays tracked).
+# Live fixtures are auto-refreshed by the corresponding *-live.php test files.
+# Hand-crafted curated fixtures (e.g. event-scraper-furrycons-sample.html)
+# stay tracked.
 tests/fixtures/event-scraper-furrycons-live.html
+tests/fixtures/event-scraper-nyfurs-live.json
 # Module pane-content directories are runtime state — created and
 # rewritten by the web server (per-pane settings sidecars, gallery
 # uploads, etc.). Never tracked. Files committed here would land on

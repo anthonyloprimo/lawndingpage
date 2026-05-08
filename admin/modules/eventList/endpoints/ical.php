@@ -115,6 +115,7 @@ if (!$event) {
 $name = is_string($event['name'] ?? null) ? trim($event['name']) : '';
 $address = is_string($event['address'] ?? null) ? trim($event['address']) : '';
 $description = is_string($event['description'] ?? null) ? trim($event['description']) : '';
+$sourceUrl = is_string($event['sourceUrl'] ?? null) ? trim($event['sourceUrl']) : '';
 $startDate = is_string($event['startDate'] ?? null) ? $event['startDate'] : (is_string($event['date'] ?? null) ? $event['date'] : '');
 $startTime = is_string($event['startTime'] ?? null) ? $event['startTime'] : '';
 $endDate = is_string($event['endDate'] ?? null) ? $event['endDate'] : '';
@@ -223,6 +224,7 @@ $lines = [
     ics_fold('SUMMARY:' . ics_escape($name !== '' ? $name : 'Event')),
     $address !== '' ? ics_fold('LOCATION:' . ics_escape($address)) : null,
     $description !== '' ? ics_fold('DESCRIPTION:' . ics_escape($description)) : null,
+    $sourceUrl !== '' ? ics_fold('URL:' . ics_escape($sourceUrl)) : null,
     $categoryName !== '' ? ics_fold('CATEGORIES:' . ics_escape($categoryName)) : null,
     'END:VEVENT',
     'END:VCALENDAR',

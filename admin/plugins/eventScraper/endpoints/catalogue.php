@@ -54,6 +54,7 @@ foreach ($adapters as $adapterId => $adapter) {
         ],
         'defaultCategoryId' => $feed['defaultCategoryId'],
         'allowlist'         => $feed['allowlist'],
+        'autoPublish'       => $feed['autoPublish'],
         'lastReviewedAt'    => $feed['lastReviewedAt'],
         'catalogue'         => $catalogue,
         'lastScrape'        => $lastScrape,

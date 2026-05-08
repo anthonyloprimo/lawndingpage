@@ -149,7 +149,17 @@ foreach ($testFiles as $file) {
     $_tests_skips = [];
 
     try {
-        require $file;
+        // Wrap in a closure so the test file's top-level variables stay
+        // scoped to the closure rather than leaking into the runner's
+        // foreach loop. Without this, a test that sets `$base = [...]`
+        // would clobber the runner's `$base` filename label and the
+        // PASS/FAIL line would print "PASS Array" instead of the file
+        // name. test_assert and friends use `global` declarations, so
+        // they continue to reach the runner-set $_tests_* counters at
+        // script scope independent of this isolation.
+        (function () use ($file) {
+            require $file;
+        })();
     } catch (TestSkipException $e) {
         $_tests_skips[] = $e->getMessage();
     } catch (Throwable $e) {

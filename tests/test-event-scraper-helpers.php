@@ -94,13 +94,14 @@ test_assert($record['endDate'] === '2026-05-10', 'endDate preserved');
 test_assert($record['allDay'] === true, 'date-only normalized event maps to all-day');
 test_assert($record['startTime'] === '' && $record['endTime'] === '', 'no times for all-day');
 test_assert($record['address'] === 'Atlanta Marriott Marquis, Atlanta, GA', 'address from location');
-test_assert(strpos($record['description'], 'A convention.') === 0, 'description starts with original');
-test_assert(strpos($record['description'], 'More info: http://furrycons.com/event/26609/x') !== false, 'url appended to description');
-test_assert(strpos($record['description'], 'Register: https://x.com/r') !== false, 'registrationUrl appended');
+test_assert($record['description'] === 'A convention.', 'description left clean (no prose-appended url/register)');
+test_assert($record['sourceUrl'] === 'http://furrycons.com/event/26609/x', 'sourceUrl exposed as a structured field');
 test_assert($record['categoryId'] === '7', 'defaultCategoryId applied');
 test_assert($record['source'] === 'eventScraper', 'source tag set');
 test_assert($record['sourceAdapter'] === 'furrycons-na', 'sourceAdapter tag set');
 test_assert($record['sourceUid'] === '26609', 'sourceUid preserved');
+test_assert($record['host'] === '', 'host empty when extractor did not set it (jsonld-shape input)');
+test_assert($record['keywordBadges'] === [], 'keywordBadges empty when no keywords extracted');
 
 require_once __DIR__ . '/../admin/modules/eventList/helpers.php';
 
@@ -120,6 +121,29 @@ test_assert($timedRecord['allDay'] === false, 'startTime present -> mapper sets 
 test_assert($timedRecord['startTime'] === '19:30', 'startTime passed through');
 test_assert($timedRecord['endTime'] === '23:59', 'endTime passed through');
 test_assert(event_list_event_is_valid($timedRecord), 'timed scraped record passes eventList validator');
+
+// Mapper passes host + sourceUrl + resolved keywordBadges through.
+$mapperBadgeMap = [
+    'All Ages'         => ['icon' => '🚸'],
+    'Fursuit Friendly' => ['icon' => '🦊', 'label' => 'Fursuit OK'],
+];
+$rich = [
+    'sourceUid' => '171',
+    'name'      => 'NYC FurWalk 8',
+    'startDate' => '2025-09-27',
+    'startTime' => '11:00',
+    'endTime'   => '17:00',
+    'location'  => 'Governor\'s Island',
+    'description' => 'Walk',
+    'url'       => 'https://events.nyfurs.org/event/171/',
+    'host'      => 'Zane, Champion',
+    'keywords'  => ['All Ages', 'Fursuit Friendly', 'Mystery Tag'],
+];
+$richRecord = event_scraper_to_eventlist_record($rich, 'nyfurs', '7', $mapperBadgeMap);
+test_assert($richRecord['host'] === 'Zane, Champion', 'host passed through');
+test_assert($richRecord['sourceUrl'] === 'https://events.nyfurs.org/event/171/', 'sourceUrl exposed');
+test_assert(count($richRecord['keywordBadges']) === 2, 'keywords resolved against adapter map (Mystery Tag dropped)');
+test_assert($richRecord['keywordBadges'][1]['label'] === 'Fursuit OK', 'badge label override threaded through to record');
 
 // Defensive: endTime without startTime is normalized to all-day, not a half-timed event.
 $halfTimed = ['sourceUid' => '90', 'name' => 'X', 'startDate' => '2026-04-01', 'endTime' => '14:00'];
@@ -271,6 +295,44 @@ test_assert(
     event_scraper_pick_user_agent(['userAgent' => []]) === '',
     'empty array returns empty (caller bails on missing UA)'
 );
+
+// ------------------------------------------------------------------------
+// event_scraper_resolve_keyword_badges
+// ------------------------------------------------------------------------
+
+$badgeMap = [
+    'All Ages'         => ['icon' => '🚸'],
+    'Fursuit Friendly' => ['icon' => '🦊', 'label' => 'Fursuit OK'],
+    'Outdoor'          => ['icon' => '🌳'],
+];
+
+$resolved = event_scraper_resolve_keyword_badges(['All Ages', 'Fursuit Friendly', 'Outdoor'], $badgeMap);
+test_assert(count($resolved) === 3, 'all three mapped keywords resolve');
+test_assert($resolved[0] === ['icon' => '🚸', 'label' => 'All Ages'], 'icon-only entry uses keyword as label');
+test_assert($resolved[1] === ['icon' => '🦊', 'label' => 'Fursuit OK'], 'label override applied');
+test_assert($resolved[2] === ['icon' => '🌳', 'label' => 'Outdoor'], 'order preserved');
+
+// Unmapped keywords silently dropped.
+$resolved = event_scraper_resolve_keyword_badges(['All Ages', 'Mystery Tag', 'Outdoor'], $badgeMap);
+test_assert(count($resolved) === 2, 'unmapped keyword silently dropped');
+test_assert($resolved[0]['label'] === 'All Ages' && $resolved[1]['label'] === 'Outdoor', 'mapped neighbors stay in order');
+
+// Empty inputs.
+test_assert(event_scraper_resolve_keyword_badges([], $badgeMap) === [], 'empty keywords -> empty result');
+test_assert(event_scraper_resolve_keyword_badges(['All Ages'], []) === [], 'empty badge map -> all dropped');
+
+// Defensive: malformed map entries skipped.
+$brokenMap = [
+    'NoIcon'   => ['label' => 'No Icon Here'],   // missing icon -> drop
+    'NotArray' => 'just a string',                // wrong type -> drop
+    'Good'     => ['icon' => '✅'],
+];
+$resolved = event_scraper_resolve_keyword_badges(['NoIcon', 'NotArray', 'Good'], $brokenMap);
+test_assert(count($resolved) === 1 && $resolved[0]['icon'] === '✅', 'malformed map entries skipped, valid one kept');
+
+// Defensive: non-string keywords skipped.
+$resolved = event_scraper_resolve_keyword_badges(['', null, 123, 'All Ages'], $badgeMap);
+test_assert(count($resolved) === 1 && $resolved[0]['label'] === 'All Ages', 'non-string and empty keywords filtered');
 
 // ------------------------------------------------------------------------
 // event_scraper_apply_auto_publish

@@ -67,6 +67,8 @@ function event_scraper_indico_normalize_event(array $item): ?array {
         'url'             => $url,
         'registrationUrl' => '',
         'image'           => event_scraper_indico_pick_image($item['material'] ?? null),
+        'keywords'        => event_scraper_indico_pick_keywords($item['keywords'] ?? null),
+        'host'            => event_scraper_indico_pick_host($item['creator'] ?? null),
     ];
 }
 
@@ -161,4 +163,40 @@ function event_scraper_indico_pick_image($material): string {
         }
     }
     return '';
+}
+
+// Indico keywords are a flat string array. Filter to non-empty trimmed
+// strings; preserve order. Adapter's keywordBadges map is consulted at
+// ingest time to resolve which keywords get rendered as badges.
+function event_scraper_indico_pick_keywords($value): array {
+    if (!is_array($value)) {
+        return [];
+    }
+    $out = [];
+    foreach ($value as $kw) {
+        if (!is_string($kw)) {
+            continue;
+        }
+        $kw = trim($kw);
+        if ($kw !== '') {
+            $out[] = $kw;
+        }
+    }
+    return $out;
+}
+
+// Indico creator is {first_name, last_name, fullName, …}. Prefer fullName
+// when present; fall back to "first last". Email is intentionally NOT
+// extracted — Indico exposes only emailHash (gravatar-style), by design.
+function event_scraper_indico_pick_host($value): string {
+    if (!is_array($value)) {
+        return '';
+    }
+    if (isset($value['fullName']) && is_string($value['fullName']) && trim($value['fullName']) !== '') {
+        return trim($value['fullName']);
+    }
+    $first = isset($value['first_name']) && is_string($value['first_name']) ? trim($value['first_name']) : '';
+    $last = isset($value['last_name']) && is_string($value['last_name']) ? trim($value['last_name']) : '';
+    $combined = trim($first . ' ' . $last);
+    return $combined;
 }

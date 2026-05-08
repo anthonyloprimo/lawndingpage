@@ -63,6 +63,8 @@ test_assert($result[0]['description'] === 'Join us for fragging!', 'description 
 test_assert($result[0]['url'] === 'https://events.nyfurs.org/event/89/', 'url passed through');
 test_assert($result[0]['registrationUrl'] === '', 'registrationUrl always empty (Indico has no field)');
 test_assert($result[0]['image'] === '', 'no material -> empty image');
+test_assert($result[0]['keywords'] === [], 'no keywords field -> empty array');
+test_assert($result[0]['host'] === '', 'no creator field -> empty host');
 
 // ---- Required-field drops ----
 
@@ -131,6 +133,47 @@ test_assert(event_scraper_indico_pick_time(['date' => '2026-01-01']) === '', 'ar
 test_assert(event_scraper_indico_pick_time(['time' => 'not a time']) === '', 'non-time-shaped string returns empty string');
 test_assert(event_scraper_indico_pick_time(['time' => '']) === '', 'empty time string returns empty string');
 test_assert(event_scraper_indico_pick_time('19:30:00') === '', 'top-level string fallback NOT supported (Indico time only ever appears in the wrapped shape)');
+
+// ---- Keyword extraction ----
+
+test_assert(event_scraper_indico_pick_keywords(['All Ages', 'Fursuit Friendly']) === ['All Ages', 'Fursuit Friendly'], 'array of strings passes through');
+test_assert(event_scraper_indico_pick_keywords([]) === [], 'empty array stays empty');
+test_assert(event_scraper_indico_pick_keywords(null) === [], 'null returns empty array');
+test_assert(event_scraper_indico_pick_keywords('not an array') === [], 'string returns empty array');
+test_assert(event_scraper_indico_pick_keywords(['', '  ', 'Outdoor']) === ['Outdoor'], 'empty / whitespace-only entries dropped');
+test_assert(event_scraper_indico_pick_keywords(['  Indoor  ', 'Park']) === ['Indoor', 'Park'], 'trim applied');
+test_assert(event_scraper_indico_pick_keywords([null, 123, ['nested'], 'real']) === ['real'], 'non-string entries dropped');
+
+// ---- Host extraction ----
+
+test_assert(event_scraper_indico_pick_host(['fullName' => 'Zane, Champion']) === 'Zane, Champion', 'fullName preferred');
+test_assert(event_scraper_indico_pick_host(['first_name' => 'Champion', 'last_name' => 'Zane']) === 'Champion Zane', 'falls back to first_name + last_name when no fullName');
+test_assert(event_scraper_indico_pick_host(['fullName' => '', 'first_name' => 'Bear']) === 'Bear', 'empty fullName triggers fallback');
+test_assert(event_scraper_indico_pick_host(['first_name' => 'Bear']) === 'Bear', 'first only');
+test_assert(event_scraper_indico_pick_host([]) === '', 'empty creator -> empty host');
+test_assert(event_scraper_indico_pick_host(null) === '', 'null creator -> empty host');
+test_assert(event_scraper_indico_pick_host('not an array') === '', 'non-array creator -> empty host');
+test_assert(event_scraper_indico_pick_host(['fullName' => '  Padded Name  ']) === 'Padded Name', 'fullName trimmed');
+
+// ---- Full event with keywords + creator integrates correctly ----
+
+$withMeta = ['results' => [[
+    'id' => '171',
+    'title' => 'NYC FurWalk 8',
+    'startDate' => ['date' => '2025-09-27', 'time' => '11:00:00'],
+    'url' => 'https://events.nyfurs.org/event/171/',
+    'creator' => [
+        'fullName' => 'Zane, Champion',
+        'first_name' => 'Champion',
+        'last_name' => 'Zane',
+        'emailHash' => 'a8338560cb135584c38e85af21c3f8fe',
+    ],
+    'keywords' => ['All Ages', 'Fursuit Friendly', 'Outdoor'],
+]]];
+$result = event_scraper_extract_indico(json_encode($withMeta), $adapter);
+test_assert(count($result) === 1, 'event with metadata extracted');
+test_assert($result[0]['host'] === 'Zane, Champion', 'host extracted from creator.fullName');
+test_assert($result[0]['keywords'] === ['All Ages', 'Fursuit Friendly', 'Outdoor'], 'keywords passed through verbatim (badge resolution happens in mapper)');
 
 // ---- Date-only event has empty times ----
 

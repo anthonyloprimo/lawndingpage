@@ -355,19 +355,48 @@ function event_scraper_apply_auto_publish(
     return [$feedConfig, $added];
 }
 
+// Resolve raw keyword strings into displayable badge records via the
+// adapter's keywordBadges map. Pure. Unmapped keywords are silently
+// dropped (an unmapped keyword usually means either a one-off tag or a
+// keyword the adapter hasn't been updated for; rendering as "?" would
+// be noisy). Adapter shape:
+//   {"All Ages": {"icon": "🚸"}, "Fursuit Friendly": {"icon": "🦊", "label": "Fursuit OK"}}
+// Output:
+//   [{"icon": "🚸", "label": "All Ages"}, {"icon": "🦊", "label": "Fursuit OK"}]
+function event_scraper_resolve_keyword_badges(array $keywords, array $keywordBadgesMap): array {
+    $out = [];
+    foreach ($keywords as $kw) {
+        if (!is_string($kw) || $kw === '') {
+            continue;
+        }
+        $entry = $keywordBadgesMap[$kw] ?? null;
+        if (!is_array($entry)) {
+            continue;
+        }
+        $icon = isset($entry['icon']) && is_string($entry['icon']) ? $entry['icon'] : '';
+        if ($icon === '') {
+            continue;
+        }
+        $label = isset($entry['label']) && is_string($entry['label']) && trim($entry['label']) !== ''
+            ? trim($entry['label'])
+            : $kw;
+        $out[] = ['icon' => $icon, 'label' => $label];
+    }
+    return $out;
+}
+
 // Map a normalized scraper event into an eventList event record. Empty
 // required fields fall back to placeholder strings so the eventList
 // validator (event_list_event_is_valid) doesn't silently drop the record.
-function event_scraper_to_eventlist_record(array $event, string $adapterId, string $defaultCategoryId): array {
+// $keywordBadgesMap is the adapter's keywordBadges block; pass [] when
+// the adapter doesn't declare one (extractor-emitted keywords[] then drop).
+function event_scraper_to_eventlist_record(
+    array $event,
+    string $adapterId,
+    string $defaultCategoryId,
+    array $keywordBadgesMap = []
+): array {
     $description = trim((string) ($event['description'] ?? ''));
-    $url = trim((string) ($event['url'] ?? ''));
-    if ($url !== '') {
-        $description = ($description !== '' ? $description . "\n\n" : '') . 'More info: ' . $url;
-    }
-    $registrationUrl = trim((string) ($event['registrationUrl'] ?? ''));
-    if ($registrationUrl !== '') {
-        $description = ($description !== '' ? $description . "\n" : '') . 'Register: ' . $registrationUrl;
-    }
     if ($description === '') {
         $description = (string) ($event['name'] ?? 'Event');
     }
@@ -389,6 +418,9 @@ function event_scraper_to_eventlist_record(array $event, string $adapterId, stri
         $allDay = false;
     }
 
+    $keywords = is_array($event['keywords'] ?? null) ? $event['keywords'] : [];
+    $keywordBadges = event_scraper_resolve_keyword_badges($keywords, $keywordBadgesMap);
+
     return [
         'name'          => (string) ($event['name'] ?? ''),
         'startDate'     => (string) ($event['startDate'] ?? ''),
@@ -399,6 +431,9 @@ function event_scraper_to_eventlist_record(array $event, string $adapterId, stri
         'address'       => $address,
         'description'   => $description,
         'categoryId'    => $defaultCategoryId,
+        'host'          => trim((string) ($event['host'] ?? '')),
+        'sourceUrl'     => trim((string) ($event['url'] ?? '')),
+        'keywordBadges' => $keywordBadges,
         'source'        => 'eventScraper',
         'sourceAdapter' => $adapterId,
         'sourceUid'     => (string) ($event['sourceUid'] ?? ''),
@@ -426,8 +461,14 @@ function event_scraper_build_ingest_changes(
     array $allowlistUids,
     string $adapterId,
     array $existingEvents,
-    string $defaultCategoryId
+    string $defaultCategoryId,
+    ?array $keywordBadgesMap = null
 ): array {
+    if ($keywordBadgesMap === null) {
+        $adapter = event_scraper_load_adapter($adapterId);
+        $keywordBadgesMap = is_array($adapter['keywordBadges'] ?? null) ? $adapter['keywordBadges'] : [];
+    }
+
     $allowlistSet = [];
     foreach ($allowlistUids as $uid) {
         if (is_scalar($uid)) {
@@ -471,7 +512,7 @@ function event_scraper_build_ingest_changes(
         if (!isset($allowlistSet[$uid])) {
             continue;
         }
-        $record = event_scraper_to_eventlist_record($event, $adapterId, $defaultCategoryId);
+        $record = event_scraper_to_eventlist_record($event, $adapterId, $defaultCategoryId, $keywordBadgesMap);
         if (isset($existingByUid[$uid])) {
             $record['id'] = (string) ($existingByUid[$uid]['id'] ?? '');
             $updates[] = $record;

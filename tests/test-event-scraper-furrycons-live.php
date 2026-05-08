@@ -22,7 +22,10 @@ test_require_extension('curl');
 $cachePath     = __DIR__ . '/fixtures/event-scraper-furrycons-live.html';
 $maxAgeSeconds = 86400;
 $sourceUrl     = 'https://furrycons.com/calendar/calendar.php?loc=na';
-$userAgent     = 'Mozilla/5.0 (compatible; LawndingPage eventScraper test; +https://lifurs.org/)';
+// Use a real-browser UA, matching the production scraper's @rotate pool.
+// furrycons.com's WAF returns 403 to bot-shaped opt-in UAs (verified
+// 2026-05-08 in CI), so a "honest robot" identifier blocks the build.
+$userAgent     = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
 $cacheExists = is_file($cachePath);
 $cacheStale  = !$cacheExists || (time() - filemtime($cachePath)) > $maxAgeSeconds;

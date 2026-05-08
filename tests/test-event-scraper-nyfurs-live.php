@@ -23,7 +23,10 @@ test_require_extension('curl');
 $cachePath     = __DIR__ . '/fixtures/event-scraper-nyfurs-live.json';
 $maxAgeSeconds = 86400;
 $sourceUrl     = 'https://events.nyfurs.org/export/categ/0.json';
-$userAgent     = 'Mozilla/5.0 (compatible; LawndingPage eventScraper test; +https://lifurs.org/)';
+// Match the production scraper's @rotate pool. nyfurs.org doesn't WAF
+// today, but matching production UA future-proofs against upstream
+// policy tightening (see furrycons-live for the cautionary tale).
+$userAgent     = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
 $cacheExists = is_file($cachePath);
 $cacheStale  = !$cacheExists || (time() - filemtime($cachePath)) > $maxAgeSeconds;

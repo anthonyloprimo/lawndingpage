@@ -1,6 +1,11 @@
 ### Changelog
 
 
+#### v1.21.0
+- Admin pop-up dialogs are now movable. Grab any modal by its title bar and drag it out of the way to peek at the page underneath; the title bar always stays at least partly on-screen so a modal can never get lost. Closing and reopening a modal returns it to the centered position.
+
+-----
+
 #### v1.20.2
 - Added NY Furs as a second Event Scraper feed, and broadened the platform to any Indico-powered events portal. Scraped events now display per-event start/end times when the source provides them, a "Hosted by" line, and small badges for any source-applied tags (All Ages, Fursuit Friendly, Outdoor, etc.). Each event card carries a Visit Site link to the upstream page; the .ics calendar export carries the same link in its URL field. New feeds default to auto-publishing newly-discovered events as they appear — flip the new "Auto-publish new events" toggle off on a feed to fall back to per-event review. Long event descriptions now scroll inside the event-detail modal instead of pushing past the viewport, and the modal stays above the navbar on small screens.
 

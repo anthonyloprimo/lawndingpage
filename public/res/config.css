@@ -847,6 +847,23 @@ button:disabled {
     flex-wrap: wrap;
 }
 
+/* Movable modals: the title bar is the drag grip. config.js binds pointer
+   events to .userModalHandle and applies translate() to the dialog. */
+.userModalHandle {
+    cursor: grab;
+    user-select: none;
+    /* Prevent native pan/zoom on touch so pointermove fires for drag. */
+    touch-action: none;
+}
+
+.userModal.isDragging .userModalHandle {
+    cursor: grabbing;
+}
+
+.userModal.isDragging {
+    user-select: none;
+}
+
 .permissionsList {
     display: flex;
     flex-direction: column;

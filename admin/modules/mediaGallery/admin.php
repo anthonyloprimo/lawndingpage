@@ -142,7 +142,7 @@ $canChangeMedia  = lawnding_resolve_pane_setting($paneSettings, 'mediaGallery', 
 
     <div class="userModalOverlay mediaGalleryModal" id="mediaGalleryModal-<?php echo htmlspecialchars($paneId); ?>" aria-hidden="true">
         <div class="userModal glassConcave">
-            <h4>Media Details</h4>
+            <h4 class="userModalHandle">Media Details</h4>
             <div class="mediaGalleryModalBody">
                 <div class="mediaGalleryModalPreview">
                     <div class="mediaGalleryModalImage" role="img" aria-label="Media preview, click to set focal point" tabindex="0">

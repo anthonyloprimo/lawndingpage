@@ -1459,6 +1459,7 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
     </div>
     <script src="<?php echo htmlspecialchars($assetBase . '/res/scr/shared-utils.js', ENT_QUOTES, 'UTF-8'); ?>"></script>
     <script src="<?php echo htmlspecialchars($assetBase . '/res/scr/notice-core.js', ENT_QUOTES, 'UTF-8'); ?>"></script>
+    <script src="<?php echo htmlspecialchars($assetBase . '/res/scr/modal-core.js', ENT_QUOTES, 'UTF-8'); ?>"></script>
     <script src="<?php echo htmlspecialchars($assetBase . '/res/scr/app.js', ENT_QUOTES, 'UTF-8'); ?>"></script>
     <script src="<?php echo htmlspecialchars($assetBase . '/res/scr/config.js', ENT_QUOTES, 'UTF-8'); ?>"></script>
     <script src="<?php echo htmlspecialchars($assetBase . '/res/scr/diagnostics.js', ENT_QUOTES, 'UTF-8'); ?>"></script>

@@ -17,9 +17,6 @@
     var tgAuthEndpoint = modal.dataset.tgAuthEndpoint || '';
     var tgBotId = modal.dataset.tgBotId || '';
 
-    var lastFocused = null;
-    var inertSiblings = [];
-
     function showError(msg) {
         if (!errorEl) return;
         errorEl.textContent = msg;
@@ -31,99 +28,36 @@
         errorEl.hidden = true;
     }
 
-    function getFocusables() {
-        var sel = 'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]),' +
-                  ' select:not([disabled]), textarea:not([disabled]),' +
-                  ' [tabindex]:not([tabindex="-1"])';
-        var nodes = modal.querySelectorAll(sel);
-        var out = [];
-        for (var i = 0; i < nodes.length; i++) {
-            var el = nodes[i];
-            if (!el.hidden && el.offsetParent !== null) out.push(el);
-        }
-        return out;
-    }
-
-    function setBackgroundInert(active) {
-        if (active) {
-            var children = document.body.children;
-            for (var i = 0; i < children.length; i++) {
-                var sib = children[i];
-                if (sib === modal || sib.tagName === 'SCRIPT') continue;
-                if (!sib.hasAttribute('inert')) {
-                    sib.setAttribute('inert', '');
-                    inertSiblings.push(sib);
-                }
-            }
-        } else {
-            for (var j = 0; j < inertSiblings.length; j++) {
-                inertSiblings[j].removeAttribute('inert');
-            }
-            inertSiblings = [];
-        }
-    }
-
-    function openModal() {
-        if (!modal.hidden) return;
-        lastFocused = document.activeElement;
-        clearError();
-        modal.hidden = false;
-        setBackgroundInert(true);
-        if (usernameEl) {
-            try { usernameEl.focus(); } catch (e) { /* swallow */ }
-        }
-    }
-
-    function closeModal() {
-        if (modal.hidden) return;
-        modal.hidden = true;
-        setBackgroundInert(false);
-        if (lastFocused && typeof lastFocused.focus === 'function') {
-            try { lastFocused.focus(); } catch (e) { /* swallow */ }
-        }
-        lastFocused = null;
-    }
-
-    document.addEventListener('keydown', function (ev) {
-        if (modal.hidden) return;
-        if (ev.key === 'Escape') {
-            ev.preventDefault();
-            closeModal();
-            return;
-        }
-        if (ev.key === 'Tab') {
-            var focusables = getFocusables();
-            if (focusables.length === 0) {
-                ev.preventDefault();
-                return;
-            }
-            var first = focusables[0];
-            var last = focusables[focusables.length - 1];
-            if (ev.shiftKey && document.activeElement === first) {
-                ev.preventDefault();
-                last.focus();
-            } else if (!ev.shiftKey && document.activeElement === last) {
-                ev.preventDefault();
-                first.focus();
-            }
-        }
-    });
+    // Modal shell (open/close, focus trap, Esc, inert siblings, focus restore)
+    // is delegated to the public modal manager (public-modals.js → modal-core.js).
+    var $ = window.jQuery;
+    var $modal = $ ? $(modal) : null;
 
     document.addEventListener('click', function (ev) {
         var t = ev.target;
         if (!t || typeof t.closest !== 'function') return;
         var trigger = t.closest('[data-lp-login-trigger]');
-        if (trigger) {
+        if (trigger && window.openPublicModal && $modal) {
             ev.preventDefault();
-            openModal();
+            window.openPublicModal($modal);
             return;
         }
         var dismiss = t.closest('[data-lp-login-dismiss]');
-        if (dismiss && modal.contains(dismiss)) {
+        if (dismiss && modal.contains(dismiss) && window.closePublicModal && $modal) {
             ev.preventDefault();
-            closeModal();
+            window.closePublicModal($modal);
         }
     });
+
+    // Reset error state on every open. Factory's focusModal() lands on the
+    // username input automatically (first focusable in the form).
+    if ($) {
+        $(document).on('lp:modalOpened', function (e, data) {
+            if (data && data.modal === modal) {
+                clearError();
+            }
+        });
+    }
 
     if (formEl) {
         formEl.addEventListener('submit', function (ev) {

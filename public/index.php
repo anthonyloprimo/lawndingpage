@@ -666,7 +666,7 @@ $isLinksHidden = !$showLinks;
          data-login-endpoint="<?php echo htmlspecialchars($lpLoginEndpoint, ENT_QUOTES, 'UTF-8'); ?>"
          data-tg-auth-endpoint="<?php echo htmlspecialchars($lpTgAuthEndpoint, ENT_QUOTES, 'UTF-8'); ?>">
         <div class="lpLoginModal__backdrop" data-lp-login-dismiss aria-hidden="true"></div>
-        <div class="lpLoginModal__dialog" role="document">
+        <div class="lpLoginModal__dialog lpModalNoDrag" role="document">
             <header class="lpLoginModal__header">
                 <h2 id="lpLoginModalTitle" class="lpLoginModal__title">Sign in</h2>
                 <button type="button" class="lpLoginModal__close"

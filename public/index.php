@@ -640,9 +640,9 @@ $isLinksHidden = !$showLinks;
     <div class="changelogModal" id="changelogModal" role="dialog" aria-modal="true" aria-label="Changelog" hidden>
         <div class="changelogModalBackdrop"></div>
         <div class="changelogModalInner lpModalNoDrag">
+            <button class="changelogModalClose lpModalCloseX" type="button" aria-label="Close changelog">✕</button>
             <div class="changelogModalHeader">
                 <span>Changelog</span>
-                <button class="changelogModalClose lpModalCloseX" type="button" aria-label="Close changelog">✕</button>
             </div>
             <div class="changelogModalBody changelogContent">
                 <?php echo $changelogHtml; ?>
@@ -667,10 +667,10 @@ $isLinksHidden = !$showLinks;
          data-tg-auth-endpoint="<?php echo htmlspecialchars($lpTgAuthEndpoint, ENT_QUOTES, 'UTF-8'); ?>">
         <div class="lpLoginModal__backdrop" data-lp-login-dismiss aria-hidden="true"></div>
         <div class="lpLoginModal__dialog lpModalNoDrag" role="document">
+            <button type="button" class="lpLoginModal__close lpModalCloseX"
+                    data-lp-login-dismiss aria-label="Close sign-in dialog">×</button>
             <header class="lpLoginModal__header">
                 <h2 id="lpLoginModalTitle" class="lpLoginModal__title">Sign in</h2>
-                <button type="button" class="lpLoginModal__close lpModalCloseX"
-                        data-lp-login-dismiss aria-label="Close sign-in dialog">×</button>
             </header>
             <form class="lpLoginModal__form" novalidate data-lp-login-form>
                 <label class="lpLoginModal__field">

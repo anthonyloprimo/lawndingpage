@@ -838,6 +838,8 @@ button:disabled {
     display: flex;
     flex-direction: column;
     gap: 0.75rem;
+    position: relative;
+    --lp-modal-corner: 8px;
 }
 
 .userModalActions {
@@ -864,28 +866,40 @@ button:disabled {
     user-select: none;
 }
 
-/* Prominent dismiss × shared by all modal shells. Reuses the .usersDanger
-   palette so the destructive-intent visual matches Delete buttons.
+/* Windows-style window-control dismiss × shared across all modal shells.
+   Flush with the modal's top-right corner; transparent default; red fill
+   on hover. Each dialog sets --lp-modal-corner to its own border-radius
+   so the button's corner follows the modal's curve.
    Duplicated in style.css for the public surface — keep in sync. */
 .lpModalCloseX {
-    font-size: 1.6rem;
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 50px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.4rem;
     font-weight: 700;
     line-height: 1;
-    padding: 0.15rem 0.55rem;
-    border: 1px solid #FF7A7A;
-    background: #661A1A;
-    color: #FFCCCC;
-    border-radius: 6px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: #FFFFFFCC;
+    border-top-right-radius: var(--lp-modal-corner, 8px);
     cursor: pointer;
-    transition: background-color 120ms ease, border-color 120ms ease;
+    opacity: 1;
+    transition: background-color 100ms ease, color 100ms ease;
+    z-index: 10;
 }
 .lpModalCloseX:hover {
-    background: #7A2222;
-    border-color: #FF9A9A;
+    background: #E81123;
+    color: #FFFFFF;
 }
 .lpModalCloseX:focus-visible {
-    outline: 2px solid #FF9A9A;
-    outline-offset: 2px;
+    outline: 2px solid #FFFFFF;
+    outline-offset: -2px;
 }
 
 .permissionsList {

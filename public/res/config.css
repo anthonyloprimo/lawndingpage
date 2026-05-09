@@ -851,19 +851,39 @@ button:disabled {
 
 /* Movable modals: the title bar is the drag grip. config.js binds pointer
    events to .userModalHandle and applies translate() to the dialog. */
-.userModalHandle {
+.userModalHandle,
+.lpModalHandle {
     cursor: grab;
     user-select: none;
     /* Prevent native pan/zoom on touch so pointermove fires for drag. */
     touch-action: none;
 }
 
-.userModal.isDragging .userModalHandle {
+.userModal.isDragging .userModalHandle,
+.userModal.isDragging .lpModalHandle {
     cursor: grabbing;
 }
 
 .userModal.isDragging {
     user-select: none;
+}
+
+/* Title-bar appearance for actually-bound drag handles. The factory only
+   adds .lpModalHandle when drag binds, so opt-out modals (lpModalNoDrag)
+   never receive this styling and stay flat. Negative margin extends the
+   bar edge-to-edge across the modal's 1rem padding. */
+.lpModalHandle {
+    background: rgba(255, 255, 255, 0.06);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    margin: -1rem -1rem 0;
+    padding: 0.5rem 1rem;
+    border-top-left-radius: var(--lp-modal-corner, 8px);
+    border-top-right-radius: var(--lp-modal-corner, 8px);
+}
+
+/* Leave room so the title doesn't run under the corner-flush × button. */
+.userModal:has(.lpModalCloseX) .lpModalHandle {
+    padding-right: 60px;
 }
 
 /* Windows-style window-control dismiss × shared across all modal shells.

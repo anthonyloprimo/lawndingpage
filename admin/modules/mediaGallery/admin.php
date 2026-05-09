@@ -188,7 +188,7 @@ $canChangeMedia  = lawnding_resolve_pane_setting($paneSettings, 'mediaGallery', 
                     </div>
                 </div>
             </div>
-            <button class="userModalClose" type="button" aria-label="Close">×</button>
+            <button class="userModalClose lpModalCloseX" type="button" aria-label="Close">×</button>
         </div>
     </div>
 

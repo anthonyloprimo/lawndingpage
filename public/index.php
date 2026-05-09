@@ -642,7 +642,7 @@ $isLinksHidden = !$showLinks;
         <div class="changelogModalInner lpModalNoDrag">
             <div class="changelogModalHeader">
                 <span>Changelog</span>
-                <button class="changelogModalClose" type="button" aria-label="Close changelog">✕</button>
+                <button class="changelogModalClose lpModalCloseX" type="button" aria-label="Close changelog">✕</button>
             </div>
             <div class="changelogModalBody changelogContent">
                 <?php echo $changelogHtml; ?>
@@ -669,7 +669,7 @@ $isLinksHidden = !$showLinks;
         <div class="lpLoginModal__dialog lpModalNoDrag" role="document">
             <header class="lpLoginModal__header">
                 <h2 id="lpLoginModalTitle" class="lpLoginModal__title">Sign in</h2>
-                <button type="button" class="lpLoginModal__close"
+                <button type="button" class="lpLoginModal__close lpModalCloseX"
                         data-lp-login-dismiss aria-label="Close sign-in dialog">×</button>
             </header>
             <form class="lpLoginModal__form" novalidate data-lp-login-form>

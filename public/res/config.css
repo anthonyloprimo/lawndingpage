@@ -864,6 +864,30 @@ button:disabled {
     user-select: none;
 }
 
+/* Prominent dismiss × shared by all modal shells. Reuses the .usersDanger
+   palette so the destructive-intent visual matches Delete buttons.
+   Duplicated in style.css for the public surface — keep in sync. */
+.lpModalCloseX {
+    font-size: 1.6rem;
+    font-weight: 700;
+    line-height: 1;
+    padding: 0.15rem 0.55rem;
+    border: 1px solid #FF7A7A;
+    background: #661A1A;
+    color: #FFCCCC;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background-color 120ms ease, border-color 120ms ease;
+}
+.lpModalCloseX:hover {
+    background: #7A2222;
+    border-color: #FF9A9A;
+}
+.lpModalCloseX:focus-visible {
+    outline: 2px solid #FF9A9A;
+    outline-offset: 2px;
+}
+
 .permissionsList {
     display: flex;
     flex-direction: column;

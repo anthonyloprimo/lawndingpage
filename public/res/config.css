@@ -885,8 +885,8 @@ button:disabled {
     line-height: 1;
     padding: 0;
     border: none;
-    background: transparent;
-    color: #FFFFFFCC;
+    background: #661A1A;
+    color: #FFCCCC;
     border-top-right-radius: var(--lp-modal-corner, 8px);
     cursor: pointer;
     opacity: 1;
@@ -894,11 +894,11 @@ button:disabled {
     z-index: 10;
 }
 .lpModalCloseX:hover {
-    background: #E81123;
+    background: #7A2222;
     color: #FFFFFF;
 }
 .lpModalCloseX:focus-visible {
-    outline: 2px solid #FFFFFF;
+    outline: 2px solid #FF9A9A;
     outline-offset: -2px;
 }
 

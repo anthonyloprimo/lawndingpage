@@ -840,6 +840,7 @@ button:disabled {
     gap: 0.75rem;
     position: relative;
     --lp-modal-corner: 8px;
+    --lp-modal-handle-margin: -1rem -1rem 0;
 }
 
 .userModalActions {
@@ -859,30 +860,31 @@ button:disabled {
     touch-action: none;
 }
 
-.userModal.isDragging .userModalHandle,
-.userModal.isDragging .lpModalHandle {
+.isDragging .userModalHandle,
+.isDragging .lpModalHandle {
     cursor: grabbing;
 }
 
-.userModal.isDragging {
+.isDragging {
     user-select: none;
 }
 
 /* Title-bar appearance for actually-bound drag handles. The factory only
    adds .lpModalHandle when drag binds, so opt-out modals (lpModalNoDrag)
-   never receive this styling and stay flat. Negative margin extends the
-   bar edge-to-edge across the modal's 1rem padding. */
+   never receive this styling and stay flat. Each dialog sets its own
+   --lp-modal-handle-margin so the bar's negative margin matches its padding. */
 .lpModalHandle {
     background: rgba(255, 255, 255, 0.06);
     border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-    margin: -1rem -1rem 0;
+    margin: var(--lp-modal-handle-margin, -1rem -1rem 0);
     padding: 0.5rem 1rem;
     border-top-left-radius: var(--lp-modal-corner, 8px);
     border-top-right-radius: var(--lp-modal-corner, 8px);
 }
 
-/* Leave room so the title doesn't run under the corner-flush × button. */
-.userModal:has(.lpModalCloseX) .lpModalHandle {
+/* Leave room so the title doesn't run under the corner-flush × button.
+   Surface-agnostic: any dialog with both a handle and an × gets the gap. */
+:has(> .lpModalHandle):has(> .lpModalCloseX) > .lpModalHandle {
     padding-right: 60px;
 }
 

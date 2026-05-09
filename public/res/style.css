@@ -956,6 +956,7 @@ nav {
     padding: 1.75rem 1.5rem 1.5rem;
     border-radius: 16px;
     --lp-modal-corner: 16px;
+    --lp-modal-handle-margin: -1.75rem -1.5rem 0;
     backdrop-filter: blur(14px) saturate(115%);
     background:
         linear-gradient(180deg,
@@ -1219,6 +1220,39 @@ nav {
     box-shadow: none;
     cursor: not-allowed;
     font-style: italic;
+}
+
+/* Drag handle styling — cursor + title-bar tint. The factory adds
+   .lpModalHandle at runtime when drag actually binds, so opt-out modals
+   (lpModalNoDrag) never get any of this. Duplicated from config.css
+   so a future draggable public modal Just Works. */
+.userModalHandle,
+.lpModalHandle {
+    cursor: grab;
+    user-select: none;
+    touch-action: none;
+}
+
+.isDragging .userModalHandle,
+.isDragging .lpModalHandle {
+    cursor: grabbing;
+}
+
+.isDragging {
+    user-select: none;
+}
+
+.lpModalHandle {
+    background: rgba(255, 255, 255, 0.06);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    margin: var(--lp-modal-handle-margin, -1rem -1rem 0);
+    padding: 0.5rem 1rem;
+    border-top-left-radius: var(--lp-modal-corner, 8px);
+    border-top-right-radius: var(--lp-modal-corner, 8px);
+}
+
+:has(> .lpModalHandle):has(> .lpModalCloseX) > .lpModalHandle {
+    padding-right: 60px;
 }
 
 /* Windows-style window-control dismiss × shared across all modal shells.

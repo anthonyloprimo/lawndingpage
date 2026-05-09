@@ -708,6 +708,8 @@ $isLinksHidden = !$showLinks;
     <script src="<?php echo htmlspecialchars(lawnding_asset_url('res/scr/public-data.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
     <script src="<?php echo htmlspecialchars(lawnding_asset_url('res/scr/shared-utils.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
     <script src="<?php echo htmlspecialchars(lawnding_asset_url('res/scr/notice-core.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
+    <script src="<?php echo htmlspecialchars(lawnding_asset_url('res/scr/modal-core.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
+    <script src="<?php echo htmlspecialchars(lawnding_asset_url('res/scr/public-modals.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
     <script src="<?php echo htmlspecialchars(lawnding_asset_url('res/scr/app.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
     <?php if ($lpShowLoginModal): ?>
     <script src="<?php echo htmlspecialchars(lawnding_versioned_local_asset_url('res/scr/login-modal.js'), ENT_QUOTES, 'UTF-8'); ?>" defer></script>

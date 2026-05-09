@@ -1243,10 +1243,14 @@ nav {
 }
 
 .lpModalHandle {
+    box-sizing: border-box;
+    height: 40px;
+    display: flex;
+    align-items: center;
     background: rgba(255, 255, 255, 0.06);
     border-bottom: 1px solid rgba(255, 255, 255, 0.08);
     margin: var(--lp-modal-handle-margin, -1rem -1rem 0);
-    padding: 0.5rem 1rem;
+    padding: 0 1rem;
     border-top-left-radius: var(--lp-modal-corner, 8px);
     border-top-right-radius: var(--lp-modal-corner, 8px);
 }
@@ -1265,7 +1269,7 @@ nav {
     top: 0;
     right: 0;
     width: 50px;
-    height: 36px;
+    height: 40px;
     display: flex;
     align-items: center;
     justify-content: center;

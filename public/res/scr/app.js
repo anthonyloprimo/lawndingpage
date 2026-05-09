@@ -684,38 +684,16 @@ function lpBindNotices() {
 
 window.lpAddNotice = lpAddNotice;
 
-// Changelog modal
-var lpChangelogLastFocused = null;
-
-function lpOpenChangelog() {
-    var $modal = $('#changelogModal');
-    if (!$modal.length) { return; }
-    // Remember the trigger so focus can return to it on close.
-    lpChangelogLastFocused = document.activeElement;
-    $modal.removeAttr('hidden');
-    $modal.find('.changelogModalClose').focus();
-}
-
-function lpCloseChangelog() {
-    $('#changelogModal').attr('hidden', '');
-    if (lpChangelogLastFocused && typeof lpChangelogLastFocused.focus === 'function') {
-        lpChangelogLastFocused.focus();
-    }
-    lpChangelogLastFocused = null;
-}
-
+// Changelog modal — shell delegated to public-modals.js (factory).
 function lpBindChangelog() {
+    var $modal = $('#changelogModal');
+    if (!$modal.length || !window.openPublicModal) { return; }
     $(document).on('click.changelog', '[data-changelog-trigger]', function(e) {
         e.preventDefault();
-        lpOpenChangelog();
+        window.openPublicModal($modal);
     });
     $(document).on('click.changelog', '.changelogModalClose, .changelogModalBackdrop', function() {
-        lpCloseChangelog();
-    });
-    $(document).on('keydown.changelog', function(e) {
-        if (e.key === 'Escape' && $('#changelogModal:not([hidden])').length) {
-            lpCloseChangelog();
-        }
+        window.closePublicModal($modal);
     });
 }
 

@@ -639,7 +639,7 @@ $isLinksHidden = !$showLinks;
     ?>
     <div class="changelogModal" id="changelogModal" role="dialog" aria-modal="true" aria-label="Changelog" hidden>
         <div class="changelogModalBackdrop"></div>
-        <div class="changelogModalInner">
+        <div class="changelogModalInner lpModalNoDrag">
             <div class="changelogModalHeader">
                 <span>Changelog</span>
                 <button class="changelogModalClose" type="button" aria-label="Close changelog">✕</button>

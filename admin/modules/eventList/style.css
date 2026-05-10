@@ -768,6 +768,13 @@
     z-index: 9999;
 }
 
+/* Author display: flex overrides the browser's default [hidden] rule;
+   explicit selector is required to hide when the public modal manager
+   toggles the attribute. Same pattern as .lpLoginModal[hidden]. */
+.eventModalOverlay[hidden] {
+    display: none;
+}
+
 #eventModalOverlay {
     z-index: 10010;
 }
@@ -798,30 +805,16 @@
     transform: translate(-50%, calc(-50% - 8px));
 }
 
-.eventModal {
+/* Event modal dimensions: wider than admin's default .userModal so long
+   event descriptions read comfortably; capped height with internal scroll. */
+#eventModalOverlay .userModal,
+#eventCalendarDayModalOverlay .userModal {
     max-width: 640px;
     width: 92%;
     max-height: calc(100vh - 32px);
     border-radius: 12px;
-    border: 1px solid #FFFFFF22;
-    background: #0f0f0f;
-    padding: 18px;
-    color: inherit;
-    display: flex;
-    flex-direction: column;
+    --lp-modal-corner: 12px;
     gap: 12px;
-}
-
-.eventModalHeader {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-}
-
-.eventModalTitle {
-    font-size: 18px;
-    font-weight: 600;
 }
 
 .eventModalMeta {
@@ -843,15 +836,6 @@
     gap: 8px;
     justify-content: flex-end;
     flex-wrap: wrap;
-}
-
-.eventModalClose {
-    padding: 6px 10px;
-    border-radius: 6px;
-    border: 1px solid #FFFFFF44;
-    background: #00000055;
-    color: inherit;
-    cursor: pointer;
 }
 
 /* SITE CONFIG categories editor (rendered by event_list_render_site_config). */

@@ -1161,7 +1161,7 @@ nav {
    See admin/modules/README.md "UI convention": tinted title bar = draggable.
    Never style a non-draggable modal with this treatment. */
 /* Universal title slot — uniform 40px band on every modal title.
-   Edge-to-edge via --lp-modal-handle-margin; right padding clears the ×. */
+   Typography pinned so the heading level (h2 vs h4) can't shift it. */
 .userModal > h1,
 .userModal > h2,
 .userModal > h3,
@@ -1174,6 +1174,8 @@ nav {
     align-items: center;
     margin: var(--lp-modal-handle-margin, -1rem -1rem 0);
     padding: 0 60px 0 1rem;
+    font-size: 1rem;
+    font-weight: 700;
     border-top-left-radius: var(--lp-modal-corner, 8px);
     border-top-right-radius: var(--lp-modal-corner, 8px);
 }

@@ -601,6 +601,28 @@ nav {
 }
 
 
+/* Shared modal-shell defaults — duplicated from config.css so any public
+   modal (login, eventList, changelog, future) gets the same flex layout,
+   padding, and handle-margin baseline as admin modals. Keep in sync. */
+.userModal {
+    width: min(520px, 92vw);
+    padding: 1rem;
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    position: relative;
+    --lp-modal-corner: 8px;
+    --lp-modal-handle-margin: -1rem -1rem 0;
+}
+
+.userModalActions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
 /* Changelog modal */
 .changelogModal {
     position: fixed;

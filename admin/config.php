@@ -162,15 +162,6 @@ if ($assetBase === '') {
 }
 $assetBase = rtrim($assetBase, '/');
 
-// Load changelog markdown from the project root (read-only pane).
-$Parsedown = new Parsedown();
-$rootDir = function_exists('lawnding_config')
-    ? lawnding_config('root_dir', dirname(__DIR__))
-    : dirname(__DIR__);
-$changelogPath = rtrim($rootDir, '/') . '/CHANGELOG.md';
-$changelogMarkdown = $readFile($changelogPath);
-$changelog = $Parsedown->text($changelogMarkdown);
-
 // Load link list configuration (JSON structure used by the editor).
 $linksJsonPath = $dataPath('links.json');
 $linksPayload = lawnding_read_json($linksJsonPath);
@@ -1449,21 +1440,11 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
         </div>
     </div>
     <script src="<?php echo htmlspecialchars(lawnding_versioned_local_asset_url('res/scr/admin-data.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
-    <div class="changelogModal" id="changelogModal" role="dialog" aria-modal="true" aria-label="Changelog" hidden>
-        <div class="changelogModalBackdrop"></div>
-        <div class="changelogModalInner">
-            <div class="changelogModalHeader">
-                <span>Changelog</span>
-                <button class="changelogModalClose" type="button" aria-label="Close changelog">✕</button>
-            </div>
-            <div class="changelogModalBody changelogContent">
-                <?php echo $changelog; ?>
-            </div>
-        </div>
-    </div>
+    <?php lawnding_render_changelog_modal(); ?>
     <script src="<?php echo htmlspecialchars(lawnding_versioned_local_asset_url('res/scr/shared-utils.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
     <script src="<?php echo htmlspecialchars(lawnding_versioned_local_asset_url('res/scr/notice-core.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
     <script src="<?php echo htmlspecialchars(lawnding_versioned_local_asset_url('res/scr/modal-core.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
+    <script src="<?php echo htmlspecialchars(lawnding_versioned_local_asset_url('res/scr/public-modals.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
     <script src="<?php echo htmlspecialchars(lawnding_versioned_local_asset_url('res/scr/app.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
     <script src="<?php echo htmlspecialchars(lawnding_versioned_local_asset_url('res/scr/config.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
     <script src="<?php echo htmlspecialchars(lawnding_versioned_local_asset_url('res/scr/diagnostics.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>

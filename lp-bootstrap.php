@@ -1592,3 +1592,42 @@ function lawnding_load_plugins(): void {
         require_once $init;
     }
 }
+
+// Single source of truth for the changelog modal — emitted on both the
+// public site and the admin panel. Parses CHANGELOG.md from the project
+// root, renders the modal shell, and lets app.js's lpBindChangelog wire
+// the click + Esc handling. Carries lpModalNoDrag (read-this-and-dismiss
+// content; drag would be a footgun) and lpModalCloseX on the dismiss ×.
+function lawnding_render_changelog_modal(): void {
+    if (!class_exists('Parsedown')) {
+        $parsedownPath = function_exists('lawnding_public_path')
+            ? lawnding_public_path('res/scr/Parsedown.php')
+            : __DIR__ . '/public/res/scr/Parsedown.php';
+        if (is_readable($parsedownPath)) {
+            require_once $parsedownPath;
+        }
+    }
+    $rootDir = function_exists('lawnding_config')
+        ? lawnding_config('root_dir', __DIR__)
+        : __DIR__;
+    $changelogPath = rtrim($rootDir, '/') . '/CHANGELOG.md';
+    $html = '';
+    if (class_exists('Parsedown') && is_readable($changelogPath)) {
+        $parser = new Parsedown();
+        $html = $parser->text((string) file_get_contents($changelogPath));
+    }
+    ?>
+    <div class="changelogModal" id="changelogModal" role="dialog" aria-modal="true" aria-label="Changelog" hidden>
+        <div class="changelogModalBackdrop"></div>
+        <div class="changelogModalInner lpModalNoDrag">
+            <button class="changelogModalClose lpModalCloseX" type="button" aria-label="Close changelog">✕</button>
+            <div class="changelogModalHeader">
+                <span>Changelog</span>
+            </div>
+            <div class="changelogModalBody changelogContent">
+                <?php echo $html; ?>
+            </div>
+        </div>
+    </div>
+    <?php
+}

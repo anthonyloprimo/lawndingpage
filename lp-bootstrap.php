@@ -1614,10 +1614,7 @@ function lawnding_render_changelog_modal(): void {
     $html = '';
     if (class_exists('Parsedown') && is_readable($changelogPath)) {
         $parser = new Parsedown();
-        // Drop the file's leading "### Changelog" heading — modal title slot
-        // already says "Changelog", so rendering it again is repetitive.
-        $markdown = preg_replace('/\A\s*#{1,6}\s+Changelog\s*\R/i', '', (string) file_get_contents($changelogPath), 1);
-        $html = $parser->text($markdown);
+        $html = $parser->text((string) file_get_contents($changelogPath));
     }
     ?>
     <div class="changelogModal" id="changelogModal" role="dialog" aria-modal="true" aria-label="Changelog" hidden>

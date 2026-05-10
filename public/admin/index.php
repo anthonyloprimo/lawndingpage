@@ -358,6 +358,17 @@ if ($isReadOnlyUser) {
     $forcePasswordChange = false;
 }
 
+// Login surface needs the Telegram widget origins; admin UI proper stays strict.
+$tgBotId = isset($tgConfig['bot_token']) && is_string($tgConfig['bot_token'])
+    ? lawnding_tg_bot_id_from_token($tgConfig['bot_token'])
+    : '';
+$tgAdminAuthEndpoint = function_exists('lawnding_asset_url')
+    ? lawnding_asset_url('res/scr/plugin-endpoint.php?plugin=telegram&endpoint=auth')
+    : '/res/scr/plugin-endpoint.php?plugin=telegram&endpoint=auth';
+if (!$identity['isAuthenticated'] && $tgBotId !== '') {
+    header("Content-Security-Policy: default-src 'self'; script-src 'self' https://telegram.org; style-src 'self'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-src https://telegram.org https://oauth.telegram.org; frame-ancestors 'none'");
+}
+
 // Promote a Telegram-derived session to a "logged-in admin" identity by
 // persisting the tg:<id> sentinel into $_SESSION['auth_user']. Mirrors the
 // session-fixation defense bcrypt login does at line ~273 below — fires once
@@ -1017,10 +1028,26 @@ if ($authRecord && !$forcePasswordChange) {
                         </label>
                         <button class="lpLoginModal__submit" type="submit">Sign in</button>
                     </form>
+                    <output role="alert" aria-live="polite"
+                            class="lpLoginModal__error" data-lp-login-error hidden></output>
+                    <div class="lpLoginModal__divider" aria-hidden="true"><span>or</span></div>
+                    <button type="button" class="lpLoginModal__telegram"
+                            data-lp-login-telegram
+                            data-tg-bot-id="<?php echo htmlspecialchars($tgBotId, ENT_QUOTES, 'UTF-8'); ?>"
+                            data-tg-auth-endpoint="<?php echo htmlspecialchars($tgAdminAuthEndpoint, ENT_QUOTES, 'UTF-8'); ?>"
+                            <?php echo $tgBotId === '' ? 'disabled aria-disabled="true"' : ''; ?>>
+                        <svg aria-hidden="true" focusable="false" width="20" height="20" viewBox="0 0 24 24">
+                            <path fill="currentColor" d="M9.78 18.65l.28-4.23 7.68-6.92c.34-.31-.07-.46-.52-.19L7.74 13.3 3.64 12c-.88-.25-.89-.86.2-1.3l15.97-6.16c.73-.33 1.43.18 1.15 1.3l-2.72 12.81c-.19.91-.74 1.13-1.5.71l-4.14-3.06-1.99 1.93c-.23.23-.42.42-.83.42z"/>
+                        </svg>
+                        <span><?php echo $tgBotId === '' ? 'Telegram login unavailable' : 'Login with Telegram'; ?></span>
+                    </button>
                 <?php endif; ?>
             </div>
         </div>
     </div>
     <div class="footer adminFooter">LawndingPage Admin Panel</div>
+    <?php if (!$identity['isAuthenticated'] && $tgBotId !== ''): ?>
+    <script src="<?php echo htmlspecialchars(lawnding_versioned_local_asset_url('res/scr/tg-login.js'), ENT_QUOTES, 'UTF-8'); ?>" defer></script>
+    <?php endif; ?>
 </body>
 </html>

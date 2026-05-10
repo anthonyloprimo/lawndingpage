@@ -370,12 +370,6 @@
     background: #00000033;
 }
 
-.mediaGalleryModal .userModalClose {
-    position: absolute;
-    top: 10px;
-    right: 10px;
-}
-
 .mediaGalleryCaptionInput {
     padding: 2px 6px;
     border-radius: 4px;

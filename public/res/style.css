@@ -1225,7 +1225,9 @@ nav {
 /* Drag handle styling — cursor + title-bar tint. The factory adds
    .lpModalHandle at runtime when drag actually binds, so opt-out modals
    (lpModalNoDrag) never get any of this. Duplicated from config.css
-   so a future draggable public modal Just Works. */
+   so a future draggable public modal Just Works.
+   See admin/modules/README.md "UI convention": tinted title bar = draggable.
+   Never style a non-draggable modal with this treatment. */
 .userModalHandle,
 .lpModalHandle {
     cursor: grab;

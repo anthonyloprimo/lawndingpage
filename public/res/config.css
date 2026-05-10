@@ -869,10 +869,11 @@ button:disabled {
     user-select: none;
 }
 
-/* Title-bar appearance for actually-bound drag handles. The factory only
-   adds .lpModalHandle when drag binds, so opt-out modals (lpModalNoDrag)
-   never receive this styling and stay flat. Each dialog sets its own
-   --lp-modal-handle-margin so the bar's negative margin matches its padding. */
+/* Title-bar appearance — keyed to .lpModalHandle, which the factory adds
+   ONLY when drag actually binds. This enforces the project convention
+   (admin/modules/README.md "UI convention"): tinted title bar means
+   draggable. Don't restyle this rule to apply more broadly; don't
+   hardcode .lpModalHandle in markup. Both break the visual language. */
 .lpModalHandle {
     box-sizing: border-box;
     height: 40px;

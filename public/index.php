@@ -644,12 +644,10 @@ $isLinksHidden = !$showLinks;
          data-login-endpoint="<?php echo htmlspecialchars($lpLoginEndpoint, ENT_QUOTES, 'UTF-8'); ?>"
          data-tg-auth-endpoint="<?php echo htmlspecialchars($lpTgAuthEndpoint, ENT_QUOTES, 'UTF-8'); ?>">
         <div class="lpLoginModal__backdrop" data-lp-login-dismiss aria-hidden="true"></div>
-        <div class="lpLoginModal__dialog lpModalNoDrag" role="document">
+        <div class="userModal glassConcave lpModalNoDrag" role="document">
             <button type="button" class="lpModalCloseX"
                     data-lp-login-dismiss aria-label="Close sign-in dialog">×</button>
-            <header class="lpLoginModal__header">
-                <h2 id="lpLoginModalTitle" class="lpLoginModal__title">Sign in</h2>
-            </header>
+            <h4 id="lpLoginModalTitle">Sign in</h4>
             <form class="lpLoginModal__form" novalidate data-lp-login-form>
                 <label class="lpLoginModal__field">
                     <span class="lpLoginModal__fieldLabel">Username</span>

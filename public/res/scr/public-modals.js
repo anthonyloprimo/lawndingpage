@@ -7,7 +7,7 @@
     if (!window.lpModalFactory) return;
 
     var manager = window.lpModalFactory({
-        dialogSelector:  '.lpLoginModal__dialog, .changelogModalInner',
+        dialogSelector:  '.userModal, .changelogModalInner',
         closeSelector:   '[data-lp-login-dismiss], .changelogModalClose',
         // Public modals toggle [hidden] rather than an .isOpen class.
         visibility:      'hidden',

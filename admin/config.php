@@ -96,6 +96,10 @@ function lawnding_modal_open(string $id, string $title, array $options = []): vo
     echo '<div class="userModal glassConcave">';
     // .userModalHandle is the drag grip wired up by config.js's bindModalDrag.
     echo '<h4 class="userModalHandle" id="' . htmlspecialchars($titleId) . '">' . htmlspecialchars($title) . '</h4>';
+    // Project convention: every modal carries the corner-flush × dismiss.
+    // .userModalClose wires the click-to-close + Esc routing; .lpModalCloseX
+    // paints the corner-flush red treatment shared with public modals.
+    echo '<button class="userModalClose lpModalCloseX" type="button" aria-label="Close">×</button>';
 }
 
 // Close the shared modal wrapper.

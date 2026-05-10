@@ -893,10 +893,11 @@ button:disabled {
     padding-right: 60px;
 }
 
-/* Windows-style window-control dismiss × shared across all modal shells.
-   Flush with the modal's top-right corner; transparent default; red fill
-   on hover. Each dialog sets --lp-modal-corner to its own border-radius
-   so the button's corner follows the modal's curve.
+/* Project convention (admin/modules/README.md "UI convention"):
+   every modal in the project carries this corner-flush × dismiss
+   in its top-right, draggable or not. Each dialog sets
+   --lp-modal-corner to its own border-radius so the button's
+   top-right curve follows the modal's outer shape.
    Duplicated in style.css for the public surface — keep in sync. */
 .lpModalCloseX {
     position: absolute;

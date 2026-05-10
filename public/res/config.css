@@ -852,11 +852,28 @@ button:disabled {
 
 /* Movable modals: the title bar is the drag grip. config.js binds pointer
    events to .userModalHandle and applies translate() to the dialog. */
+/* Universal title slot — uniform 40px band on every modal title.
+   Edge-to-edge via --lp-modal-handle-margin; right padding clears the ×. */
+.userModal > h1,
+.userModal > h2,
+.userModal > h3,
+.userModal > h4,
+.userModal > h5,
+.userModal > h6 {
+    box-sizing: border-box;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    margin: var(--lp-modal-handle-margin, -1rem -1rem 0);
+    padding: 0 60px 0 1rem;
+    border-top-left-radius: var(--lp-modal-corner, 8px);
+    border-top-right-radius: var(--lp-modal-corner, 8px);
+}
+
 .userModalHandle,
 .lpModalHandle {
     cursor: grab;
     user-select: none;
-    /* Prevent native pan/zoom on touch so pointermove fires for drag. */
     touch-action: none;
 }
 
@@ -869,28 +886,11 @@ button:disabled {
     user-select: none;
 }
 
-/* Title-bar appearance — keyed to .lpModalHandle, which the factory adds
-   ONLY when drag actually binds. This enforces the project convention
-   (admin/modules/README.md "UI convention"): tinted title bar means
-   draggable. Don't restyle this rule to apply more broadly; don't
-   hardcode .lpModalHandle in markup. Both break the visual language. */
+/* Tint overlay — only when drag binds (factory-added .lpModalHandle).
+   Convention: tinted title bar = draggable. README has the full rule. */
 .lpModalHandle {
-    box-sizing: border-box;
-    height: 40px;
-    display: flex;
-    align-items: center;
     background: rgba(255, 255, 255, 0.06);
     border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-    margin: var(--lp-modal-handle-margin, -1rem -1rem 0);
-    padding: 0 1rem;
-    border-top-left-radius: var(--lp-modal-corner, 8px);
-    border-top-right-radius: var(--lp-modal-corner, 8px);
-}
-
-/* Leave room so the title doesn't run under the corner-flush × button.
-   Surface-agnostic: any dialog with both a handle and an × gets the gap. */
-:has(> .lpModalHandle):has(> .lpModalCloseX) > .lpModalHandle {
-    padding-right: 60px;
 }
 
 /* Project convention (admin/modules/README.md "UI convention"):

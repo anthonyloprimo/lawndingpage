@@ -1178,6 +1178,7 @@ nav {
     padding: 0 60px 0 1rem;
     font-size: 1rem;
     font-weight: 700;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
     border-top-left-radius: var(--lp-modal-corner, 8px);
     border-top-right-radius: var(--lp-modal-corner, 8px);
 }
@@ -1198,11 +1199,8 @@ nav {
     user-select: none;
 }
 
-/* Tint overlay — only when drag binds (factory-added .lpModalHandle).
-   Convention: tinted title bar = draggable. README has the full rule. */
 .lpModalHandle {
     background: rgba(255, 255, 255, 0.06);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 /* Project convention (admin/modules/README.md "UI convention"):

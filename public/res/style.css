@@ -642,38 +642,22 @@ nav {
     background: #00000077;
     backdrop-filter: blur(4px);
 }
+/* Changelog inherits the shared .userModal shell (title slot, .lpModalCloseX,
+   gap between children). Overrides only the dimensions that genuinely differ
+   from the .userModal default, plus zeros padding so the inner sections own
+   their own spacing. --lp-modal-handle-margin: 0 keeps the title-bar slot
+   inside the dialog (no negative margin to negate, since padding is 0). */
 .changelogModalInner {
-    position: relative;
     width: 100%;
     max-width: 720px;
     max-height: 80dvh;
-    display: flex;
-    flex-direction: column;
+    padding: 0;
     border-radius: 12px;
     --lp-modal-corner: 12px;
+    --lp-modal-handle-margin: 0;
     backdrop-filter: blur(12px);
     background-color: #00000088;
     box-shadow: 0 0 0 1px #FFFFFF22 inset, 0 0 0 1px #00000055, 0 8px 32px #00000088;
-}
-.changelogModalHeader {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0.875rem 1.25rem;
-    border-bottom: 1px solid #FFFFFF22;
-    font-weight: bold;
-    flex-shrink: 0;
-}
-.changelogModalClose {
-    line-height: 1;
-    padding: 0.25rem 0.5rem;
-    border-radius: 4px;
-    opacity: 0.6;
-    cursor: pointer;
-}
-.changelogModalClose:hover {
-    opacity: 1;
-    background: #FFFFFF22;
 }
 .changelogModalBody {
     overflow-y: auto;

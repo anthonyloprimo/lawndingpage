@@ -1619,11 +1619,9 @@ function lawnding_render_changelog_modal(): void {
     ?>
     <div class="changelogModal" id="changelogModal" role="dialog" aria-modal="true" aria-label="Changelog" hidden>
         <div class="changelogModalBackdrop"></div>
-        <div class="changelogModalInner lpModalNoDrag">
-            <button class="changelogModalClose lpModalCloseX" type="button" aria-label="Close changelog">✕</button>
-            <div class="changelogModalHeader">
-                <span>Changelog</span>
-            </div>
+        <div class="userModal changelogModalInner lpModalNoDrag">
+            <h4 class="changelogModalHeader">Changelog</h4>
+            <button class="changelogModalClose lpModalCloseX" type="button" aria-label="Close changelog">×</button>
             <div class="changelogModalBody changelogContent">
                 <?php echo $html; ?>
             </div>

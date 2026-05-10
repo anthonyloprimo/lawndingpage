@@ -137,6 +137,10 @@
             var $dialog = $modal.find(dialogSelector).first();
             if (!$dialog.length || $dialog.data('lpDragBound')) return;
             if ($modal.hasClass(noDragMarker) || $dialog.hasClass(noDragMarker)) return;
+            // Mobile view: modals fill most of the viewport so movement isn't
+            // useful, and touch drag fights body scroll. 979px matches the
+            // project's responsive breakpoint used elsewhere.
+            if (window.matchMedia && window.matchMedia('(max-width: 979px)').matches) return;
             var $handle = findHandle($dialog);
             if (!$handle.length) return;
             $handle.addClass('lpModalHandle');

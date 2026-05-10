@@ -933,79 +933,89 @@ if ($authRecord && !$forcePasswordChange) {
                 </div>
             <?php endif; ?>
 
-            <div class="pane glassConvex">
-                <h3>ADMIN PANEL</h3>
-            <!-- Status messages for the login screen.
-                 role="alert" / role="status" so screen readers announce the
-                 message even though it appears on a fresh page render. -->
-            <?php if (count($errors) > 0): ?>
-                <div class="message error" role="alert">
-                    <?php echo htmlspecialchars(implode(' ', $errors)); ?>
-                </div>
-            <?php elseif ($success): ?>
-                <div class="message success" role="status">
-                    <?php echo htmlspecialchars($success); ?>
-                </div>
-            <?php elseif ($passwordChangeSuccess): ?>
-                <div class="message success" role="status">
-                    <?php echo htmlspecialchars($passwordChangeSuccess); ?>
-                </div>
-            <?php elseif (!empty($usersWarnings)): ?>
-                <div class="message error" role="alert">
-                    <?php echo htmlspecialchars(implode(' ', $usersWarnings)); ?>
-                </div>
-            <?php endif; ?>
+            <?php
+                // Title + submit text vary per form; everything else (shell,
+                // field/input chrome, error block) is shared with the public
+                // login modal via the .userModal + .lpLoginModal__* classes.
+                if ($forcePasswordChange) {
+                    $loginPanelTitle = 'Update password';
+                } elseif (!$hasUsers) {
+                    $loginPanelTitle = 'Create admin account';
+                } else {
+                    $loginPanelTitle = 'Sign in';
+                }
+            ?>
+            <div class="userModal glassConcave lpModalNoDrag adminLoginPanel">
+                <h4><?php echo htmlspecialchars($loginPanelTitle); ?></h4>
+                <!-- role="alert" / role="status" so screen readers announce the
+                     message even though it appears on a fresh page render. -->
+                <?php if (count($errors) > 0): ?>
+                    <div class="message error" role="alert">
+                        <?php echo htmlspecialchars(implode(' ', $errors)); ?>
+                    </div>
+                <?php elseif ($success): ?>
+                    <div class="message success" role="status">
+                        <?php echo htmlspecialchars($success); ?>
+                    </div>
+                <?php elseif ($passwordChangeSuccess): ?>
+                    <div class="message success" role="status">
+                        <?php echo htmlspecialchars($passwordChangeSuccess); ?>
+                    </div>
+                <?php elseif (!empty($usersWarnings)): ?>
+                    <div class="message error" role="alert">
+                        <?php echo htmlspecialchars(implode(' ', $usersWarnings)); ?>
+                    </div>
+                <?php endif; ?>
 
-            <!-- The form changes based on first-run, forced reset, or normal login. -->
-            <?php if ($forcePasswordChange): ?>
-                <form class="loginForm" method="post" action="">
-                    <input type="hidden" name="action" value="change_password">
-                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
-                    <label class="loginField">
-                        New Password
-                        <input class="loginInput" type="password" name="new_password" autocomplete="new-password" required>
-                    </label>
-                    <label class="loginField">
-                        Confirm Password
-                        <input class="loginInput" type="password" name="confirm_password" autocomplete="new-password" required>
-                    </label>
-                    <button class="loginButton" type="submit">Update Password</button>
-                </form>
-                <?php elseif (!$hasUsers): ?>
-                <form class="loginForm" method="post" action="">
-                    <input type="hidden" name="action" value="create_admin">
+                <?php if ($forcePasswordChange): ?>
+                    <form class="lpLoginModal__form" method="post" action="">
+                        <input type="hidden" name="action" value="change_password">
                         <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
-                        <label class="loginField">
-                            Username
-                            <input class="loginInput" type="text" name="username" autocomplete="username" required>
+                        <label class="lpLoginModal__field">
+                            <span class="lpLoginModal__fieldLabel">New password</span>
+                            <input class="lpLoginModal__input" type="password" name="new_password" autocomplete="new-password" required>
                         </label>
-                        <label class="loginField">
-                            Password
-                            <input class="loginInput" type="password" name="password" autocomplete="new-password" required>
+                        <label class="lpLoginModal__field">
+                            <span class="lpLoginModal__fieldLabel">Confirm password</span>
+                            <input class="lpLoginModal__input" type="password" name="confirm_password" autocomplete="new-password" required>
                         </label>
-                        <label class="loginField">
-                            Confirm Password
-                            <input class="loginInput" type="password" name="confirm_password" autocomplete="new-password" required>
+                        <button class="lpLoginModal__submit" type="submit">Update password</button>
+                    </form>
+                <?php elseif (!$hasUsers): ?>
+                    <form class="lpLoginModal__form" method="post" action="">
+                        <input type="hidden" name="action" value="create_admin">
+                        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+                        <label class="lpLoginModal__field">
+                            <span class="lpLoginModal__fieldLabel">Username</span>
+                            <input class="lpLoginModal__input" type="text" name="username" autocomplete="username" required>
                         </label>
-                        <button class="loginButton" type="submit">Create Admin</button>
+                        <label class="lpLoginModal__field">
+                            <span class="lpLoginModal__fieldLabel">Password</span>
+                            <input class="lpLoginModal__input" type="password" name="password" autocomplete="new-password" required>
+                        </label>
+                        <label class="lpLoginModal__field">
+                            <span class="lpLoginModal__fieldLabel">Confirm password</span>
+                            <input class="lpLoginModal__input" type="password" name="confirm_password" autocomplete="new-password" required>
+                        </label>
+                        <button class="lpLoginModal__submit" type="submit">Create admin account</button>
                     </form>
                 <?php else: ?>
-                    <form class="loginForm" method="post" action="">
+                    <form class="lpLoginModal__form" method="post" action="">
                         <input type="hidden" name="action" value="login">
                         <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
-                        <label class="loginField">
-                            Username
-                            <input class="loginInput" type="text" name="username" autocomplete="username" required>
+                        <label class="lpLoginModal__field">
+                            <span class="lpLoginModal__fieldLabel">Username</span>
+                            <input class="lpLoginModal__input" type="text" name="username" autocomplete="username" required>
                         </label>
-                        <label class="loginField">
-                            Password
-                            <input class="loginInput" type="password" name="password" autocomplete="current-password" required>
+                        <label class="lpLoginModal__field">
+                            <span class="lpLoginModal__fieldLabel">Password</span>
+                            <input class="lpLoginModal__input" type="password" name="password" autocomplete="current-password" required>
                         </label>
-                        <label class="loginField loginRemember">
+                        <label class="lpLoginModal__remember">
                             <input type="checkbox" name="remember" value="1">
                             <span>Stay signed in</span>
                         </label>
-                        <button class="loginButton" type="submit">Login</button>
+                        <button class="lpLoginModal__submit" type="submit">Sign in</button>
                     </form>
                 <?php endif; ?>
             </div>

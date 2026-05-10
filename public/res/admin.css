@@ -10,6 +10,9 @@ body {
     padding: 2rem 1rem;
 }
 
+/* Stacks the page-level .notice (520px wide) above the .adminLoginPanel
+   (380px wide, centers itself via align-items). The actual login chrome
+   lives on .userModal.adminLoginPanel — see style.css. */
 .loginPane {
     width: min(520px, 92vw);
     flex: none;
@@ -17,41 +20,6 @@ body {
     flex-direction: column;
     align-items: center;
     gap: 0.75rem;
-}
-
-.loginPane .pane {
-    width: min(320px, 88vw);
-    flex: none;
-}
-
-.loginForm {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-    margin-top: 0.75rem;
-}
-
-.loginField {
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
-    font-size: 0.9rem;
-    color: #FFFFFFCC;
-}
-
-.loginInput {
-    border: 1px solid #FFFFFF55;
-    border-radius: 12px;
-    padding: 0.45rem 0.65rem;
-    background: #00000033;
-}
-
-.loginButton {
-    border: 1px solid #FFFFFF77;
-    border-radius: 999px;
-    padding: 0.5rem 0.9rem;
-    background: #00000055;
-    font-weight: 600;
 }
 
 .notice {
@@ -86,14 +54,4 @@ body {
 .adminFooter {
     text-align: center;
     padding: 0.75rem 1rem 1rem;
-}
-
-.loginButton:hover {
-    background-color: #77777733;
-    border: 1px solid #FFFFFFBB;
-}
-
-.loginButton:active {
-    background-color: #00000055;
-    border: 1px solid #FFFFFF55;
 }

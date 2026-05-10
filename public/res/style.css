@@ -942,6 +942,12 @@ nav {
     --lp-modal-corner: 16px;
 }
 
+/* Title needs visible separation from the first form label below it,
+   otherwise "Username" reads as a sub-heading of "Sign in." */
+#lpLoginModal .userModal > h4 {
+    margin-bottom: 0.6rem;
+}
+
 .lpLoginModal__form {
     display: flex;
     flex-direction: column;

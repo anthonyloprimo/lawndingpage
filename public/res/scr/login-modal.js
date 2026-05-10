@@ -9,13 +9,12 @@
     var passwordEl = modal.querySelector('input[name="password"]');
     var rememberEl = modal.querySelector('input[name="remember"]');
     var errorEl = modal.querySelector('[data-lp-login-error]');
-    var tgButtonEl = modal.querySelector('[data-lp-login-telegram]');
     var submitEl = modal.querySelector('.lpLoginModal__submit');
 
+    // Telegram-button click + OAuth redirect lives in tg-login.js (shared with
+    // the admin login page).
     var csrfToken = modal.dataset.csrfToken || '';
     var loginEndpoint = modal.dataset.loginEndpoint || '';
-    var tgAuthEndpoint = modal.dataset.tgAuthEndpoint || '';
-    var tgBotId = modal.dataset.tgBotId || '';
 
     function showError(msg) {
         if (!errorEl) return;
@@ -111,49 +110,4 @@
         });
     }
 
-    if (tgButtonEl && tgBotId) {
-        var widgetLoaded = false;
-        var widgetLoading = null;
-        function ensureTgWidget() {
-            if (widgetLoaded) return Promise.resolve();
-            if (widgetLoading) return widgetLoading;
-            widgetLoading = new Promise(function (resolve, reject) {
-                var s = document.createElement('script');
-                s.src = 'https://telegram.org/js/telegram-widget.js?22';
-                s.async = true;
-                s.onload = function () { widgetLoaded = true; resolve(); };
-                s.onerror = function () { reject(new Error('telegram-widget load failed')); };
-                document.head.appendChild(s);
-            });
-            return widgetLoading;
-        }
-        tgButtonEl.addEventListener('click', function (ev) {
-            ev.preventDefault();
-            clearError();
-            ensureTgWidget().then(function () {
-                if (!window.Telegram || !window.Telegram.Login ||
-                    typeof window.Telegram.Login.auth !== 'function') {
-                    showError('Telegram login is unavailable right now.');
-                    return;
-                }
-                window.Telegram.Login.auth({
-                    bot_id: parseInt(tgBotId, 10),
-                    request_access: 'write'
-                }, function (authData) {
-                    if (!authData) return; // user cancelled — silent
-                    var params = new URLSearchParams();
-                    Object.keys(authData).forEach(function (key) {
-                        params.append(key, String(authData[key]));
-                    });
-                    params.append('return', window.location.pathname || '/');
-                    // tgAuthEndpoint already carries the proxy's plugin/endpoint
-                    // query string, so append auth params with & rather than ?.
-                    var sep = tgAuthEndpoint.indexOf('?') === -1 ? '?' : '&';
-                    window.location.href = tgAuthEndpoint + sep + params.toString();
-                });
-            }).catch(function () {
-                showError('Could not load Telegram login. Check your network connection.');
-            });
-        });
-    }
 })();

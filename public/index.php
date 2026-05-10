@@ -639,10 +639,7 @@ $isLinksHidden = !$showLinks;
     <div id="lpLoginModal" class="lpLoginModal" role="dialog" aria-modal="true"
          aria-labelledby="lpLoginModalTitle" hidden
          data-csrf-token="<?php echo htmlspecialchars((string) ($_SESSION['csrf_token'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>"
-         data-tg-bot-username="<?php echo htmlspecialchars($tgBotUsername, ENT_QUOTES, 'UTF-8'); ?>"
-         data-tg-bot-id="<?php echo htmlspecialchars($tgBotId, ENT_QUOTES, 'UTF-8'); ?>"
-         data-login-endpoint="<?php echo htmlspecialchars($lpLoginEndpoint, ENT_QUOTES, 'UTF-8'); ?>"
-         data-tg-auth-endpoint="<?php echo htmlspecialchars($lpTgAuthEndpoint, ENT_QUOTES, 'UTF-8'); ?>">
+         data-login-endpoint="<?php echo htmlspecialchars($lpLoginEndpoint, ENT_QUOTES, 'UTF-8'); ?>">
         <div class="lpLoginModal__backdrop" data-lp-login-dismiss aria-hidden="true"></div>
         <div class="userModal glassConcave lpModalNoDrag" role="document">
             <button type="button" class="lpModalCloseX"
@@ -672,6 +669,8 @@ $isLinksHidden = !$showLinks;
             </div>
             <button type="button" class="lpLoginModal__telegram"
                     data-lp-login-telegram
+                    data-tg-bot-id="<?php echo htmlspecialchars($tgBotId, ENT_QUOTES, 'UTF-8'); ?>"
+                    data-tg-auth-endpoint="<?php echo htmlspecialchars($lpTgAuthEndpoint, ENT_QUOTES, 'UTF-8'); ?>"
                     <?php echo $tgBotId === '' ? 'disabled aria-disabled="true"' : ''; ?>>
                 <svg aria-hidden="true" focusable="false" width="20" height="20" viewBox="0 0 24 24">
                     <path fill="currentColor" d="M9.78 18.65l.28-4.23 7.68-6.92c.34-.31-.07-.46-.52-.19L7.74 13.3 3.64 12c-.88-.25-.89-.86.2-1.3l15.97-6.16c.73-.33 1.43.18 1.15 1.3l-2.72 12.81c-.19.91-.74 1.13-1.5.71l-4.14-3.06-1.99 1.93c-.23.23-.42.42-.83.42z"/>
@@ -689,6 +688,7 @@ $isLinksHidden = !$showLinks;
     <script src="<?php echo htmlspecialchars(lawnding_versioned_local_asset_url('res/scr/app.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
     <?php if ($lpShowLoginModal): ?>
     <script src="<?php echo htmlspecialchars(lawnding_versioned_local_asset_url('res/scr/login-modal.js'), ENT_QUOTES, 'UTF-8'); ?>" defer></script>
+    <script src="<?php echo htmlspecialchars(lawnding_versioned_local_asset_url('res/scr/tg-login.js'), ENT_QUOTES, 'UTF-8'); ?>" defer></script>
     <?php endif; ?>
 </body>
 </html>

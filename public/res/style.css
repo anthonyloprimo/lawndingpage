@@ -1172,6 +1172,7 @@ nav {
 .userModal > h6 {
     box-sizing: border-box;
     height: 40px;
+    flex-shrink: 0;
     display: flex;
     align-items: center;
     margin: var(--lp-modal-handle-margin, -1rem -1rem 0);

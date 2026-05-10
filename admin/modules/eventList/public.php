@@ -173,7 +173,7 @@ $eventsJson = json_encode([
 </div>
 
 <div class="eventModalOverlay" id="eventModalOverlay" hidden>
-    <div class="userModal glassConcave lpModalNoDrag eventModal" role="dialog" aria-modal="true" aria-labelledby="eventModalTitle">
+    <div class="userModal glassConcave eventModal" role="dialog" aria-modal="true" aria-labelledby="eventModalTitle">
         <h4 id="eventModalTitle"></h4>
         <button class="userModalClose lpModalCloseX" type="button" id="eventModalClose" aria-label="Close">×</button>
         <div class="eventModalMeta" id="eventModalMeta"></div>
@@ -206,7 +206,7 @@ $eventsJson = json_encode([
 </div>
 
 <div class="eventModalOverlay" id="eventCalendarDayModalOverlay" hidden>
-    <div class="userModal glassConcave lpModalNoDrag eventModal eventCalendarDayModal" role="dialog" aria-modal="true" aria-labelledby="eventCalendarDayModalTitle">
+    <div class="userModal glassConcave eventModal eventCalendarDayModal" role="dialog" aria-modal="true" aria-labelledby="eventCalendarDayModalTitle">
         <h4 id="eventCalendarDayModalTitle"></h4>
         <button class="userModalClose lpModalCloseX" type="button" id="eventCalendarDayModalClose" aria-label="Close">×</button>
         <div class="eventCalendarDayModalBody" id="eventCalendarDayModalBody"></div>

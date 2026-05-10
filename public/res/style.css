@@ -1001,22 +1001,6 @@ nav {
     background-color: #E8B86F;
     box-shadow: 0 0 12px rgba(232, 184, 111, 0.6);
 }
-.lpLoginModal__close {
-    font-size: 1.5rem;
-    line-height: 1;
-    padding: 0.25rem 0.55rem;
-    border-radius: 6px;
-    color: #FFFFFFCC;
-    opacity: 0.7;
-    cursor: pointer;
-    transition: opacity 120ms ease, background-color 120ms ease;
-}
-.lpLoginModal__close:hover,
-.lpLoginModal__close:focus-visible {
-    opacity: 1;
-    background: rgba(255, 255, 255, 0.12);
-    outline: none;
-}
 .lpLoginModal__form {
     display: flex;
     flex-direction: column;
@@ -1302,7 +1286,6 @@ nav {
     .lpHeaderLoginButton,
     .lpHeaderLoginButton:hover,
     .lpHeaderLoginButton:active,
-    .lpLoginModal__close,
     .lpLoginModal__input,
     .lpLoginModal__submit,
     .lpLoginModal__submit:hover,

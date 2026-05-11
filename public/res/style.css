@@ -601,6 +601,28 @@ nav {
 }
 
 
+/* Shared modal-shell defaults — duplicated from config.css so any public
+   modal (login, eventList, changelog, future) gets the same flex layout,
+   padding, and handle-margin baseline as admin modals. Keep in sync. */
+.userModal {
+    width: min(520px, 92vw);
+    padding: 1rem;
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    position: relative;
+    --lp-modal-corner: 8px;
+    --lp-modal-handle-margin: -1rem -1rem 0;
+}
+
+.userModalActions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
 /* Changelog modal */
 .changelogModal {
     position: fixed;
@@ -620,37 +642,22 @@ nav {
     background: #00000077;
     backdrop-filter: blur(4px);
 }
+/* Changelog inherits the shared .userModal shell (title slot, .lpModalCloseX,
+   gap between children). Overrides only the dimensions that genuinely differ
+   from the .userModal default, plus zeros padding so the inner sections own
+   their own spacing. --lp-modal-handle-margin: 0 keeps the title-bar slot
+   inside the dialog (no negative margin to negate, since padding is 0). */
 .changelogModalInner {
-    position: relative;
     width: 100%;
     max-width: 720px;
     max-height: 80dvh;
-    display: flex;
-    flex-direction: column;
+    padding: 0;
     border-radius: 12px;
+    --lp-modal-corner: 12px;
+    --lp-modal-handle-margin: 0;
     backdrop-filter: blur(12px);
     background-color: #00000088;
     box-shadow: 0 0 0 1px #FFFFFF22 inset, 0 0 0 1px #00000055, 0 8px 32px #00000088;
-}
-.changelogModalHeader {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0.875rem 1.25rem;
-    border-bottom: 1px solid #FFFFFF22;
-    font-weight: bold;
-    flex-shrink: 0;
-}
-.changelogModalClose {
-    line-height: 1;
-    padding: 0.25rem 0.5rem;
-    border-radius: 4px;
-    opacity: 0.6;
-    cursor: pointer;
-}
-.changelogModalClose:hover {
-    opacity: 1;
-    background: #FFFFFF22;
 }
 .changelogModalBody {
     overflow-y: auto;
@@ -667,7 +674,7 @@ nav {
     line-height: 1.3;
 }
 .changelogContent h4 {
-    font-size: 1.05rem;
+    font-size: 1rem;
 }
 .changelogContent p {
     margin: 0.4rem 0;
@@ -852,15 +859,6 @@ nav {
     from { opacity: 0; transform: translateY(-4px) scale(0.96); }
     to   { opacity: 1; transform: translateY(0) scale(1); }
 }
-@keyframes lpLoginModalDialogEntrance {
-    from { opacity: 0; transform: translateY(8px) scale(0.97); }
-    to   { opacity: 1; transform: translateY(0) scale(1); }
-}
-@keyframes lpLoginModalBackdropEntrance {
-    from { opacity: 0; }
-    to   { opacity: 1; }
-}
-
 /* Header sign-in button: amber pill on dark glass header. The shadow stack
    layers (in order) a hairline border, a warm spread glow, a neutral drop,
    and an inset highlight — gives the pill physical presence without being
@@ -934,86 +932,25 @@ nav {
 .lpLoginModal__backdrop {
     position: absolute;
     inset: 0;
-    background:
-        radial-gradient(ellipse at center,
-            rgba(0, 0, 0, 0.55) 0%,
-            rgba(0, 0, 0, 0.92) 80%);
+    background: #00000088;
     backdrop-filter: blur(6px);
-    animation: lpLoginModalBackdropEntrance 200ms ease-out both;
 }
-/* Dialog: dark glass with a faint warm tint at the top, suggesting the
-   amber accent leaking into the surface. The stacked shadow combines a
-   hairline outer border, a deep ambient cast, and a softer secondary —
-   the dialog reads as "lit from above" against the backdrop. */
-.lpLoginModal__dialog {
-    position: relative;
-    width: 100%;
-    max-width: 380px;
-    display: flex;
-    flex-direction: column;
-    gap: 0.875rem;
+
+/* Login surface (public modal + admin login page) overrides .userModal's
+   defaults: narrower width keeps the sign-in form readable; more generous
+   padding gives the inputs room to breathe; 16px corner radius matches the
+   dialog's softer sign-in feel. --lp-modal-corner is bumped so the close-×
+   corner follows the larger curve. */
+#lpLoginModal .userModal,
+.userModal.adminLoginPanel {
+    width: min(380px, 92vw);
     padding: 1.75rem 1.5rem 1.5rem;
+    gap: 0.875rem;
     border-radius: 16px;
-    backdrop-filter: blur(14px) saturate(115%);
-    background:
-        linear-gradient(180deg,
-            rgba(50, 38, 26, 0.45) 0%,
-            rgba(0, 0, 0, 0.55) 100%),
-        rgba(0, 0, 0, 0.55);
-    box-shadow:
-        inset 0 0 0 1px rgba(255, 255, 255, 0.08),
-        inset 0 1px 0 rgba(255, 230, 180, 0.10),
-        0 0 0 1px rgba(0, 0, 0, 0.55),
-        0 24px 60px -12px rgba(0, 0, 0, 0.7),
-        0 8px 28px rgba(0, 0, 0, 0.5);
-    color: #FFFFFF;
-    animation: lpLoginModalDialogEntrance 240ms cubic-bezier(0.2, 0.7, 0.3, 1) both;
+    --lp-modal-corner: 16px;
 }
-.lpLoginModal__header {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    margin-bottom: 0.4rem;
-}
-/* Title: tighter tracking + warm amber accent line underneath. The line is
-   short (28px) and offset, less "underline" and more "punctuation mark."
-   Soft glow on the line ties back to the button's warm shadow. */
-.lpLoginModal__title {
-    font-size: 1.35rem;
-    font-weight: 600;
-    letter-spacing: -0.022em;
-    margin: 0;
-    line-height: 1;
-    position: relative;
-    padding-bottom: 0.6rem;
-}
-.lpLoginModal__title::after {
-    content: "";
-    position: absolute;
-    left: 0;
-    bottom: 0;
-    width: 28px;
-    height: 2px;
-    border-radius: 2px;
-    background-color: #E8B86F;
-    box-shadow: 0 0 12px rgba(232, 184, 111, 0.6);
-}
-.lpLoginModal__close {
-    font-size: 1.5rem;
-    line-height: 1;
-    padding: 0.25rem 0.55rem;
-    border-radius: 6px;
-    color: #FFFFFFCC;
-    opacity: 0.7;
-    cursor: pointer;
-    transition: opacity 120ms ease, background-color 120ms ease;
-}
-.lpLoginModal__close:hover,
-.lpLoginModal__close:focus-visible {
-    opacity: 1;
-    background: rgba(255, 255, 255, 0.12);
-    outline: none;
-}
+
+
 .lpLoginModal__form {
     display: flex;
     flex-direction: column;
@@ -1219,11 +1156,95 @@ nav {
     font-style: italic;
 }
 
+/* Drag handle styling — cursor + title-bar tint. The factory adds
+   .lpModalHandle at runtime when drag actually binds, so opt-out modals
+   (lpModalNoDrag) never get any of this. Duplicated from config.css
+   so a future draggable public modal Just Works.
+   See admin/modules/README.md "UI convention": tinted title bar = draggable.
+   Never style a non-draggable modal with this treatment. */
+/* Universal title slot — uniform 40px band on every modal title.
+   Typography pinned so the heading level (h2 vs h4) can't shift it. */
+.userModal > h1,
+.userModal > h2,
+.userModal > h3,
+.userModal > h4,
+.userModal > h5,
+.userModal > h6 {
+    box-sizing: border-box;
+    height: 40px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    margin: var(--lp-modal-handle-margin, -1rem -1rem 0);
+    padding: 0 60px 0 1rem;
+    font-size: 1rem;
+    font-weight: 700;
+    border-top-left-radius: var(--lp-modal-corner, 8px);
+    border-top-right-radius: var(--lp-modal-corner, 8px);
+}
+
+.userModalHandle,
+.lpModalHandle {
+    cursor: grab;
+    user-select: none;
+    touch-action: none;
+}
+
+.isDragging .userModalHandle,
+.isDragging .lpModalHandle {
+    cursor: grabbing;
+}
+
+.isDragging {
+    user-select: none;
+}
+
+.lpModalHandle {
+    background: rgba(255, 255, 255, 0.06);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* Project convention (admin/modules/README.md "UI convention"):
+   every modal in the project carries this corner-flush × dismiss
+   in its top-right, draggable or not. Each dialog sets
+   --lp-modal-corner to its own border-radius so the button's
+   top-right curve follows the modal's outer shape.
+   Duplicated in config.css for the admin surface — keep in sync. */
+.lpModalCloseX {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 50px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.4rem;
+    font-weight: 700;
+    line-height: 1;
+    padding: 0;
+    border: none;
+    background: #661A1A;
+    color: #FFCCCC;
+    border-top-right-radius: var(--lp-modal-corner, 8px);
+    cursor: pointer;
+    opacity: 1;
+    transition: background-color 100ms ease, color 100ms ease;
+    z-index: 10;
+}
+.lpModalCloseX:hover {
+    background: #7A2222;
+    color: #FFFFFF;
+}
+.lpModalCloseX:focus-visible {
+    outline: 2px solid #FF9A9A;
+    outline-offset: -2px;
+}
+
 @media (prefers-reduced-motion: reduce) {
     .lpHeaderLoginButton,
     .lpHeaderLoginButton:hover,
     .lpHeaderLoginButton:active,
-    .lpLoginModal__close,
     .lpLoginModal__input,
     .lpLoginModal__submit,
     .lpLoginModal__submit:hover,
@@ -1234,9 +1255,7 @@ nav {
         transition: none;
         transform: none;
     }
-    .lpHeaderLoginButton,
-    .lpLoginModal__backdrop,
-    .lpLoginModal__dialog {
+    .lpHeaderLoginButton {
         animation: none;
     }
 }

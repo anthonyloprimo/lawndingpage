@@ -9,16 +9,12 @@
     var passwordEl = modal.querySelector('input[name="password"]');
     var rememberEl = modal.querySelector('input[name="remember"]');
     var errorEl = modal.querySelector('[data-lp-login-error]');
-    var tgButtonEl = modal.querySelector('[data-lp-login-telegram]');
     var submitEl = modal.querySelector('.lpLoginModal__submit');
 
+    // Telegram-button click + OAuth redirect lives in tg-login.js (shared with
+    // the admin login page).
     var csrfToken = modal.dataset.csrfToken || '';
     var loginEndpoint = modal.dataset.loginEndpoint || '';
-    var tgAuthEndpoint = modal.dataset.tgAuthEndpoint || '';
-    var tgBotId = modal.dataset.tgBotId || '';
-
-    var lastFocused = null;
-    var inertSiblings = [];
 
     function showError(msg) {
         if (!errorEl) return;
@@ -31,99 +27,36 @@
         errorEl.hidden = true;
     }
 
-    function getFocusables() {
-        var sel = 'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]),' +
-                  ' select:not([disabled]), textarea:not([disabled]),' +
-                  ' [tabindex]:not([tabindex="-1"])';
-        var nodes = modal.querySelectorAll(sel);
-        var out = [];
-        for (var i = 0; i < nodes.length; i++) {
-            var el = nodes[i];
-            if (!el.hidden && el.offsetParent !== null) out.push(el);
-        }
-        return out;
-    }
-
-    function setBackgroundInert(active) {
-        if (active) {
-            var children = document.body.children;
-            for (var i = 0; i < children.length; i++) {
-                var sib = children[i];
-                if (sib === modal || sib.tagName === 'SCRIPT') continue;
-                if (!sib.hasAttribute('inert')) {
-                    sib.setAttribute('inert', '');
-                    inertSiblings.push(sib);
-                }
-            }
-        } else {
-            for (var j = 0; j < inertSiblings.length; j++) {
-                inertSiblings[j].removeAttribute('inert');
-            }
-            inertSiblings = [];
-        }
-    }
-
-    function openModal() {
-        if (!modal.hidden) return;
-        lastFocused = document.activeElement;
-        clearError();
-        modal.hidden = false;
-        setBackgroundInert(true);
-        if (usernameEl) {
-            try { usernameEl.focus(); } catch (e) { /* swallow */ }
-        }
-    }
-
-    function closeModal() {
-        if (modal.hidden) return;
-        modal.hidden = true;
-        setBackgroundInert(false);
-        if (lastFocused && typeof lastFocused.focus === 'function') {
-            try { lastFocused.focus(); } catch (e) { /* swallow */ }
-        }
-        lastFocused = null;
-    }
-
-    document.addEventListener('keydown', function (ev) {
-        if (modal.hidden) return;
-        if (ev.key === 'Escape') {
-            ev.preventDefault();
-            closeModal();
-            return;
-        }
-        if (ev.key === 'Tab') {
-            var focusables = getFocusables();
-            if (focusables.length === 0) {
-                ev.preventDefault();
-                return;
-            }
-            var first = focusables[0];
-            var last = focusables[focusables.length - 1];
-            if (ev.shiftKey && document.activeElement === first) {
-                ev.preventDefault();
-                last.focus();
-            } else if (!ev.shiftKey && document.activeElement === last) {
-                ev.preventDefault();
-                first.focus();
-            }
-        }
-    });
+    // Modal shell (open/close, focus trap, Esc, inert siblings, focus restore)
+    // is delegated to the public modal manager (public-modals.js → modal-core.js).
+    var $ = window.jQuery;
+    var $modal = $ ? $(modal) : null;
 
     document.addEventListener('click', function (ev) {
         var t = ev.target;
         if (!t || typeof t.closest !== 'function') return;
         var trigger = t.closest('[data-lp-login-trigger]');
-        if (trigger) {
+        if (trigger && window.openPublicModal && $modal) {
             ev.preventDefault();
-            openModal();
+            window.openPublicModal($modal);
             return;
         }
         var dismiss = t.closest('[data-lp-login-dismiss]');
-        if (dismiss && modal.contains(dismiss)) {
+        if (dismiss && modal.contains(dismiss) && window.closePublicModal && $modal) {
             ev.preventDefault();
-            closeModal();
+            window.closePublicModal($modal);
         }
     });
+
+    // Reset error state on every open. Factory's focusModal() lands on the
+    // username input automatically (first focusable in the form).
+    if ($) {
+        $(document).on('lp:modalOpened', function (e, data) {
+            if (data && data.modal === modal) {
+                clearError();
+            }
+        });
+    }
 
     if (formEl) {
         formEl.addEventListener('submit', function (ev) {
@@ -177,49 +110,4 @@
         });
     }
 
-    if (tgButtonEl && tgBotId) {
-        var widgetLoaded = false;
-        var widgetLoading = null;
-        function ensureTgWidget() {
-            if (widgetLoaded) return Promise.resolve();
-            if (widgetLoading) return widgetLoading;
-            widgetLoading = new Promise(function (resolve, reject) {
-                var s = document.createElement('script');
-                s.src = 'https://telegram.org/js/telegram-widget.js?22';
-                s.async = true;
-                s.onload = function () { widgetLoaded = true; resolve(); };
-                s.onerror = function () { reject(new Error('telegram-widget load failed')); };
-                document.head.appendChild(s);
-            });
-            return widgetLoading;
-        }
-        tgButtonEl.addEventListener('click', function (ev) {
-            ev.preventDefault();
-            clearError();
-            ensureTgWidget().then(function () {
-                if (!window.Telegram || !window.Telegram.Login ||
-                    typeof window.Telegram.Login.auth !== 'function') {
-                    showError('Telegram login is unavailable right now.');
-                    return;
-                }
-                window.Telegram.Login.auth({
-                    bot_id: parseInt(tgBotId, 10),
-                    request_access: 'write'
-                }, function (authData) {
-                    if (!authData) return; // user cancelled — silent
-                    var params = new URLSearchParams();
-                    Object.keys(authData).forEach(function (key) {
-                        params.append(key, String(authData[key]));
-                    });
-                    params.append('return', window.location.pathname || '/');
-                    // tgAuthEndpoint already carries the proxy's plugin/endpoint
-                    // query string, so append auth params with & rather than ?.
-                    var sep = tgAuthEndpoint.indexOf('?') === -1 ? '?' : '&';
-                    window.location.href = tgAuthEndpoint + sep + params.toString();
-                });
-            }).catch(function () {
-                showError('Could not load Telegram login. Check your network connection.');
-            });
-        });
-    }
 })();

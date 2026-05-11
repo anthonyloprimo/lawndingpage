@@ -487,12 +487,12 @@ $isLinksHidden = !$showLinks;
     <title><?php echo htmlspecialchars($headerData['title'] ?? ''); ?></title>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-    <script src="<?php echo htmlspecialchars(lawnding_asset_url('res/scr/no-zoom.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
+    <script src="<?php echo htmlspecialchars(lawnding_versioned_local_asset_url('res/scr/no-zoom.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
     
     <link rel="icon" href="<?php echo htmlspecialchars($faviconHref, ENT_QUOTES, 'UTF-8'); ?>"/>
     <link rel="stylesheet" href="<?php echo htmlspecialchars(lawnding_versioned_local_asset_url('res/style.css'), ENT_QUOTES, 'UTF-8'); ?>">
 
-    <script src="<?php echo htmlspecialchars(lawnding_asset_url('res/scr/jquery-3.7.1.min.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
+    <script src="<?php echo htmlspecialchars(lawnding_versioned_local_asset_url('res/scr/jquery-3.7.1.min.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
     <?php lawnding_run_hook('head_assets'); ?>
     <noscript>
         <style>
@@ -626,29 +626,7 @@ $isLinksHidden = !$showLinks;
             <?php echo lawnding_footer_platform_html(); ?><span class="footerSep"> · </span>Background image by <span class="authorPlain"></span><a class="authorLink hidden" href="" rel="noopener" target="_blank"><span class="authorName"></span></a>.
         </div>
     </nav>
-    <?php
-    if (!class_exists('Parsedown')) {
-        require_once lawnding_public_path('res/scr/Parsedown.php');
-    }
-    $changelogMdPath = lawnding_config('root_dir', dirname(dirname(__DIR__))) . '/CHANGELOG.md';
-    $changelogHtml = '';
-    if (is_readable($changelogMdPath)) {
-        $clParser = new Parsedown();
-        $changelogHtml = $clParser->text((string) file_get_contents($changelogMdPath));
-    }
-    ?>
-    <div class="changelogModal" id="changelogModal" role="dialog" aria-modal="true" aria-label="Changelog" hidden>
-        <div class="changelogModalBackdrop"></div>
-        <div class="changelogModalInner">
-            <div class="changelogModalHeader">
-                <span>Changelog</span>
-                <button class="changelogModalClose" type="button" aria-label="Close changelog">✕</button>
-            </div>
-            <div class="changelogModalBody changelogContent">
-                <?php echo $changelogHtml; ?>
-            </div>
-        </div>
-    </div>
+    <?php lawnding_render_changelog_modal(); ?>
     <?php
     // Login modal — rendered only for visitors who aren't authenticated by
     // either bcrypt or Telegram. The data-* attributes carry the runtime
@@ -661,17 +639,12 @@ $isLinksHidden = !$showLinks;
     <div id="lpLoginModal" class="lpLoginModal" role="dialog" aria-modal="true"
          aria-labelledby="lpLoginModalTitle" hidden
          data-csrf-token="<?php echo htmlspecialchars((string) ($_SESSION['csrf_token'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>"
-         data-tg-bot-username="<?php echo htmlspecialchars($tgBotUsername, ENT_QUOTES, 'UTF-8'); ?>"
-         data-tg-bot-id="<?php echo htmlspecialchars($tgBotId, ENT_QUOTES, 'UTF-8'); ?>"
-         data-login-endpoint="<?php echo htmlspecialchars($lpLoginEndpoint, ENT_QUOTES, 'UTF-8'); ?>"
-         data-tg-auth-endpoint="<?php echo htmlspecialchars($lpTgAuthEndpoint, ENT_QUOTES, 'UTF-8'); ?>">
+         data-login-endpoint="<?php echo htmlspecialchars($lpLoginEndpoint, ENT_QUOTES, 'UTF-8'); ?>">
         <div class="lpLoginModal__backdrop" data-lp-login-dismiss aria-hidden="true"></div>
-        <div class="lpLoginModal__dialog" role="document">
-            <header class="lpLoginModal__header">
-                <h2 id="lpLoginModalTitle" class="lpLoginModal__title">Sign in</h2>
-                <button type="button" class="lpLoginModal__close"
-                        data-lp-login-dismiss aria-label="Close sign-in dialog">×</button>
-            </header>
+        <div class="userModal glassConcave lpModalNoDrag" role="document">
+            <button type="button" class="lpModalCloseX"
+                    data-lp-login-dismiss aria-label="Close sign-in dialog">×</button>
+            <h4 id="lpLoginModalTitle">Sign in</h4>
             <form class="lpLoginModal__form" novalidate data-lp-login-form>
                 <label class="lpLoginModal__field">
                     <span class="lpLoginModal__fieldLabel">Username</span>
@@ -696,6 +669,8 @@ $isLinksHidden = !$showLinks;
             </div>
             <button type="button" class="lpLoginModal__telegram"
                     data-lp-login-telegram
+                    data-tg-bot-id="<?php echo htmlspecialchars($tgBotId, ENT_QUOTES, 'UTF-8'); ?>"
+                    data-tg-auth-endpoint="<?php echo htmlspecialchars($lpTgAuthEndpoint, ENT_QUOTES, 'UTF-8'); ?>"
                     <?php echo $tgBotId === '' ? 'disabled aria-disabled="true"' : ''; ?>>
                 <svg aria-hidden="true" focusable="false" width="20" height="20" viewBox="0 0 24 24">
                     <path fill="currentColor" d="M9.78 18.65l.28-4.23 7.68-6.92c.34-.31-.07-.46-.52-.19L7.74 13.3 3.64 12c-.88-.25-.89-.86.2-1.3l15.97-6.16c.73-.33 1.43.18 1.15 1.3l-2.72 12.81c-.19.91-.74 1.13-1.5.71l-4.14-3.06-1.99 1.93c-.23.23-.42.42-.83.42z"/>
@@ -705,12 +680,15 @@ $isLinksHidden = !$showLinks;
         </div>
     </div>
     <?php endif; ?>
-    <script src="<?php echo htmlspecialchars(lawnding_asset_url('res/scr/public-data.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
-    <script src="<?php echo htmlspecialchars(lawnding_asset_url('res/scr/shared-utils.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
-    <script src="<?php echo htmlspecialchars(lawnding_asset_url('res/scr/notice-core.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
-    <script src="<?php echo htmlspecialchars(lawnding_asset_url('res/scr/app.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
+    <script src="<?php echo htmlspecialchars(lawnding_versioned_local_asset_url('res/scr/public-data.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
+    <script src="<?php echo htmlspecialchars(lawnding_versioned_local_asset_url('res/scr/shared-utils.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
+    <script src="<?php echo htmlspecialchars(lawnding_versioned_local_asset_url('res/scr/notice-core.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
+    <script src="<?php echo htmlspecialchars(lawnding_versioned_local_asset_url('res/scr/modal-core.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
+    <script src="<?php echo htmlspecialchars(lawnding_versioned_local_asset_url('res/scr/public-modals.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
+    <script src="<?php echo htmlspecialchars(lawnding_versioned_local_asset_url('res/scr/app.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
     <?php if ($lpShowLoginModal): ?>
     <script src="<?php echo htmlspecialchars(lawnding_versioned_local_asset_url('res/scr/login-modal.js'), ENT_QUOTES, 'UTF-8'); ?>" defer></script>
+    <script src="<?php echo htmlspecialchars(lawnding_versioned_local_asset_url('res/scr/tg-login.js'), ENT_QUOTES, 'UTF-8'); ?>" defer></script>
     <?php endif; ?>
 </body>
 </html>

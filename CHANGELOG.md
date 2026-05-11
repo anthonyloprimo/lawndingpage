@@ -1,6 +1,3 @@
-### Changelog
-
-
 #### v1.21.0
 - Admin pop-up dialogs are now movable. Grab any modal by its title bar and drag it out of the way to peek at the page underneath; the title bar always stays at least partly on-screen so a modal can never get lost. Closing and reopening a modal returns it to the centered position.
 

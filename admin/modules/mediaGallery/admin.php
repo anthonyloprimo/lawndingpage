@@ -140,9 +140,14 @@ $canChangeMedia  = lawnding_resolve_pane_setting($paneSettings, 'mediaGallery', 
     <textarea class="mediaGalleryChanges" name="pane[<?php echo htmlspecialchars($paneId); ?>][mediaChanges]" aria-label="<?php echo htmlspecialchars($paneName); ?> media changes" hidden></textarea>
     <script type="application/json" class="mediaGalleryData"><?php echo $itemsJson; ?></script>
 
-    <div class="userModalOverlay mediaGalleryModal" id="mediaGalleryModal-<?php echo htmlspecialchars($paneId); ?>" aria-hidden="true">
-        <div class="userModal glassConcave">
-            <h4 class="userModalHandle">Media Details</h4>
+    <?php
+    if (function_exists('lawnding_modal_open') && function_exists('lawnding_modal_close')) {
+        lawnding_modal_open(
+            'mediaGalleryModal-' . $paneId,
+            'Media Details',
+            ['extra_class' => 'mediaGalleryModal']
+        );
+    ?>
             <div class="mediaGalleryModalBody">
                 <div class="mediaGalleryModalPreview">
                     <div class="mediaGalleryModalImage" role="img" aria-label="Media preview, click to set focal point" tabindex="0">
@@ -188,8 +193,9 @@ $canChangeMedia  = lawnding_resolve_pane_setting($paneSettings, 'mediaGallery', 
                     </div>
                 </div>
             </div>
-            <button class="userModalClose" type="button" aria-label="Close">×</button>
-        </div>
-    </div>
+    <?php
+        lawnding_modal_close();
+    }
+    ?>
 
 </div>

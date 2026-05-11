@@ -723,7 +723,7 @@ function renderEventLists() {
 
         function closeDayModal() {
             closeCalendarMenus();
-            $dayOverlay.addClass('hidden');
+            if (window.closePublicModal) { window.closePublicModal($dayOverlay); }
         }
 
         function showCalendarToast() {
@@ -764,7 +764,7 @@ function renderEventLists() {
                 renderDayEventSection('Past Events', completed)
             );
             applyEventItemCategoryColors($dayBody);
-            $dayOverlay.removeClass('hidden');
+            if (window.openPublicModal) { window.openPublicModal($dayOverlay); }
         }
 
         function openModal(event, allowCalendar, paneId) {
@@ -816,12 +816,12 @@ function renderEventLists() {
                 $calendarToggle.attr('data-event-id', '');
             }
             closeCalendarMenus();
-            $overlay.removeClass('hidden');
+            if (window.openPublicModal) { window.openPublicModal($overlay); }
         }
 
         function closeModal() {
             closeCalendarMenus();
-            $overlay.addClass('hidden');
+            if (window.closePublicModal) { window.closePublicModal($overlay); }
         }
 
         $pane.off('click.eventModal').on('click.eventModal', '.eventItem', function() {

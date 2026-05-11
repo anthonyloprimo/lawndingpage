@@ -358,6 +358,17 @@ if ($isReadOnlyUser) {
     $forcePasswordChange = false;
 }
 
+// Login surface needs the Telegram widget origins; admin UI proper stays strict.
+$tgBotId = isset($tgConfig['bot_token']) && is_string($tgConfig['bot_token'])
+    ? lawnding_tg_bot_id_from_token($tgConfig['bot_token'])
+    : '';
+$tgAdminAuthEndpoint = function_exists('lawnding_asset_url')
+    ? lawnding_asset_url('res/scr/plugin-endpoint.php?plugin=telegram&endpoint=auth')
+    : '/res/scr/plugin-endpoint.php?plugin=telegram&endpoint=auth';
+if (!$identity['isAuthenticated'] && $tgBotId !== '') {
+    header("Content-Security-Policy: default-src 'self'; script-src 'self' https://telegram.org; style-src 'self'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-src https://telegram.org https://oauth.telegram.org; frame-ancestors 'none'");
+}
+
 // Promote a Telegram-derived session to a "logged-in admin" identity by
 // persisting the tg:<id> sentinel into $_SESSION['auth_user']. Mirrors the
 // session-fixation defense bcrypt login does at line ~273 below — fires once
@@ -933,84 +944,110 @@ if ($authRecord && !$forcePasswordChange) {
                 </div>
             <?php endif; ?>
 
-            <div class="pane glassConvex">
-                <h3>ADMIN PANEL</h3>
-            <!-- Status messages for the login screen.
-                 role="alert" / role="status" so screen readers announce the
-                 message even though it appears on a fresh page render. -->
-            <?php if (count($errors) > 0): ?>
-                <div class="message error" role="alert">
-                    <?php echo htmlspecialchars(implode(' ', $errors)); ?>
-                </div>
-            <?php elseif ($success): ?>
-                <div class="message success" role="status">
-                    <?php echo htmlspecialchars($success); ?>
-                </div>
-            <?php elseif ($passwordChangeSuccess): ?>
-                <div class="message success" role="status">
-                    <?php echo htmlspecialchars($passwordChangeSuccess); ?>
-                </div>
-            <?php elseif (!empty($usersWarnings)): ?>
-                <div class="message error" role="alert">
-                    <?php echo htmlspecialchars(implode(' ', $usersWarnings)); ?>
-                </div>
-            <?php endif; ?>
+            <?php
+                // Title + submit text vary per form; everything else (shell,
+                // field/input chrome, error block) is shared with the public
+                // login modal via the .userModal + .lpLoginModal__* classes.
+                if ($forcePasswordChange) {
+                    $loginPanelTitle = 'Update password';
+                } elseif (!$hasUsers) {
+                    $loginPanelTitle = 'Create admin account';
+                } else {
+                    $loginPanelTitle = 'Sign in';
+                }
+            ?>
+            <div class="userModal glassConcave lpModalNoDrag adminLoginPanel">
+                <h4><?php echo htmlspecialchars($loginPanelTitle); ?></h4>
+                <!-- role="alert" / role="status" so screen readers announce the
+                     message even though it appears on a fresh page render. -->
+                <?php if (count($errors) > 0): ?>
+                    <div class="message error" role="alert">
+                        <?php echo htmlspecialchars(implode(' ', $errors)); ?>
+                    </div>
+                <?php elseif ($success): ?>
+                    <div class="message success" role="status">
+                        <?php echo htmlspecialchars($success); ?>
+                    </div>
+                <?php elseif ($passwordChangeSuccess): ?>
+                    <div class="message success" role="status">
+                        <?php echo htmlspecialchars($passwordChangeSuccess); ?>
+                    </div>
+                <?php elseif (!empty($usersWarnings)): ?>
+                    <div class="message error" role="alert">
+                        <?php echo htmlspecialchars(implode(' ', $usersWarnings)); ?>
+                    </div>
+                <?php endif; ?>
 
-            <!-- The form changes based on first-run, forced reset, or normal login. -->
-            <?php if ($forcePasswordChange): ?>
-                <form class="loginForm" method="post" action="">
-                    <input type="hidden" name="action" value="change_password">
-                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
-                    <label class="loginField">
-                        New Password
-                        <input class="loginInput" type="password" name="new_password" autocomplete="new-password" required>
-                    </label>
-                    <label class="loginField">
-                        Confirm Password
-                        <input class="loginInput" type="password" name="confirm_password" autocomplete="new-password" required>
-                    </label>
-                    <button class="loginButton" type="submit">Update Password</button>
-                </form>
-                <?php elseif (!$hasUsers): ?>
-                <form class="loginForm" method="post" action="">
-                    <input type="hidden" name="action" value="create_admin">
+                <?php if ($forcePasswordChange): ?>
+                    <form class="lpLoginModal__form" method="post" action="">
+                        <input type="hidden" name="action" value="change_password">
                         <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
-                        <label class="loginField">
-                            Username
-                            <input class="loginInput" type="text" name="username" autocomplete="username" required>
+                        <label class="lpLoginModal__field">
+                            <span class="lpLoginModal__fieldLabel">New password</span>
+                            <input class="lpLoginModal__input" type="password" name="new_password" autocomplete="new-password" required>
                         </label>
-                        <label class="loginField">
-                            Password
-                            <input class="loginInput" type="password" name="password" autocomplete="new-password" required>
+                        <label class="lpLoginModal__field">
+                            <span class="lpLoginModal__fieldLabel">Confirm password</span>
+                            <input class="lpLoginModal__input" type="password" name="confirm_password" autocomplete="new-password" required>
                         </label>
-                        <label class="loginField">
-                            Confirm Password
-                            <input class="loginInput" type="password" name="confirm_password" autocomplete="new-password" required>
+                        <button class="lpLoginModal__submit" type="submit">Update password</button>
+                    </form>
+                <?php elseif (!$hasUsers): ?>
+                    <form class="lpLoginModal__form" method="post" action="">
+                        <input type="hidden" name="action" value="create_admin">
+                        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+                        <label class="lpLoginModal__field">
+                            <span class="lpLoginModal__fieldLabel">Username</span>
+                            <input class="lpLoginModal__input" type="text" name="username" autocomplete="username" required>
                         </label>
-                        <button class="loginButton" type="submit">Create Admin</button>
+                        <label class="lpLoginModal__field">
+                            <span class="lpLoginModal__fieldLabel">Password</span>
+                            <input class="lpLoginModal__input" type="password" name="password" autocomplete="new-password" required>
+                        </label>
+                        <label class="lpLoginModal__field">
+                            <span class="lpLoginModal__fieldLabel">Confirm password</span>
+                            <input class="lpLoginModal__input" type="password" name="confirm_password" autocomplete="new-password" required>
+                        </label>
+                        <button class="lpLoginModal__submit" type="submit">Create admin account</button>
                     </form>
                 <?php else: ?>
-                    <form class="loginForm" method="post" action="">
+                    <form class="lpLoginModal__form" method="post" action="">
                         <input type="hidden" name="action" value="login">
                         <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
-                        <label class="loginField">
-                            Username
-                            <input class="loginInput" type="text" name="username" autocomplete="username" required>
+                        <label class="lpLoginModal__field">
+                            <span class="lpLoginModal__fieldLabel">Username</span>
+                            <input class="lpLoginModal__input" type="text" name="username" autocomplete="username" required>
                         </label>
-                        <label class="loginField">
-                            Password
-                            <input class="loginInput" type="password" name="password" autocomplete="current-password" required>
+                        <label class="lpLoginModal__field">
+                            <span class="lpLoginModal__fieldLabel">Password</span>
+                            <input class="lpLoginModal__input" type="password" name="password" autocomplete="current-password" required>
                         </label>
-                        <label class="loginField loginRemember">
+                        <label class="lpLoginModal__remember">
                             <input type="checkbox" name="remember" value="1">
                             <span>Stay signed in</span>
                         </label>
-                        <button class="loginButton" type="submit">Login</button>
+                        <button class="lpLoginModal__submit" type="submit">Sign in</button>
                     </form>
+                    <output role="alert" aria-live="polite"
+                            class="lpLoginModal__error" data-lp-login-error hidden></output>
+                    <div class="lpLoginModal__divider" aria-hidden="true"><span>or</span></div>
+                    <button type="button" class="lpLoginModal__telegram"
+                            data-lp-login-telegram
+                            data-tg-bot-id="<?php echo htmlspecialchars($tgBotId, ENT_QUOTES, 'UTF-8'); ?>"
+                            data-tg-auth-endpoint="<?php echo htmlspecialchars($tgAdminAuthEndpoint, ENT_QUOTES, 'UTF-8'); ?>"
+                            <?php echo $tgBotId === '' ? 'disabled aria-disabled="true"' : ''; ?>>
+                        <svg aria-hidden="true" focusable="false" width="20" height="20" viewBox="0 0 24 24">
+                            <path fill="currentColor" d="M9.78 18.65l.28-4.23 7.68-6.92c.34-.31-.07-.46-.52-.19L7.74 13.3 3.64 12c-.88-.25-.89-.86.2-1.3l15.97-6.16c.73-.33 1.43.18 1.15 1.3l-2.72 12.81c-.19.91-.74 1.13-1.5.71l-4.14-3.06-1.99 1.93c-.23.23-.42.42-.83.42z"/>
+                        </svg>
+                        <span><?php echo $tgBotId === '' ? 'Telegram login unavailable' : 'Login with Telegram'; ?></span>
+                    </button>
                 <?php endif; ?>
             </div>
         </div>
     </div>
     <div class="footer adminFooter">LawndingPage Admin Panel</div>
+    <?php if (!$identity['isAuthenticated'] && $tgBotId !== ''): ?>
+    <script src="<?php echo htmlspecialchars(lawnding_versioned_local_asset_url('res/scr/tg-login.js'), ENT_QUOTES, 'UTF-8'); ?>" defer></script>
+    <?php endif; ?>
 </body>
 </html>

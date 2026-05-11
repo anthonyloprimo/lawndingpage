@@ -172,12 +172,10 @@ $eventsJson = json_encode([
     <script type="application/json" class="eventListData"><?php echo $eventsJson; ?></script>
 </div>
 
-<div class="eventModalOverlay hidden" id="eventModalOverlay">
-    <div class="eventModal" role="dialog" aria-modal="true" aria-labelledby="eventModalTitle">
-        <div class="eventModalHeader">
-            <div class="eventModalTitle" id="eventModalTitle"></div>
-            <button class="eventModalClose" type="button" id="eventModalClose">Close</button>
-        </div>
+<div class="eventModalOverlay" id="eventModalOverlay" hidden>
+    <div class="userModal glassConcave eventModal" role="dialog" aria-modal="true" aria-labelledby="eventModalTitle">
+        <h4 id="eventModalTitle"></h4>
+        <button class="userModalClose lpModalCloseX" type="button" id="eventModalClose" aria-label="Close">×</button>
         <div class="eventModalMeta" id="eventModalMeta"></div>
         <div class="eventModalMeta" id="eventModalAddress"></div>
         <div class="eventModalMeta eventModalHost" id="eventModalHost" hidden></div>
@@ -207,12 +205,10 @@ $eventsJson = json_encode([
     </div>
 </div>
 
-<div class="eventModalOverlay hidden" id="eventCalendarDayModalOverlay">
-    <div class="eventModal eventCalendarDayModal" role="dialog" aria-modal="true" aria-labelledby="eventCalendarDayModalTitle">
-        <div class="eventModalHeader">
-            <div class="eventModalTitle" id="eventCalendarDayModalTitle"></div>
-            <button class="eventModalClose" type="button" id="eventCalendarDayModalClose">Close</button>
-        </div>
+<div class="eventModalOverlay" id="eventCalendarDayModalOverlay" hidden>
+    <div class="userModal glassConcave eventModal eventCalendarDayModal" role="dialog" aria-modal="true" aria-labelledby="eventCalendarDayModalTitle">
+        <h4 id="eventCalendarDayModalTitle"></h4>
+        <button class="userModalClose lpModalCloseX" type="button" id="eventCalendarDayModalClose" aria-label="Close">×</button>
         <div class="eventCalendarDayModalBody" id="eventCalendarDayModalBody"></div>
     </div>
 </div>

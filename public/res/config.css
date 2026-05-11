@@ -838,6 +838,9 @@ button:disabled {
     display: flex;
     flex-direction: column;
     gap: 0.75rem;
+    position: relative;
+    --lp-modal-corner: 8px;
+    --lp-modal-handle-margin: -1rem -1rem 0;
 }
 
 .userModalActions {
@@ -849,19 +852,85 @@ button:disabled {
 
 /* Movable modals: the title bar is the drag grip. config.js binds pointer
    events to .userModalHandle and applies translate() to the dialog. */
-.userModalHandle {
+/* Universal title slot — uniform 40px band on every modal title.
+   Typography pinned so the heading level (h2 vs h4) can't shift it. */
+.userModal > h1,
+.userModal > h2,
+.userModal > h3,
+.userModal > h4,
+.userModal > h5,
+.userModal > h6 {
+    box-sizing: border-box;
+    height: 40px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    margin: var(--lp-modal-handle-margin, -1rem -1rem 0);
+    padding: 0 60px 0 1rem;
+    font-size: 1rem;
+    font-weight: 700;
+    border-top-left-radius: var(--lp-modal-corner, 8px);
+    border-top-right-radius: var(--lp-modal-corner, 8px);
+}
+
+.userModalHandle,
+.lpModalHandle {
     cursor: grab;
     user-select: none;
-    /* Prevent native pan/zoom on touch so pointermove fires for drag. */
     touch-action: none;
 }
 
-.userModal.isDragging .userModalHandle {
+.isDragging .userModalHandle,
+.isDragging .lpModalHandle {
     cursor: grabbing;
 }
 
-.userModal.isDragging {
+.isDragging {
     user-select: none;
+}
+
+/* Tint overlay — only when drag binds (factory-added .lpModalHandle).
+   Convention: tinted title bar = draggable. README has the full rule. */
+.lpModalHandle {
+    background: rgba(255, 255, 255, 0.06);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* Project convention (admin/modules/README.md "UI convention"):
+   every modal in the project carries this corner-flush × dismiss
+   in its top-right, draggable or not. Each dialog sets
+   --lp-modal-corner to its own border-radius so the button's
+   top-right curve follows the modal's outer shape.
+   Duplicated in style.css for the public surface — keep in sync. */
+.lpModalCloseX {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 50px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.4rem;
+    font-weight: 700;
+    line-height: 1;
+    padding: 0;
+    border: none;
+    background: #661A1A;
+    color: #FFCCCC;
+    border-top-right-radius: var(--lp-modal-corner, 8px);
+    cursor: pointer;
+    opacity: 1;
+    transition: background-color 100ms ease, color 100ms ease;
+    z-index: 10;
+}
+.lpModalCloseX:hover {
+    background: #7A2222;
+    color: #FFFFFF;
+}
+.lpModalCloseX:focus-visible {
+    outline: 2px solid #FF9A9A;
+    outline-offset: -2px;
 }
 
 .permissionsList {

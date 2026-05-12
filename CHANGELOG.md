@@ -1,3 +1,8 @@
+#### v1.22.0
+- Reworked how Event List panes are edited in the admin panel. The vertical stack of always-expanded event forms is gone — each pane now shows a calendar grid that mirrors the public-facing one. Click the "+" on any day to add a new event there with the date pre-filled; click an existing event bar to edit it (or remove it). Scraped events open editable in the same modal — saving a change marks the event as locally overridden so the next feed refresh won't undo your edits, and a Resume sync button puts the event back under the scraper's control. On phone-width screens the calendar collapses to a flat date-grouped list with the same click-to-edit modal.
+
+-----
+
 #### v1.21.0
 - Admin pop-up dialogs are now movable. Grab any modal by its title bar and drag it out of the way to peek at the page underneath; the title bar always stays at least partly on-screen so a modal can never get lost. Closing and reopening a modal returns it to the centered position.
 

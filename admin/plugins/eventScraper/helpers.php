@@ -514,6 +514,13 @@ function event_scraper_build_ingest_changes(
         }
         $record = event_scraper_to_eventlist_record($event, $adapterId, $defaultCategoryId, $keywordBadgesMap);
         if (isset($existingByUid[$uid])) {
+            // lockedLocally=true means admin has overridden this record; preserve
+            // their edits by skipping the update emit. Removal-from-allowlist
+            // still triggers a delete in the loop below — admin's explicit
+            // remove-from-feed-config intent wins over the local lock.
+            if (!empty($existingByUid[$uid]['lockedLocally'])) {
+                continue;
+            }
             $record['id'] = (string) ($existingByUid[$uid]['id'] ?? '');
             $updates[] = $record;
         } else {

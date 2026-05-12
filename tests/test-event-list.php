@@ -63,10 +63,13 @@ test_assert(event_list_event_is_valid(array_merge($validEvent, [
         'endDate' => '2026-06-15', 'endTime' => ''
     ])) === false,
     'event_is_valid: endDate without endTime -> false');
+// Single-day events with a time range: endDate normalized to '' on save,
+// endTime carries the end-of-day. Was rejected pre-multi-day-toggle removal;
+// now accepted since the toggle no longer gates end-date visibility.
 test_assert(event_list_event_is_valid(array_merge($validEvent, [
         'endDate' => '', 'endTime' => '16:00'
-    ])) === false,
-    'event_is_valid: endTime without endDate -> false');
+    ])) === true,
+    'event_is_valid: endTime without endDate (single-day timed) -> true');
 test_assert(event_list_event_is_valid(array_merge($validEvent, [
         'description' => '[sfw]unclosed'
     ])) === false,
@@ -184,6 +187,31 @@ test_assert(count($result['events']) === 2
         && $result['events'][0]['name'] === 'Updated'
         && $result['events'][1]['name'] === 'Fresh',
     'apply_events: mixed delete + update + create applied in one pass');
+
+// ---- lockedLocally round-trip: scraped-event admin override ----
+
+// Update payload carries lockedLocally:true; merge preserves it on the record.
+$result = event_list_apply_events($baseExisting, [
+    'changes' => ['update' => [['id' => '5', 'name' => 'Locked', 'lockedLocally' => true]]],
+]);
+test_assert(!empty($result['events'][0]['lockedLocally']),
+    'apply_events: update lands lockedLocally on the existing record');
+
+// Subsequent update without lockedLocally leaves the existing true alone
+// (array_merge preserves missing keys; the resume-sync path posts false explicitly).
+$lockedExisting = ['events' => [array_merge($validEvent, ['id' => '5', 'name' => 'Locked', 'lockedLocally' => true])]];
+$result = event_list_apply_events($lockedExisting, [
+    'changes' => ['update' => [['id' => '5', 'name' => 'Renamed']]],
+]);
+test_assert(!empty($result['events'][0]['lockedLocally']),
+    'apply_events: update without lockedLocally preserves prior true');
+
+// Resume-sync: explicit false in payload clears the flag.
+$result = event_list_apply_events($lockedExisting, [
+    'changes' => ['update' => [['id' => '5', 'name' => 'Locked', 'lockedLocally' => false]]],
+]);
+test_assert(isset($result['events'][0]['lockedLocally']) && $result['events'][0]['lockedLocally'] === false,
+    'apply_events: explicit lockedLocally:false clears the lock');
 
 // ---- ics_filename: download filename from event name ----
 

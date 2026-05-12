@@ -395,3 +395,100 @@ $saturated['allowlist']['n2'] = ['addedAt' => '2026-05-01T00:00:00Z'];
 [$out, $added] = event_scraper_apply_auto_publish($saturated, ['n1', 'n2'], false, $now);
 test_assert($added === [], 'no new additions returns empty');
 test_assert($out === $saturated, 'config untouched when nothing to add');
+
+// ------------------------------------------------------------------------
+// event_scraper_build_ingest_changes — lockedLocally semantics
+// ------------------------------------------------------------------------
+
+// Helpers for compact catalogue/existing records.
+$catalogueEvent = function (string $uid, string $name): array {
+    return [
+        'sourceUid' => $uid,
+        'name'      => $name,
+        'startDate' => '2026-06-15',
+        'endDate'   => '2026-06-15',
+        'allDay'    => true,
+        'address'   => '123 Main St',
+        'description' => 'Body',
+        'url'       => 'https://example.org/e/' . $uid,
+    ];
+};
+$existingEvent = function (string $uid, string $name, array $extra = []): array {
+    return array_merge([
+        'id'            => 'local-' . $uid,
+        'name'          => $name,
+        'startDate'     => '2026-06-15',
+        'endDate'       => '2026-06-15',
+        'allDay'        => true,
+        'address'       => '123 Main St',
+        'description'   => 'Body',
+        'source'        => 'eventScraper',
+        'sourceAdapter' => 'testfeed',
+        'sourceUid'     => $uid,
+    ], $extra);
+};
+
+// Baseline: unlocked existing scraped event with drift -> emits update.
+$changes = event_scraper_build_ingest_changes(
+    [$catalogueEvent('u1', 'Catalogue Name')],
+    ['u1'],
+    'testfeed',
+    [$existingEvent('u1', 'Old Local Name')],
+    '',
+    []
+);
+test_assert(count($changes['update']) === 1 && $changes['update'][0]['name'] === 'Catalogue Name',
+    'build_ingest_changes: unlocked drift emits update with catalogue values');
+test_assert(!$changes['create'] && !$changes['delete'],
+    'build_ingest_changes: unlocked drift produces no create/delete');
+
+// Locked existing scraped event with drift -> NO update (admin override holds).
+$changes = event_scraper_build_ingest_changes(
+    [$catalogueEvent('u1', 'Catalogue Name')],
+    ['u1'],
+    'testfeed',
+    [$existingEvent('u1', 'Admin-Edited Name', ['lockedLocally' => true])],
+    '',
+    []
+);
+test_assert(!$changes['update'],
+    'build_ingest_changes: locked event suppresses the update emit');
+test_assert(!$changes['create'] && !$changes['delete'],
+    'build_ingest_changes: locked-in-catalogue produces no create/delete');
+
+// Locked event removed from allowlist -> delete still fires
+// (admin's explicit unsubscribe wins over the local lock).
+$changes = event_scraper_build_ingest_changes(
+    [$catalogueEvent('u1', 'Catalogue Name')],
+    [], // empty allowlist = unsubscribed
+    'testfeed',
+    [$existingEvent('u1', 'Admin-Edited Name', ['lockedLocally' => true])],
+    '',
+    []
+);
+test_assert($changes['delete'] === ['local-u1'],
+    'build_ingest_changes: locked event still deletes when removed from allowlist');
+
+// Locked event missing from catalogue (upstream removed) -> delete fires.
+$changes = event_scraper_build_ingest_changes(
+    [], // empty catalogue = removed at source
+    ['u1'],
+    'testfeed',
+    [$existingEvent('u1', 'Admin-Edited Name', ['lockedLocally' => true])],
+    '',
+    []
+);
+test_assert($changes['delete'] === ['local-u1'],
+    'build_ingest_changes: locked event still deletes when missing from catalogue');
+
+// Lock flag missing (false-y default) behaves identically to unlocked.
+$changes = event_scraper_build_ingest_changes(
+    [$catalogueEvent('u1', 'Catalogue Name')],
+    ['u1'],
+    'testfeed',
+    [$existingEvent('u1', 'Old Local Name', ['lockedLocally' => false])],
+    '',
+    []
+);
+test_assert(count($changes['update']) === 1,
+    'build_ingest_changes: lockedLocally:false treated as unlocked');

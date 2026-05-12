@@ -33,6 +33,35 @@ function renderEventLists() {
         const nowTime = now.getTime();
         let calendarMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
+        // Construct the absolute moment for dateStr+timeStr interpreted in
+        // ianaName. Used so events display in the viewer's local zone
+        // regardless of where the admin authored them.
+        function makeDateInZone(dateStr, timeStr, ianaName) {
+            if (!dateStr || !timeStr || !ianaName) { return null; }
+            const tentative = new Date(`${dateStr}T${timeStr}:00Z`);
+            if (isNaN(tentative.getTime())) { return null; }
+            try {
+                const fmt = new Intl.DateTimeFormat('en-US', {
+                    timeZone: ianaName,
+                    year: 'numeric', month: '2-digit', day: '2-digit',
+                    hour: '2-digit', minute: '2-digit', second: '2-digit',
+                    hourCycle: 'h23'
+                });
+                const parts = fmt.formatToParts(tentative);
+                const get = (type) => {
+                    const p = parts.find((x) => x.type === type);
+                    return p ? p.value : '';
+                };
+                const inZoneIso = `${get('year')}-${get('month')}-${get('day')}T${get('hour')}:${get('minute')}:${get('second')}Z`;
+                const inZoneMs = new Date(inZoneIso).getTime();
+                if (isNaN(inZoneMs)) { return null; }
+                const offset = inZoneMs - tentative.getTime();
+                return new Date(tentative.getTime() - offset);
+            } catch (err) {
+                return null;
+            }
+        }
+
         function parseEventDate(event) {
             const date = event.startDate || event.date || '';
             if (!date) { return null; }
@@ -42,6 +71,11 @@ function renderEventLists() {
             }
             const start = event.startTime || '';
             if (!start) { return null; }
+            const tz = event.timeZone || '';
+            if (tz) {
+                const zoned = makeDateInZone(date, start, tz);
+                if (zoned) { return zoned; }
+            }
             const parsed = new Date(`${date}T${start}`);
             return isNaN(parsed.getTime()) ? null : parsed;
         }
@@ -56,8 +90,12 @@ function renderEventLists() {
             }
             if (event.endTime) {
                 const endDateValue = event.endDate || event.startDate || event.date || '';
-                const iso = `${endDateValue}T${event.endTime}`;
-                const endDate = new Date(iso);
+                const tz = event.timeZone || '';
+                if (tz) {
+                    const zoned = makeDateInZone(endDateValue, event.endTime, tz);
+                    if (zoned) { return zoned; }
+                }
+                const endDate = new Date(`${endDateValue}T${event.endTime}`);
                 if (!isNaN(endDate.getTime())) { return endDate; }
             }
             return new Date(startDate.getTime() + 60 * 60 * 1000);

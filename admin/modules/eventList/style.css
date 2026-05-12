@@ -939,3 +939,420 @@
     background: var(--bar-accent);
     flex-shrink: 0;
 }
+
+/* =========================================================================
+ * ADMIN CALENDAR-GRID EVENT ENTRY (v1.22.0+)
+ * Replaces the form-card-per-event admin UI with a calendar grid.
+ * Click a day's "+" to add an event; click a bar to edit one.
+ * Modal is shared across all panes; reparented to <body> by admin.js.
+ * ========================================================================= */
+
+.eventListAdminCalendarPane .eventListAdminCalendar {
+    margin-top: 12px;
+}
+
+/* Month nav above the table — admin-distinct class so it doesn't collide
+   with public's .eventCalendarNavRow th rules (public renders nav inside
+   the table thead; admin renders it as a div above the table). */
+.eventListAdminCalendarNav {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    margin-bottom: 8px;
+    border-radius: 10px;
+    background: linear-gradient(180deg, #FFFFFF26, #70acd62a 55%, #00000022);
+    border: 1px solid #FFFFFF26;
+    box-shadow: inset 0 1px 0 #FFFFFF44;
+    min-height: 46px;
+}
+.eventListAdminCalendarMonthText {
+    flex: 1;
+    text-align: center;
+    font-size: 17px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    text-shadow: 0 1px 2px #000000AA;
+}
+.eventListAdminCalendarNavButton {
+    min-width: 36px;
+    min-height: 32px;
+    padding: 0 12px;
+    border-radius: 8px;
+    border: 1px solid #FFFFFF44;
+    background: linear-gradient(180deg, #FFFFFF33, #00000033);
+    color: inherit;
+    cursor: pointer;
+    box-shadow: inset 0 1px 0 #FFFFFF55, 0 2px 7px #00000033;
+    font-size: 18px;
+    line-height: 1;
+}
+.eventListAdminCalendarNavButton:hover,
+.eventListAdminCalendarNavButton:focus-visible {
+    outline: none;
+    background: linear-gradient(180deg, #DDF6FF55, #7ec7ed44);
+    border-color: #FFFFFF88;
+}
+.eventListAdminCalendarTodayButton {
+    /* Inherits .eventCalendarTodayButton's pill shape, but admin nav is flex
+       so drop the absolute positioning. */
+    position: static !important;
+    transform: none !important;
+}
+
+/* Always-visible "+" affordance per day cell. Admin-only — public calendar
+   has no equivalent. Sits beneath the date number, above the bars. */
+.eventCalendarAdminAddDay {
+    align-self: flex-end;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    border-radius: 50%;
+    border: 1px solid #FFFFFF44;
+    background: linear-gradient(180deg, #FFFFFF33, #00000033);
+    color: inherit;
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: 700;
+    line-height: 1;
+    box-shadow: inset 0 1px 0 #FFFFFF55, 0 2px 5px #00000033;
+    /* Keep it positioned consistently in every cell — top-right of the
+       cell-inner space, just under the date number. */
+    position: absolute;
+    top: 4px;
+    right: 4px;
+}
+.eventCalendarAdminAddDay:hover,
+.eventCalendarAdminAddDay:focus-visible {
+    outline: none;
+    background: linear-gradient(180deg, #DDF6FF55, #7ec7ed44);
+    border-color: #FFFFFF88;
+}
+.eventListAdminCalendarPane .eventCalendarCell {
+    cursor: default;
+    /* Make sure the absolutely-positioned "+" anchors to the cell. */
+    position: relative;
+}
+
+/* Scraped events: dotted left edge so admins can tell at a glance which
+   bars open the read-only modal vs the editable one. Stays distinct from
+   the solid category-color stripe rendered via --bar-accent. */
+.eventCalendarBar.isScraped {
+    border-left: 2px dotted #FFFFFFCC;
+}
+.eventListAdminNarrowItem.isScraped {
+    border-left: 2px dotted #FFFFFFCC;
+}
+
+/* =========================================================================
+ * EVENT EDITOR MODAL (admin)
+ * Single shared modal across all panes. Inherits .userModalOverlay shell
+ * (drag-by-titlebar, escape-to-close, focus-trap from v1.21.0). Form-
+ * specific styling lives here.
+ * ========================================================================= */
+
+.eventEditorModalOverlay .userModal {
+    width: min(560px, 92vw);
+    max-height: calc(100vh - 64px);
+    display: flex;
+    flex-direction: column;
+}
+.eventEditorModalOverlay .eventEditorForm {
+    overflow-y: auto;
+    padding: 4px 2px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-height: 0;
+}
+.eventEditorScrapedBanner,
+.eventEditorLockedBanner {
+    padding: 8px 10px;
+    border-radius: 8px;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+.eventEditorScrapedBanner {
+    background: linear-gradient(180deg, #FFD45533, #B07A0033);
+    border: 1px solid #FFD45566;
+    color: #FFE9AA;
+}
+/* When the admin clicks 🔒 to unlock-for-edit, parent .userModal sheds
+   .isScrapedLocked. Banner shifts to the blue palette (matches the
+   locally-overridden state) so the "you're editing" cue stays consistent. */
+#eventEditorModal .userModal:not(.isScrapedLocked) .eventEditorScrapedBanner {
+    background: #1C355A88;
+    border-color: #5BB9FF88;
+    color: #CFE6FF;
+}
+.eventEditorLockedBanner {
+    background: #1C355A88;
+    border: 1px solid #5BB9FF88;
+    color: #CFE6FF;
+}
+/* display: flex above overrides UA [hidden] rule; restore the hide. */
+.eventEditorScrapedBanner[hidden],
+.eventEditorLockedBanner[hidden] {
+    display: none;
+}
+.eventEditorScrapedFeed,
+.eventEditorLockedFeed {
+    color: #FFFFFF;
+    font-weight: 700;
+    text-decoration: none;
+}
+.eventEditorScrapedFeed[href]:hover,
+.eventEditorLockedFeed[href]:hover {
+    text-decoration: underline;
+}
+.eventEditorScrapedLockToggle {
+    background: transparent;
+    border: 0;
+    cursor: pointer;
+    padding: 4px;
+    color: inherit;
+    display: inline-flex;
+    align-items: center;
+}
+.eventEditorScrapedLockToggle svg {
+    width: 18px;
+    height: 18px;
+    fill: currentColor;
+}
+.eventEditorScrapedLockToggle:hover {
+    color: #FFFFFF;
+}
+/* Scraped + synced: form fields render dimmed + disabled. Visit Site link
+   stays at full opacity so it remains a usable affordance in locked view. */
+#eventEditorModal .userModal.isScrapedLocked .eventEditorField,
+#eventEditorModal .userModal.isScrapedLocked .eventEditorRow,
+#eventEditorModal .userModal.isScrapedLocked .eventEditorWhen,
+#eventEditorModal .userModal.isScrapedLocked .eventSectionDivider {
+    opacity: 0.5;
+}
+.eventEditorField {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.eventEditorField input[type="text"],
+.eventEditorField input[type="date"],
+.eventEditorField select,
+.eventEditorField textarea,
+.eventEditorWhen .eventTimeGroup select {
+    /* Inherit the existing .eventCard input styling baseline. */
+    width: 100%;
+    box-sizing: border-box;
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1px solid #FFFFFF44;
+    background: linear-gradient(180deg, #00000044, #00000022);
+    color: inherit;
+    font: inherit;
+}
+/* Required-field marker: red asterisk before the label text. */
+.eventEditorField .isRequired::before,
+.eventEditorWhen .isRequired::before {
+    content: '* ';
+    color: #FF5C5C;
+}
+
+/* Validation marker. JS adds .isInvalid + aria-invalid on the specific
+   fields the latest save attempt rejected; clears on next input or
+   next save attempt. Border-color shift only — same dimensions. */
+.eventEditorForm .isInvalid,
+.eventEditorForm select.isInvalid,
+.eventEditorForm textarea.isInvalid,
+.eventEditorForm input.isInvalid {
+    border-color: #FF5C5C;
+    box-shadow: 0 0 0 1px #FF5C5C66;
+}
+.eventEditorRow {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    align-items: center;
+}
+.eventEditorToggles label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+.eventEditorWhen {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.eventEditorWhen .eventTimeGroup {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+.eventEditorWhen .eventTimeGroup input[type="date"],
+.eventEditorWhen .eventTimeGroup select {
+    flex: 0 0 auto;
+    min-width: 0;
+    width: auto;
+}
+.eventEditorWhen .eventTimeLabel {
+    min-width: 48px;
+    font-size: 12px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    opacity: 0.8;
+}
+.eventTimezoneIndicator {
+    font-size: 12px;
+    opacity: 0.7;
+    font-variant: tabular-nums;
+}
+.eventEditorActions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 12px;
+    padding-top: 8px;
+    border-top: 1px solid #FFFFFF22;
+}
+.eventEditorActions .usersDanger {
+    margin-right: auto;
+}
+
+/* In-modal delete confirm — mirrors mediaGallery's pattern (see
+   admin/modules/README.md modal-shell exception #3). */
+/* Inset 40px on top to leave the modal's title-slot uncovered: the
+   title text, the × button, and drag-by-handle all stay live while
+   the confirm dim sits over the body. */
+.eventListConfirmDelete {
+    position: absolute;
+    inset: 40px 0 0 0;
+    background: rgba(0, 0, 0, 0.8);
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 18px;
+    z-index: 10;
+    border-bottom-left-radius: inherit;
+    border-bottom-right-radius: inherit;
+}
+#eventEditorModal .userModal.isConfirmingDelete .eventListConfirmDelete {
+    display: flex;
+}
+.eventListConfirmDeletePrompt {
+    margin: 0;
+    color: #FFFFFF;
+    font-size: 1.5rem;
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
+}
+.eventListConfirmDeleteActions {
+    display: flex;
+    gap: 8px;
+    width: 60%;
+    min-width: 280px;
+    max-width: 360px;
+}
+.eventListConfirmDeleteActions > button {
+    flex: 1;
+}
+
+/* =========================================================================
+ * NARROW-WIDTH FALLBACK (under 700px)
+ * Hide the 7-column calendar grid; show a flat date-grouped list with
+ * per-day "+" affordance. Modal flow is unchanged.
+ * ========================================================================= */
+
+.eventListAdminNarrow {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+.eventListAdminNarrowGroup {
+    border: 1px solid #FFFFFF22;
+    border-radius: 10px;
+    padding: 8px 10px;
+    background: linear-gradient(180deg, #FFFFFF10, #00000018);
+}
+.eventListAdminNarrowDateRow {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid #FFFFFF18;
+    margin-bottom: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+.eventListAdminNarrowDate {
+    flex: 1;
+}
+.eventListAdminNarrowDateRow .eventCalendarAdminAddDay {
+    /* Override the absolute-positioning used inside calendar cells. */
+    position: static;
+    align-self: auto;
+}
+.eventListAdminNarrowItem {
+    --bar-accent: #7ec7ed;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 6px 8px;
+    margin-bottom: 4px;
+    border: 1px solid #FFFFFF22;
+    border-left: 3px solid var(--bar-accent);
+    border-radius: 6px;
+    background: linear-gradient(180deg, #FFFFFF12, #00000018);
+    color: inherit;
+    cursor: pointer;
+    text-align: left;
+    font: inherit;
+}
+.eventListAdminNarrowItem:hover,
+.eventListAdminNarrowItem:focus-visible {
+    outline: none;
+    background: linear-gradient(180deg, #FFFFFF26, #00000022);
+    border-color: #FFFFFF66;
+}
+.eventListAdminNarrowItemTime {
+    flex: 0 0 64px;
+    font-size: 12px;
+    opacity: 0.85;
+}
+.eventListAdminNarrowItemTitle {
+    flex: 1;
+    font-size: 14px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.eventListAdminNarrowEmpty {
+    text-align: center;
+    opacity: 0.6;
+    padding: 16px;
+}
+
+/* The breakpoint switch. Wide layouts hide the narrow list; narrow layouts
+   hide the grid + nav. */
+.eventListAdminCalendarPane .eventListAdminNarrow[hidden] {
+    display: none;
+}
+@media (max-width: 700px) {
+    .eventListAdminCalendarPane .eventCalendarTable {
+        display: none;
+    }
+    .eventListAdminCalendarPane .eventListAdminNarrow {
+        display: flex !important;
+    }
+    .eventListAdminCalendarPane .eventListAdminNarrow[hidden] {
+        display: flex !important;
+    }
+}

@@ -3366,5 +3366,22 @@ $(document).ready(function() {
             }
         ];
     }
+
+    // Pending-changes indicator on the global Save button. Modules emit
+    // `lp:adminDirty` with `{moduleId, paneId, hasPending}` whenever they
+    // stage or clear edits; the source key is moduleId:paneId so each pane
+    // tracks independently. Any non-empty source → button gets
+    // .hasPendingChanges (small dot via CSS).
+    const dirtyAdminSources = new Set();
+    $(document).on('lp:adminDirty', function(event, payload) {
+        if (!payload) { return; }
+        const key = (payload.moduleId || '?') + ':' + (payload.paneId || '?');
+        if (payload.hasPending) {
+            dirtyAdminSources.add(key);
+        } else {
+            dirtyAdminSources.delete(key);
+        }
+        $('.saveChanges').toggleClass('hasPendingChanges', dirtyAdminSources.size > 0);
+    });
 });
 

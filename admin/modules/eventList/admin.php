@@ -1,12 +1,16 @@
 <?php
 // Module: Event List (admin)
-// Renders editable event cards and exposes JSON to Save All via pane[<id>][events].
+// Calendar-grid event entry: click "+" on a day to add, click an event
+// chip to edit. Persistence contract is unchanged from the form-card era:
+// pane[<id>][events] textarea carries the {create,update,delete} changeset
+// to save-config.php. admin.js is the source-of-truth for in-flight edits.
 
 if (!isset($pane) || !is_array($pane)) {
     return;
 }
 
-// Inject admin styles/scripts and the shared delete-confirm modal once per request.
+// Inject admin styles/scripts and the shared modals once per request, even
+// if multiple eventList panes are on the page.
 static $eventListAdminAssetsInjected = false;
 if (!$eventListAdminAssetsInjected) {
     $eventListAdminAssetsInjected = true;
@@ -25,12 +29,104 @@ if (!$eventListAdminAssetsInjected) {
         . '" defer></script>';
 
     if (function_exists('lawnding_modal_open') && function_exists('lawnding_modal_close')) {
-        lawnding_modal_open('eventDeleteConfirmModal', 'Remove Event');
+        // Half-hour increments. value="HH:MM" (24h) for round-trip, label is
+        // 12h AM/PM for display. Off-grid times get rounded on modal open
+        // (admin.js roundToHalfHour). The hidden blank is a target for
+        // .val('') when all-day is checked; users never see it in the list.
+        $timeOptionsHtml = '<option value="" disabled hidden></option>';
+        for ($h = 0; $h < 24; $h++) {
+            foreach ([0, 30] as $m) {
+                $value = sprintf('%02d:%02d', $h, $m);
+                $h12 = ($h % 12) ?: 12;
+                $period = $h < 12 ? 'AM' : 'PM';
+                $display = sprintf('%d:%02d %s', $h12, $m, $period);
+                $timeOptionsHtml .= '<option value="' . $value . '">' . $display . '</option>';
+            }
+        }
+
+        // Event editor modal. Single shared instance reparented to <body>
+        // by admin.js init so position:fixed isn't anchored to a transformed
+        // ancestor. Title is set dynamically (Add Event / Edit Event).
+        lawnding_modal_open('eventEditorModal', 'Add Event', ['extra_class' => 'eventEditorModalOverlay']);
         ?>
-        <p class="usersHint">Are you sure you want to remove this event?</p>
-        <div class="userModalActions">
-            <button class="usersButton usersDanger" type="button" id="eventDeleteConfirmYes" data-modal-confirm="true" autofocus>Remove</button>
-            <button class="usersButton userModalClose" type="button">Cancel</button>
+        <div class="eventEditorScrapedBanner" hidden>
+            <span>Event synced from: <a class="eventEditorScrapedFeed" target="_blank" rel="noopener noreferrer"></a> &mdash; <span class="eventEditorScrapedHint">click to unlock and edit</span></span>
+            <button type="button" class="eventEditorScrapedLockToggle iconButton" aria-label="Unlock to edit" title="Unlock to edit">
+                <span class="eventEditorScrapedLockIcon"><?php echo lawnding_icon_svg('lock'); ?></span>
+                <span class="eventEditorScrapedUnlockIcon" hidden><?php echo lawnding_icon_svg('lock_open'); ?></span>
+            </button>
+        </div>
+        <div class="eventEditorLockedBanner" hidden>
+            <span>Local override &mdash; no longer syncing from <a class="eventEditorLockedFeed" target="_blank" rel="noopener noreferrer"></a>.</span>
+            <button class="usersButton" type="button" id="eventEditorResumeSync">Resume sync</button>
+        </div>
+
+        <form class="eventEditorForm" novalidate>
+            <label class="eventEditorField">
+                <span class="eventFieldTitle isRequired">Event Name</span>
+                <input type="text" class="eventNameInput" placeholder="Event name" autocomplete="off">
+            </label>
+
+            <label class="eventEditorField">
+                <span class="eventFieldTitle">Category</span>
+                <select class="eventCategoryInput" aria-label="Category">
+                    <option value="">(none)</option>
+                </select>
+            </label>
+
+            <div class="eventSectionDivider" aria-hidden="true"></div>
+
+            <div class="eventEditorRow eventEditorToggles">
+                <label class="eventAllDayLabel">
+                    <input type="checkbox" class="eventAllDayInput">
+                    <span>All day</span>
+                </label>
+            </div>
+
+            <div class="eventEditorWhen">
+                <div class="eventTimeGroup eventTimeGroupStart">
+                    <span class="eventTimeLabel isRequired">Start</span>
+                    <input type="date" class="eventStartDateInput" aria-label="Start date">
+                    <select class="eventStartTimeInput" aria-label="Start time"><?php echo $timeOptionsHtml; ?></select>
+                    <span class="eventTimezoneIndicator" aria-label="Time zone"></span>
+                </div>
+                <div class="eventTimeGroup eventTimeGroupEnd">
+                    <span class="eventTimeLabel">End</span>
+                    <input type="date" class="eventEndDateInput" aria-label="End date">
+                    <select class="eventEndTimeInput" aria-label="End time"><?php echo $timeOptionsHtml; ?></select>
+                    <span class="eventTimezoneIndicator" aria-label="Time zone"></span>
+                </div>
+            </div>
+
+            <div class="eventSectionDivider" aria-hidden="true"></div>
+
+            <label class="eventEditorField">
+                <span class="eventFieldTitle isRequired">Address</span>
+                <input type="text" class="eventAddressInput" placeholder="123 Main St, City, State" autocomplete="off">
+            </label>
+
+            <div class="eventEditorField">
+                <span class="eventFieldTitle isRequired">Description</span>
+                <div class="markdownEditor">
+                    <?php echo markdown_editor_toolbar_html(); ?>
+                    <textarea class="eventDescriptionInput markdownTextarea" rows="6" placeholder="Details, host, venue, etc."></textarea>
+                    <div class="markdownPreview" aria-live="polite" hidden></div>
+                </div>
+            </div>
+
+            <div class="eventValidation" aria-live="polite"></div>
+        </form>
+        <div class="userModalActions eventEditorActions">
+            <button class="usersButton usersConfirm" type="button" id="eventEditorSave" data-modal-confirm="true">Save</button>
+            <button class="usersButton userModalClose" type="button" id="eventEditorCancel">Cancel</button>
+            <button class="usersButton usersDanger" type="button" id="eventEditorDelete" hidden>Delete</button>
+        </div>
+        <div class="eventListConfirmDelete" role="alertdialog" aria-hidden="true" aria-labelledby="eventListConfirmDeletePrompt">
+            <p id="eventListConfirmDeletePrompt" class="eventListConfirmDeletePrompt">Are you sure?</p>
+            <div class="eventListConfirmDeleteActions">
+                <button class="eventListConfirmDeleteYes usersButton usersDanger" type="button">Yes, delete</button>
+                <button class="eventListConfirmDeleteNo usersButton" type="button">No</button>
+            </div>
         </div>
         <?php
         lawnding_modal_close();
@@ -47,7 +143,6 @@ if ($paneId === '' || $jsonFile === '') {
     return;
 }
 
-// Resolve JSON file path through bootstrap helpers when available.
 $jsonPath = function_exists('lawnding_data_path')
     ? lawnding_data_path($jsonFile)
     : __DIR__ . '/../../public/res/data/' . $jsonFile;
@@ -62,12 +157,21 @@ if (!is_array($events)) {
     $events = [];
 }
 
-// Loaded for the per-event-card dropdown. Read-side access doesn't gate
-// on canEditSite — assigning a category != managing the list.
 require_once __DIR__ . '/helpers.php';
 $categories = event_list_load_categories();
 
-// Render icon HTML using the shared helper injected by admin/config.php.
+// Feed friendly-names for scraped-event banner. Soft-coupled via function_exists;
+// eventList still renders if the eventScraper plugin isn't installed.
+$feedLabels = [];
+if (function_exists('event_scraper_load_config')) {
+    $scraperConfig = event_scraper_load_config();
+    foreach (($scraperConfig['feeds'] ?? []) as $feedId => $feed) {
+        if (is_array($feed) && isset($feed['label'])) {
+            $feedLabels[(string) $feedId] = (string) $feed['label'];
+        }
+    }
+}
+
 $iconHtml = '';
 if (isset($renderPaneIcon) && is_callable($renderPaneIcon)) {
     $iconHtml = (string) $renderPaneIcon($pane);
@@ -76,19 +180,17 @@ if ($iconHtml === '') {
     $iconHtml = '<span class="paneIconFallback">Icon</span>';
 }
 
+// data-snapshot is the on-disk state, embedded for admin.js bootstrap.
+$snapshotJson = json_encode([
+    'events' => $events,
+    'categories' => $categories,
+    'feedLabels' => $feedLabels,
+], JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
+if ($snapshotJson === false) {
+    $snapshotJson = '{"events":[],"categories":[],"feedLabels":{}}';
+}
 ?>
-<?php
-    // Snapshot of the on-disk state, embedded as a data-* attribute so it
-    // sidesteps script-src CSP entirely. admin.js reads + parses it on init.
-    $snapshotJson = json_encode([
-        'events' => $events,
-        'categories' => $categories,
-    ], JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
-    if ($snapshotJson === false) {
-        $snapshotJson = '{"events":[],"categories":[]}';
-    }
-?>
-<div class="pane glassConvex eventListPane" id="<?php echo htmlspecialchars($paneId); ?>" data-pane-type="eventList" data-snapshot="<?php echo htmlspecialchars($snapshotJson, ENT_QUOTES, 'UTF-8'); ?>">
+<div class="pane glassConvex eventListPane eventListAdminCalendarPane" id="<?php echo htmlspecialchars($paneId); ?>" data-pane-type="eventList" data-snapshot="<?php echo htmlspecialchars($snapshotJson, ENT_QUOTES, 'UTF-8'); ?>">
     <div class="paneHeader eventListPaneHeader">
         <div class="eventListPaneIdentity">
             <span class="paneIconDisplay" aria-hidden="true">
@@ -101,104 +203,28 @@ if ($iconHtml === '') {
         <button class="paneSettingsButton iconButton" type="button" data-pane-id="<?php echo htmlspecialchars($paneId); ?>" aria-label="Pane settings" title="Pane settings"><?php echo lawnding_icon_svg('settings'); ?></button>
     </div>
 
-    <div class="eventListScroll">
-        <div class="eventList" data-pane-id="<?php echo htmlspecialchars($paneId); ?>">
-            <?php if (empty($events)): ?>
-                <div class="eventEmpty">No events yet. Click Add Event to create one.</div>
-            <?php endif; ?>
-            <?php foreach ($events as $index => $event): ?>
-                <?php
-                    if (!is_array($event)) {
-                        $event = [];
-                    }
-                $eventId = $event['id'] ?? '';
-                $eventName = $event['name'] ?? '';
-                $startDate = $event['startDate'] ?? ($event['date'] ?? '');
-                $startTime = $event['startTime'] ?? '';
-                $endDate = $event['endDate'] ?? '';
-                if ($endDate === '' && !empty($event['endTime']) && !empty($event['date'])) {
-                    $endDate = $event['date'];
-                }
-                $endTime = $event['endTime'] ?? '';
-                $timeZone = $event['timeZone'] ?? '';
-                $address = $event['address'] ?? '';
-                $description = $event['description'] ?? '';
-                $allDay = !empty($event['allDay']);
-                $eventCategoryId = isset($event['categoryId']) && is_string($event['categoryId']) ? $event['categoryId'] : '';
-            ?>
-                <div class="eventCard" data-event-index="<?php echo (int) $index; ?>" data-event-id="<?php echo htmlspecialchars($eventId); ?>">
-                    <div class="eventNameRow">
-                        <label class="eventNameLabel">
-                            <span class="eventFieldTitle">Event Name</span>
-                            <input type="text" class="eventNameInput" value="<?php echo htmlspecialchars($eventName); ?>" placeholder="Event name">
-                        </label>
-                        <div class="eventCardActions">
-                            <button class="deleteLink iconButton" type="button" title="Remove event" aria-label="Remove event">
-                                <?php echo lawnding_icon_svg('delete'); ?>
-                            </button>
-                        </div>
-                    </div>
-                    <div class="eventCategoryFieldRow">
-                        <label class="eventCategoryFieldLabel">
-                            <span class="eventFieldTitle">Category</span>
-                            <select class="eventCategoryInput" aria-label="Category">
-                                <option value=""<?php echo $eventCategoryId === '' ? ' selected' : ''; ?>>(none)</option>
-                                <?php foreach ($categories as $cat): ?>
-                                    <option value="<?php echo htmlspecialchars($cat['id'], ENT_QUOTES, 'UTF-8'); ?>"<?php echo $cat['id'] === $eventCategoryId ? ' selected' : ''; ?>><?php echo htmlspecialchars($cat['name'], ENT_QUOTES, 'UTF-8'); ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                        </label>
-                    </div>
-                    <div class="eventSectionDivider" aria-hidden="true"></div>
-                    <div class="eventAllDayRow">
-                        <label class="eventAllDayLabel">
-                            <input type="checkbox" class="eventAllDayInput"<?php if ($allDay): ?> checked<?php endif; ?>>
-                            <span>All day</span>
-                        </label>
-                    </div>
-                    <div class="eventTimeRow<?php if ($allDay): ?> isAllDay<?php endif; ?>">
-                        <div class="eventFieldTitle eventFieldTitleRow">When</div>
-                        <div class="eventTimeFields">
-                            <div class="eventTimeGroup">
-                                <span class="eventTimeLabel">From</span>
-                                <input type="date" class="eventStartDateInput" value="<?php echo htmlspecialchars($startDate); ?>" aria-label="Start date">
-                                <input type="time" class="eventStartTimeInput" value="<?php echo htmlspecialchars($startTime); ?>" aria-label="Start time">
-                            </div>
-                            <div class="eventTimeDash">-</div>
-                            <div class="eventTimeGroup">
-                                <span class="eventTimeLabel">To</span>
-                                <input type="date" class="eventEndDateInput" value="<?php echo htmlspecialchars($endDate); ?>" aria-label="End date">
-                                <input type="time" class="eventEndTimeInput" value="<?php echo htmlspecialchars($endTime); ?>" aria-label="End time">
-                            </div>
-                        </div>
-                    </div>
-                    <div class="eventSectionDivider" aria-hidden="true"></div>
-                    <div class="eventTimeZoneRow">
-                        <span class="eventFieldTitle">Time Zone</span>
-                        <input type="text" class="eventTimezoneInput" value="<?php echo htmlspecialchars($timeZone); ?>" placeholder="America/New_York" aria-label="Time zone">
-                    </div>
-                    <div class="eventAddressRow">
-                        <div class="eventFieldTitle">Address</div>
-                        <input type="text" class="eventAddressInput" value="<?php echo htmlspecialchars($address); ?>" placeholder="123 Main St, City, State" aria-label="Address">
-                    </div>
-                    <div class="eventSectionDivider" aria-hidden="true"></div>
-                    <div class="eventSectionDivider" aria-hidden="true"></div>
-                    <div class="eventDescriptionLabel">
-                        <span class="eventFieldTitle">Description</span>
-                        <div class="markdownEditor">
-                            <?php echo markdown_editor_toolbar_html(); ?>
-                            <textarea class="eventDescriptionInput markdownTextarea" rows="4" placeholder="Details, host, venue, etc."><?php echo htmlspecialchars($description); ?></textarea>
-                            <div class="markdownPreview" aria-live="polite" hidden></div>
-                        </div>
-                    </div>
-                    <div class="eventValidation" aria-live="polite"></div>
-                </div>
-            <?php endforeach; ?>
+    <div class="eventListAdminCalendar" data-pane-id="<?php echo htmlspecialchars($paneId); ?>">
+        <div class="eventListAdminCalendarNav">
+            <button class="eventListAdminCalendarNavButton eventCalendarPrev" type="button" aria-label="Previous month">&lsaquo;</button>
+            <span class="eventListAdminCalendarMonthText" aria-live="polite"></span>
+            <button class="eventListAdminCalendarTodayButton eventCalendarTodayButton hidden" type="button">Today</button>
+            <button class="eventListAdminCalendarNavButton eventCalendarNext" type="button" aria-label="Next month">&rsaquo;</button>
         </div>
-    </div>
-
-    <div class="eventListControls">
-        <button class="eventAddButton" type="button">Add Event</button>
+        <table class="eventCalendarTable" aria-label="Event calendar (admin)">
+            <thead>
+                <tr class="eventCalendarDayLabels">
+                    <th scope="col">SUN</th>
+                    <th scope="col">MON</th>
+                    <th scope="col">TUE</th>
+                    <th scope="col">WED</th>
+                    <th scope="col">THU</th>
+                    <th scope="col">FRI</th>
+                    <th scope="col">SAT</th>
+                </tr>
+            </thead>
+            <tbody class="eventCalendarBody"></tbody>
+        </table>
+        <div class="eventListAdminNarrow" hidden></div>
     </div>
 
     <textarea class="eventListPayload" name="pane[<?php echo htmlspecialchars($paneId); ?>][events]" aria-label="<?php echo htmlspecialchars($paneName); ?> events" hidden></textarea>

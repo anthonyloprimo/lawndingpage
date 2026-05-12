@@ -143,7 +143,10 @@ function event_list_event_is_valid(array $event): bool {
             return false;
         }
     } else {
-        if (($endDate === '' && $endTime !== '') || ($endDate !== '' && $endTime === '')) {
+        // endDate '' means single-day; endTime alone is fine (event has a time
+        // range within the same day). endDate set but endTime empty is the
+        // remaining invalid case (incomplete multi-day end specification).
+        if ($endDate !== '' && $endTime === '') {
             return false;
         }
         if ($endDate !== '' && $endTime !== '') {

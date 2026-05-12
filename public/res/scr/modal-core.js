@@ -254,6 +254,14 @@
             }
             if (modalStack.indexOf(modalEl) === -1) modalStack.push(modalEl);
             activeModal = $modal;
+            // Stacked modal: move to end of body so it paints above its peer
+            // (modals share z-index, DOM order decides), and shed inert that
+            // the outer modal's setBackgroundInert applied to siblings.
+            if (modalEl.parentNode === document.body) {
+                document.body.appendChild(modalEl);
+            }
+            modalEl.removeAttribute('inert');
+            modalEl.removeAttribute('aria-hidden');
             applyVisibility($modal, true);
             bindDrag($modal);
             if (modalStack.length === 1) setBackgroundInert(true, modalEl);

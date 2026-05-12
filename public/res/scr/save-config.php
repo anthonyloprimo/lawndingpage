@@ -60,9 +60,8 @@ function resolve_paths() {
     $publicDir = function_exists('lawnding_config')
         ? lawnding_config('public_dir', dirname(__DIR__, 2))
         : dirname(__DIR__, 2);
-    // The admin dir holds module manifests for pane migration and management.
-    $adminDir = function_exists('lawnding_config')
-        ? lawnding_config('admin_dir', dirname(__DIR__, 3) . '/admin')
+    $runtimeAdminDir = function_exists('lawnding_config')
+        ? lawnding_config('instance_runtime_admin_dir', dirname(__DIR__, 3) . '/admin')
         : dirname(__DIR__, 3) . '/admin';
     $dataDir = function_exists('lawnding_config')
         ? lawnding_config('data_dir', $publicDir . '/res/data')
@@ -78,8 +77,8 @@ function resolve_paths() {
         'public_dir' => $publicDir,
         'data_dir' => $dataDir,
         'img_dir' => $imgDir,
-        'modules_dir' => rtrim($adminDir, '/\\') . '/modules',
-        'admin_dir' => rtrim($adminDir, '/\\'),
+        'modules_dir' => function_exists('lawnding_module_roots') ? lawnding_module_roots() : [],
+        'admin_dir' => rtrim($runtimeAdminDir, '/\\'),
         'pane_icon_dir' => $paneIconDir,
         'header_path' => $dataDir . '/header.json',
         'links_path' => $dataDir . '/links.json',
@@ -233,6 +232,9 @@ function parse_json_payload($payload, $errorMessage) {
 // Persist a JSON file with a standard encoding strategy.
 function write_json_file($path, $data, $errorMessage) {
     $encoded = json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+    if (function_exists('lawnding_ensure_parent_dir')) {
+        lawnding_ensure_parent_dir($path);
+    }
     if ($encoded === false || file_put_contents($path, $encoded) === false) {
         respond(['error' => $errorMessage], 500);
     }
@@ -240,6 +242,9 @@ function write_json_file($path, $data, $errorMessage) {
 
 // Persist plain text content to disk.
 function write_text_file($path, $content, $errorMessage) {
+    if (function_exists('lawnding_ensure_parent_dir')) {
+        lawnding_ensure_parent_dir($path);
+    }
     if (file_put_contents($path, $content) === false) {
         respond(['error' => $errorMessage], 500);
     }
@@ -288,7 +293,9 @@ if (empty($_SESSION['auth_user'])) {
 // Load users.json and resolve the current user's permissions.
 $allowedPermissions = ['full_admin', 'add_users', 'edit_users', 'remove_users', 'edit_site'];
 $usersPath = function_exists('lawnding_config')
-    ? lawnding_config('users_path', dirname(__DIR__, 3) . '/admin/users.json')
+    ? (function_exists('lawnding_runtime_file_path')
+        ? lawnding_runtime_file_path('users_path')
+        : lawnding_config('users_path', dirname(__DIR__, 3) . '/admin/users.json'))
     : dirname(__DIR__, 3) . '/admin/users.json';
 $users = load_users($usersPath);
 $authUser = $_SESSION['auth_user'];
@@ -337,7 +344,9 @@ $linksPath = $paths['links_path'];
 $authorizedLinksPath = $paths['authorized_links_path'];
 $panesPath = $paths['panes_path'];
 $modulesDir = $paths['modules_dir'];
-$tgBotPath = $paths['admin_dir'] . '/lp-tgBot.json';
+$tgBotPath = function_exists('lawnding_runtime_file_path')
+    ? lawnding_runtime_file_path('tg_bot_path')
+    : ($paths['admin_dir'] . '/lp-tgBot.json');
 
 // Load existing header data with defaults.
 $headerData = load_header_data($headerPath);
@@ -511,7 +520,12 @@ function load_module_manifest($modulesDir, $moduleId) {
     if (!is_string($moduleId) || $moduleId === '') {
         return null;
     }
-    $manifestPath = rtrim($modulesDir, '/\\') . '/' . $moduleId . '/' . $moduleId . '.json';
+    if (function_exists('lawnding_module_manifest_path')) {
+        $manifestPath = lawnding_module_manifest_path($moduleId);
+    } else {
+        $modulesDir = is_array($modulesDir) ? reset($modulesDir) : $modulesDir;
+        $manifestPath = rtrim((string) $modulesDir, '/\\') . '/' . $moduleId . '/' . $moduleId . '.json';
+    }
     if (!is_readable($manifestPath)) {
         return null;
     }

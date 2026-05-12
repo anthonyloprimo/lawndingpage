@@ -259,6 +259,7 @@ $(document).ready(function() {
     bindUserActions();
     bindPaneManagement();
     bindMigrationFlow();
+    bindRuntimeMigrationConflictFlow();
     bindEventListEditors();
     bindMarkdownToolbars();
     bindHeadlineEditingMode();
@@ -2098,10 +2099,10 @@ $(document).ready(function() {
                 return icon.value;
             }
             if (icon.type === 'file' && icon.value) {
-                const basePath = window.appConfig && typeof window.appConfig.basePath === 'string'
-                    ? window.appConfig.basePath.replace(/\/$/, '')
+                const instanceAssetBasePath = window.appConfig && typeof window.appConfig.instanceAssetBasePath === 'string'
+                    ? window.appConfig.instanceAssetBasePath.replace(/\/$/, '')
                     : '';
-                const src = basePath ? `${basePath}/res/img/panes/${icon.value}` : `/res/img/panes/${icon.value}`;
+                const src = instanceAssetBasePath ? `${instanceAssetBasePath}/res/img/panes/${icon.value}` : `/res/img/panes/${icon.value}`;
                 return `<img src="${src}" alt="">`;
             }
             return '<span class="paneIconFallback">Icon</span>';
@@ -2679,6 +2680,22 @@ $(document).ready(function() {
 
         $(document).on('click', '#migrationModal .userModalClose', function() {
             closeModal();
+        });
+    }
+
+    function bindRuntimeMigrationConflictFlow() {
+        const $reviewButton = $('#runtimeMigrationReviewButton');
+        const $modal = $('#runtimeMigrationConflictModal');
+        if (!$reviewButton.length || !$modal.length) {
+            return;
+        }
+
+        $reviewButton.on('click', function() {
+            openAdminModal($modal);
+        });
+
+        $(document).on('click', '#runtimeMigrationConflictModal .userModalClose', function() {
+            closeAdminModal($modal);
         });
     }
 

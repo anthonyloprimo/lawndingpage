@@ -23,17 +23,17 @@ Optional files:
 
 ```json
 {
-  "id": "basicText",
-  "name": "Basic Text Pane",
-  "version": "1.0.0",
-  "description": "Markdown-backed text pane.",
-  "preview": "preview.png",
-  "data_files": [
-    { "type": "md", "pattern": "{paneId}.md" }
-  ],
-  "save_map": [
-    { "key": "content", "type": "md", "file": "{paneId}.md" }
-  ]
+    "id": "basicText",
+    "name": "Basic Text Pane",
+    "version": "1.0.0",
+    "description": "Markdown-backed text pane.",
+    "preview": "preview.png",
+    "data_files": [
+        { "type": "md", "pattern": "{paneId}.md" }
+    ],
+    "save_map": [
+        { "key": "content", "type": "md", "file": "{paneId}.md" }
+    ]
 }
 ```
 
@@ -49,15 +49,16 @@ Migration note: pane migration resets pane fields. Copy any content you want to 
 
 ### `data_files`
 Each entry declares a file type and a name pattern. The `{paneId}` token is replaced
-with the pane instance id (camelCase). File paths resolve to `public/res/data/`.
-Preview images are resolved to the module folder and served through `public/res/scr/module-preview.php`.
+with the pane instance id (camelCase). File paths resolve to the active instance's
+`data/public/res/data/`. Preview images are resolved to the active module folder and
+served through `public/res/scr/module-preview.php`.
 
 Example:
 
 ```json
 "data_files": [
-  { "type": "md", "pattern": "{paneId}.md" },
-  { "type": "json", "pattern": "{paneId}.json" }
+    { "type": "md", "pattern": "{paneId}.md" },
+    { "type": "json", "pattern": "{paneId}.json" }
 ]
 ```
 
@@ -69,8 +70,8 @@ Example:
 
 ```json
 "save_map": [
-  { "key": "content", "type": "md", "file": "{paneId}.md" },
-  { "key": "settings", "type": "json", "file": "{paneId}.json" }
+    { "key": "content", "type": "md", "file": "{paneId}.md" },
+    { "key": "settings", "type": "json", "file": "{paneId}.json" }
 ]
 ```
 
@@ -89,8 +90,14 @@ its associated data files are renamed to match the new id.
 
 Module manifests are discovered from this directory and exposed to the pane
 management UI for adding/changing pane types. Pane instances live in
-`public/res/data/panes.json` and reference a module id. If a pane references
+`data/public/res/data/panes.json` and reference a module id. If a pane references
 a missing module, the admin UI warns and migration is blocked until it is restored.
+
+Module lookup order is:
+1. `instance/modules/<moduleId>/`
+2. `core/admin/modules/<moduleId>/`
+
+If both exist, the instance-local module overrides the core module and the admin UI warns about it.
 
 ## Rendering
 
@@ -116,7 +123,7 @@ Module-specific JavaScript should live in a separate file inside the module fold
 
 Pane icons are configured per pane instance (not per module). Icons can be:
 - SVG strings stored in `panes.json`, or
-- Image files stored in `public/res/img/panes/`.
+- Image files stored in `data/public/res/img/panes/`.
 
 Unused icon files are removed when no panes reference them.
 

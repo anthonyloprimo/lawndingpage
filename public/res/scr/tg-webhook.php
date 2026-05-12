@@ -5,10 +5,11 @@ require_once __DIR__ . '/../../../lp-bootstrap.php';
 header('Content-Type: application/json');
 
 function load_tg_bot_config(): array {
-    $adminDir = function_exists('lawnding_config')
-        ? lawnding_config('admin_dir', dirname(__DIR__, 3) . '/admin')
-        : dirname(__DIR__, 3) . '/admin';
-    $path = rtrim($adminDir, '/\\') . '/lp-tgBot.json';
+    $path = function_exists('lawnding_runtime_file_path')
+        ? lawnding_runtime_file_path('tg_bot_path')
+        : (rtrim((string) (function_exists('lawnding_config')
+            ? lawnding_config('admin_dir', dirname(__DIR__, 3) . '/admin')
+            : dirname(__DIR__, 3) . '/admin'), '/\\') . '/lp-tgBot.json');
     if (!is_readable($path)) {
         return [];
     }
@@ -24,7 +25,7 @@ if ($token === '') {
 }
 
 $tgBotPath = function_exists('lawnding_admin_path')
-    ? lawnding_admin_path('lib/tg-bot.php')
+    ? lawnding_core_admin_path('lib/tg-bot.php')
     : __DIR__ . '/../../../admin/lib/tg-bot.php';
 require_once $tgBotPath;
 $bot = new TgBotClient($token);

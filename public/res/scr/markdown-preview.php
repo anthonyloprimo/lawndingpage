@@ -28,9 +28,11 @@ if (empty($_SESSION['auth_user'])) {
     respond(['error' => 'Unauthorized'], 401);
 }
 
-$usersPath = function_exists('lawnding_config')
-    ? lawnding_config('users_path', dirname(__DIR__, 3) . '/admin/users.json')
-    : dirname(__DIR__, 3) . '/admin/users.json';
+$usersPath = function_exists('lawnding_runtime_file_path')
+    ? lawnding_runtime_file_path('users_path')
+    : (function_exists('lawnding_config')
+        ? lawnding_config('users_path', dirname(__DIR__, 3) . '/admin/users.json')
+        : dirname(__DIR__, 3) . '/admin/users.json');
 $users = is_readable($usersPath) ? json_decode(file_get_contents($usersPath), true) : [];
 $authUser = $_SESSION['auth_user'];
 $record = null;
@@ -67,13 +69,13 @@ if (!is_string($markdown)) {
 
 if (!class_exists('Parsedown')) {
     $parsedownPath = function_exists('lawnding_public_path')
-        ? lawnding_public_path('res/scr/Parsedown.php')
+        ? lawnding_core_public_path('res/scr/Parsedown.php')
         : __DIR__ . '/Parsedown.php';
     require_once $parsedownPath;
 }
 if (!function_exists('lawnding_markdown_gate_apply')) {
     $gatingPath = function_exists('lawnding_public_path')
-        ? lawnding_public_path('res/scr/markdown-gating.php')
+        ? lawnding_core_public_path('res/scr/markdown-gating.php')
         : __DIR__ . '/markdown-gating.php';
     require_once $gatingPath;
 }

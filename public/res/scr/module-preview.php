@@ -13,9 +13,11 @@ if (empty($_SESSION['auth_user'])) {
     respond_status(401);
 }
 
-$usersPath = function_exists('lawnding_config')
-    ? lawnding_config('users_path', dirname(__DIR__, 3) . '/admin/users.json')
-    : dirname(__DIR__, 3) . '/admin/users.json';
+$usersPath = function_exists('lawnding_runtime_file_path')
+    ? lawnding_runtime_file_path('users_path')
+    : (function_exists('lawnding_config')
+        ? lawnding_config('users_path', dirname(__DIR__, 3) . '/admin/users.json')
+        : dirname(__DIR__, 3) . '/admin/users.json');
 $users = is_readable($usersPath) ? json_decode(file_get_contents($usersPath), true) : [];
 $authUser = $_SESSION['auth_user'];
 $record = null;
@@ -53,10 +55,9 @@ if (preg_match('/[^a-zA-Z0-9_-]/', $moduleId)) {
     respond_status(400);
 }
 $file = basename($file);
-$modulesDir = function_exists('lawnding_admin_path')
-    ? lawnding_admin_path('modules')
-    : dirname(__DIR__, 3) . '/admin/modules';
-$path = rtrim($modulesDir, '/\\') . '/' . $moduleId . '/' . $file;
+$path = function_exists('lawnding_module_file')
+    ? lawnding_module_file($moduleId, $file)
+    : '';
 if (!is_readable($path)) {
     respond_status(404);
 }

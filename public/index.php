@@ -7,19 +7,22 @@ if (!is_readable($bootstrapPath)) {
     $bootstrapPath = __DIR__ . '/../../lp-bootstrap.php';
 }
 require_once $bootstrapPath;
+if (function_exists('lawnding_initialize_instance_if_needed')) {
+    lawnding_initialize_instance_if_needed();
+}
 $tgAuthPath = function_exists('lawnding_admin_path')
-    ? lawnding_admin_path('lib/tg-auth.php')
+    ? lawnding_core_admin_path('lib/tg-auth.php')
     : __DIR__ . '/../admin/lib/tg-auth.php';
 require_once $tgAuthPath;
 lawnding_init_session();
 // Prevent stale HTML/PHP responses from being cached.
 $cacheHeadersPath = function_exists('lawnding_public_path')
-    ? lawnding_public_path('res/scr/cache_headers.php')
+    ? lawnding_core_public_path('res/scr/cache_headers.php')
     : __DIR__ . '/res/scr/cache_headers.php';
 require_once $cacheHeadersPath;
 // Load the authoritative site version for display and shared constants.
 $versionPath = function_exists('lawnding_public_path')
-    ? lawnding_public_path('res/version.php')
+    ? lawnding_core_public_path('res/version.php')
     : __DIR__ . '/res/version.php';
 require_once $versionPath;
 // Suppress error output in production responses.
@@ -303,6 +306,12 @@ $resolveAssetUrl = function ($path) {
     if (preg_match('#^[a-z][a-z0-9+.-]*:#i', $path) || str_starts_with($path, '//')) {
         return $path;
     }
+    if (function_exists('lawnding_normalize_legacy_public_asset_path')) {
+        $path = lawnding_normalize_legacy_public_asset_path($path);
+    }
+    if (str_starts_with(ltrim((string) $path, '/'), 'res/')) {
+        return function_exists('lawnding_instance_asset_url') ? lawnding_instance_asset_url($path) : $path;
+    }
     return function_exists('lawnding_asset_url') ? lawnding_asset_url($path) : $path;
 };
 $headerDataResolved = $headerData;
@@ -325,13 +334,13 @@ $faviconUrl = is_string($headerDataResolved['logo'] ?? null) && $headerDataResol
 $faviconToken = defined('SITE_VERSION') ? (string) SITE_VERSION : '';
 $faviconPathRaw = is_string($headerData['logo'] ?? null) ? $headerData['logo'] : '';
 if ($faviconPathRaw !== '' && !preg_match('#^[a-z][a-z0-9+.-]*:#i', $faviconPathRaw) && !str_starts_with($faviconPathRaw, '//')) {
-    $faviconPath = ltrim($faviconPathRaw, '/');
-    if (str_starts_with($faviconPath, 'public/')) {
-        $faviconPath = substr($faviconPath, strlen('public/'));
-    }
+    $faviconPath = function_exists('lawnding_normalize_legacy_public_asset_path')
+        ? (string) lawnding_normalize_legacy_public_asset_path($faviconPathRaw)
+        : $faviconPathRaw;
+    $faviconPath = ltrim($faviconPath, '/');
     if (str_starts_with($faviconPath, 'res/')) {
-        $faviconFsPath = function_exists('lawnding_public_path')
-            ? lawnding_public_path($faviconPath)
+        $faviconFsPath = function_exists('lawnding_instance_asset_path')
+            ? lawnding_instance_asset_path($faviconPath)
             : __DIR__ . '/' . $faviconPath;
         if (is_file($faviconFsPath)) {
             $mtime = @filemtime($faviconFsPath);
@@ -345,6 +354,9 @@ $faviconHref = $faviconUrl;
 if ($faviconToken !== '') {
     $faviconHref .= (str_contains($faviconHref, '?') ? '&' : '?') . 'v=' . rawurlencode($faviconToken);
 }
+$legacyFallbackConsoleScript = function_exists('lawnding_render_legacy_fallback_console_script')
+    ? lawnding_render_legacy_fallback_console_script()
+    : '';
 $headerDataJson = htmlspecialchars(json_encode($headerDataResolved, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT), ENT_QUOTES, 'UTF-8');
 
 // Load pane instances and module manifests for dynamic public rendering.
@@ -413,7 +425,7 @@ function lawnding_render_pane_icon(array $pane): string {
             return '';
         }
         $src = function_exists('lawnding_asset_url')
-            ? lawnding_asset_url('res/img/panes/' . ltrim($value, '/'))
+            ? lawnding_instance_asset_url('res/img/panes/' . ltrim($value, '/'))
             : 'res/img/panes/' . ltrim($value, '/');
         return '<img class="navLinkIconImage" src="' . htmlspecialchars($src, ENT_QUOTES, 'UTF-8') . '" alt="">';
     }
@@ -471,6 +483,7 @@ $isLinksHidden = !$showLinks;
     <link rel="stylesheet" href="<?php echo htmlspecialchars(lawnding_asset_url('res/style.css'), ENT_QUOTES, 'UTF-8'); ?>">
 
     <script src="<?php echo htmlspecialchars(lawnding_asset_url('res/scr/jquery-3.7.1.min.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
+    <?php echo $legacyFallbackConsoleScript; ?>
     <noscript>
         <style>
             body.is-loading #header,
@@ -544,8 +557,8 @@ $isLinksHidden = !$showLinks;
         <?php foreach ($panes as $pane): ?>
             <?php
             $moduleId = isset($pane['module']) ? (string) $pane['module'] : '';
-            $modulePath = function_exists('lawnding_admin_path')
-                ? lawnding_admin_path('modules/' . $moduleId . '/public.php')
+            $modulePath = function_exists('lawnding_module_file')
+                ? lawnding_module_file($moduleId, 'public.php')
                 : __DIR__ . '/../admin/modules/' . $moduleId . '/public.php';
             if ($moduleId !== '' && is_readable($modulePath)) {
                 include $modulePath;

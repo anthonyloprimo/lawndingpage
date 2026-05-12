@@ -31,7 +31,7 @@ if ($paneId === '' || $markdownFile === '') {
 // Resolve markdown file path through bootstrap helpers when available.
 $markdownPath = function_exists('lawnding_data_path')
     ? lawnding_data_path($markdownFile)
-    : __DIR__ . '/../../public/res/data/' . $markdownFile;
+    : __DIR__ . '/../../data/public/res/data/' . $markdownFile;
 
 $markdown = is_readable($markdownPath) ? file_get_contents($markdownPath) : '';
 // Render icon HTML using the shared helper injected by admin/config.php.

@@ -228,6 +228,29 @@ header.header {
     overflow: hidden;
 }
 
+.adminNotice--stacked {
+    align-items: flex-start;
+}
+
+.adminNoticeBody {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.adminNoticeMeta {
+    font-size: 0.82rem;
+    line-height: 1.35;
+    color: #FFFFFFCC;
+}
+
+.adminNoticeActions {
+    flex: 0 0 auto;
+    margin: 0;
+}
+
 .adminNoticeClose {
     border: 1px solid #FFFFFF44;
     border-radius: 999px;
@@ -1387,6 +1410,63 @@ button:disabled {
     color: inherit;
     max-height: 240px;
     overflow: auto;
+}
+
+.runtimeMigrationConflictList {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin: 12px 0;
+    max-height: 360px;
+    overflow: auto;
+}
+
+.runtimeMigrationConflictItem {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px;
+    border-radius: 8px;
+    border: 1px solid #FFFFFF22;
+    background: #00000033;
+}
+
+.runtimeMigrationConflictTitle {
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.runtimeMigrationConflictColumns {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.runtimeMigrationConflictChoice {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 10px;
+    border-radius: 6px;
+    border: 1px solid #FFFFFF22;
+    background: #0000002b;
+    cursor: pointer;
+}
+
+.runtimeMigrationConflictChoice input {
+    margin: 0;
+}
+
+.runtimeMigrationConflictChoiceTitle {
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.runtimeMigrationConflictChoicePath {
+    font-size: 11px;
+    line-height: 1.4;
+    opacity: 0.8;
+    word-break: break-all;
 }
 
 /* Event list module styles are defined inside the module templates. */

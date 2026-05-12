@@ -8,10 +8,9 @@ if (!is_string($moduleId) || $moduleId === '' || preg_match('/[^a-zA-Z0-9_-]/', 
     exit;
 }
 
-$modulesDir = function_exists('lawnding_admin_path')
-    ? lawnding_admin_path('modules')
-    : dirname(__DIR__, 3) . '/admin/modules';
-$cssPath = rtrim($modulesDir, '/\\') . '/' . $moduleId . '/style.css';
+$cssPath = function_exists('lawnding_module_file')
+    ? lawnding_module_file($moduleId, 'style.css')
+    : '';
 if (!is_readable($cssPath)) {
     http_response_code(404);
     exit;

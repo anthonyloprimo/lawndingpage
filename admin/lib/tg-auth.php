@@ -118,10 +118,9 @@ function lawnding_tg_normalize_group_entries($values): array {
 
 function lawnding_load_tg_config(): array {
     $defaults = lawnding_tg_config_defaults();
-    $adminDir = function_exists('lawnding_config')
-        ? lawnding_config('admin_dir', dirname(__DIR__))
-        : dirname(__DIR__);
-    $path = rtrim((string) $adminDir, '/\\') . '/lp-tgBot.json';
+    $path = function_exists('lawnding_runtime_file_path')
+        ? lawnding_runtime_file_path('tg_bot_path')
+        : (rtrim((string) (function_exists('lawnding_config') ? lawnding_config('admin_dir', dirname(__DIR__)) : dirname(__DIR__)), '/\\') . '/lp-tgBot.json');
     if (!is_readable($path)) {
         return $defaults;
     }
@@ -180,10 +179,9 @@ function lawnding_tg_verify_login_payload(array $payload, string $botToken): boo
 }
 
 function lawnding_tg_cache_path(): string {
-    $adminDir = function_exists('lawnding_config')
-        ? lawnding_config('admin_dir', dirname(__DIR__))
-        : dirname(__DIR__);
-    return rtrim((string) $adminDir, '/\\') . '/lp-tgMembershipCache.json';
+    return function_exists('lawnding_runtime_file_path')
+        ? lawnding_runtime_file_path('tg_membership_cache_path')
+        : (rtrim((string) (function_exists('lawnding_config') ? lawnding_config('admin_dir', dirname(__DIR__)) : dirname(__DIR__)), '/\\') . '/lp-tgMembershipCache.json');
 }
 
 function lawnding_tg_cache_fingerprint(array $tgConfig): string {
@@ -245,6 +243,9 @@ function lawnding_tg_cache_write(array $cache): void {
     $payload = json_encode($cache, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
     if ($payload === false) {
         return;
+    }
+    if (function_exists('lawnding_ensure_parent_dir')) {
+        lawnding_ensure_parent_dir($path);
     }
     file_put_contents($path, $payload . PHP_EOL, LOCK_EX);
 }

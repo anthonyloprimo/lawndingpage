@@ -35,7 +35,7 @@ if ($paneId === '' || $jsonFile === '') {
 
 $jsonPath = function_exists('lawnding_data_path')
     ? lawnding_data_path($jsonFile)
-    : __DIR__ . '/../../public/res/data/' . $jsonFile;
+    : __DIR__ . '/../../data/public/res/data/' . $jsonFile;
 
 $raw = is_readable($jsonPath) ? file_get_contents($jsonPath) : '';
 $decoded = $raw !== '' ? json_decode($raw, true) : null;
@@ -102,7 +102,7 @@ if ($itemsJson === false) {
                     $itemTitle = isset($item['title']) ? (string) $item['title'] : '';
                     $itemOrder = isset($item['order']) ? (int) $item['order'] : 0;
                     $thumbPath = $itemThumb !== '' ? $itemThumb : $itemFile;
-                    $thumbUrl = function_exists('lawnding_asset_url') ? lawnding_asset_url($thumbPath) : $thumbPath;
+                    $thumbUrl = function_exists('lawnding_instance_asset_url') ? lawnding_instance_asset_url($thumbPath) : $thumbPath;
                 ?>
                 <div class="mediaGalleryItem<?php echo $itemType === 'video' ? ' isVideo' : ''; ?>" data-item-id="<?php echo htmlspecialchars($itemId); ?>" data-item-type="<?php echo htmlspecialchars($itemType); ?>" data-item-order="<?php echo (int) $itemOrder; ?>" data-item-file="<?php echo htmlspecialchars($itemFile); ?>" data-item-thumb="<?php echo htmlspecialchars($itemThumb); ?>" data-item-title="<?php echo htmlspecialchars($itemTitle); ?>">
                     <button class="mediaGalleryThumbButton" type="button" aria-label="Edit media"<?php echo $thumbUrl !== '' ? ' style="background-image: url(' . htmlspecialchars($thumbUrl) . ');"' : ''; ?>></button>

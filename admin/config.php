@@ -3,18 +3,18 @@
 require_once __DIR__ . '/../lp-bootstrap.php';
 // Prevent stale HTML/PHP responses from being cached.
 $cacheHeadersPath = function_exists('lawnding_public_path')
-    ? lawnding_public_path('res/scr/cache_headers.php')
+    ? lawnding_core_public_path('res/scr/cache_headers.php')
     : __DIR__ . '/../public/res/scr/cache_headers.php';
 require_once $cacheHeadersPath;
 // Load the authoritative site version for display and shared constants.
 $versionPath = function_exists('lawnding_public_path')
-    ? lawnding_public_path('res/version.php')
+    ? lawnding_core_public_path('res/version.php')
     : __DIR__ . '/../public/res/version.php';
 require_once $versionPath;
 
 // Load Parsedown for Markdown rendering.
 $parsedownPath = function_exists('lawnding_public_path')
-    ? lawnding_public_path('res/scr/Parsedown.php')
+    ? lawnding_core_public_path('res/scr/Parsedown.php')
     : __DIR__ . '/../public/res/scr/Parsedown.php';
 require $parsedownPath;
 
@@ -22,7 +22,7 @@ require $parsedownPath;
 $dataPath = function (string $file): string {
     return function_exists('lawnding_data_path')
         ? lawnding_data_path($file)
-        : __DIR__ . '/../public/res/data/' . $file;
+        : __DIR__ . '/../data/public/res/data/' . $file;
 };
 
 // Read file contents if available; otherwise return the provided fallback.
@@ -132,13 +132,6 @@ $assetBase = '';
 if (function_exists('lawnding_config')) {
     $assetBase = (string) lawnding_config('base_url', '');
 }
-if ($assetBase === '') {
-    // Fallback only when the browser is actually visiting the /public path.
-    $scriptName = $_SERVER['SCRIPT_NAME'] ?? '';
-    if (is_string($scriptName) && str_starts_with($scriptName, '/public/')) {
-        $assetBase = '/public';
-    }
-}
 $assetBase = rtrim($assetBase, '/');
 
 // Normalize asset URLs for config values that may be relative to /res.
@@ -148,6 +141,12 @@ $makeAssetUrl = function ($path) use ($assetBase) {
     }
     if (preg_match('#^https?://#i', $path)) {
         return $path;
+    }
+    if (function_exists('lawnding_normalize_legacy_public_asset_path')) {
+        $path = lawnding_normalize_legacy_public_asset_path($path);
+    }
+    if (str_starts_with(ltrim($path, '/'), 'res/')) {
+        return function_exists('lawnding_instance_asset_url') ? lawnding_instance_asset_url($path) : $path;
     }
     if (str_starts_with($path, $assetBase . '/')) {
         return $path;
@@ -200,8 +199,8 @@ $authLinksEnabled = !empty($linksSettings['auth_links']);
 $authLinksNeedsNormalization = false;
 
 // Load Telegram bot configuration stored in admin/lp-tgBot.json.
-$tgBotPath = function_exists('lawnding_config')
-    ? lawnding_config('admin_dir', __DIR__) . '/lp-tgBot.json'
+$tgBotPath = function_exists('lawnding_runtime_file_path')
+    ? lawnding_runtime_file_path('tg_bot_path')
     : __DIR__ . '/lp-tgBot.json';
 $tgBotDefaults = [
     'bot_username' => '',
@@ -367,13 +366,13 @@ $faviconUrl = is_string($headerDataDisplay['logo'] ?? null) && $headerDataDispla
 $faviconToken = defined('SITE_VERSION') ? (string) SITE_VERSION : '';
 $faviconPathRaw = is_string($headerData['logo'] ?? null) ? $headerData['logo'] : '';
 if ($faviconPathRaw !== '' && !preg_match('#^[a-z][a-z0-9+.-]*:#i', $faviconPathRaw) && !str_starts_with($faviconPathRaw, '//')) {
-    $faviconPath = ltrim($faviconPathRaw, '/');
-    if (str_starts_with($faviconPath, 'public/')) {
-        $faviconPath = substr($faviconPath, strlen('public/'));
-    }
+    $faviconPath = function_exists('lawnding_normalize_legacy_public_asset_path')
+        ? (string) lawnding_normalize_legacy_public_asset_path($faviconPathRaw)
+        : $faviconPathRaw;
+    $faviconPath = ltrim($faviconPath, '/');
     if (str_starts_with($faviconPath, 'res/')) {
-        $faviconFsPath = function_exists('lawnding_public_path')
-            ? lawnding_public_path($faviconPath)
+        $faviconFsPath = function_exists('lawnding_instance_asset_path')
+            ? lawnding_instance_asset_path($faviconPath)
             : __DIR__ . '/../public/' . $faviconPath;
         if (is_file($faviconFsPath)) {
             $mtime = @filemtime($faviconFsPath);
@@ -387,6 +386,9 @@ $faviconHref = $faviconUrl;
 if ($faviconToken !== '') {
     $faviconHref .= (str_contains($faviconHref, '?') ? '&' : '?') . 'v=' . rawurlencode($faviconToken);
 }
+$legacyFallbackConsoleScript = function_exists('lawnding_render_legacy_fallback_console_script')
+    ? lawnding_render_legacy_fallback_console_script()
+    : '';
 // Keep raw background data for editing and file operations.
 $backgrounds = [];
 if (!empty($headerData['backgrounds']) && is_array($headerData['backgrounds'])) {
@@ -492,13 +494,20 @@ $paneIds = array_values(array_filter(array_map(function ($pane) {
 }));
 
 // Load module manifests to populate the pane management UI (type picker + previews).
-$modulesDir = function_exists('lawnding_admin_path')
-    ? lawnding_admin_path('modules')
-    : __DIR__ . '/modules';
 $modulesCatalog = [];
-if (is_dir($modulesDir)) {
+$moduleRoots = function_exists('lawnding_module_roots')
+    ? lawnding_module_roots()
+    : [__DIR__ . '/modules'];
+$seenModules = [];
+foreach ($moduleRoots as $modulesDir) {
+    if (!is_dir($modulesDir)) {
+        continue;
+    }
     foreach (scandir($modulesDir) as $entry) {
         if ($entry === '.' || $entry === '..') {
+            continue;
+        }
+        if (isset($seenModules[$entry])) {
             continue;
         }
         $ignorePath = rtrim($modulesDir, '/\\') . '/' . $entry . '/IGNORE_ME.txt';
@@ -529,9 +538,18 @@ if (is_dir($modulesDir)) {
             'name' => (string) ($manifest['name'] ?? $id),
             'description' => (string) ($manifest['description'] ?? ''),
             'preview' => $previewUrl,
+            'origin' => function_exists('lawnding_module_origin') ? lawnding_module_origin($id) : 'core',
+            'override' => function_exists('lawnding_module_is_override') ? lawnding_module_is_override($id) : false,
         ];
+        $seenModules[$entry] = true;
     }
 }
+$moduleOverrides = array_values(array_filter(array_map(function ($module) {
+    if (!is_array($module) || empty($module['override']) || empty($module['id'])) {
+        return '';
+    }
+    return (string) $module['id'];
+}, $modulesCatalog)));
 // Serialize pane data needed by the pane management UI.
 $panesForJs = array_map(function ($pane) {
     if (!is_array($pane)) {
@@ -593,8 +611,29 @@ $canEditSite = $canEditSite ?? true;
 $isFullAdmin = $isFullAdmin ?? false;
 $isMasterUser = $isMasterUser ?? false;
 $isReadOnlyUser = $isReadOnlyUser ?? false;
+$runtimeMigrationStatus = $runtimeMigrationStatus ?? ['pending' => [], 'conflicts' => [], 'cleanup' => [], 'needs_migration' => false, 'cleanup_pending' => false];
+$runtimeMigrationNeedsCopy = !empty($runtimeMigrationStatus['needs_migration']);
+$runtimeMigrationNeedsCleanup = !$runtimeMigrationNeedsCopy && !empty($runtimeMigrationStatus['cleanup_pending']);
+$runtimeMigrationErrors = $runtimeMigrationErrors ?? [];
+$runtimeMigrationSuccess = $runtimeMigrationSuccess ?? '';
+$runtimeMigrationConflictEntries = is_array($runtimeMigrationStatus['conflicts'] ?? null) ? $runtimeMigrationStatus['conflicts'] : [];
+$runtimeMigrationHasConflicts = $runtimeMigrationConflictEntries !== [];
+$runtimeMigrationPendingLabels = array_values(array_filter(array_map(
+    static fn(array $entry): string => (string) ($entry['label'] ?? ''),
+    is_array($runtimeMigrationStatus['pending'] ?? null) ? $runtimeMigrationStatus['pending'] : []
+)));
+$runtimeMigrationCleanupLabels = array_values(array_filter(array_map(
+    static fn(array $entry): string => (string) ($entry['label'] ?? ''),
+    is_array($runtimeMigrationStatus['cleanup'] ?? null) ? $runtimeMigrationStatus['cleanup'] : []
+)));
 // Collect server-side status messages to render at top of page.
 $adminNotices = [];
+if (!empty($runtimeMigrationErrors)) {
+    $adminNotices[] = ['type' => 'danger', 'text' => implode(' ', $runtimeMigrationErrors)];
+}
+if ($runtimeMigrationSuccess !== '') {
+    $adminNotices[] = ['type' => 'ok', 'text' => $runtimeMigrationSuccess];
+}
 if (!empty($usersErrors)) {
     $adminNotices[] = ['type' => 'danger', 'text' => implode(' ', $usersErrors)];
 }
@@ -607,6 +646,7 @@ if (!empty($usersWarnings)) {
 $headerDataJson = htmlspecialchars(json_encode($headerDataDisplay, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT), ENT_QUOTES, 'UTF-8');
 $appConfigPayload = [
     'basePath' => $assetBase,
+    'instanceAssetBasePath' => function_exists('lawnding_instance_asset_base_url') ? rtrim(lawnding_instance_asset_base_url(), '/') : '',
     'currentUser' => $currentUserName,
     'canEditSite' => $canEditSite,
     'isMasterUser' => $isMasterUser,
@@ -631,6 +671,7 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
     <link rel="stylesheet" href="<?php echo htmlspecialchars($assetBase . '/res/config.css', ENT_QUOTES, 'UTF-8'); ?>">
 
     <script src="<?php echo htmlspecialchars($assetBase . '/res/scr/jquery-3.7.1.min.js', ENT_QUOTES, 'UTF-8'); ?>"></script>
+    <?php echo $legacyFallbackConsoleScript; ?>
 </head>
 <body data-header-json="<?php echo $headerDataJson; ?>" data-app-config-json="<?php echo $appConfigJson; ?>">
     <div class="hidden" id="tgBotTokenToggleClosed"><?php echo lawnding_icon_svg('eye_closed'); ?></div>
@@ -644,9 +685,63 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
                 <button type="button" class="adminNoticeClose" aria-label="Dismiss notification">×</button>
             </div>
         <?php endforeach; ?>
+        <?php if ($runtimeMigrationNeedsCopy): ?>
+            <div class="adminNotice adminNotice--danger adminNotice--stacked" data-persist="true">
+                <div class="adminNoticeBody">
+                    <span class="adminNoticeText">Migration required. Legacy site data and/or runtime files still exist in the old locations and must be copied into this instance's current data layout before the refactor is complete.</span>
+                    <?php if ($runtimeMigrationPendingLabels !== []): ?>
+                        <span class="adminNoticeMeta">Still missing from the new location: <?php echo htmlspecialchars(implode(', ', $runtimeMigrationPendingLabels)); ?>.</span>
+                    <?php endif; ?>
+                    <?php if ($runtimeMigrationHasConflicts): ?>
+                        <span class="adminNoticeMeta">Conflicting same-name site files were found. Choose whether to keep the legacy or new copy for each one before migration runs.</span>
+                    <?php endif; ?>
+                    <span class="adminNoticeMeta">Run the migration, confirm the site still behaves correctly, then return here to finalize and remove the legacy copies.</span>
+                </div>
+                <?php if ($isFullAdmin): ?>
+                    <?php if ($runtimeMigrationHasConflicts): ?>
+                        <div class="adminNoticeActions">
+                            <button type="button" class="usersButton" id="runtimeMigrationReviewButton">Run Migration</button>
+                        </div>
+                    <?php else: ?>
+                        <form method="post" action="" class="adminNoticeActions">
+                            <input type="hidden" name="action" value="run_runtime_migration">
+                            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token'] ?? ''); ?>">
+                            <button type="submit" class="usersButton">Run Migration</button>
+                        </form>
+                    <?php endif; ?>
+                <?php else: ?>
+                    <div class="adminNoticeMeta">Full admin access is required to run this migration.</div>
+                <?php endif; ?>
+            </div>
+        <?php elseif ($runtimeMigrationNeedsCleanup): ?>
+            <div class="adminNotice adminNotice--danger adminNotice--stacked" data-persist="true">
+                <div class="adminNoticeBody">
+                    <span class="adminNoticeText">Migration copied the new site/runtime data, but legacy files are still present in the old locations.</span>
+                    <?php if ($runtimeMigrationCleanupLabels !== []): ?>
+                        <span class="adminNoticeMeta">Legacy files waiting for cleanup: <?php echo htmlspecialchars(implode(', ', $runtimeMigrationCleanupLabels)); ?>.</span>
+                    <?php endif; ?>
+                    <span class="adminNoticeMeta">Verify the public site and admin panel now behave correctly, then finalize migration to delete the legacy files.</span>
+                </div>
+                <?php if ($isFullAdmin): ?>
+                    <form method="post" action="" class="adminNoticeActions">
+                        <input type="hidden" name="action" value="finalize_runtime_migration">
+                        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token'] ?? ''); ?>">
+                        <button type="submit" class="usersButton usersDanger">Finalize Migration</button>
+                    </form>
+                <?php else: ?>
+                    <div class="adminNoticeMeta">Full admin access is required to finalize this migration.</div>
+                <?php endif; ?>
+            </div>
+        <?php endif; ?>
         <?php if (!empty($missingModules)): ?>
             <div class="adminNotice adminNotice--danger" data-persist="true">
                 <span class="adminNoticeText">Missing pane modules detected: <?php echo htmlspecialchars(implode(', ', $missingModuleDetails)); ?>.</span>
+                <button type="button" class="adminNoticeClose" aria-label="Dismiss notification">×</button>
+            </div>
+        <?php endif; ?>
+        <?php if (!empty($moduleOverrides)): ?>
+            <div class="adminNotice adminNotice--danger" data-persist="true">
+                <span class="adminNoticeText">Instance modules override core modules: <?php echo htmlspecialchars(implode(', ', $moduleOverrides)); ?>.</span>
                 <button type="button" class="adminNoticeClose" aria-label="Dismiss notification">×</button>
             </div>
         <?php endif; ?>
@@ -1148,8 +1243,8 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
         <?php foreach ($panes as $pane): ?>
             <?php
             $moduleId = isset($pane['module']) ? (string) $pane['module'] : '';
-            $modulePath = function_exists('lawnding_admin_path')
-                ? lawnding_admin_path('modules/' . $moduleId . '/admin.php')
+            $modulePath = function_exists('lawnding_module_file')
+                ? lawnding_module_file($moduleId, 'admin.php')
                 : __DIR__ . '/modules/' . $moduleId . '/admin.php';
             if ($moduleId !== '' && is_readable($modulePath)) {
                 include $modulePath;
@@ -1403,6 +1498,45 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
             <button class="usersButton userModalClose" type="button">Cancel</button>
         </div>
     <?php lawnding_modal_close(); ?>
+
+    <?php if ($runtimeMigrationHasConflicts): ?>
+        <?php lawnding_modal_open('runtimeMigrationConflictModal', 'Resolve Migration Conflicts'); ?>
+            <p class="usersHint">These legacy files have the same names as files already present in the new data layout. Choose which copy should be kept for each file before migration continues.</p>
+            <form method="post" action="" id="runtimeMigrationConflictForm">
+                <input type="hidden" name="action" value="run_runtime_migration">
+                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token'] ?? ''); ?>">
+                <div class="runtimeMigrationConflictList">
+                    <?php foreach ($runtimeMigrationConflictEntries as $entry): ?>
+                        <?php
+                            $entryKey = (string) ($entry['key'] ?? '');
+                            $entryLabel = (string) ($entry['label'] ?? basename((string) ($entry['source'] ?? '')));
+                            $entrySource = (string) ($entry['source'] ?? '');
+                            $entryDestination = (string) ($entry['destination'] ?? '');
+                        ?>
+                        <div class="runtimeMigrationConflictItem">
+                            <div class="runtimeMigrationConflictTitle"><?php echo htmlspecialchars($entryLabel); ?></div>
+                            <div class="runtimeMigrationConflictColumns">
+                                <label class="runtimeMigrationConflictChoice">
+                                    <input type="radio" name="migration_conflict_choice[<?php echo htmlspecialchars($entryKey); ?>]" value="legacy" checked>
+                                    <span class="runtimeMigrationConflictChoiceTitle">Use legacy copy</span>
+                                    <span class="runtimeMigrationConflictChoicePath"><?php echo htmlspecialchars($entrySource); ?></span>
+                                </label>
+                                <label class="runtimeMigrationConflictChoice">
+                                    <input type="radio" name="migration_conflict_choice[<?php echo htmlspecialchars($entryKey); ?>]" value="new">
+                                    <span class="runtimeMigrationConflictChoiceTitle">Keep new copy</span>
+                                    <span class="runtimeMigrationConflictChoicePath"><?php echo htmlspecialchars($entryDestination); ?></span>
+                                </label>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+                <div class="paneManageActions">
+                    <button class="usersButton" type="submit" data-modal-confirm="true">Run Migration</button>
+                    <button class="usersButton userModalClose" type="button">Cancel</button>
+                </div>
+            </form>
+        <?php lawnding_modal_close(); ?>
+    <?php endif; ?>
     <!-- Onboarding/tutorial overlay controlled by config.js. -->
     <div id="tutorialOverlay" class="hidden">
         <div id="mask-top" class="tutorialMask"></div>

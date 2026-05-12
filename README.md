@@ -27,21 +27,11 @@ To set up LawndingPage, understand the structure of the files.
     - auth.php
     - config.php
     - .htaccess
-    - users.json (after first run)
 - public/
     - admin/
         - index.php
+    - .htaccess
     - res/
-        - data/
-            - eventList.json
-            - favicon-cache.json
-            - header.json
-            - links.json
-            - panes.json
-            - welcome.md
-        - img/
-            - logo.jpg
-            - bg.jpg
         - scr/
             - admin-data.js
             - app.js
@@ -67,19 +57,49 @@ To set up LawndingPage, understand the structure of the files.
         - style.css
         - version.php
     - index.php
+- data/
+    - public/
+        - res/
+            - data/
+                - header.json
+                - links.json
+                - authorizedLinks.json
+                - panes.json
+                - welcome.md
+                - favicon-cache.json
+            - img/
+                - logo.jpg
+                - bg.jpg
+                - panes/
+    - admin/
+        - users.json (after first admin run)
+        - lp-tgBot.json
+        - lp-tgMembershipCache.json
+    - logs/
+        - errors.txt
+    - state/
+        - .lawndingpage-initialized
+- resources/
+    - seed-instance/
+    - shared-core-instance/
+- tools/
+    - migrate-instance.php
 - CHANGELOG.md
 - LICENSE.md
 - lp-bootstrap.php
 - lp-overrides.php (optional)
+- lp-core-overrides.php (optional)
 - README.md
 - THIRD-PARTY-LICENSES.md
 ```
 
-- `admin/` contains the important files for user authentication, and contains the modules that the page loads for each pane, defined by you.
-    - NOTE: `users.json` doesn't immediately exist when you set up a LawndingPage instance.  It will be created when you create the master account upon first running the site.  If for some reason you aren't prompted to create a master account, go into the root `admin/` folder and delete `users.json`, and then load the page again.
-    - NOTE: Deleting `users.json` does not harm the rest of your site; all users who can access and modify the site will need to be re-added with appropriate permissions re-defined for them.
-- `public/` is the main site.  If you don't have a pre-configured web server, this should be your website root.  It contains all of the data for the page, images, and scripts to make the site work.
+- `admin/` contains authentication code, shared admin logic, and pane modules.
+- `public/` is the web root.  It contains the public and admin entrypoints, shared CSS/JS/PHP endpoints, and the Apache rewrite shell that keeps `/res/...` URLs stable.
+- `data/` is the canonical instance-owned runtime/content tree.  For dedicated installs, this is the folder you should treat as live site data.  It is created and seeded automatically on first run.
+- `resources/seed-instance/` contains the default template content used to seed a new or uninitialized instance.
+- `tools/migrate-instance.php` is a CLI wrapper around the same migration engine used by the admin/browser migration flow.
 - `lp-bootstrap.php` provides runtime path defaults.  `lp-overrides.php` is optional and can override defaults (i.e. if your website root is in `public_html/` instead of just `public/`).
+- `lp-core-overrides.php` is optional and intended for shared-core deployments.  Use `lp-instance.php` inside an instance folder for per-instance path overrides.
 - `CHANGELOG.md`, `LICENSE.md`, `THIRD-PARTY-LICENSES.md`, and `README.md` are supplemental files - the changelog to keep up to date on changes (viewable in-app), the license for this software, the third-party libraries used to make it work, as well as this readme file you're looking at right now!
 
 ### Quick Start
@@ -87,9 +107,9 @@ For this walkthrough, we'll assume your website is `http://www.awesomelandingpag
 
 For purposes of this walkthrough, it's assumed you've got a web host situated, and you own a domain name.  It's also assumed you've downloaded/cloned this repo.
 
-If you don't have an existing web site, then drop everything into your server's root directory, make sure `public/` is set as the website's root.  The `admin/` folder that is OUTSIDE of `public/` should stay outside of the public folder, in your server's root.  This should ensure it cannot be accessed from the internet and only internal scripts cna touch it.  Now if you go to the website, it'll display the default page.  Note, for some shared hosting, they already have a public folder.  I use Hostinger, and their website root is named `public_html/`, so you can copy everything in this project's `public/` folder into that one.  The website should display with a logo placeholder, a title, subtitle, along with one or two panes, depending on if you're on mobile or desktop.  Navigation bar should be on the bottom.  If that's good, we can move on.
+If you don't have an existing web site, then place the repo in your instance root and point your web server at `public/`.  The `admin/` folder stays outside the web root, and the live site content/runtime files will be created under `/data/` on first run.  On Apache-backed installs, keep `public/.htaccess` in place so `/res/...` URLs are rewritten to the canonical `data/public/res/...` files on disk.  On first load, the site should display the default placeholder page seeded from `resources/seed-instance/`.  If that's good, we can move on.
 
-At the end of the url, enter `/admin` at the end of the website.  A login page should appear.  As this is the first time you're using it, you will be prompted to create a master admin account.  This allows full access to the site, including any future functions pertaining to the very back-end of the site.  Then, you'll be prompted to log-in to the admin panel.
+At the end of the URL, enter `/admin`.  A login page should appear.  As this is the first time you're using it, you will be prompted to create a master admin account.  This allows full access to the site, including any future functions pertaining to the very back-end of the site.  Then, you'll be prompted to log in to the admin panel.
 
 The admin panel will appear similar to the site, with a few extra buttons in the header.  Ideally you'll want a normal full-admin account.  To create one - and any future accounts, go to the user management page (leftmost button), and under "Create user", enter a username and temporary password.  Click the "Create User" button, and the new user should appear underneath the master account with the temporary password displayed so you can copy/paste it to give to the new user,  Click the "Permissions" button next to the new user and set it to "Full admin".  Log out of the master account, sign in as the new user, create a new password, and you're good to go!
 
@@ -97,6 +117,116 @@ From there, you can add links, edit the title and subtitle of the page, the logo
 
 TODO: Add a proper write-up for the admin health check warnings and what they mean.
 TODO: Add guidance on checking `admin/errors.txt` for troubleshooting.
+
+## Deployment Modes
+
+LawndingPage now supports two deployment styles:
+
+- Dedicated instance:
+  One install contains the core code plus the instance's own data.
+- Shared-core instance:
+  A shared `_core/` directory contains the code, while each tenant directory contains only thin launchers, instance-owned data under `data/public/res/...`, private runtime data under `data/`, optional `modules/`, and `lp-instance.php`.
+
+### Runtime Data Paths
+
+Private runtime files are now expected under `data/`:
+
+```text
+data/
+    admin/
+        users.json
+        lp-tgBot.json
+        lp-tgMembershipCache.json
+    logs/
+        errors.txt
+    state/
+        .lawndingpage-initialized
+```
+
+Compatibility behavior remains in place for older installs that still have those files under `admin/`. The migration script copies or moves them forward.
+
+Public instance-owned content now lives under:
+
+```text
+data/
+    public/
+        res/
+            data/
+            img/
+```
+
+Browser URLs remain `/res/data/...` and `/res/img/...`.  Apache rewrites in `public/.htaccess` preserve those URLs while serving the actual files from `data/public/res/...` on disk.
+
+## First Run
+
+On first run, if `data/state/.lawndingpage-initialized` is missing, LawndingPage creates the instance structure and seeds it from `resources/seed-instance/`.  This can be triggered from either `/` or `/admin/`.
+
+The initializer creates:
+
+- `public/.htaccess` if it is missing
+- `data/public/res/data/.htaccess`
+- `data/public/res/data/header.json`
+- `data/public/res/data/links.json`
+- `data/public/res/data/authorizedLinks.json`
+- `data/public/res/data/panes.json`
+- `data/public/res/data/welcome.md`
+- `data/public/res/img/logo.jpg`
+- `data/public/res/img/bg.jpg`
+
+It does **not** create `users.json`. The admin first-run flow still creates the master account naturally the first time someone visits `/admin/`.
+
+## Migration
+
+For existing dedicated installs, the primary migration flow is now admin/browser driven:
+
+- Visit `/admin/`
+- Review the persistent migration notice
+- Run migration from the admin panel
+- If conflicting same-name site files exist, choose whether to keep the legacy or new copy for each one
+- Verify the site and admin still behave correctly
+- Finalize migration to remove the legacy copies and legacy `public/res/data` / `public/res/img` directories
+
+The migration engine handles:
+
+- private runtime files from legacy `admin/` paths
+- site data from legacy `public/res/data/`
+- site images from legacy `public/res/img/`
+- `lp-overrides.php` path rewrites when needed
+- normalization of migrated content that still references legacy `public/res/...` paths
+
+The CLI wrapper remains available:
+
+```bash
+php tools/migrate-instance.php --dry-run
+php tools/migrate-instance.php --copy
+php tools/migrate-instance.php --move
+```
+
+Optional root override:
+
+```bash
+php tools/migrate-instance.php --root=/path/to/instance --dry-run
+```
+
+The CLI entrypoint uses the same shared migration engine as the admin/browser workflow.
+
+## Shared-Core Layout
+
+A shared-core instance template is included at:
+
+```text
+resources/shared-core-instance/
+```
+
+That template contains:
+
+- `public/index.php`
+- `public/admin/index.php`
+- `public/.htaccess`
+- `data/public/res/data/.htaccess`
+- `lp-instance.php`
+
+These are the thin launchers and Apache routing scaffolding used when a tenant should load code from a shared `_core/` directory while keeping its own data and assets local.
 
 ## Overview
 LawndingPage uses a straightforward system to display content, known as "panes".
@@ -117,7 +247,7 @@ To keep things visually consistent, `config.php` is derived off the main page, a
 ## Page Breakdown
 Panes are dynamically loaded into `index.php`, based on what the user defines.  In this example, there are two user-defined panes - a Basic Text pane called "Welcome" and an Event List pane called "Event List".
 
-These panes pull data from `res/data/`, defined per pane in `panes.json` vua a data map and depending on the type of content they deliver, may include `json` files or `md` files, or any number of other file types, as required by a module.
+These panes pull data through the shared data helpers and are stored canonically under `data/public/res/data/`.  Public URLs still use `/res/...`, but the filesystem source of truth is now the instance data tree.  Per-pane file mappings are defined in `panes.json` and may include `json`, `md`, or any other file types required by a module.
 
 This is not unlike a WordPress page, where users can add/remove various plugins to give their site unique pages or features, except we call them "modules".  'Cause we're fancy, like that.
 
@@ -425,7 +555,7 @@ Here's the structure of `#container`:
 ```
 
 1. `#links`
-    - The `#links` pane is a special pane that provides a list of links, if it wasn't obvious enough.  It pulls it's data from `res/data/links.json`, and the code above cycles through that file and populates the `<div>` with links and separators.
+    - The `#links` pane is a special pane that provides a list of links, if it wasn't obvious enough.  It pulls its data from the instance data tree via `lawnding_data_path('links.json')`, and the code above cycles through that file and populates the `<div>` with links and separators.
     ```json
     [
         {

@@ -3,6 +3,12 @@
 #### IMPORTANT!  THIS CMS IS CURRENTLY BEST USED ON APACHE
 My apologies, I did not think to make note of this before.  This project utilizes `.htaccess` for a few directories.  As such, LawndingPage primarily is built for Apache servers.  Work will be made to do away with the need for those files, but no timeframe is given.  If you wish to use this on your own server, either use Apache, or be prepared to modify the code to support different file structures.  No guarantee is made.
 
+#### v1.12.0
+- Split user data from core CMS code.
+- Updated documentation
+
+-----
+
 #### v1.11.0
 - Add whitelist/blacklist to telegram auth
 - Added calendar view to the eventList module.

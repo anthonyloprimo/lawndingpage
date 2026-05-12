@@ -1,0 +1,8 @@
+Options -Indexes
+RewriteEngine On
+
+# Block only files directly inside /res/data (top-level files).
+RewriteRule ^[^/]+$ - [F,L]
+
+# Block dotfiles anywhere under /res/data.
+RewriteRule (^|/)\. - [F,L]

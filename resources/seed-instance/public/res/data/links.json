@@ -1,0 +1,17 @@
+{
+    "settings": {
+        "show_links": true,
+        "auth_links": false
+    },
+    "links": [
+        {
+            "type": "link",
+            "id": "linkGoogle",
+            "href": "https://www.google.com/",
+            "text": "Google",
+            "title": "The google.com homepage.",
+            "fullWidth": true,
+            "cta": true
+        }
+    ]
+}

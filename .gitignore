@@ -9,3 +9,5 @@ admin/users.json
 admin/lp-tgBot.json
 admin/lp-tgMembershipCache.json
 .DS_Store
+/data/
+/codex-data/

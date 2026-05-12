@@ -29,7 +29,7 @@ if ($paneId === '' || $jsonFile === '') {
 
 $jsonPath = function_exists('lawnding_data_path')
     ? lawnding_data_path($jsonFile)
-    : __DIR__ . '/../../public/res/data/' . $jsonFile;
+    : __DIR__ . '/../../data/public/res/data/' . $jsonFile;
 
 $raw = is_readable($jsonPath) ? file_get_contents($jsonPath) : '';
 $decoded = $raw !== '' ? json_decode($raw, true) : null;
@@ -48,13 +48,13 @@ if (!is_array($events)) {
 if (!empty($events)) {
     if (!class_exists('Parsedown')) {
         $parsedownPath = function_exists('lawnding_public_path')
-            ? lawnding_public_path('res/scr/Parsedown.php')
+            ? lawnding_core_public_path('res/scr/Parsedown.php')
             : __DIR__ . '/../../public/res/scr/Parsedown.php';
         require_once $parsedownPath;
     }
     if (!function_exists('lawnding_markdown_gate_apply')) {
         $gatingPath = function_exists('lawnding_public_path')
-            ? lawnding_public_path('res/scr/markdown-gating.php')
+            ? lawnding_core_public_path('res/scr/markdown-gating.php')
             : __DIR__ . '/../../../public/res/scr/markdown-gating.php';
         require_once $gatingPath;
     }

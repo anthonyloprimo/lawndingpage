@@ -1,0 +1,20 @@
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Serve instance-owned site data from the sibling ../data tree.
+    RewriteRule ^res/data/(.+)$ ../data/public/res/data/$1 [L]
+    RewriteRule ^res/img/(.+)$ ../data/public/res/img/$1 [L]
+
+    # Shared-core instances keep other public instance assets local.
+    RewriteCond %{REQUEST_FILENAME} -f [OR]
+    RewriteCond %{REQUEST_FILENAME} -d
+    RewriteRule ^ - [L]
+
+    # Route shared core resources/endpoints through the shared _core public tree.
+    # This template assumes instances/<name>/public and instances/_core/public are siblings.
+    RewriteRule ^res/(style\.css|config\.css|admin\.css|version\.php)$ ../../_core/public/res/$1 [L]
+    RewriteRule ^res/scr/(.+)$ ../../_core/public/res/scr/$1 [L]
+    RewriteRule ^plugins/(.+)$ ../../_core/public/plugins/$1 [L]
+</IfModule>
+
+FileETag MTime Size

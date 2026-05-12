@@ -13,6 +13,9 @@ $(document).ready(function() {
     const basePath = window.appConfig && typeof window.appConfig.basePath === 'string'
         ? window.appConfig.basePath.replace(/\/$/, '')
         : '';
+    const instanceAssetBasePath = window.appConfig && typeof window.appConfig.instanceAssetBasePath === 'string'
+        ? window.appConfig.instanceAssetBasePath.replace(/\/$/, '')
+        : '';
     const csrfToken = window.appConfig && window.appConfig.csrfToken ? window.appConfig.csrfToken : '';
 
     function buildUrl(file) {
@@ -29,14 +32,24 @@ $(document).ready(function() {
         if (basePath && path.startsWith(basePath + '/')) {
             return path;
         }
+        if (instanceAssetBasePath && path.startsWith(instanceAssetBasePath + '/')) {
+            return path;
+        }
         if (path.startsWith('/res/')) {
-            return basePath + path;
+            return (instanceAssetBasePath || basePath) + path;
         }
         if (path.startsWith('res/')) {
+            if (instanceAssetBasePath) {
+                return `${instanceAssetBasePath}/${path}`;
+            }
             return basePath ? `${basePath}/${path}` : `/${path}`;
         }
         if (path.startsWith('public/res/')) {
+            console.warn('LawndingPage legacy fallback (asset):', path, '->', path.slice('public/'.length));
             const trimmed = path.slice('public/'.length);
+            if (instanceAssetBasePath) {
+                return `${instanceAssetBasePath}/${trimmed}`;
+            }
             return basePath ? `${basePath}/${trimmed}` : `/${trimmed}`;
         }
         return path;

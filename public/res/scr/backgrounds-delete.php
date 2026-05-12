@@ -24,6 +24,7 @@ if ($url === '') {
 // Locate the header JSON where backgrounds are stored.
 $paths = backgrounds_paths();
 $publicDir = $paths['public_dir'];
+$imgDir = rtrim((string) ($paths['img_dir'] ?? ''), '/\\');
 $headerPath = $paths['header_path'];
 
 // Load header.json and normalize background data.
@@ -81,9 +82,10 @@ if (str_starts_with($normalizedUrl, 'res/img/')) {
         }
     }
     if (!$stillUsed) {
-        $filePath = $publicDir . '/' . $normalizedUrl;
+        $relativeImgPath = substr($normalizedUrl, strlen('res/img/'));
+        $filePath = $imgDir !== '' ? $imgDir . '/' . $relativeImgPath : $publicDir . '/' . $normalizedUrl;
         $realFile = realpath($filePath);
-        $imgRoot = realpath($publicDir . '/res/img');
+        $imgRoot = $imgDir !== '' ? realpath($imgDir) : realpath($publicDir . '/res/img');
         if ($realFile && $imgRoot && str_starts_with($realFile, $imgRoot . DIRECTORY_SEPARATOR)) {
             if (is_file($realFile)) {
                 unlink($realFile);

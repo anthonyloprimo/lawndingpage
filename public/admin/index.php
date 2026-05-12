@@ -7,14 +7,17 @@ if (!is_readable($bootstrapPath)) {
     $bootstrapPath = __DIR__ . '/../../../lp-bootstrap.php';
 }
 require_once $bootstrapPath;
+if (function_exists('lawnding_initialize_instance_if_needed')) {
+    lawnding_initialize_instance_if_needed();
+}
 // Prevent stale HTML/PHP responses from being cached.
 $cacheHeadersPath = function_exists('lawnding_public_path')
-    ? lawnding_public_path('res/scr/cache_headers.php')
+    ? lawnding_core_public_path('res/scr/cache_headers.php')
     : __DIR__ . '/../res/scr/cache_headers.php';
 require_once $cacheHeadersPath;
 // Load the authoritative site version for display and shared constants.
 $versionPath = function_exists('lawnding_public_path')
-    ? lawnding_public_path('res/version.php')
+    ? lawnding_core_public_path('res/version.php')
     : __DIR__ . '/../res/version.php';
 require_once $versionPath;
 
@@ -52,11 +55,16 @@ if ($requestPath !== null && $requestPath !== '') {
     }
 }
 
-// Resolve admin root and configure error logging to admin/errors.txt.
+// Resolve admin root and configure error logging.
 $adminRoot = function_exists('lawnding_config')
-    ? lawnding_config('admin_dir', dirname(__DIR__, 2) . '/admin')
+    ? lawnding_config('instance_runtime_admin_dir', dirname(__DIR__, 2) . '/admin')
     : dirname(__DIR__, 2) . '/admin';
-$errorLogPath = $adminRoot . '/errors.txt';
+$errorLogPath = function_exists('lawnding_runtime_file_path')
+    ? lawnding_runtime_file_path('errors_path')
+    : ($adminRoot . '/errors.txt');
+if (function_exists('lawnding_ensure_parent_dir')) {
+    lawnding_ensure_parent_dir($errorLogPath);
+}
 ini_set('log_errors', '1');
 ini_set('error_log', $errorLogPath);
 
@@ -64,7 +72,9 @@ lawnding_init_session(); // Initialize PHP session storage and load existing ses
 
 // Users file location (stored outside public web root).
 $usersPath = function_exists('lawnding_config')
-    ? lawnding_config('users_path', dirname(__DIR__, 2) . '/admin/users.json')
+    ? (function_exists('lawnding_runtime_file_path')
+        ? lawnding_runtime_file_path('users_path')
+        : lawnding_config('users_path', dirname(__DIR__, 2) . '/admin/users.json'))
     : dirname(__DIR__, 2) . '/admin/users.json';
 $users = [];
 $usersFileIssue = null;
@@ -103,6 +113,8 @@ $success = '';
 $usersErrors = [];
 $usersSuccess = '';
 $usersWarnings = [];
+$runtimeMigrationErrors = [];
+$runtimeMigrationSuccess = '';
 $usersPermissionsNeedsFix = false;
 $usersPermissionsFixResult = null;
 $passwordChangeSuccess = '';
@@ -179,6 +191,9 @@ function require_csrf_token(&$errors) {
 // Persist user data to disk with the standard JSON format.
 function write_users_file($usersPath, $users, &$errors, $message) {
     $encoded = json_encode($users, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+    if (function_exists('lawnding_ensure_parent_dir')) {
+        lawnding_ensure_parent_dir($usersPath);
+    }
     if ($encoded === false || file_put_contents($usersPath, $encoded, LOCK_EX) === false) {
         $errors[] = $message;
         return false;
@@ -310,11 +325,12 @@ if ($isReadOnlyUser) {
 
 // Health checks for files and directories needed by the admin app.
 if (!file_exists($errorLogPath)) {
-    if (is_dir($adminRoot) && is_writable($adminRoot)) {
+    $logDir = dirname($errorLogPath);
+    if ((is_dir($logDir) || (function_exists('lawnding_ensure_dir') && lawnding_ensure_dir($logDir))) && is_writable($logDir)) {
         @touch($errorLogPath);
     }
     if (!file_exists($errorLogPath)) {
-        add_health_warning($usersWarnings, 'Health check: Unable to create errors.txt in the admin directory.');
+        add_health_warning($usersWarnings, 'Health check: Unable to create errors.txt in the logs directory.');
     }
 }
 if (file_exists($errorLogPath) && !is_writable($errorLogPath)) {
@@ -340,17 +356,86 @@ $imgDir = function_exists('lawnding_config')
     : dirname(__DIR__) . '/res/img';
 
 if (is_dir($dataDir) && !is_writable($dataDir)) {
-    add_health_warning($usersWarnings, 'Health check: res/data is not writable.');
+    add_health_warning($usersWarnings, 'Health check: site data directory is not writable.');
 }
 if (is_dir($imgDir) && !is_writable($imgDir)) {
-    add_health_warning($usersWarnings, 'Health check: res/img is not writable.');
+    add_health_warning($usersWarnings, 'Health check: site image directory is not writable.');
 }
 if (file_exists($usersPath)) {
     if (!is_writable($usersPath)) {
         add_health_warning($usersWarnings, 'Health check: users.json is not writable.');
     }
 } elseif (!is_writable(dirname($usersPath))) {
-    add_health_warning($usersWarnings, 'Health check: admin directory is not writable for users.json.');
+    add_health_warning($usersWarnings, 'Health check: users directory is not writable for users.json.');
+}
+
+// Admin action: copy legacy site/runtime files into the new instance data tree.
+if ($action === 'run_runtime_migration') {
+    if (!$authRecord) {
+        $runtimeMigrationErrors[] = 'Login required to run the site-data migration.';
+    } elseif (!$isFullAdmin) {
+        $runtimeMigrationErrors[] = 'Site-data migration requires full admin access.';
+    } elseif (require_csrf_token($runtimeMigrationErrors)) {
+        $conflictChoices = [];
+        $postedConflictChoices = $_POST['migration_conflict_choice'] ?? [];
+        if (is_array($postedConflictChoices)) {
+            foreach ($postedConflictChoices as $key => $value) {
+                if (!is_string($key)) {
+                    continue;
+                }
+                $choice = is_string($value) ? strtolower(trim($value)) : '';
+                if ($choice === 'legacy' || $choice === 'new') {
+                    $conflictChoices[$key] = $choice;
+                }
+            }
+        }
+        if (function_exists('lawnding_run_runtime_migration')) {
+            $migrationResult = lawnding_run_runtime_migration('copy', $conflictChoices);
+            if (!empty($migrationResult['errors'])) {
+                $runtimeMigrationErrors = array_merge($runtimeMigrationErrors, $migrationResult['errors']);
+            }
+            if ($migrationResult['ok']) {
+                $processedLabels = array_map(
+                    static fn(array $entry): string => (string) ($entry['label'] ?? ''),
+                    $migrationResult['processed'] ?? []
+                );
+                if ($processedLabels !== []) {
+                    $runtimeMigrationSuccess = 'Migration copied: ' . implode(', ', array_filter($processedLabels)) . '. Verify the site, then finalize the migration to delete the legacy copies.';
+                } else {
+                    $runtimeMigrationSuccess = 'Migration is already up to date. Verify the site, then finalize the migration to delete any remaining legacy copies.';
+                }
+            }
+        } else {
+            $runtimeMigrationErrors[] = 'Migration helpers are unavailable in this install.';
+        }
+    }
+}
+
+// Admin action: remove legacy files after the new paths are verified.
+if ($action === 'finalize_runtime_migration') {
+    if (!$authRecord) {
+        $runtimeMigrationErrors[] = 'Login required to finalize the migration.';
+    } elseif (!$isFullAdmin) {
+        $runtimeMigrationErrors[] = 'Finalizing the migration requires full admin access.';
+    } elseif (require_csrf_token($runtimeMigrationErrors)) {
+        if (function_exists('lawnding_finalize_runtime_migration')) {
+            $migrationResult = lawnding_finalize_runtime_migration();
+            if (!empty($migrationResult['errors'])) {
+                $runtimeMigrationErrors = array_merge($runtimeMigrationErrors, $migrationResult['errors']);
+            }
+            if ($migrationResult['ok']) {
+                $removedLabels = array_map(
+                    static fn(array $entry): string => (string) ($entry['label'] ?? ''),
+                    $migrationResult['removed'] ?? []
+                );
+                $runtimeMigrationSuccess = $removedLabels !== []
+                    ? 'Legacy files removed: ' . implode(', ', array_filter($removedLabels)) . '.'
+                    : 'No legacy files remain. Migration is complete.';
+            }
+        } else {
+            $runtimeMigrationErrors[] = 'Migration helpers are unavailable in this install.';
+        }
+    }
 }
 
 // Admin action: fix users.json permissions to 0640.
@@ -717,6 +802,12 @@ if ($flash) {
     if (!empty($flash['usersWarnings']) && is_array($flash['usersWarnings'])) {
         $usersWarnings = array_merge($usersWarnings, $flash['usersWarnings']);
     }
+    if (!empty($flash['runtimeMigrationErrors']) && is_array($flash['runtimeMigrationErrors'])) {
+        $runtimeMigrationErrors = $flash['runtimeMigrationErrors'];
+    }
+    if (!empty($flash['runtimeMigrationSuccess']) && is_string($flash['runtimeMigrationSuccess'])) {
+        $runtimeMigrationSuccess = $flash['runtimeMigrationSuccess'];
+    }
     if (array_key_exists('usersPermissionsNeedsFix', $flash)) {
         $usersPermissionsNeedsFix = (bool) $flash['usersPermissionsNeedsFix'];
     }
@@ -734,6 +825,12 @@ if ($flash) {
     }
 }
 
+$runtimeMigrationStatus = function_exists('lawnding_runtime_migration_status')
+    ? lawnding_runtime_migration_status()
+    : ['pending' => [], 'conflicts' => [], 'cleanup' => [], 'needs_migration' => false, 'cleanup_pending' => false];
+$runtimeMigrationNeedsCopy = !empty($runtimeMigrationStatus['needs_migration']);
+$runtimeMigrationNeedsCleanup = !$runtimeMigrationNeedsCopy && !empty($runtimeMigrationStatus['cleanup_pending']);
+
 // If we just logged out or removed ourselves, redirect to the login screen.
 if ($logoutAfterAction) {
     header('Location: ' . admin_redirect_path());
@@ -749,6 +846,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action !== 'logout') {
         'usersErrors' => $usersErrors,
         'usersSuccess' => $usersSuccess,
         'usersWarnings' => $usersWarnings,
+        'runtimeMigrationErrors' => $runtimeMigrationErrors,
+        'runtimeMigrationSuccess' => $runtimeMigrationSuccess,
         'usersPermissionsNeedsFix' => $usersPermissionsNeedsFix,
         'usersPermissionsFixResult' => $usersPermissionsFixResult,
         'resetPassword' => $resetPassword,
@@ -762,7 +861,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action !== 'logout') {
 // If authenticated and not forced to change password, render the admin app.
 if ($authRecord && !$forcePasswordChange) {
     $adminConfigPath = function_exists('lawnding_admin_path')
-        ? lawnding_admin_path('config.php')
+        ? lawnding_core_admin_path('config.php')
         : dirname(__DIR__, 2) . '/admin/config.php';
     require $adminConfigPath;
     exit;
@@ -776,12 +875,6 @@ if ($authRecord && !$forcePasswordChange) {
     <title>Admin Panel</title>
     <?php
         $assetBase = function_exists('lawnding_config') ? rtrim(lawnding_config('base_url', ''), '/') : '';
-        if ($assetBase === '') {
-            $scriptName = $_SERVER['SCRIPT_NAME'] ?? '';
-            if (is_string($scriptName) && str_starts_with($scriptName, '/public/')) {
-                $assetBase = '/public';
-            }
-        }
         $headerLogoPath = 'res/img/logo.jpg';
         $headerPath = function_exists('lawnding_data_path')
             ? lawnding_data_path('header.json')
@@ -792,23 +885,27 @@ if ($authRecord && !$forcePasswordChange) {
                 $headerLogoPath = $headerDecoded['logo'];
             }
         }
-        $logoPathTrimmed = ltrim($headerLogoPath, '/');
-        if (str_starts_with($logoPathTrimmed, 'public/')) {
-            $logoPathTrimmed = substr($logoPathTrimmed, strlen('public/'));
+        if (function_exists('lawnding_normalize_legacy_public_asset_path')) {
+            $headerLogoPath = (string) lawnding_normalize_legacy_public_asset_path($headerLogoPath);
         }
+        $logoPathTrimmed = ltrim($headerLogoPath, '/');
         $faviconUrl = '';
         if (preg_match('#^[a-z][a-z0-9+.-]*:#i', $headerLogoPath) || str_starts_with($headerLogoPath, '//')) {
             $faviconUrl = $headerLogoPath;
         } elseif (str_starts_with($logoPathTrimmed, 'res/')) {
-            $faviconUrl = ($assetBase !== '' ? $assetBase : '') . '/' . $logoPathTrimmed;
+            $faviconUrl = function_exists('lawnding_instance_asset_url')
+                ? lawnding_instance_asset_url($logoPathTrimmed)
+                : (($assetBase !== '' ? $assetBase : '') . '/' . $logoPathTrimmed);
         } else {
-            $faviconUrl = ($assetBase !== '' ? $assetBase : '') . '/res/img/logo.jpg';
+            $faviconUrl = function_exists('lawnding_instance_asset_url')
+                ? lawnding_instance_asset_url('res/img/logo.jpg')
+                : (($assetBase !== '' ? $assetBase : '') . '/res/img/logo.jpg');
             $logoPathTrimmed = 'res/img/logo.jpg';
         }
         $faviconToken = defined('SITE_VERSION') ? (string) SITE_VERSION : '';
         if (str_starts_with($logoPathTrimmed, 'res/')) {
-            $logoFsPath = function_exists('lawnding_public_path')
-                ? lawnding_public_path($logoPathTrimmed)
+            $logoFsPath = function_exists('lawnding_instance_asset_path')
+                ? lawnding_instance_asset_path($logoPathTrimmed)
                 : __DIR__ . '/../' . $logoPathTrimmed;
             if (is_file($logoFsPath)) {
                 $mtime = @filemtime($logoFsPath);
@@ -820,12 +917,16 @@ if ($authRecord && !$forcePasswordChange) {
         if ($faviconToken !== '') {
             $faviconUrl .= (str_contains($faviconUrl, '?') ? '&' : '?') . 'v=' . rawurlencode($faviconToken);
         }
+        $legacyFallbackConsoleScript = function_exists('lawnding_render_legacy_fallback_console_script')
+            ? lawnding_render_legacy_fallback_console_script()
+            : '';
     ?>
     <?php // Deprecated: site-version.js cache-busting is no longer loaded. ?>
     <script src="<?php echo htmlspecialchars($assetBase . '/res/scr/no-zoom.js', ENT_QUOTES, 'UTF-8'); ?>"></script>
     <link rel="icon" href="<?php echo htmlspecialchars($faviconUrl, ENT_QUOTES, 'UTF-8'); ?>">
     <link rel="stylesheet" href="<?php echo htmlspecialchars($assetBase . '/res/style.css', ENT_QUOTES, 'UTF-8'); ?>">
     <link rel="stylesheet" href="<?php echo htmlspecialchars($assetBase . '/res/admin.css', ENT_QUOTES, 'UTF-8'); ?>">
+    <?php echo $legacyFallbackConsoleScript; ?>
 </head>
 <body>
     <!-- Login / first-run / password reset screen. -->

@@ -22,9 +22,11 @@ function backgrounds_allowed_permissions(): array {
 
 // Resolve the users.json path using bootstrap config when available.
 function backgrounds_users_path(): string {
-    return function_exists('lawnding_config')
-        ? lawnding_config('users_path', dirname(__DIR__, 3) . '/admin/users.json')
-        : dirname(__DIR__, 3) . '/admin/users.json';
+    return function_exists('lawnding_runtime_file_path')
+        ? lawnding_runtime_file_path('users_path')
+        : (function_exists('lawnding_config')
+            ? lawnding_config('users_path', dirname(__DIR__, 3) . '/admin/users.json')
+            : dirname(__DIR__, 3) . '/admin/users.json');
 }
 
 // Load users.json into an array (empty on failure).
@@ -162,24 +164,11 @@ function backgrounds_make_asset_url($path) {
     if (preg_match('#^https?://#i', $path)) {
         return $path;
     }
-    $assetBase = '';
-    if (function_exists('lawnding_config')) {
-        $assetBase = (string) lawnding_config('base_url', '');
+    if (function_exists('lawnding_normalize_legacy_public_asset_path')) {
+        $path = lawnding_normalize_legacy_public_asset_path($path);
     }
-    if ($assetBase === '') {
-        if (empty($_SERVER['DOCUMENT_ROOT']) || !is_dir($_SERVER['DOCUMENT_ROOT'] . '/res')) {
-            $assetBase = '/public';
-        }
-    }
-    $assetBase = rtrim($assetBase, '/');
-    if (str_starts_with($path, $assetBase . '/')) {
-        return $path;
-    }
-    if (str_starts_with($path, '/res/')) {
-        return $assetBase . $path;
-    }
-    if (str_starts_with($path, 'res/')) {
-        return $assetBase !== '' ? $assetBase . '/' . $path : '/' . $path;
+    if (str_starts_with(ltrim($path, '/'), 'res/')) {
+        return function_exists('lawnding_instance_asset_url') ? lawnding_instance_asset_url($path) : $path;
     }
     return $path;
 }

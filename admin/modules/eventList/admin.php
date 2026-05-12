@@ -31,7 +31,7 @@ if ($paneId === '' || $jsonFile === '') {
 // Resolve JSON file path through bootstrap helpers when available.
 $jsonPath = function_exists('lawnding_data_path')
     ? lawnding_data_path($jsonFile)
-    : __DIR__ . '/../../public/res/data/' . $jsonFile;
+    : __DIR__ . '/../../data/public/res/data/' . $jsonFile;
 
 $raw = is_readable($jsonPath) ? file_get_contents($jsonPath) : '';
 $decoded = $raw !== '' ? json_decode($raw, true) : null;

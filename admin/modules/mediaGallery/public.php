@@ -34,7 +34,7 @@ if ($paneId === '' || $jsonFile === '') {
 
 $jsonPath = function_exists('lawnding_data_path')
     ? lawnding_data_path($jsonFile)
-    : __DIR__ . '/../../public/res/data/' . $jsonFile;
+    : __DIR__ . '/../../data/public/res/data/' . $jsonFile;
 
 $raw = is_readable($jsonPath) ? file_get_contents($jsonPath) : '';
 $decoded = $raw !== '' ? json_decode($raw, true) : null;
@@ -59,8 +59,8 @@ foreach ($items as $item) {
     }
     $file = isset($item['file']) ? (string) $item['file'] : '';
     $thumb = isset($item['thumb']) ? (string) $item['thumb'] : '';
-    $item['file'] = function_exists('lawnding_asset_url') ? lawnding_asset_url($file) : $file;
-    $item['thumb'] = function_exists('lawnding_asset_url') ? lawnding_asset_url($thumb) : $thumb;
+    $item['file'] = function_exists('lawnding_instance_asset_url') ? lawnding_instance_asset_url($file) : $file;
+    $item['thumb'] = function_exists('lawnding_instance_asset_url') ? lawnding_instance_asset_url($thumb) : $thumb;
     $itemsForJson[] = $item;
 }
 
@@ -81,9 +81,9 @@ if ($itemsJson === false) {
                 $itemFile = isset($item['file']) ? (string) $item['file'] : '';
                 $itemThumb = isset($item['thumb']) ? (string) $item['thumb'] : '';
                 $itemTitle = isset($item['title']) ? (string) $item['title'] : '';
-                $itemFileUrl = function_exists('lawnding_asset_url') ? lawnding_asset_url($itemFile) : $itemFile;
+                $itemFileUrl = function_exists('lawnding_instance_asset_url') ? lawnding_instance_asset_url($itemFile) : $itemFile;
                 $thumbPath = $itemThumb !== '' ? $itemThumb : ($itemType === 'image' ? $itemFile : '');
-                $thumbUrl = $thumbPath !== '' && function_exists('lawnding_asset_url') ? lawnding_asset_url($thumbPath) : $thumbPath;
+                $thumbUrl = $thumbPath !== '' && function_exists('lawnding_instance_asset_url') ? lawnding_instance_asset_url($thumbPath) : $thumbPath;
             ?>
             <a class="mediaGalleryPublicItem<?php echo $itemType === 'video' ? ' isVideo' : ''; ?>" href="<?php echo htmlspecialchars($itemFileUrl); ?>" data-media-id="<?php echo htmlspecialchars($itemId); ?>" data-media-type="<?php echo htmlspecialchars($itemType); ?>" data-media-file="<?php echo htmlspecialchars($itemFileUrl); ?>" data-media-thumb="<?php echo htmlspecialchars($itemThumb); ?>" data-media-title="<?php echo htmlspecialchars($itemTitle); ?>">
                 <?php if ($thumbUrl !== ''): ?>

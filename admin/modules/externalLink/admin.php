@@ -91,7 +91,7 @@ if ($paneId === '' || $jsonFile === '') {
 
 $jsonPath = function_exists('lawnding_data_path')
     ? lawnding_data_path($jsonFile)
-    : __DIR__ . '/../../public/res/data/' . $jsonFile;
+    : __DIR__ . '/../../data/public/res/data/' . $jsonFile;
 $settings = ['url' => '', 'openMode' => 'new', 'iconMode' => 'custom'];
 if (is_readable($jsonPath)) {
     $decoded = json_decode((string) file_get_contents($jsonPath), true);

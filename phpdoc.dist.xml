@@ -20,12 +20,18 @@
     </paths>
 
     <!--
-        "clean" is the misleadingly-named Bootstrap-styled template;
-        "default" is the plain minimal one. The bundled
-        "responsive-twig" produces zero HTML in 3.9.1 (known broken),
-        so the realistic richer choice is "clean".
+        Template selection: left commented-out. We use phpDocumentor's
+        built-in "default" template (modern vanilla CSS, no framework
+        dependency). The other bundled options were each tested and
+        rejected:
+          - "clean": Bootstrap 2.3.2 + jQuery 1.11, looks 2013-era
+          - "responsive-twig": broken in 3.9.1 (zero HTML output)
+        Doctum was also tried as an alternate generator but is
+        class-centric; our procedural codebase rendered as 0 entries.
+        If a future template becomes attractive, set <template name="..."/>
+        here as a sibling of <version> (NOT inside <version> — schema
+        rejects it there).
     -->
-    <template name="clean"/>
 
     <version number="latest">
         <api>

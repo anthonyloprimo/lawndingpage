@@ -408,7 +408,7 @@ function event_scraper_to_eventlist_record(
 
     // allDay is derived from the extractor's data: when an extractor sets
     // startTime, the source had a real time and we honor it; otherwise the
-    // event is all-day (date-only sources like furrycons-na's JSON-LD).
+    // event is all-day (date-only sources).
     $startTime = trim((string) ($event['startTime'] ?? ''));
     $endTime = trim((string) ($event['endTime'] ?? ''));
     if ($startTime === '') {

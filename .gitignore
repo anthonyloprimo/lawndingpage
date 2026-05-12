@@ -19,7 +19,7 @@ admin/lp-eventScraperConfig.json
 # Hand-crafted curated fixtures (e.g. event-scraper-furrycons-sample.html)
 # stay tracked.
 tests/fixtures/event-scraper-furrycons-live.html
-tests/fixtures/event-scraper-nyfurs-live.json
+tests/fixtures/event-scraper-*-live.json
 # Module pane-content directories are runtime state — created and
 # rewritten by the web server (per-pane settings sidecars, gallery
 # uploads, etc.). Never tracked. Files committed here would land on

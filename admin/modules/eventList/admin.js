@@ -16,57 +16,19 @@
     let currentCategories = [];
     let currentFeedLabels = {};
 
-    // ========== Pure date/event helpers (faithful copies from public.js) ==========
+    // Shared calendar helpers — see admin/modules/eventList/eventlist-core.js
+    const {
+        TRACKS_VISIBLE_MAX,
+        padDatePart,
+        startOfDay,
+        addDays,
+        dateKey,
+        parseEventDate,
+        eventEnd,
+        formatBarTime,
+        allocateRowTracks
+    } = window.lpEventListCore;
 
-    function padDatePart(value) {
-        const n = parseInt(String(value), 10);
-        return (n < 10 ? '0' : '') + n;
-    }
-    function startOfDay(dateObj) {
-        return new Date(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate());
-    }
-    function addDays(dateObj, days) {
-        return new Date(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate() + days);
-    }
-    function dateKey(dateObj) {
-        return dateObj.getFullYear() + '-' + padDatePart(dateObj.getMonth() + 1) + '-' + padDatePart(dateObj.getDate());
-    }
-    function parseEventDate(event) {
-        const date = event.startDate || event.date || '';
-        if (!date) { return null; }
-        if (event.allDay) {
-            const parsed = new Date(`${date}T00:00:00`);
-            return isNaN(parsed.getTime()) ? null : parsed;
-        }
-        const start = event.startTime || '';
-        if (!start) { return null; }
-        const parsed = new Date(`${date}T${start}`);
-        return isNaN(parsed.getTime()) ? null : parsed;
-    }
-    function eventEnd(event) {
-        const startDate = parseEventDate(event);
-        if (!startDate) { return null; }
-        if (event.allDay) {
-            const endDateValue = event.endDate || event.startDate || event.date || '';
-            const parsed = new Date(`${endDateValue}T23:59:59`);
-            return isNaN(parsed.getTime()) ? null : parsed;
-        }
-        if (event.endTime) {
-            const endDateValue = event.endDate || event.startDate || event.date || '';
-            const iso = `${endDateValue}T${event.endTime}`;
-            const endDate = new Date(iso);
-            if (!isNaN(endDate.getTime())) { return endDate; }
-        }
-        return new Date(startDate.getTime() + 60 * 60 * 1000);
-    }
-    function formatBarTime(dateObj) {
-        if (!dateObj) { return ''; }
-        const h = dateObj.getHours();
-        const m = dateObj.getMinutes();
-        const ampm = h >= 12 ? 'p' : 'a';
-        const h12 = ((h + 11) % 12) + 1;
-        return m === 0 ? `${h12}${ampm}` : `${h12}:${padDatePart(m)}${ampm}`;
-    }
     function getBrowserTimeZone() {
         if (typeof Intl !== 'undefined' && Intl.DateTimeFormat) {
             return Intl.DateTimeFormat().resolvedOptions().timeZone || '';
@@ -124,52 +86,6 @@
     function extractDomain(url) {
         try { return new URL(url).hostname.replace(/^www\./, ''); }
         catch (err) { return ''; }
-    }
-
-    // ========== Bar-layout engine (faithful copy of public.js's allocateRowTracks) ==========
-
-    // Visible tracks per cell capped at 3; overflow rolls into "+ N More…".
-    const TRACKS_VISIBLE_MAX = 3;
-    function allocateRowTracks(rowEvents) {
-        const isMultiDay = (re) => re.rowStartDay !== re.rowEndDay
-            || re.continuesFromPriorRow
-            || re.continuesToNextRow;
-        const tierOf = (re) => re.event.allDay ? 1 : (isMultiDay(re) ? 2 : 3);
-        const sorted = rowEvents.slice().sort((a, b) => {
-            const aTier = tierOf(a);
-            const bTier = tierOf(b);
-            if (aTier !== bTier) { return aTier - bTier; }
-            if (aTier <= 2) {
-                const aLen = a.rowEndDay - a.rowStartDay;
-                const bLen = b.rowEndDay - b.rowStartDay;
-                if (bLen !== aLen) { return bLen - aLen; }
-            }
-            const aStart = parseEventDate(a.event);
-            const bStart = parseEventDate(b.event);
-            return (aStart ? aStart.getTime() : 0) - (bStart ? bStart.getTime() : 0);
-        });
-        const occupied = [];
-        sorted.forEach((re) => {
-            let track = 0;
-            for (;;) {
-                if (!occupied[track]) {
-                    occupied[track] = [false, false, false, false, false, false, false];
-                }
-                let conflict = false;
-                for (let d = re.rowStartDay; d <= re.rowEndDay; d++) {
-                    if (occupied[track][d]) { conflict = true; break; }
-                }
-                if (!conflict) {
-                    for (let d = re.rowStartDay; d <= re.rowEndDay; d++) {
-                        occupied[track][d] = true;
-                    }
-                    re.track = track;
-                    break;
-                }
-                track++;
-            }
-        });
-        return sorted;
     }
 
     // ========== Category dropdown population ==========
@@ -412,7 +328,7 @@
         if (!event.name) { errors.push({ fields: ['.eventNameInput'], message: 'Name is required.' }); }
         if (!event.startDate) { errors.push({ fields: ['.eventStartDateInput'], message: 'Start date is required.' }); }
         if (!event.allDay && !event.startTime) { errors.push({ fields: ['.eventStartTimeInput'], message: 'Start time is required.' }); }
-        if (!event.allDay && event.endDate && !event.endTime) {
+        if (!event.allDay && !event.endTime) {
             errors.push({ fields: ['.eventEndTimeInput'], message: 'End time is required.' });
         }
         if (event.allDay && event.endDate && event.endDate < event.startDate) {
@@ -803,17 +719,42 @@
             closeEditorModal();
         }
 
-        // Clears lockedLocally; on next scraper refresh the catalogue values
-        // overwrite the admin's local edits. Local values stay visible until
-        // that refresh runs.
+        // Overlay this event with the scraper's current catalogue record and
+        // clear lockedLocally; Save All persists. Fetch failure (stale
+        // catalogue, network) falls back to clearing the lock only.
         function resumeSyncCurrent() {
             if (!modalState.editingId) { return; }
             const idx = events.findIndex((e) => String(e.id || '') === String(modalState.editingId));
             if (idx === -1) { return; }
-            events[idx] = Object.assign({}, events[idx], { lockedLocally: false });
-            updatePayload();
-            renderCalendar();
-            closeEditorModal();
+            const existing = events[idx];
+            const adapter = existing.sourceAdapter || '';
+            const uid = existing.sourceUid || '';
+            const applyLocalUnlock = () => {
+                events[idx] = Object.assign({}, events[idx], { lockedLocally: false });
+                updatePayload();
+                renderCalendar();
+                closeEditorModal();
+            };
+            if (!adapter || !uid) { applyLocalUnlock(); return; }
+            const url = '/res/scr/plugin-endpoint.php?plugin=eventScraper&endpoint=catalogue-event'
+                + '&adapter=' + encodeURIComponent(adapter)
+                + '&uid=' + encodeURIComponent(uid);
+            fetch(url, { credentials: 'same-origin' })
+                .then((r) => r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)))
+                .then((data) => {
+                    const fresh = data && data.record;
+                    if (!fresh || typeof fresh !== 'object') { throw new Error('No record'); }
+                    events[idx] = Object.assign({}, existing, fresh, { lockedLocally: false });
+                    updatePayload();
+                    renderCalendar();
+                    closeEditorModal();
+                })
+                .catch(() => {
+                    if (window.addAdminNotice) {
+                        window.addAdminNotice('warning', 'Could not fetch the original scraper values. Lock cleared; values will revert on the next feed refresh.');
+                    }
+                    applyLocalUnlock();
+                });
         }
 
         function requestModalDelete() {

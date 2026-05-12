@@ -21,6 +21,13 @@ if (!$eventListAdminAssetsInjected) {
         . htmlspecialchars($styleUrl, ENT_QUOTES, 'UTF-8')
         . '">';
 
+    $coreScriptUrl = function_exists('lawnding_asset_url')
+        ? lawnding_asset_url('res/scr/module-script.php?module=eventList&file=eventlist-core.js')
+        : '/res/scr/module-script.php?module=eventList&file=eventlist-core.js';
+    echo '<script src="'
+        . htmlspecialchars($coreScriptUrl, ENT_QUOTES, 'UTF-8')
+        . '" defer></script>';
+
     $scriptUrl = function_exists('lawnding_asset_url')
         ? lawnding_asset_url('res/scr/module-script.php?module=eventList&file=admin.js')
         : '/res/scr/module-script.php?module=eventList&file=admin.js';
@@ -91,7 +98,7 @@ if (!$eventListAdminAssetsInjected) {
                     <span class="eventTimezoneIndicator" aria-label="Time zone"></span>
                 </div>
                 <div class="eventTimeGroup eventTimeGroupEnd">
-                    <span class="eventTimeLabel">End</span>
+                    <span class="eventTimeLabel isRequired">End</span>
                     <input type="date" class="eventEndDateInput" aria-label="End date">
                     <select class="eventEndTimeInput" aria-label="End time"><?php echo $timeOptionsHtml; ?></select>
                     <span class="eventTimezoneIndicator" aria-label="Time zone"></span>

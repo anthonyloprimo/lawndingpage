@@ -34,8 +34,16 @@ function event_list_generate_category_id(array $existing): int {
     return $max + 1;
 }
 
-// Pure-transform additive merge dispatched via manifest save_map.
-// Silent-drop on per-event validation failures (mediaGallery pattern).
+/**
+ * Pure-transform additive merge dispatched via manifest save_map.
+ * Silent-drop on per-event validation failures (mediaGallery pattern).
+ * Apply order: delete → update → create so id collisions can't occur
+ * when an admin deletes-then-recreates inside the same payload.
+ *
+ * @param array{events?: mixed} $existing
+ * @param array{changes?: array{delete?: list<scalar>, update?: list<array<string, mixed>>, create?: list<array<string, mixed>>}} $payload
+ * @return array{events: list<array<string, mixed>>}
+ */
 function event_list_apply_events(array $existing, array $payload): array {
     $events = is_array($existing['events'] ?? null) ? $existing['events'] : [];
     $changes = is_array($payload['changes'] ?? null) ? $payload['changes'] : [];
@@ -44,9 +52,7 @@ function event_list_apply_events(array $existing, array $payload): array {
     if ($deletes) {
         $deleteSet = [];
         foreach ($deletes as $id) {
-            if (is_scalar($id)) {
-                $deleteSet[(string) $id] = true;
-            }
+            $deleteSet[(string) $id] = true;
         }
         $events = array_values(array_filter($events, function ($ev) use ($deleteSet) {
             if (!is_array($ev)) {
@@ -65,9 +71,6 @@ function event_list_apply_events(array $existing, array $payload): array {
             }
         }
         foreach ($updates as $update) {
-            if (!is_array($update)) {
-                continue;
-            }
             $id = (string) ($update['id'] ?? '');
             if ($id === '' || !isset($idIndex[$id])) {
                 continue;
@@ -83,9 +86,6 @@ function event_list_apply_events(array $existing, array $payload): array {
     $creates = is_array($changes['create'] ?? null) ? $changes['create'] : [];
     if ($creates) {
         foreach ($creates as $create) {
-            if (!is_array($create)) {
-                continue;
-            }
             if (!event_list_event_is_valid($create)) {
                 continue;
             }
@@ -116,12 +116,16 @@ function event_list_ics_filename(string $name, string $eventId): string {
     return $base . '.ics';
 }
 
-// Required fields, paired end date/time, end >= start, valid markdown gating.
-// All-day events skip startTime/endTime requirements but must still have
-// startDate (and an endDate >= startDate when set).
-// categoryId optional: empty/missing/string OK; deleted-category orphans
-// stay (renderer falls back to default flag color, no validation failure).
-// No dedup (admin-UX concern, not data integrity).
+/**
+ * Required fields, paired end date/time, end >= start, valid markdown
+ * gating. All-day events skip startTime/endTime requirements but must
+ * still have startDate (and an endDate >= startDate when set).
+ * categoryId optional — empty/missing/string OK; deleted-category
+ * orphans stay (renderer falls back to default flag color, no
+ * validation failure). No dedup (admin-UX concern, not data integrity).
+ *
+ * @param array<string, mixed> $event
+ */
 function event_list_event_is_valid(array $event): bool {
     $allDay = !empty($event['allDay']);
     $required = $allDay
@@ -164,10 +168,15 @@ function event_list_event_is_valid(array $event): bool {
     return true;
 }
 
-// Pure normalizer: takes a decoded JSON array shape and returns the
-// cleaned categories list. Drops malformed rows (defensive against
-// hand-edited files). Extracted from event_list_load_categories so the
-// shape-tolerance behavior is unit-testable without filesystem I/O.
+/**
+ * Pure normalizer: takes a decoded JSON array shape and returns the
+ * cleaned categories list. Drops malformed rows (defensive against
+ * hand-edited files). Extracted from event_list_load_categories so
+ * the shape-tolerance behavior is unit-testable without filesystem I/O.
+ *
+ * @param array<string, mixed> $decoded
+ * @return list<array{id: string, name: string, color: string}>
+ */
 function event_list_normalize_categories(array $decoded): array {
     $cats = $decoded['categories'] ?? [];
     if (!is_array($cats)) {
@@ -189,10 +198,15 @@ function event_list_normalize_categories(array $decoded): array {
     return $clean;
 }
 
-// Site-wide category list lives at public/res/data/eventCategories.json.
-// Returns [] on missing file, malformed JSON, or any per-row defect — the
-// admin UI re-creates entries cleanly on next save, and the public render
-// silently falls back to the default flag color for any unknown id.
+/**
+ * Site-wide category list lives at public/res/data/eventCategories.json.
+ * Returns [] on missing file, malformed JSON, or any per-row defect —
+ * the admin UI re-creates entries cleanly on next save, and the public
+ * render silently falls back to the default flag color for any
+ * unknown id.
+ *
+ * @return list<array{id: string, name: string, color: string}>
+ */
 function event_list_load_categories(): array {
     $path = function_exists('lawnding_data_path')
         ? lawnding_data_path('eventCategories.json')
@@ -211,7 +225,11 @@ function event_list_load_categories(): array {
     return event_list_normalize_categories($decoded);
 }
 
-// Name non-empty after trim, color a strict 6-digit hex. Pure — no I/O.
+/**
+ * Name non-empty after trim, color a strict 6-digit hex. Pure — no I/O.
+ *
+ * @param array<string, mixed> $category
+ */
 function event_list_category_is_valid(array $category): bool {
     $name = $category['name'] ?? '';
     if (!is_string($name) || trim($name) === '') {
@@ -224,10 +242,17 @@ function event_list_category_is_valid(array $category): bool {
     return true;
 }
 
-// Pure-transform additive merge for the categories changeset, mirror of
-// event_list_apply_events. Silent-drop on per-record validation failure.
-// Apply order is delete → update → create so id collisions can't occur
-// when an admin deletes-then-recreates inside the same payload.
+/**
+ * Pure-transform additive merge for the categories changeset, mirror
+ * of event_list_apply_events. Silent-drop on per-record validation
+ * failure. Apply order is delete → update → create so id collisions
+ * can't occur when an admin deletes-then-recreates inside the same
+ * payload.
+ *
+ * @param array{categories?: mixed} $existing
+ * @param array{changes?: array{delete?: list<scalar>, update?: list<array<string, mixed>>, create?: list<array<string, mixed>>}} $payload
+ * @return array{categories: list<array{id: string, name: string, color: string}>}
+ */
 function event_list_apply_categories(array $existing, array $payload): array {
     $cats = is_array($existing['categories'] ?? null) ? $existing['categories'] : [];
     $changes = is_array($payload['changes'] ?? null) ? $payload['changes'] : [];
@@ -236,9 +261,7 @@ function event_list_apply_categories(array $existing, array $payload): array {
     if ($deletes) {
         $deleteSet = [];
         foreach ($deletes as $id) {
-            if (is_scalar($id)) {
-                $deleteSet[(string) $id] = true;
-            }
+            $deleteSet[(string) $id] = true;
         }
         $cats = array_values(array_filter($cats, function ($cat) use ($deleteSet) {
             if (!is_array($cat)) {
@@ -257,9 +280,6 @@ function event_list_apply_categories(array $existing, array $payload): array {
             }
         }
         foreach ($updates as $update) {
-            if (!is_array($update)) {
-                continue;
-            }
             $id = (string) ($update['id'] ?? '');
             if ($id === '' || !isset($idIndex[$id])) {
                 continue;
@@ -275,9 +295,6 @@ function event_list_apply_categories(array $existing, array $payload): array {
     $creates = is_array($changes['create'] ?? null) ? $changes['create'] : [];
     if ($creates) {
         foreach ($creates as $create) {
-            if (!is_array($create)) {
-                continue;
-            }
             if (!event_list_category_is_valid($create)) {
                 continue;
             }

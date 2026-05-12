@@ -59,7 +59,7 @@ $ingest = [];
 foreach ($config['feeds'] as $feedId => $_) {
     $feedId = (string) $feedId;
     $catalogue = event_scraper_load_catalogue($feedId);
-    $ingest[$feedId] = event_scraper_apply_ingest($feedId, $catalogue['events'] ?? [], $config);
+    $ingest[$feedId] = event_scraper_apply_ingest($feedId, $catalogue['events'], $config);
 }
 
 event_scraper_log('info', 'site_defaults_saved', [

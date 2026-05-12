@@ -30,6 +30,13 @@ function lawnding_remember_token_hash(string $token): string {
     return hash('sha256', $token);
 }
 
+/**
+ * Build the on-disk shape for one remembered-device entry. The raw
+ * token is NEVER persisted — only its sha256 hash; the device keeps
+ * the raw token in its cookie and presents it back on auto-login.
+ *
+ * @return array{user: string, token_hash: string, issued_at: int, expires_at: int, last_used_at: int}
+ */
 function lawnding_remember_token_create_payload(
     string $user,
     string $tokenHash,
@@ -45,6 +52,13 @@ function lawnding_remember_token_create_payload(
     ];
 }
 
+/**
+ * Drop entries whose expires_at has passed. Defensive against
+ * hand-edited files: non-array entries are silently skipped.
+ *
+ * @param list<mixed> $entries
+ * @return list<array<string, mixed>>
+ */
 function lawnding_remember_tokens_prune_expired(array $entries, int $now): array {
     $kept = [];
     foreach ($entries as $entry) {
@@ -56,9 +70,17 @@ function lawnding_remember_tokens_prune_expired(array $entries, int $now): array
             $kept[] = $entry;
         }
     }
-    return array_values($kept);
+    return $kept;
 }
 
+/**
+ * Read the remembered-tokens file. Accepts both the wrapper form
+ * (`{tokens: [...]}`) and a bare list at the top level (legacy).
+ * Filters to only array entries (defensive against hand-edited files).
+ * Returns [] on missing/unreadable/malformed file.
+ *
+ * @return list<array<string, mixed>>
+ */
 function lawnding_remember_tokens_load(string $path): array {
     if (!is_readable($path)) {
         return [];

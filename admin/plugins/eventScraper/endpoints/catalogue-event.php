@@ -40,7 +40,7 @@ if (!isset($adapters[$adapterId])) {
 }
 
 $catalogue = event_scraper_load_catalogue($adapterId);
-$events = is_array($catalogue['events'] ?? null) ? $catalogue['events'] : [];
+$events = $catalogue['events'];
 $match = null;
 foreach ($events as $event) {
     if (is_array($event) && (string) ($event['sourceUid'] ?? '') === $sourceUid) {
@@ -58,7 +58,7 @@ if ($match === null) {
 
 $config = event_scraper_load_config();
 $feed = event_scraper_get_feed($adapterId, $config);
-$defaultCategoryId = (string) ($feed['defaultCategoryId'] ?? '');
+$defaultCategoryId = $feed['defaultCategoryId'];
 $adapter = $adapters[$adapterId];
 $keywordBadgesMap = is_array($adapter['keywordBadges'] ?? null) ? $adapter['keywordBadges'] : [];
 

@@ -137,7 +137,7 @@ function lawnding_config(string $key, $default = null) {
 // Join a base path with a relative path using forward slashes.
 function lawnding_join_path(string $base, string $path = ''): string {
     $base = lawnding_norm_path($base, true);
-    if ($path === '' || $path === null) {
+    if ($path === '') {
         return $base;
     }
     return $base . '/' . ltrim(lawnding_norm_path($path, false), '/');
@@ -473,9 +473,9 @@ if (!function_exists('lawnding_logs_register_handlers')) {
                 'sev'   => 'error',
                 'src'   => 'php',
                 'event' => 'fatal',
-                'msg'   => $err['message'] ?? '',
-                'file'  => $err['file'] ?? '',
-                'line'  => (int) ($err['line'] ?? 0),
+                'msg'   => $err['message'],
+                'file'  => $err['file'],
+                'line'  => $err['line'],
                 'uri'   => $_SERVER['REQUEST_URI'] ?? null,
                 'who'   => $_SESSION['auth_user'] ?? null,
             ]);
@@ -517,13 +517,24 @@ function lawnding_footer_platform_html(): string {
 // unrecognized modes — callers must treat null as a failure.
 //
 // Modes:
-//   maxbox  — fit inside box; never upscale; never crop. Pass-through when
-//             source already fits.
-//   contain — fit inside box; letterbox the orthogonal axis. Upscales if needed
-//             so output is exactly target dims (caveat: nothing in this codebase
-//             currently feeds it sources smaller than the target).
-//   cover   — fill box exactly; center-crop the overflow axis. Output is always
-//             exactly target dims.
+/**
+ * Compute the resize/crop dimensions for a given mode. Returns a
+ * 6-tuple `[destW, destH, cropX, cropY, cropW, cropH]` for use by
+ * imagecopyresampled, or null when inputs are invalid or the mode is
+ * unrecognized.
+ *
+ * Modes:
+ *   maxbox  — fit inside box; never upscale; never crop. Pass-through
+ *             when source already fits.
+ *   contain — fit inside box; letterbox the orthogonal axis. Upscales
+ *             if needed so output is exactly target dims (caveat:
+ *             nothing in this codebase currently feeds it sources
+ *             smaller than the target).
+ *   cover   — fill box exactly; center-crop the overflow axis. Output
+ *             is always exactly target dims.
+ *
+ * @return array{int, int, int, int, int, int}|null
+ */
 function lawnding_image_resize_dimensions(int $srcW, int $srcH, int $targetW, int $targetH, string $mode): ?array {
     if ($srcW <= 0 || $srcH <= 0 || $targetW <= 0 || $targetH <= 0) {
         return null;
@@ -555,11 +566,15 @@ function lawnding_image_resize_dimensions(int $srcW, int $srcH, int $targetW, in
     return null;
 }
 
-// Pick the GD output format matching the destination file's extension.
-// Returns the format token ('jpeg'|'png'|'gif'|'webp') or null if the requested
-// format is unavailable in the current GD build (only 'webp' has a soft dep —
-// .webp dest with $gdHasWebp=false returns null so the caller can fall back to
-// a different extension).
+/**
+ * Pick the GD output format matching the destination file's extension.
+ * Returns null when the dest extension is unrecognized or when the
+ * format is unavailable in the current GD build (only 'webp' has a
+ * soft dep — `.webp` dest with $gdHasWebp=false returns null so the
+ * caller can fall back to a different extension).
+ *
+ * @return 'jpeg'|'png'|'gif'|'webp'|null
+ */
 function lawnding_image_resize_output_format(string $destPath, bool $gdHasWebp): ?string {
     $ext = strtolower(pathinfo($destPath, PATHINFO_EXTENSION));
     if ($ext === 'webp') {
@@ -618,7 +633,7 @@ function lawnding_image_resize(string $srcPath, string $destPath, int $width, in
         && $cropX === 0 && $cropY === 0 && $cropW === $origW && $cropH === $origH;
     if ($isPassthrough) {
         $info = @getimagesizefromstring($bytes);
-        $srcFormat = $info && isset($info[2]) ? match ((int) $info[2]) {
+        $srcFormat = $info ? match ($info[2]) {
             IMAGETYPE_JPEG => 'jpeg',
             IMAGETYPE_PNG  => 'png',
             IMAGETYPE_GIF  => 'gif',
@@ -877,11 +892,21 @@ function lawnding_module_per_pane_settings(string $moduleId): array {
     return $cache[$moduleId] = $clean;
 }
 
-// Read a module's manifest as a decoded array. Returns [] when the manifest
-// is missing, unreadable, or not valid JSON. Per-request static cache keyed
-// by module id; module id whitelisted to [a-zA-Z0-9_-] to block path
-// traversal. Centralizes the read-and-decode dance so the new manifest-
-// reader helpers below don't each re-implement it.
+/**
+ * Read a module's manifest as a decoded array. Returns [] when the
+ * manifest is missing, unreadable, or not valid JSON. Per-request
+ * static cache keyed by module id; module id whitelisted to
+ * `[a-zA-Z0-9_-]` to block path traversal. Centralizes the read-and-
+ * decode dance so the manifest-reader helpers below don't each
+ * re-implement it.
+ *
+ * The returned shape is module-specific (each module defines its own
+ * manifest keys per the schema in admin/modules/README.md), so callers
+ * typically read into specific keys rather than treating the whole
+ * shape as canonical.
+ *
+ * @return array<string, mixed>
+ */
 function lawnding_module_manifest(string $moduleId): array {
     static $cache = [];
     if (array_key_exists($moduleId, $cache)) {
@@ -1030,6 +1055,18 @@ function lawnding_module_data_file_initial(string $moduleId, string $pattern): ?
 // manifests). The Site Config admin UI walks every discoverable module's
 // site_config to build its form; modules without a site_config block
 // don't appear there at all.
+/**
+ * Read a module's `site_config` block from its manifest, normalizing
+ * the declared settings. Returns [] when the module has no site_config
+ * (most modules don't need one) or when every declared setting is
+ * malformed; otherwise returns the populated shape. Settings with
+ * unknown types, missing keys, or duplicate keys are silently dropped.
+ *
+ * @return array{}|array{
+ *     label: string,
+ *     settings: non-empty-list<array{key: string, label: string, type: string, default: mixed}>,
+ * }
+ */
 function lawnding_module_site_config(string $moduleId): array {
     $manifest = lawnding_module_manifest($moduleId);
     $schema = $manifest['site_config'] ?? null;
@@ -1174,9 +1211,7 @@ function lawnding_site_config_defaults(): array {
                 $bucket[$key] = max(0, (int) $default);
             }
         }
-        if (!empty($bucket)) {
-            $defaults[$moduleId] = $bucket;
-        }
+        $defaults[$moduleId] = $bucket;
     }
     return $defaults;
 }
@@ -1204,14 +1239,14 @@ function lawnding_site_config_labels(): array {
         if (empty($schema)) {
             continue;
         }
-        $moduleLabel = $schema['label'] ?? '';
+        $moduleLabel = $schema['label'];
         if ($moduleLabel !== '') {
             $labels['_modules'][$moduleId] = $moduleLabel;
         }
         $bucket = [];
-        foreach ($schema['settings'] ?? [] as $setting) {
-            $key = $setting['key'] ?? '';
-            $entryLabel = $setting['label'] ?? '';
+        foreach ($schema['settings'] as $setting) {
+            $key = $setting['key'];
+            $entryLabel = $setting['label'];
             if ($key !== '' && $entryLabel !== '') {
                 $bucket[$key] = $entryLabel;
             }
@@ -1242,11 +1277,19 @@ function lawnding_site_config_cache_slot(?array $replace = null, bool $reset = f
     return $cache;
 }
 
-// Loads admin/lp-siteConfig.json and merges it on top of defaults. Values
-// missing or of the wrong type fall back to their default — defensive
-// against hand-edited JSON or schema additions made between sessions.
-// Memoized via lawnding_site_config_cache_slot() — N×K
-// resolve_pane_setting calls per admin render collapse to one read.
+/**
+ * Load admin/lp-siteConfig.json merged on top of manifest-declared
+ * defaults. Values missing or of the wrong type fall back to their
+ * default — defensive against hand-edited JSON or schema additions
+ * made between sessions. Memoized via lawnding_site_config_cache_slot
+ * so N×K resolve_pane_setting calls per admin render collapse to one
+ * read.
+ *
+ * The outer keys are module ids (each module's manifest contributes
+ * its block); the inner shape varies per module. Open at both levels.
+ *
+ * @return array<string, array<string, mixed>>
+ */
 function lawnding_load_site_config(): array {
     $cached = lawnding_site_config_cache_slot();
     if ($cached !== null) {
@@ -1344,13 +1387,19 @@ function lawnding_render_site_config_fieldset(string $moduleId): void {
     <?php
 }
 
-// Per-pane settings live in a sidecar settings.json inside each pane's
-// content directory (e.g. public/res/data/mediaGalleryContent-<paneId>/
-// settings.json). The file is sparse — present only when the admin has
-// unchecked "Use site defaults" for this pane. Absence means "follow site
-// defaults", so a galleries-without-overrides install carries no per-pane
-// settings files at all. Returns [] when the file doesn't exist or is
-// unreadable / malformed.
+/**
+ * Per-pane settings live in a sidecar settings.json inside each pane's
+ * content directory (e.g. public/res/data/mediaGalleryContent-<paneId>/
+ * settings.json). The file is sparse — present only when the admin has
+ * unchecked "Use site defaults" for this pane. Absence means "follow
+ * site defaults", so a galleries-without-overrides install carries no
+ * per-pane settings files at all.
+ *
+ * Returns [] on missing file, unreadable file, or malformed JSON so
+ * callers can branch on emptiness without null-checking.
+ *
+ * @return array<string, mixed>
+ */
 function lawnding_load_pane_settings(string $settingsPath): array {
     if (!is_readable($settingsPath)) {
         return [];
@@ -1402,7 +1451,7 @@ function lawnding_sort_panes(array $panes): array {
         $orderA = isset($a['order']) ? (int) $a['order'] : PHP_INT_MAX;
         $orderB = isset($b['order']) ? (int) $b['order'] : PHP_INT_MAX;
         if ($orderA === $orderB) {
-            return ($a['_index'] ?? 0) <=> ($b['_index'] ?? 0);
+            return $a['_index'] <=> $b['_index'];
         }
         return $orderA <=> $orderB;
     });

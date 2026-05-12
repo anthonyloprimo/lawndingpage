@@ -278,13 +278,9 @@ if (is_array($linksPayload) && array_key_exists('links', $linksPayload)) {
 $authLinksEnabled = !empty($linksSettings['auth_links']);
 $authLinksData = [];
 $tgConfig = lawnding_load_tg_config();
-$tgBotMessage = (string) ($tgConfig['unauthorized_message'] ?? 'Unable to display member links.  Join the telegram group with the link above, or contact an admin for assistance.');
-$tgBotUsername = isset($tgConfig['bot_username']) && is_string($tgConfig['bot_username'])
-    ? ltrim(trim($tgConfig['bot_username']), '@')
-    : '';
-$tgBotId = isset($tgConfig['bot_token']) && is_string($tgConfig['bot_token'])
-    ? lawnding_tg_bot_id_from_token($tgConfig['bot_token'])
-    : '';
+$tgBotMessage = $tgConfig['unauthorized_message'];
+$tgBotUsername = ltrim(trim($tgConfig['bot_username']), '@');
+$tgBotId = lawnding_tg_bot_id_from_token($tgConfig['bot_token']);
 $returnPath = '/';
 $authEndpoint = function_exists('lawnding_asset_url')
     ? lawnding_asset_url('res/scr/plugin-endpoint.php?plugin=telegram&endpoint=auth')

@@ -71,12 +71,7 @@ if ($headerJson === false || file_put_contents($headerPath, $headerJson, LOCK_EX
 }
 
 // Build the normalized response payload for the UI.
-$backgroundsRaw = $headerData['backgrounds'] ?? [];
-if (!is_array($backgroundsRaw)) {
-    $backgroundsRaw = [];
-}
-
-$backgrounds = backgrounds_build_payload($backgroundsRaw);
+$backgrounds = backgrounds_build_payload($headerData['backgrounds']);
 $response = ['backgrounds' => $backgrounds];
 if (!extension_loaded('gd')) {
     $response['gd_unavailable'] = true;

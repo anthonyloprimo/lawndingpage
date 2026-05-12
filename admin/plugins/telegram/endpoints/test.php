@@ -34,15 +34,15 @@ lawnding_require_admin_mutation(
     function ($msg, $code) { tg_test_respond(['ok' => false, 'description' => $msg . '.'], $code); }
 );
 
-$token = isset($tgConfig['bot_token']) ? trim((string) $tgConfig['bot_token']) : '';
+$token = trim($tgConfig['bot_token']);
 if ($token === '') {
     tg_test_respond(['ok' => false, 'description' => 'Bot token missing.']);
 }
 
 $bot = new TgBotClient($token);
 $resp = $bot->request('getMe');
-if (!is_array($resp) || empty($resp['ok'])) {
-    $description = is_array($resp) && isset($resp['description'])
+if (empty($resp['ok'])) {
+    $description = isset($resp['description'])
         ? (string) $resp['description']
         : 'Request failed.';
     tg_test_respond(['ok' => false, 'description' => $description]);

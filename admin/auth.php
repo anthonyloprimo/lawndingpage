@@ -49,10 +49,25 @@ if (!function_exists('lawnding_normalize_permissions')) {
     }
 }
 
-// Permission context for a bcrypt user record. Returns the flag set
-// (canEditSite, canAddUsers, etc.) every admin code path reads. Relocated
-// here from public/admin/index.php so mutation endpoints can load it without
-// pulling in the whole admin entrypoint.
+/**
+ * Permission context for a bcrypt user record. Returns the flag set
+ * (canEditSite, canAddUsers, etc.) every admin code path reads.
+ * Relocated here from public/admin/index.php so mutation endpoints can
+ * load it without pulling in the whole admin entrypoint.
+ *
+ * @param array<string, mixed>|null $authRecord
+ * @param list<string>              $allowedPermissions
+ * @return array{
+ *     currentPermissions: list<string>,
+ *     isReadOnlyUser: bool,
+ *     isMasterUser: bool,
+ *     isFullAdmin: bool,
+ *     canAddUsers: bool,
+ *     canEditUsers: bool,
+ *     canRemoveUsers: bool,
+ *     canEditSite: bool,
+ * }
+ */
 if (!function_exists('build_permission_context')) {
     function build_permission_context($authRecord, array $allowedPermissions): array {
         $isReadOnlyUser = $authRecord && !empty($authRecord['read_only']);
@@ -80,7 +95,21 @@ if (!function_exists('build_permission_context')) {
     }
 }
 
-// Empty context — the shape returned when a request is unauthenticated.
+/**
+ * Empty context — the shape returned when a request is unauthenticated.
+ * Every key is present so callers can read flags unconditionally.
+ *
+ * @return array{
+ *     currentPermissions: list<string>,
+ *     isReadOnlyUser: bool,
+ *     isMasterUser: bool,
+ *     isFullAdmin: bool,
+ *     canAddUsers: bool,
+ *     canEditUsers: bool,
+ *     canRemoveUsers: bool,
+ *     canEditSite: bool,
+ * }
+ */
 function lawnding_empty_permission_context(): array {
     return [
         'currentPermissions' => [],
@@ -125,7 +154,27 @@ function lawnding_admin_handle_tg_revocation(): void {
     }
 }
 
-// Empty identity — returned when no valid auth is present.
+/**
+ * Empty identity — returned when no valid auth is present.
+ *
+ * @return array{
+ *     isAuthenticated: bool,
+ *     authUser: string,
+ *     displayName: string,
+ *     authRecord: array<string, mixed>|null,
+ *     sources: list<string>,
+ *     context: array{
+ *         currentPermissions: list<string>,
+ *         isReadOnlyUser: bool,
+ *         isMasterUser: bool,
+ *         isFullAdmin: bool,
+ *         canAddUsers: bool,
+ *         canEditUsers: bool,
+ *         canRemoveUsers: bool,
+ *         canEditSite: bool,
+ *     },
+ * }
+ */
 function lawnding_resolve_unauthenticated(): array {
     return [
         'isAuthenticated' => false,
@@ -137,30 +186,40 @@ function lawnding_resolve_unauthenticated(): array {
     ];
 }
 
-// The resolver. Produces a uniform "who is this visitor, what can they do"
-// result for bcrypt admins and Telegram-derived editors alike.
-//
-// Contract:
-//   $tgConfig            : output of lawnding_load_tg_config()
-//   $users               : output of lawnding_load_users_file()
-//   $allowedPermissions  : full list the system recognizes, typically
-//                          ['full_admin', 'add_users', 'edit_users',
-//                           'remove_users', 'edit_site']
-//
-// Return shape:
-//   [
-//     'isAuthenticated' => bool,
-//     'authUser'        => string,     // 'username' or 'tg:<id>' sentinel
-//     'displayName'     => string,     // for UI render
-//     'authRecord'      => ?array,     // real bcrypt record or synthesized for TG-only
-//     'sources'         => string[],   // subset of ['bcrypt', 'telegram']
-//     'context'         => [...]       // same shape as build_permission_context()
-//   ]
-//
-// Revocation side-effect: when a TG-derived admin's group membership has
-// lapsed (lawnding_tg_user_content_level returns ''), the session is torn
-// down here and an unauthenticated result is returned. Callers do NOT need
-// to replicate that logic.
+/**
+ * The resolver. Produces a uniform "who is this visitor, what can they
+ * do" result for bcrypt admins and Telegram-derived editors alike.
+ *
+ * Revocation side-effect: when a TG-derived admin's group membership has
+ * lapsed (lawnding_tg_user_content_level returns ''), the session is
+ * torn down here and an unauthenticated result is returned. Callers do
+ * NOT need to replicate that logic.
+ *
+ * authUser is either a real bcrypt username or a `tg:<id>` sentinel —
+ * bcrypt usernames cannot start with `tg:` (enforced at signup), so the
+ * prefix unambiguously identifies a Telegram-only session.
+ *
+ * @param array<string, mixed> $tgConfig            Output of lawnding_load_tg_config()
+ * @param array<string, mixed> $users               Output of lawnding_load_users_file()
+ * @param list<string>         $allowedPermissions  Full list the system recognizes
+ * @return array{
+ *     isAuthenticated: bool,
+ *     authUser: string,
+ *     displayName: string,
+ *     authRecord: array<string, mixed>|null,
+ *     sources: list<string>,
+ *     context: array{
+ *         currentPermissions: list<string>,
+ *         isReadOnlyUser: bool,
+ *         isMasterUser: bool,
+ *         isFullAdmin: bool,
+ *         canAddUsers: bool,
+ *         canEditUsers: bool,
+ *         canRemoveUsers: bool,
+ *         canEditSite: bool,
+ *     },
+ * }
+ */
 function lawnding_resolve_admin_identity(array $tgConfig, array $users, array $allowedPermissions): array {
     $rawAuthUser = isset($_SESSION['auth_user']) && is_string($_SESSION['auth_user'])
         ? $_SESSION['auth_user']

@@ -1,0 +1,62 @@
+# Build the phpDocumentor-generated API reference site and publish to
+# GitHub Pages on every push to main.
+#
+# Gitea ignores .github/; GitHub picks this up on the public mirror.
+# This file is the only thing in .github/ — kept tightly scoped to
+# avoid pulling in CI work that should live in .gitea/workflows/.
+#
+# One-time setup (done by the repo owner in GitHub settings):
+#   Settings → Pages → Source: "GitHub Actions"
+# Without that, the first run of this workflow's deploy step fails
+# with a clear permission error pointing at the setting.
+
+name: Build API docs
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Restrict to the minimum permissions needed by actions/deploy-pages.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Cancel in-progress runs for the same branch; keep the latest.
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install PHP
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq php-cli php-mbstring php-xml php-curl
+
+      - name: Install phpDocumentor
+        run: bash tools/install-phpdocumentor.sh
+
+      - name: Generate docs
+        run: php tools/phpDocumentor.phar
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/docs
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

@@ -38,6 +38,14 @@ function media_gallery_require_edit_site(): array {
     ];
 }
 
+/**
+ * Resolve the per-request paths the endpoint handlers need. Public/data
+ * dirs fall back to the directory layout when lawnding_config() is
+ * unavailable — but in normal request flow lp-bootstrap has already
+ * populated it.
+ *
+ * @return array{public_dir: string, data_dir: string, panes_path: string}
+ */
 function media_gallery_paths(): array {
     $publicDir = function_exists('lawnding_config')
         ? lawnding_config('public_dir', dirname(__DIR__, 2))
@@ -58,12 +66,29 @@ function media_gallery_is_valid_pane_id(string $paneId): bool {
     return $paneId !== '' && preg_match('/^[a-zA-Z0-9]+$/', $paneId) === 1;
 }
 
+/**
+ * Read panes.json. Accepts both shapes for backward compat: the
+ * top-level array form (legacy) and the `{panes: [...]}` wrapper form.
+ * Returns [] when the file is missing or malformed so callers don't
+ * need to null-check.
+ *
+ * @return array<int|string, mixed>
+ */
 function media_gallery_load_panes(string $panesPath): array {
     $decoded = lawnding_read_json($panesPath);
     $panes = $decoded['panes'] ?? $decoded;
     return is_array($panes) ? $panes : [];
 }
 
+/**
+ * Locate a mediaGallery pane by id. Returns null when the pane id
+ * isn't present in $panes or when the matching entry is for a
+ * different module (defensive against id collision after a module
+ * change in panes.json).
+ *
+ * @param array<int|string, mixed> $panes
+ * @return array<string, mixed>|null
+ */
 function media_gallery_find_pane(array $panes, string $paneId): ?array {
     foreach ($panes as $pane) {
         if (!is_array($pane)) {
@@ -89,6 +114,14 @@ function media_gallery_pane_json_file(array $pane, string $paneId): string {
     return 'mediaGalleryContent-' . $paneId . '/items.json';
 }
 
+/**
+ * Read a gallery's items.json. The `items` key is always present and
+ * always an array on return — the second pass repairs the shape after
+ * lawnding_read_json's defensive default in case the on-disk file has
+ * `items` set to a non-array value.
+ *
+ * @return array{items: array<int|string, mixed>}
+ */
 function media_gallery_load_data(string $path): array {
     $decoded = lawnding_read_json($path, ['items' => []]);
     if (!isset($decoded['items']) || !is_array($decoded['items'])) {
@@ -125,10 +158,7 @@ function media_gallery_load_pane_state(string $paneId): array {
     $jsonFile = media_gallery_pane_json_file($pane, $paneId);
     $jsonPath = rtrim($paths['data_dir'], '/\\') . '/' . $jsonFile;
     $data = media_gallery_load_data($jsonPath);
-    $items = $data['items'] ?? [];
-    if (!is_array($items)) {
-        $items = [];
-    }
+    $items = $data['items'];
     return [
         'paths'     => $paths,
         'json_path' => $jsonPath,
@@ -256,14 +286,18 @@ function media_gallery_abs_from_asset(string $dataDir, string $path): ?string {
     return rtrim($dataDir, '/\\') . '/' . $relative;
 }
 
-// Pure math: compute a cover-style crop window anchored on a focal
-// point. Returns [cropX, cropY, cropW, cropH] in source coords. Focal
-// coords are normalized 0.0-1.0 and clamp to that range. The crop
-// window is also clamped to the source bounds so a focal point near an
-// edge doesn't slide the window off the image.
-//
-// Pairs with media_gallery_focal_crop_to_temp(); split for unit
-// testability without GD.
+/**
+ * Pure math: compute a cover-style crop window anchored on a focal
+ * point. Returns a 4-tuple `[cropX, cropY, cropW, cropH]` in source
+ * coords. Focal coords are normalized 0.0-1.0 and clamp to that range.
+ * The crop window is also clamped to the source bounds so a focal
+ * point near an edge doesn't slide the window off the image.
+ *
+ * Pairs with media_gallery_focal_crop_to_temp(); split for unit
+ * testability without GD.
+ *
+ * @return array{int, int, int, int}
+ */
 function media_gallery_focal_crop_window(int $srcW, int $srcH, int $targetW, int $targetH, float $focalX, float $focalY): array {
     if ($srcW <= 0 || $srcH <= 0 || $targetW <= 0 || $targetH <= 0) {
         return [0, 0, max(1, $srcW), max(1, $srcH)];
@@ -296,7 +330,7 @@ function media_gallery_focal_crop_to_temp(string $srcAbsPath, int $targetW, int 
         return null;
     }
     $info = @getimagesize($srcAbsPath);
-    if (!is_array($info) || ($info[0] ?? 0) <= 0 || ($info[1] ?? 0) <= 0) {
+    if (!is_array($info) || $info[0] <= 0 || $info[1] <= 0) {
         return null;
     }
     [$srcW, $srcH] = $info;
@@ -384,21 +418,26 @@ function media_gallery_thumb_is_custom(array $item): bool {
     return ($item['thumb_origin'] ?? null) === 'custom';
 }
 
-// Merge a save_map mediaChanges payload into the existing items array.
-// Pure: caller does I/O. The payload is the JS-side diff
-// ({updates: [{id, title?, order?}, ...]}) — fields that the admin UI
-// can edit in the per-item editor. Unknown ids are ignored (item may
-// have been deleted out-of-band by another admin); after merging,
-// items are re-sorted by order and order is re-numbered 1..N for
-// stable contiguous values. Wired into save-config.php's save_map
-// dispatch via the manifest's `validator` field.
+/**
+ * Merge a save_map mediaChanges payload into the existing items array.
+ * Pure — caller does I/O. The payload is the JS-side diff for the
+ * fields the per-item editor exposes (title, order). Unknown ids are
+ * silently ignored (the item may have been deleted out-of-band by
+ * another admin). After merging, items are re-sorted by order and
+ * order is re-numbered 1..N for stable contiguous values. Wired into
+ * save-config.php's save_map dispatch via the manifest's `validator`.
+ *
+ * @param array{items?: mixed}                                                                    $data
+ * @param array{updates?: list<array{id?: int|string, title?: int|string, order?: int|string}>}   $changes
+ * @return array<string, mixed>
+ */
 function media_gallery_apply_changes(array $data, array $changes): array {
     $items = $data['items'] ?? [];
     if (!is_array($items)) {
         $items = [];
     }
     $updates = $changes['updates'] ?? [];
-    if (!is_array($updates) || empty($updates)) {
+    if (empty($updates)) {
         $data['items'] = $items;
         return $data;
     }
@@ -409,9 +448,6 @@ function media_gallery_apply_changes(array $data, array $changes): array {
         }
     }
     foreach ($updates as $update) {
-        if (!is_array($update)) {
-            continue;
-        }
         $id = isset($update['id']) ? (string) $update['id'] : '';
         if ($id === '' || !isset($indexById[$id])) {
             continue;
@@ -450,9 +486,14 @@ function media_gallery_apply_changes(array $data, array $changes): array {
 // "res/data/mediaGalleryContent-<paneId>/media-1234.jpg"; when the
 // pane is renamed, the directory has already been moved (by core's
 // generic pane_content_dir rename), but the strings inside items.json
-// still point at the old segment. Pure string replace on the
-// "mediaGalleryContent-<oldId>/" → "mediaGalleryContent-<newId>/"
-// segment.
+/**
+ * still point at the old segment. Pure string replace on the
+ * "mediaGalleryContent-<oldId>/" → "mediaGalleryContent-<newId>/"
+ * segment.
+ *
+ * @param array{items?: mixed} $data
+ * @return array<string, mixed>
+ */
 function media_gallery_update_paths(array $data, string $oldId, string $newId): array {
     $items = $data['items'] ?? [];
     if (!is_array($items)) {
@@ -477,18 +518,28 @@ function media_gallery_update_paths(array $data, string $oldId, string $newId): 
     return $data;
 }
 
-// Manifest-declared `on_rename` callback. Core renames the per-pane
-// content directory generically; this callback updates the asset
-// references stored inside items.json so they point at the new
-// directory name. Signature is the contract with save-config.php's
-// dispatch loop: ($prevId, $currentId, $context) where $context
-// carries the data_dir and the previous module's manifest.
+/**
+ * Manifest-declared `on_rename` callback. Core renames the per-pane
+ * content directory generically; this callback updates the asset
+ * references stored inside items.json so they point at the new
+ * directory name. Signature is the contract with save-config.php's
+ * dispatch loop: ($prevId, $currentId, $context) where $context
+ * carries the data_dir and the previous module's manifest.
+ *
+ * Failure modes (each emits a Diagnostics entry, no exception):
+ *   - missing/empty data_dir in $context → silent no-op
+ *   - items.json missing or unreadable → silent no-op
+ *   - items.json corrupt JSON → logged, asset paths not rewritten
+ *   - encode/write failure after rewrite → logged, on-disk file stale
+ *
+ * @param array{data_dir?: string, manifest?: array<string, mixed>} $context
+ */
 function media_gallery_on_rename(string $prevId, string $currentId, array $context): void {
     $dataDir = isset($context['data_dir']) ? (string) $context['data_dir'] : '';
     if ($dataDir === '') {
         return;
     }
-    $manifest = isset($context['manifest']) && is_array($context['manifest']) ? $context['manifest'] : [];
+    $manifest = $context['manifest'] ?? [];
     $entries = $manifest['data_files'] ?? [];
     if (!is_array($entries)) {
         return;
@@ -549,6 +600,32 @@ function media_gallery_on_rename(string $prevId, string $currentId, array $conte
     }
 }
 
+/**
+ * Build the per-item payload the admin and public JS consume. Decorates
+ * each item with display-only fields (displayFile, displayThumb,
+ * uploaded_by_display) and reads from the TG membership cache once,
+ * lazily, when any item references a tg:<id> uploader. Skips items
+ * that aren't arrays — defensive against hand-edited items.json.
+ *
+ * @param list<mixed> $items
+ * @return list<array{
+ *     id: string,
+ *     type: string,
+ *     file: string,
+ *     thumb: string,
+ *     title: string,
+ *     order: int,
+ *     original_size: int,
+ *     saved_size: int,
+ *     focal_x: float|null,
+ *     focal_y: float|null,
+ *     uploaded_at: string,
+ *     uploaded_by: string,
+ *     uploaded_by_display: string,
+ *     displayFile: string,
+ *     displayThumb: string,
+ * }>
+ */
 function media_gallery_build_payload(array $items): array {
     $tgProfiles = null;
     $output = [];

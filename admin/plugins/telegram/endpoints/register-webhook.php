@@ -34,12 +34,12 @@ lawnding_require_admin_mutation(
     function ($msg, $code) { tg_register_webhook_respond(['ok' => false, 'description' => $msg . '.'], $code); }
 );
 
-$token = isset($tgConfig['bot_token']) ? trim((string) $tgConfig['bot_token']) : '';
+$token = trim($tgConfig['bot_token']);
 if ($token === '') {
     tg_register_webhook_respond(['ok' => false, 'description' => 'Bot token missing.']);
 }
 
-$secret = isset($tgConfig['webhook_secret_token']) ? trim((string) $tgConfig['webhook_secret_token']) : '';
+$secret = trim($tgConfig['webhook_secret_token']);
 if ($secret === '') {
     tg_register_webhook_respond(['ok' => false, 'description' => 'Webhook secret_token missing — save the bot config once to generate it.']);
 }
@@ -67,8 +67,8 @@ $webhookUrl = $scheme . '://' . $host . $assetBase . '/res/scr/plugin-endpoint.p
 $bot = new TgBotClient($token);
 $resp = $bot->setWebhook($webhookUrl, $secret);
 
-if (!is_array($resp) || empty($resp['ok'])) {
-    $description = is_array($resp) && isset($resp['description'])
+if (empty($resp['ok'])) {
+    $description = isset($resp['description'])
         ? (string) $resp['description']
         : 'setWebhook failed.';
     tg_register_webhook_respond(['ok' => false, 'description' => $description]);

@@ -191,7 +191,19 @@ if (is_array($authLinksPayload) && array_key_exists('links', $authLinksPayload))
     $authLinksData = $authLinksPayload;
 }
 $authLinksEnabled = !empty($linksSettings['auth_links']);
+// Pre-scan for legacy auth-link records missing the `content` key — the
+// JS reads data-needs-normalization at page load and prompts the admin
+// to save so the schema is normalized on disk. The render loop below
+// (around line 836) only sees individual link entries; this scan runs
+// once over the whole list before the attribute is emitted at the
+// container div (around line 682).
 $authLinksNeedsNormalization = false;
+foreach ($authLinksData as $link) {
+    if (is_array($link) && ($link['type'] ?? '') === 'link' && !array_key_exists('content', $link)) {
+        $authLinksNeedsNormalization = true;
+        break;
+    }
+}
 
 // Load Telegram bot configuration stored in admin/lp-tgBot.json.
 $tgBotPath = function_exists('lawnding_config')
@@ -229,7 +241,7 @@ if (!empty($tgBotData['blacklist_user_ids']) && is_array($tgBotData['blacklist_u
 $tgBotBlacklistUserIdsText = implode("\n", array_map(fn(array $e): string => $e['id'] . ' ' . strtoupper($e['content']), $tgBotBlacklistUserIds));
 $webhookBase = lawnding_request_is_secure() ? 'https' : 'http';
 $webhookHost = $_SERVER['HTTP_HOST'] ?? 'your-domain.com';
-$webhookUrl = $webhookBase . '://' . $webhookHost . ($assetBase ?? '') . '/res/scr/plugin-endpoint.php?plugin=telegram&endpoint=webhook';
+$webhookUrl = $webhookBase . '://' . $webhookHost . $assetBase . '/res/scr/plugin-endpoint.php?plugin=telegram&endpoint=webhook';
 
 // Load header configuration, with defaults when JSON is missing.
 $headerJsonPath = $dataPath('header.json');
@@ -394,12 +406,7 @@ $panesForJs = array_map(function ($pane) {
 $panesForJs = array_values(array_filter($panesForJs));
 
 // Identify panes that reference missing module manifests.
-$availableModules = array_map(function ($module) {
-    return $module['id'] ?? '';
-}, $modulesCatalog);
-$availableModules = array_values(array_filter($availableModules, function ($value) {
-    return is_string($value) && $value !== '';
-}));
+$availableModules = array_map(fn ($module) => $module['id'], $modulesCatalog);
 $missingModules = [];
 $missingModulePanes = [];
 foreach ($panes as $pane) {
@@ -424,11 +431,7 @@ $missingModules = array_values(array_unique($missingModules));
 $missingModuleDetails = [];
 foreach ($missingModulePanes as $moduleId => $paneList) {
     $uniquePanes = array_values(array_unique($paneList));
-    if (!empty($uniquePanes)) {
-        $missingModuleDetails[] = $moduleId . ' (' . implode(', ', $uniquePanes) . ')';
-    } else {
-        $missingModuleDetails[] = $moduleId;
-    }
+    $missingModuleDetails[] = $moduleId . ' (' . implode(', ', $uniquePanes) . ')';
 }
 
 // Permission gates and admin UI state (set by upstream controller).
@@ -471,7 +474,7 @@ $appConfigPayload = [
     'isMasterUser' => $isMasterUser,
     'isReadOnlyUser' => $isReadOnlyUser,
     'csrfToken' => $_SESSION['csrf_token'] ?? '',
-    'paneIds' => array_values($paneIds),
+    'paneIds' => $paneIds,
     'panes' => $panesForJs,
     'modules' => $modulesCatalog,
     'perPaneSettings' => lawnding_build_per_pane_settings_data($panes),
@@ -586,7 +589,7 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
         </div>
         <div class="headerActionStack">
             <div class="headerUserStack">
-                <div class="signedInAs"><?php echo htmlspecialchars($currentUserName ?? ''); ?></div>
+                <div class="signedInAs"><?php echo htmlspecialchars($currentUserName); ?></div>
                 <form method="post" action="">
                     <input type="hidden" name="action" value="logout">
                     <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token'] ?? ''); ?>">
@@ -738,9 +741,9 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
                                     </div>
                                     <?php foreach ($tgBotGroupIds as $entry): ?>
                                         <?php
-                                            $gId = (string) ($entry['id'] ?? '');
-                                            $gContent = strtoupper((string) ($entry['content'] ?? 'SFW')) === 'NSFW' ? 'NSFW' : 'SFW';
-                                            $gPerms = is_array($entry['permissions'] ?? null) ? $entry['permissions'] : [];
+                                            $gId = $entry['id'];
+                                            $gContent = strtoupper($entry['content']) === 'NSFW' ? 'NSFW' : 'SFW';
+                                            $gPerms = $entry['permissions'];
                                         ?>
                                         <div class="tgBotGroupCard">
                                             <input class="linksConfigInput tgBotGroupIdInput" type="text" value="<?php echo htmlspecialchars($gId); ?>" placeholder="-1001234567890" aria-label="Group ID">
@@ -835,9 +838,6 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
                                         : 'sfw';
                                     if ($contentLevel !== 'nsfw') {
                                         $contentLevel = 'sfw';
-                                    }
-                                    if (!array_key_exists('content', $link)) {
-                                        $authLinksNeedsNormalization = true;
                                     }
                                     $isNsfw = $contentLevel === 'nsfw';
                                 ?>

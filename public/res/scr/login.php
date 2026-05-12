@@ -64,12 +64,10 @@ $usersPath = (string) lawnding_config('users_path', '');
 $users = lawnding_load_users_file($usersPath);
 
 $matched = null;
-if (is_array($users)) {
-    foreach ($users as $candidate) {
-        if (is_array($candidate) && (($candidate['username'] ?? '') === $username)) {
-            $matched = $candidate;
-            break;
-        }
+foreach ($users as $candidate) {
+    if (is_array($candidate) && (($candidate['username'] ?? '') === $username)) {
+        $matched = $candidate;
+        break;
     }
 }
 

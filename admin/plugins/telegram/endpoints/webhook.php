@@ -9,7 +9,7 @@ require_once $tgAuthPath;
 header('Content-Type: application/json');
 
 $config = lawnding_load_tg_config();
-$token = isset($config['bot_token']) ? trim((string) $config['bot_token']) : '';
+$token = trim($config['bot_token']);
 if ($token === '') {
     echo json_encode(['ok' => false, 'description' => 'Bot token missing']);
     exit;
@@ -18,7 +18,7 @@ if ($token === '') {
 // Silent {"ok": true} on header mismatch mirrors Telegram's docs and
 // avoids leaking the live webhook URL to anonymous probes. Empty
 // config secret = fresh install — accept until first save populates it.
-$expectedSecret = isset($config['webhook_secret_token']) ? trim((string) $config['webhook_secret_token']) : '';
+$expectedSecret = trim($config['webhook_secret_token']);
 if ($expectedSecret !== '') {
     $headerSecret = $_SERVER['HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN'] ?? '';
     if (!is_string($headerSecret) || !hash_equals($expectedSecret, $headerSecret)) {

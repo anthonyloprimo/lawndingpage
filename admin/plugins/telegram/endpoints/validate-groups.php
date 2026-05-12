@@ -35,7 +35,7 @@ lawnding_require_admin_mutation(
     function ($msg, $code) { tg_validate_respond(['ok' => false, 'description' => $msg . '.'], $code); }
 );
 
-$token = isset($tgConfig['bot_token']) ? trim((string) $tgConfig['bot_token']) : '';
+$token = trim($tgConfig['bot_token']);
 if ($token === '') {
     tg_validate_respond(['ok' => false, 'description' => 'Bot token missing.']);
 }
@@ -68,9 +68,9 @@ $errors = [];
 
 foreach ($groupIds as $groupId) {
     $resp = $bot->request('getChat', ['chat_id' => $groupId]);
-    if (!is_array($resp) || empty($resp['ok'])) {
+    if (empty($resp['ok'])) {
         $invalid[] = $groupId;
-        $errors[$groupId] = is_array($resp) && isset($resp['description'])
+        $errors[$groupId] = isset($resp['description'])
             ? (string) $resp['description']
             : 'Request failed';
         continue;

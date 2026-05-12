@@ -214,7 +214,7 @@ function resolve_local_logo_path($assetPath, $imgDir) {
         return null;
     }
     $relative = substr($trimmed, strlen('res/img/'));
-    if (!is_string($relative) || $relative === '') {
+    if ($relative === '') {
         return null;
     }
     if (preg_match('#(^|/)\.\.(/|$)#', $relative)) {
@@ -519,7 +519,7 @@ function normalize_tg_bot_payload($payload): array {
                 $userIds[] = $entriesById[$userId];
             }
         }
-        usort($userIds, fn($a, $b) => strnatcmp((string) ($a['id'] ?? ''), (string) ($b['id'] ?? '')));
+        usort($userIds, fn($a, $b) => strnatcmp($a['id'], $b['id']));
         return $userIds;
     };
     if (!is_array($payload)) {
@@ -609,9 +609,7 @@ function normalize_tg_bot_payload($payload): array {
             $groupIds[] = $entriesById[$groupId];
         }
     }
-    usort($groupIds, function ($a, $b) {
-        return strnatcmp((string) ($a['id'] ?? ''), (string) ($b['id'] ?? ''));
-    });
+    usort($groupIds, fn($a, $b) => strnatcmp($a['id'], $b['id']));
     $secretToken = isset($payload['webhook_secret_token']) ? trim((string) $payload['webhook_secret_token']) : '';
     return [
         'bot_username' => $username,
@@ -689,7 +687,7 @@ if ($action === 'pane_management') {
         $iconType = isset($icon['type']) ? (string) $icon['type'] : 'none';
         $iconValue = isset($icon['value']) ? (string) $icon['value'] : '';
         if ($iconType === 'svg') {
-            if (is_string($iconValue) && $iconValue !== '') {
+            if ($iconValue !== '') {
                 $iconValue = preg_replace('/<title[^>]*>[\\s\\S]*?<\\/title>/i', '', $iconValue);
             }
             if (!lawnding_is_safe_svg($iconValue)) {
@@ -937,7 +935,7 @@ if ($action === 'pane_management') {
     foreach ($newPanes as &$pane) {
         $paneId = $pane['id'];
         $icon = $pane['icon'];
-        $iconType = $icon['type'] ?? 'none';
+        $iconType = $icon['type'];
         $iconValue = $icon['value'] ?? '';
         if ($iconType === 'file') {
             $fileKey = 'paneIconFile_' . $paneId;

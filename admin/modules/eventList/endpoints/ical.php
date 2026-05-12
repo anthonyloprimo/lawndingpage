@@ -126,8 +126,8 @@ $categoryId = is_string($event['categoryId'] ?? null) ? $event['categoryId'] : '
 $categoryName = '';
 if ($categoryId !== '') {
     foreach (event_list_load_categories() as $cat) {
-        if (($cat['id'] ?? '') === $categoryId) {
-            $categoryName = (string) ($cat['name'] ?? '');
+        if ($cat['id'] === $categoryId) {
+            $categoryName = $cat['name'];
             break;
         }
     }

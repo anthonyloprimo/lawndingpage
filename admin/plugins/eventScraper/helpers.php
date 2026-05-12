@@ -167,6 +167,24 @@ function event_scraper_discover_adapters(): array {
 }
 
 // isConfigured = admin has saved this feed; UI renders placeholders otherwise.
+/**
+ * Resolved feed config — merges saved per-feed admin settings with the
+ * adapter's declared defaults. Returned shape is consumed by the picker
+ * UI and the orchestrator; missing keys fall back to safe defaults so
+ * an unconfigured feed still has a renderable label.
+ *
+ * @param array<string, mixed> $config Decoded contents of admin/lp-eventScraperConfig.json
+ * @return array{
+ *     id: string,
+ *     label: string,
+ *     adapterId: string,
+ *     defaultCategoryId: string,
+ *     allowlist: array<string, mixed>,
+ *     autoPublish: bool,
+ *     lastReviewedAt: string,
+ *     isConfigured: bool,
+ * }
+ */
 function event_scraper_get_feed(string $feedId, array $config): array {
     $feed = is_array($config['feeds'][$feedId] ?? null) ? $config['feeds'][$feedId] : [];
     $adapter = event_scraper_load_adapter($feedId);
@@ -185,6 +203,13 @@ function event_scraper_get_feed(string $feedId, array $config): array {
     ];
 }
 
+/**
+ * Read an adapter's JSON config. Returns null when the id fails the
+ * safe-id regex, the file is unreadable, or the JSON is malformed —
+ * callers should treat null as "no such adapter."
+ *
+ * @return array<string, mixed>|null
+ */
 function event_scraper_load_adapter(string $adapterId): ?array {
     if (!preg_match('/^[a-zA-Z0-9_-]+$/', $adapterId)) {
         return null;
@@ -205,6 +230,15 @@ function event_scraper_load_adapter(string $adapterId): ?array {
 // Catalogue
 // ------------------------------------------------------------------------
 
+/**
+ * Read a previously-saved catalogue. Returns the empty-catalogue shape
+ * (not null) on missing file, unreadable file, or malformed JSON — so
+ * callers never need to null-check the return. The `events` key is
+ * always present and always an array, even when the on-disk shape is
+ * partially malformed.
+ *
+ * @return array{fetchedAt: string, sourceUrl: string, events: array<int|string, mixed>}
+ */
 function event_scraper_load_catalogue(string $adapterId): array {
     $path = event_scraper_catalogue_path($adapterId);
     if (!is_readable($path)) {
@@ -222,6 +256,13 @@ function event_scraper_load_catalogue(string $adapterId): array {
     return $decoded;
 }
 
+/**
+ * Persist a catalogue to disk under LOCK_EX. Returns false on either
+ * json_encode failure or filesystem write failure; both failure paths
+ * emit a Diagnostics entry first so the operator sees why.
+ *
+ * @param array<string, mixed> $catalogue
+ */
 function event_scraper_save_catalogue(string $adapterId, array $catalogue): bool {
     $path = event_scraper_catalogue_path($adapterId);
     $json = json_encode($catalogue, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
@@ -249,8 +290,20 @@ function event_scraper_save_catalogue(string $adapterId, array $catalogue): bool
 // Pure transforms (unit-testable)
 // ------------------------------------------------------------------------
 
-// Diff two catalogue event lists by sourceUid.
-// Returns ['new' => [...], 'changed' => [...], 'removed' => [...]].
+/**
+ * Diff two catalogue event lists keyed by sourceUid. Events missing a
+ * sourceUid are silently skipped (defensive against partial extractor
+ * output). The `changed` entries carry both the new event and the
+ * previous event so callers can diff specific fields downstream.
+ *
+ * @param array<int|string, mixed> $prev
+ * @param array<int|string, mixed> $next
+ * @return array{
+ *     new: list<array<string, mixed>>,
+ *     changed: list<array{uid: string, event: array<string, mixed>, previous: array<string, mixed>, fields: list<string>}>,
+ *     removed: list<array<string, mixed>>,
+ * }
+ */
 function event_scraper_diff(array $prev, array $next): array {
     $prevById = [];
     foreach ($prev as $e) {
@@ -298,9 +351,16 @@ function event_scraper_diff(array $prev, array $next): array {
     return ['new' => $new, 'changed' => $changed, 'removed' => $removed];
 }
 
-// Field-by-field comparator. Returns the list of changed field names.
-// Keeps the comparison restricted to fields the eventList renderer surfaces;
-// internal-only fields (e.g. fetchedAt) don't contribute to "changed".
+/**
+ * Field-by-field comparator. Returns the names of fields that differ
+ * between two event records. Comparison is restricted to fields the
+ * eventList renderer surfaces — internal-only fields (e.g. fetchedAt)
+ * don't contribute to "changed."
+ *
+ * @param array<string, mixed> $prev
+ * @param array<string, mixed> $next
+ * @return list<string>
+ */
 function event_scraper_event_field_diff(array $prev, array $next): array {
     $watched = ['name', 'startDate', 'endDate', 'location', 'description', 'url', 'registrationUrl', 'image'];
     $diff = [];
@@ -312,18 +372,23 @@ function event_scraper_event_field_diff(array $prev, array $next): array {
     return $diff;
 }
 
-// Auto-publish: extend a feed's allowlist with any sourceUids new to the
-// catalogue. Returns [updatedFeedConfig, addedUids[]]. Pure — caller passes
-// $now and is responsible for persisting the result.
-//
-// Skip rules (returns the input feed config unchanged + empty addedUids):
-//   - feed not configured (admin hasn't saved it yet → nothing to extend)
-//   - autoPublish flag is false
-//   - $isFirstRefresh true (caller decides; orchestrator passes true when
-//     prev catalogue had zero events, which covers both genuine first-runs
-//     and cache-wipe recovery — avoids flooding the allowlist with every
-//     existing event)
-//   - $newSourceUids empty
+/**
+ * Auto-publish: extend a feed's allowlist with any sourceUids new to
+ * the catalogue. Pure — caller passes $now and persists the result.
+ *
+ * Skip rules (returns the input feed config unchanged + empty addedUids):
+ *   - $isFirstRefresh true (caller decides; orchestrator passes true
+ *     when prev catalogue had zero events, which covers both genuine
+ *     first-runs and cache-wipe recovery — avoids flooding the
+ *     allowlist with every existing event)
+ *   - $newSourceUids empty
+ *   - autoPublish flag explicitly false (legacy configs without the
+ *     key still auto-publish; default is on)
+ *
+ * @param array<string, mixed> $feedConfig
+ * @param list<string>         $newSourceUids
+ * @return array{0: array<string, mixed>, 1: list<string>} [updatedFeedConfig, addedUids]
+ */
 function event_scraper_apply_auto_publish(
     array $feedConfig,
     array $newSourceUids,
@@ -355,14 +420,17 @@ function event_scraper_apply_auto_publish(
     return [$feedConfig, $added];
 }
 
-// Resolve raw keyword strings into displayable badge records via the
-// adapter's keywordBadges map. Pure. Unmapped keywords are silently
-// dropped (an unmapped keyword usually means either a one-off tag or a
-// keyword the adapter hasn't been updated for; rendering as "?" would
-// be noisy). Adapter shape:
-//   {"All Ages": {"icon": "🚸"}, "Fursuit Friendly": {"icon": "🦊", "label": "Fursuit OK"}}
-// Output:
-//   [{"icon": "🚸", "label": "All Ages"}, {"icon": "🦊", "label": "Fursuit OK"}]
+/**
+ * Resolve raw keyword strings into displayable badge records via the
+ * adapter's keywordBadges map. Pure. Unmapped keywords are silently
+ * dropped — an unmapped keyword usually means a one-off tag or a
+ * keyword the adapter hasn't been updated for, and rendering "?" for
+ * those would be noisier than the omission.
+ *
+ * @param list<mixed>                                                $keywords
+ * @param array<string, array{icon?: string, label?: string}>        $keywordBadgesMap
+ * @return list<array{icon: string, label: string}>
+ */
 function event_scraper_resolve_keyword_badges(array $keywords, array $keywordBadgesMap): array {
     $out = [];
     foreach ($keywords as $kw) {
@@ -373,11 +441,11 @@ function event_scraper_resolve_keyword_badges(array $keywords, array $keywordBad
         if (!is_array($entry)) {
             continue;
         }
-        $icon = isset($entry['icon']) && is_string($entry['icon']) ? $entry['icon'] : '';
+        $icon = $entry['icon'] ?? '';
         if ($icon === '') {
             continue;
         }
-        $label = isset($entry['label']) && is_string($entry['label']) && trim($entry['label']) !== ''
+        $label = isset($entry['label']) && trim($entry['label']) !== ''
             ? trim($entry['label'])
             : $kw;
         $out[] = ['icon' => $icon, 'label' => $label];
@@ -385,11 +453,34 @@ function event_scraper_resolve_keyword_badges(array $keywords, array $keywordBad
     return $out;
 }
 
-// Map a normalized scraper event into an eventList event record. Empty
-// required fields fall back to placeholder strings so the eventList
-// validator (event_list_event_is_valid) doesn't silently drop the record.
-// $keywordBadgesMap is the adapter's keywordBadges block; pass [] when
-// the adapter doesn't declare one (extractor-emitted keywords[] then drop).
+/**
+ * Map a normalized scraper event into an eventList event record. Empty
+ * required fields fall back to placeholder strings so the eventList
+ * validator (event_list_event_is_valid) doesn't silently drop the
+ * record. $keywordBadgesMap is the adapter's keywordBadges block —
+ * pass [] when the adapter doesn't declare one (extractor-emitted
+ * keywords[] then drop).
+ *
+ * @param array<string, mixed>                                $event
+ * @param array<string, array{icon?: string, label?: string}> $keywordBadgesMap
+ * @return array{
+ *     name: string,
+ *     startDate: string,
+ *     endDate: string,
+ *     startTime: string,
+ *     endTime: string,
+ *     allDay: bool,
+ *     address: string,
+ *     description: string,
+ *     categoryId: string,
+ *     host: string,
+ *     sourceUrl: string,
+ *     keywordBadges: list<array{icon: string, label: string}>,
+ *     source: string,
+ *     sourceAdapter: string,
+ *     sourceUid: string,
+ * }
+ */
 function event_scraper_to_eventlist_record(
     array $event,
     string $adapterId,
@@ -440,22 +531,28 @@ function event_scraper_to_eventlist_record(
     ];
 }
 
-// Build the {create, update, delete} changes payload that
-// event_list_apply_events() consumes.
-//
-// Inputs:
-//   $catalogue        — normalized event records from current scrape
-//   $allowlistUids    — list of sourceUids the admin opted in to ingest
-//   $adapterId        — for tagging records with sourceAdapter
-//   $existingEvents   — current eventList events for the target pane
-//   $defaultCategoryId — category assigned to created records
-//
-// Output rule, by zone:
-//   in catalogue + in allowlist + new       -> create
-//   in catalogue + in allowlist + existing  -> update (id preserved)
-//   in catalogue + NOT allowlist            -> nothing if not existing; delete if existing
-//   NOT in catalogue + existing scraped     -> delete (auto on source removal, per plan)
-//   manual events (source !== 'eventScraper') -> never touched
+/**
+ * Build the {create, update, delete} changes payload that
+ * event_list_apply_events() consumes.
+ *
+ * Output rule, by zone:
+ *   in catalogue + in allowlist + new       -> create
+ *   in catalogue + in allowlist + existing  -> update (id preserved)
+ *   in catalogue + NOT allowlist            -> nothing if not existing; delete if existing
+ *   NOT in catalogue + existing scraped     -> delete (auto on source removal, per plan)
+ *   manual events (source !== 'eventScraper') -> never touched
+ *   lockedLocally=true on existing          -> update skipped (admin override preserved)
+ *
+ * @param list<mixed>                                         $catalogue         Normalized records from current scrape
+ * @param list<mixed>                                         $allowlistUids     sourceUids the admin opted in to ingest
+ * @param list<mixed>                                         $existingEvents    Current eventList events for the target pane
+ * @param array<string, array{icon?: string, label?: string}>|null $keywordBadgesMap Loaded from adapter when null
+ * @return array{
+ *     create: list<array<string, mixed>>,
+ *     update: list<array<string, mixed>>,
+ *     delete: list<string>,
+ * }
+ */
 function event_scraper_build_ingest_changes(
     array $catalogue,
     array $allowlistUids,
@@ -654,7 +751,7 @@ function event_scraper_fetch_url(string $url, string $userAgent, int $timeoutSec
     $status = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
     $err = curl_error($ch);
     curl_close($ch);
-    if ($body === false || $body === null) {
+    if ($body === false) {
         return ['status' => $status, 'body' => '', 'error' => $err !== '' ? $err : 'fetch failed'];
     }
     return ['status' => $status, 'body' => (string) $body, 'error' => null];
@@ -725,8 +822,18 @@ function event_scraper_save_pane_events(string $paneId, array $events): bool {
 // Refresh orchestrator
 // ------------------------------------------------------------------------
 
-// Fetch + extract + diff + ingest. Caller passes 'cron' or 'admin' as
-// $trigger; the value is recorded in lastScrape.json for diagnostics.
+/**
+ * Fetch + extract + diff + ingest. Caller passes 'cron' or 'admin' as
+ * $trigger; the value is recorded in lastScrape.json for diagnostics.
+ *
+ * Success: `{status: 'ok', count: int, diff: array, ingested: array}`.
+ * Failure (each path emits a Diagnostics entry before returning):
+ * `{status: 'error', count: 0, error: string}`. Empty-result guard
+ * preserves the previous catalogue rather than nuking the calendar
+ * when the extractor returns 0 events from a degraded source.
+ *
+ * @return array<string, mixed>
+ */
 function event_scraper_run_refresh(string $adapterId, string $trigger): array {
     $now = gmdate('c');
     $writeLast = function (array $payload) use ($adapterId): void {
@@ -821,7 +928,7 @@ function event_scraper_run_refresh(string $adapterId, string $trigger): array {
     }
 
     $prev = event_scraper_load_catalogue($adapterId);
-    $diff = event_scraper_diff($prev['events'] ?? [], $events);
+    $diff = event_scraper_diff($prev['events'], $events);
 
     // Rotate: prev <- old; current <- new. The copy is best-effort (the
     // diff is already computed; rotation only matters for the next scrape's
@@ -891,11 +998,11 @@ function event_scraper_run_refresh(string $adapterId, string $trigger): array {
     if ($feedConfigSnapshot !== null && $diff['new']) {
         $newUids = [];
         foreach ($diff['new'] as $e) {
-            if (is_array($e) && isset($e['sourceUid'])) {
+            if (isset($e['sourceUid'])) {
                 $newUids[] = (string) $e['sourceUid'];
             }
         }
-        $isFirstRefresh = empty($prev['events'] ?? []);
+        $isFirstRefresh = empty($prev['events']);
         [$updatedFeed, $autoAdded] = event_scraper_apply_auto_publish(
             $feedConfigSnapshot,
             $newUids,
@@ -942,7 +1049,16 @@ function event_scraper_run_refresh(string $adapterId, string $trigger): array {
     ];
 }
 
-// Apply one feed's catalogue to every subscribing eventList pane.
+/**
+ * Apply one feed's catalogue to every subscribing eventList pane.
+ * Returns `{status: 'ok', panes: [], reason: string}` when nothing
+ * subscribes; otherwise iterates subscribers and aggregates per-pane
+ * results. Top-level status is 'ok' only when every pane succeeded.
+ *
+ * @param list<mixed>           $catalogue
+ * @param array<string, mixed>  $config
+ * @return array{status: 'ok'|'error', panes: list<array<string, mixed>>, reason?: string}
+ */
 function event_scraper_apply_ingest(string $feedId, array $catalogue, array $config): array {
     $feed = event_scraper_get_feed($feedId, $config);
     if (!$feed['isConfigured']) {
@@ -963,7 +1079,7 @@ function event_scraper_apply_ingest(string $feedId, array $catalogue, array $con
     foreach ($subscribers as $paneId) {
         $r = event_scraper_apply_feed_to_pane($feedId, $paneId, $allowlistUids, $catalogue, $defaultCategoryId);
         $r['paneId'] = $paneId;
-        if (($r['status'] ?? '') !== 'ok') {
+        if ($r['status'] !== 'ok') {
             $allOk = false;
         }
         $results[] = $r;
@@ -971,7 +1087,14 @@ function event_scraper_apply_ingest(string $feedId, array $catalogue, array $con
     return ['status' => $allOk ? 'ok' : 'error', 'panes' => $results];
 }
 
-// Empty $allowlistUids wipes this feed's events from the pane (unsubscribe path).
+/**
+ * Apply one feed's catalogue to one pane. Empty $allowlistUids wipes
+ * this feed's events from the pane (the unsubscribe path).
+ *
+ * @param list<mixed> $allowlistUids
+ * @param list<mixed> $catalogue
+ * @return array{status: 'ok'|'error', created?: int, updated?: int, deleted?: int, reason?: string}
+ */
 function event_scraper_apply_feed_to_pane(
     string $feedId,
     string $paneId,
@@ -992,7 +1115,7 @@ function event_scraper_apply_feed_to_pane(
     }
     require_once dirname(__DIR__, 2) . '/modules/eventList/helpers.php';
     $merged = event_list_apply_events(['events' => $existing], ['changes' => $changes]);
-    if (!event_scraper_save_pane_events($paneId, $merged['events'] ?? [])) {
+    if (!event_scraper_save_pane_events($paneId, $merged['events'])) {
         // pane_events_write_failed already logged inside the save helper.
         return ['status' => 'error', 'reason' => 'pane events write failed'];
     }
@@ -1004,7 +1127,14 @@ function event_scraper_apply_feed_to_pane(
     ];
 }
 
-// Failure-isolated multi-feed loop. Top-level status 'ok' only when every feed succeeds.
+/**
+ * Failure-isolated multi-feed loop. Each feed's per-call exception is
+ * caught and logged; the outer loop continues so one broken feed
+ * can't take the cron pass down. Top-level status is 'ok' only when
+ * every feed succeeded.
+ *
+ * @return array{status: 'ok'|'error', feeds: list<array<string, mixed>>, message?: string}
+ */
 function event_scraper_run_all_feeds(string $trigger): array {
     $config = event_scraper_load_config();
     $feeds = is_array($config['feeds'] ?? null) ? $config['feeds'] : [];

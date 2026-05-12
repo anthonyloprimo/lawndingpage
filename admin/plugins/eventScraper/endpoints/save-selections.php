@@ -61,7 +61,7 @@ if (!is_array($selections)) {
 // Validate every selection against the cached catalogue. Drop unknowns.
 $catalogue = event_scraper_load_catalogue($feedId);
 $catalogueUids = [];
-foreach ($catalogue['events'] ?? [] as $event) {
+foreach ($catalogue['events'] as $event) {
     if (is_array($event) && isset($event['sourceUid'])) {
         $catalogueUids[(string) $event['sourceUid']] = true;
     }
@@ -100,9 +100,9 @@ if (!event_scraper_save_config($config)) {
 }
 
 // Re-ingest into all subscribing panes (cached catalogue, no network).
-$ingest = event_scraper_apply_ingest($feedId, $catalogue['events'] ?? [], $config);
+$ingest = event_scraper_apply_ingest($feedId, $catalogue['events'], $config);
 
-if (($ingest['status'] ?? '') === 'error') {
+if ($ingest['status'] === 'error') {
     event_scraper_save_respond([
         'status'        => 'error',
         'error'         => 'Selections saved but ingest failed for one or more panes — see Diagnostics.',
@@ -115,7 +115,7 @@ event_scraper_log('info', 'selections_saved', [
     'feed'           => $feedId,
     'label'          => $label,
     'selectedCount'  => count($allowlistEntries),
-    'paneCount'      => count($ingest['panes'] ?? []),
+    'paneCount'      => count($ingest['panes']),
 ]);
 
 event_scraper_save_respond([

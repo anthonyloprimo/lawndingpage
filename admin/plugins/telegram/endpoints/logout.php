@@ -27,7 +27,7 @@ if (isset($_GET['return']) && is_string($_GET['return'])) {
 $target = function_exists('lawnding_asset_url')
     ? lawnding_asset_url(ltrim($returnTo, '/'))
     : $returnTo;
-if (!is_string($target) || $target === '') {
+if ($target === '') {
     $target = '/';
 }
 header('Location: ' . $target, true, 302);

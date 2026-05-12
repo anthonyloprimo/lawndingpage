@@ -123,7 +123,7 @@ if (is_readable($usersPath)) {
     $usersFileIssue = 'missing';
 }
 
-$hasUsers = is_array($users) && count($users) > 0;
+$hasUsers = count($users) > 0;
 if (!$hasUsers && $usersFileIssue === null) {
     $usersFileIssue = 'empty';
 }
@@ -359,9 +359,7 @@ if ($isReadOnlyUser) {
 }
 
 // Login surface needs the Telegram widget origins; admin UI proper stays strict.
-$tgBotId = isset($tgConfig['bot_token']) && is_string($tgConfig['bot_token'])
-    ? lawnding_tg_bot_id_from_token($tgConfig['bot_token'])
-    : '';
+$tgBotId = lawnding_tg_bot_id_from_token($tgConfig['bot_token']);
 $tgAdminAuthEndpoint = function_exists('lawnding_asset_url')
     ? lawnding_asset_url('res/scr/plugin-endpoint.php?plugin=telegram&endpoint=auth')
     : '/res/scr/plugin-endpoint.php?plugin=telegram&endpoint=auth';

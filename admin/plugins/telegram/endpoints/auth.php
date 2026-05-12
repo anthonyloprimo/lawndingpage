@@ -13,7 +13,7 @@ $returnTo = lawnding_tg_relative_return_path($_GET['return'] ?? '/');
 $redirectTarget = function_exists('lawnding_asset_url')
     ? lawnding_asset_url(ltrim($returnTo, '/'))
     : $returnTo;
-if (!is_string($redirectTarget) || $redirectTarget === '') {
+if ($redirectTarget === '') {
     $redirectTarget = '/';
 }
 
@@ -23,7 +23,7 @@ $payload = $_GET;
 // own dispatch keys. Including them in the data-check string would cause the
 // HMAC to mismatch and the login to silently fail.
 unset($payload['return'], $payload['plugin'], $payload['endpoint']);
-$hashOk = lawnding_tg_verify_login_payload($payload, (string) ($tgConfig['bot_token'] ?? ''));
+$hashOk = lawnding_tg_verify_login_payload($payload, $tgConfig['bot_token']);
 $authDate = isset($payload['auth_date']) ? (int) $payload['auth_date'] : 0;
 $authFresh = $authDate > 0 && (time() - $authDate) <= 86400;
 
@@ -57,9 +57,7 @@ $_SESSION['tg_membership_force_refresh'] = true;
 $contentLevel = lawnding_tg_user_content_level($tgConfig, $tgUser['id'], $tgUser);
 if ($contentLevel === '') {
     unset($_SESSION['tg_user'], $_SESSION['tg_user_id'], $_SESSION['tg_membership_force_refresh']);
-    $rejectionText = isset($tgConfig['unauthorized_message']) && is_string($tgConfig['unauthorized_message'])
-        ? trim($tgConfig['unauthorized_message'])
-        : '';
+    $rejectionText = trim($tgConfig['unauthorized_message']);
     if ($rejectionText === '') {
         $rejectionText = 'Login failed: you must be a member of a Telegram group to access this site.';
     }

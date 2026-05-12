@@ -25,7 +25,7 @@ function lawnding_tg_bot_id_from_token(string $token): string {
         return '';
     }
     $parts = explode(':', $token, 2);
-    $id = $parts[0] ?? '';
+    $id = $parts[0];
     return ($id !== '' && ctype_digit($id)) ? $id : '';
 }
 
@@ -70,6 +70,15 @@ function lawnding_tg_normalize_user_scope($value, string $default = 'sfw'): stri
     return lawnding_tg_normalize_content_level($value, $default);
 }
 
+/**
+ * Coerce whitelist/blacklist input into the canonical entry shape.
+ * Accepts a mix of bare-string ids (legacy form) and `{id, content}`
+ * objects in any order. Dedupes by id and keeps the higher content
+ * level when duplicates appear. Non-numeric ids are dropped.
+ *
+ * @param mixed $values
+ * @return list<array{id: string, content: 'sfw'|'nsfw'}>
+ */
 function lawnding_tg_normalize_user_entries($values): array {
     if (!is_array($values)) {
         return [];
@@ -104,6 +113,18 @@ function lawnding_tg_normalize_user_entries($values): array {
     return $entries;
 }
 
+/**
+ * Coerce group config input into the canonical entry shape. Accepts
+ * bare-string ids (legacy form), `{id, content}` objects, and the
+ * current `{id, content, permissions}` shape. Dedupes by id, keeps the
+ * higher content level, and unions permissions across duplicates.
+ * Permissions outside lawnding_tg_eligible_permissions() are silently
+ * dropped — defense against hand-edited configs (the save side errors
+ * out instead, so a normal admin save can't smuggle bad values in).
+ *
+ * @param mixed $values
+ * @return list<array{id: string, content: 'sfw'|'nsfw', permissions: list<string>}>
+ */
 function lawnding_tg_normalize_group_entries($values): array {
     if (!is_array($values)) {
         return [];
@@ -159,6 +180,25 @@ function lawnding_tg_normalize_group_entries($values): array {
     return $entries;
 }
 
+/**
+ * Read admin/lp-tgBot.json merged with defaults. Returns the empty-
+ * defaults shape (not null) when the file is missing — every key is
+ * present so Telegram features silently degrade rather than throw.
+ * group_ids and whitelist/blacklist entries are normalized through
+ * their canonical helpers before being returned.
+ *
+ * @return array{
+ *     bot_username: string,
+ *     bot_token: string,
+ *     webhook_secret_token: string,
+ *     group_ids: list<array{id: string, content: 'sfw'|'nsfw', permissions: list<string>}>,
+ *     whitelist_user_ids: list<array{id: string, content: 'sfw'|'nsfw'}>,
+ *     blacklist_user_ids: list<array{id: string, content: 'sfw'|'nsfw'}>,
+ *     membership_cache_ttl_minutes: int,
+ *     unauthorized_message: string,
+ *     allowed_statuses: list<string>,
+ * }
+ */
 function lawnding_load_tg_config(): array {
     $defaults = lawnding_tg_config_defaults();
     $adminDir = function_exists('lawnding_config')
@@ -347,10 +387,17 @@ function lawnding_tg_apply_user_override(array &$access, ?array $entry, bool $is
     }
 }
 
-// Core membership check. Returns {sfw, nsfw} boolean flags for the given user.
-// Whitelist entries grant access regardless of group membership; blacklist
-// entries deny it. Profile is written to the cache when supplied so the
-// membership cache doubles as a visitor directory (numeric ID → handle/name).
+/**
+ * Core membership check. Whitelist entries grant access regardless of
+ * group membership; blacklist entries deny it. $profile is written to
+ * the cache when supplied so the membership cache doubles as a visitor
+ * directory (numeric ID → handle/name).
+ *
+ * @param array<string, mixed>      $tgConfig
+ * @param int|string|null           $userId
+ * @param array<string, mixed>|null $profile
+ * @return array{sfw: bool, nsfw: bool}
+ */
 function lawnding_tg_user_access(array $tgConfig, $userId, ?array $profile = null): array {
     $token = (string) ($tgConfig['bot_token'] ?? '');
     $groupIds = is_array($tgConfig['group_ids'] ?? null) ? $tgConfig['group_ids'] : [];
@@ -409,7 +456,7 @@ function lawnding_tg_user_access(array $tgConfig, $userId, ?array $profile = nul
                 continue;
             }
             $resp = $bot->getChatMember($groupId, $userId);
-            if (!is_array($resp) || empty($resp['ok']) || !is_array($resp['result'] ?? null)) {
+            if (empty($resp['ok']) || !is_array($resp['result'] ?? null)) {
                 $statuses[(string) $groupId] = 'error';
                 continue;
             }

@@ -109,7 +109,7 @@ foreach ($config['feeds'] as $feedId => $_) {
         $feedId,
         $paneId,
         $allowlistUids,
-        $catalogue['events'] ?? [],
+        $catalogue['events'],
         $feed['defaultCategoryId']
     );
     $r['feedId'] = $feedId;

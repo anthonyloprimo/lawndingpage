@@ -5,7 +5,9 @@
 // Phase 1 — php -l on every .php file under public/, admin/, and repo root.
 // Phase 2 — node --check on every .js file under public/ and admin/.
 // Phase 3 — run unit tests (tests/test-*.php).
-// All three phases must pass for a clean exit.
+// Phase 4 — PHPStan static analysis (hard-requires tools/phpstan.phar;
+//           install via `bash tools/install-phpstan.sh`).
+// All four phases must pass for a clean exit.
 
 if (PHP_VERSION_ID < 80000) {
     fwrite(STDERR, "PHP 8.0+ required.\n");
@@ -204,6 +206,52 @@ if ($totalFailures > 0 || $totalSkips > 0) {
     $exitCode = 1;
 }
 
+echo "\n";
+
+// ---- Phase 4: PHPStan static analysis ----
+
+echo "{$yellow}--- PHPStan ---{$reset}\n";
+
+$phpstanPhar   = realpath(__DIR__ . '/..') . '/tools/phpstan.phar';
+$phpstanConfig = realpath(__DIR__ . '/..') . '/phpstan.neon';
+$phpstanErrors = 0;
+$phpstanReady  = is_file($phpstanPhar);
+
+if (!$phpstanReady) {
+    // Mirror the test_require_* contract: missing tool fails loudly so
+    // the operator installs it rather than shipping with silent gaps.
+    echo "{$red}FAIL{$reset}  tools/phpstan.phar not found.\n";
+    echo "      Install with: bash tools/install-phpstan.sh\n";
+    $phpstanErrors = 1;
+    $exitCode = 1;
+} else {
+    $cmd = sprintf(
+        'php %s analyse --configuration=%s --no-progress --memory-limit=512M 2>&1',
+        escapeshellarg($phpstanPhar),
+        escapeshellarg($phpstanConfig),
+    );
+    $phpstanOutput = [];
+    $phpstanCode   = 0;
+    exec($cmd, $phpstanOutput, $phpstanCode);
+    if ($phpstanCode !== 0) {
+        $phpstanErrors = 1;
+        $exitCode = 1;
+        echo "{$red}FAIL{$reset}\n";
+        foreach ($phpstanOutput as $line) {
+            echo "      $line\n";
+        }
+    } else {
+        // PHPStan's success line is informative enough on its own; pass
+        // it through so users see [OK] No errors with the native styling.
+        foreach ($phpstanOutput as $line) {
+            echo "$line\n";
+        }
+        echo "{$green}PASS{$reset}\n";
+    }
+}
+
+echo "\n";
+
 echo str_repeat('-', 50) . "\n";
 echo "PHP:     $phpErrors errors\n";
 if ($hasNode) {
@@ -220,5 +268,6 @@ if ($totalSkips > 0) {
     echo ", $totalSkips skip notice" . ($totalSkips === 1 ? '' : 's');
 }
 echo "\n";
+echo "PHPStan: $phpstanErrors errors" . ($phpstanReady ? '' : ' (analyzer not installed)') . "\n";
 
 exit($exitCode);

@@ -16,57 +16,19 @@
     let currentCategories = [];
     let currentFeedLabels = {};
 
-    // ========== Pure date/event helpers (faithful copies from public.js) ==========
+    // Shared calendar helpers — see admin/modules/eventList/eventlist-core.js
+    const {
+        TRACKS_VISIBLE_MAX,
+        padDatePart,
+        startOfDay,
+        addDays,
+        dateKey,
+        parseEventDate,
+        eventEnd,
+        formatBarTime,
+        allocateRowTracks
+    } = window.lpEventListCore;
 
-    function padDatePart(value) {
-        const n = parseInt(String(value), 10);
-        return (n < 10 ? '0' : '') + n;
-    }
-    function startOfDay(dateObj) {
-        return new Date(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate());
-    }
-    function addDays(dateObj, days) {
-        return new Date(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate() + days);
-    }
-    function dateKey(dateObj) {
-        return dateObj.getFullYear() + '-' + padDatePart(dateObj.getMonth() + 1) + '-' + padDatePart(dateObj.getDate());
-    }
-    function parseEventDate(event) {
-        const date = event.startDate || event.date || '';
-        if (!date) { return null; }
-        if (event.allDay) {
-            const parsed = new Date(`${date}T00:00:00`);
-            return isNaN(parsed.getTime()) ? null : parsed;
-        }
-        const start = event.startTime || '';
-        if (!start) { return null; }
-        const parsed = new Date(`${date}T${start}`);
-        return isNaN(parsed.getTime()) ? null : parsed;
-    }
-    function eventEnd(event) {
-        const startDate = parseEventDate(event);
-        if (!startDate) { return null; }
-        if (event.allDay) {
-            const endDateValue = event.endDate || event.startDate || event.date || '';
-            const parsed = new Date(`${endDateValue}T23:59:59`);
-            return isNaN(parsed.getTime()) ? null : parsed;
-        }
-        if (event.endTime) {
-            const endDateValue = event.endDate || event.startDate || event.date || '';
-            const iso = `${endDateValue}T${event.endTime}`;
-            const endDate = new Date(iso);
-            if (!isNaN(endDate.getTime())) { return endDate; }
-        }
-        return new Date(startDate.getTime() + 60 * 60 * 1000);
-    }
-    function formatBarTime(dateObj) {
-        if (!dateObj) { return ''; }
-        const h = dateObj.getHours();
-        const m = dateObj.getMinutes();
-        const ampm = h >= 12 ? 'p' : 'a';
-        const h12 = ((h + 11) % 12) + 1;
-        return m === 0 ? `${h12}${ampm}` : `${h12}:${padDatePart(m)}${ampm}`;
-    }
     function getBrowserTimeZone() {
         if (typeof Intl !== 'undefined' && Intl.DateTimeFormat) {
             return Intl.DateTimeFormat().resolvedOptions().timeZone || '';
@@ -124,52 +86,6 @@
     function extractDomain(url) {
         try { return new URL(url).hostname.replace(/^www\./, ''); }
         catch (err) { return ''; }
-    }
-
-    // ========== Bar-layout engine (faithful copy of public.js's allocateRowTracks) ==========
-
-    // Visible tracks per cell capped at 3; overflow rolls into "+ N More…".
-    const TRACKS_VISIBLE_MAX = 3;
-    function allocateRowTracks(rowEvents) {
-        const isMultiDay = (re) => re.rowStartDay !== re.rowEndDay
-            || re.continuesFromPriorRow
-            || re.continuesToNextRow;
-        const tierOf = (re) => re.event.allDay ? 1 : (isMultiDay(re) ? 2 : 3);
-        const sorted = rowEvents.slice().sort((a, b) => {
-            const aTier = tierOf(a);
-            const bTier = tierOf(b);
-            if (aTier !== bTier) { return aTier - bTier; }
-            if (aTier <= 2) {
-                const aLen = a.rowEndDay - a.rowStartDay;
-                const bLen = b.rowEndDay - b.rowStartDay;
-                if (bLen !== aLen) { return bLen - aLen; }
-            }
-            const aStart = parseEventDate(a.event);
-            const bStart = parseEventDate(b.event);
-            return (aStart ? aStart.getTime() : 0) - (bStart ? bStart.getTime() : 0);
-        });
-        const occupied = [];
-        sorted.forEach((re) => {
-            let track = 0;
-            for (;;) {
-                if (!occupied[track]) {
-                    occupied[track] = [false, false, false, false, false, false, false];
-                }
-                let conflict = false;
-                for (let d = re.rowStartDay; d <= re.rowEndDay; d++) {
-                    if (occupied[track][d]) { conflict = true; break; }
-                }
-                if (!conflict) {
-                    for (let d = re.rowStartDay; d <= re.rowEndDay; d++) {
-                        occupied[track][d] = true;
-                    }
-                    re.track = track;
-                    break;
-                }
-                track++;
-            }
-        });
-        return sorted;
     }
 
     // ========== Category dropdown population ==========

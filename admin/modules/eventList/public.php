@@ -17,6 +17,13 @@ if (!$eventListPublicAssetsInjected) {
         . htmlspecialchars($styleUrl, ENT_QUOTES, 'UTF-8')
         . '">';
 
+    $coreScriptUrl = function_exists('lawnding_asset_url')
+        ? lawnding_asset_url('res/scr/module-script.php?module=eventList&file=eventlist-core.js')
+        : '/res/scr/module-script.php?module=eventList&file=eventlist-core.js';
+    echo '<script src="'
+        . htmlspecialchars($coreScriptUrl, ENT_QUOTES, 'UTF-8')
+        . '" defer></script>';
+
     $scriptUrl = function_exists('lawnding_asset_url')
         ? lawnding_asset_url('res/scr/module-script.php?module=eventList&file=public.js')
         : '/res/scr/module-script.php?module=eventList&file=public.js';

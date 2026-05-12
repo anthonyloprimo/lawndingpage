@@ -19,6 +19,14 @@
         <cache>build/phpdoc-cache</cache>
     </paths>
 
+    <!--
+        "clean" is the misleadingly-named Bootstrap-styled template;
+        "default" is the plain minimal one. The bundled
+        "responsive-twig" produces zero HTML in 3.9.1 (known broken),
+        so the realistic richer choice is "clean".
+    -->
+    <template name="clean"/>
+
     <version number="latest">
         <api>
             <source dsn=".">

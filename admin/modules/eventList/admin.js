@@ -328,7 +328,7 @@
         if (!event.name) { errors.push({ fields: ['.eventNameInput'], message: 'Name is required.' }); }
         if (!event.startDate) { errors.push({ fields: ['.eventStartDateInput'], message: 'Start date is required.' }); }
         if (!event.allDay && !event.startTime) { errors.push({ fields: ['.eventStartTimeInput'], message: 'Start time is required.' }); }
-        if (!event.allDay && event.endDate && !event.endTime) {
+        if (!event.allDay && !event.endTime) {
             errors.push({ fields: ['.eventEndTimeInput'], message: 'End time is required.' });
         }
         if (event.allDay && event.endDate && event.endDate < event.startDate) {

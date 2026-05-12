@@ -98,7 +98,7 @@ if (!$eventListAdminAssetsInjected) {
                     <span class="eventTimezoneIndicator" aria-label="Time zone"></span>
                 </div>
                 <div class="eventTimeGroup eventTimeGroupEnd">
-                    <span class="eventTimeLabel">End</span>
+                    <span class="eventTimeLabel isRequired">End</span>
                     <input type="date" class="eventEndDateInput" aria-label="End date">
                     <select class="eventEndTimeInput" aria-label="End time"><?php echo $timeOptionsHtml; ?></select>
                     <span class="eventTimezoneIndicator" aria-label="Time zone"></span>

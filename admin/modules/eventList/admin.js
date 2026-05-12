@@ -719,17 +719,42 @@
             closeEditorModal();
         }
 
-        // Clears lockedLocally; on next scraper refresh the catalogue values
-        // overwrite the admin's local edits. Local values stay visible until
-        // that refresh runs.
+        // Overlay this event with the scraper's current catalogue record and
+        // clear lockedLocally; Save All persists. Fetch failure (stale
+        // catalogue, network) falls back to clearing the lock only.
         function resumeSyncCurrent() {
             if (!modalState.editingId) { return; }
             const idx = events.findIndex((e) => String(e.id || '') === String(modalState.editingId));
             if (idx === -1) { return; }
-            events[idx] = Object.assign({}, events[idx], { lockedLocally: false });
-            updatePayload();
-            renderCalendar();
-            closeEditorModal();
+            const existing = events[idx];
+            const adapter = existing.sourceAdapter || '';
+            const uid = existing.sourceUid || '';
+            const applyLocalUnlock = () => {
+                events[idx] = Object.assign({}, events[idx], { lockedLocally: false });
+                updatePayload();
+                renderCalendar();
+                closeEditorModal();
+            };
+            if (!adapter || !uid) { applyLocalUnlock(); return; }
+            const url = '/res/scr/plugin-endpoint.php?plugin=eventScraper&endpoint=catalogue-event'
+                + '&adapter=' + encodeURIComponent(adapter)
+                + '&uid=' + encodeURIComponent(uid);
+            fetch(url, { credentials: 'same-origin' })
+                .then((r) => r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)))
+                .then((data) => {
+                    const fresh = data && data.record;
+                    if (!fresh || typeof fresh !== 'object') { throw new Error('No record'); }
+                    events[idx] = Object.assign({}, existing, fresh, { lockedLocally: false });
+                    updatePayload();
+                    renderCalendar();
+                    closeEditorModal();
+                })
+                .catch(() => {
+                    if (window.addAdminNotice) {
+                        window.addAdminNotice('warning', 'Could not fetch the original scraper values. Lock cleared; values will revert on the next feed refresh.');
+                    }
+                    applyLocalUnlock();
+                });
         }
 
         function requestModalDelete() {

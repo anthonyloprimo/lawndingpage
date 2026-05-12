@@ -1,6 +1,8 @@
 
 TODO.md
 docs/plans/
+# Claude Code per-user local settings (not shared across collaborators)
+.claude/settings.local.json
 lp-overrides-template.php
 admin/errors.jsonl
 admin/errors.jsonl.1
@@ -16,9 +18,9 @@ admin/lp-loginAttempts.json
 admin/lp-mutationAttempts.json
 admin/lp-eventScraperConfig.json
 # Live fixtures are auto-refreshed by the corresponding *-live.php test files.
-# Hand-crafted curated fixtures (e.g. event-scraper-furrycons-sample.html)
+# Hand-crafted curated fixtures (e.g. event-scraper-<source>-sample.html)
 # stay tracked.
-tests/fixtures/event-scraper-furrycons-live.html
+tests/fixtures/event-scraper-*-live.html
 tests/fixtures/event-scraper-*-live.json
 # Module pane-content directories are runtime state — created and
 # rewritten by the web server (per-pane settings sidecars, gallery

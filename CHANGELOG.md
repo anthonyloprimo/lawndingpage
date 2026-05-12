@@ -19,7 +19,7 @@
 -----
 
 #### v1.20.0
-- Added the Event Scraper. Pull convention dates from FurryCons.com into one of your Event List panes — pick which conventions you want to show, and the list refreshes itself daily. Scraped events sit alongside anything you've added manually (manual entries are never touched), new conventions are flagged in the picker so you can decide whether to include them, and date or location changes apply on the next refresh. Site Config carries a Daily cron setup section with the exact crontab line to paste.
+- Added the Event Scraper. Pull convention dates from a configured external source into one of your Event List panes — pick which conventions you want to show, and the list refreshes itself daily. Scraped events sit alongside anything you've added manually (manual entries are never touched), new conventions are flagged in the picker so you can decide whether to include them, and date or location changes apply on the next refresh. Site Config carries a Daily cron setup section with the exact crontab line to paste.
 
 -----
 

@@ -1,7 +1,7 @@
 <?php
 // Event Scraper plugin.
 //
-// Ingests events from external sources (currently furrycons.com NA) into a
+// Ingests events from external sources into a
 // chosen eventList pane. Admin selects which conventions to publish; daily
 // cron + admin "Refresh now" button fetch + apply changes.
 //

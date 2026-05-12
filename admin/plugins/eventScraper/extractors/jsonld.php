@@ -4,18 +4,18 @@
 // Pure function: HTML string + adapter config -> normalized event array.
 // No filesystem or network I/O. Unit-testable from tests/.
 //
-// Output shape (per docs/plans/event-scraper-plugin.md):
+// Output shape:
 //   [
 //     [
-//       'sourceUid'       => '26609',
-//       'name'            => 'Furry Weekend Atlanta 2026',
+//       'sourceUid'       => '123',
+//       'name'            => 'Example Convention 2026',
 //       'startDate'       => '2026-05-07',
 //       'endDate'         => '2026-05-10',
-//       'location'        => 'Atlanta Marriott Marquis, Atlanta, GA',
+//       'location'        => 'Example Venue, Anytown, ST',
 //       'description'     => '...',
-//       'url'             => 'http://furrycons.com/event/26609/...',
-//       'registrationUrl' => 'https://furryweekend.com/register/',
-//       'image'           => 'https://media.animecons.com/.../logo_C26609.png'
+//       'url'             => 'https://example.com/event/123/...',
+//       'registrationUrl' => 'https://example.com/register/',
+//       'image'           => 'https://example.com/logo.png'
 //     ],
 //     ...
 //   ]
@@ -34,8 +34,8 @@ function event_scraper_extract_jsonld(string $html, array $adapter): array {
     $events = [];
 
     foreach ($blocks as $raw) {
-        // Sanitize before decoding: some real-world sites (furrycons.com is
-        // one) emit JSON-LD with literal newlines inside description strings,
+        // Sanitize before decoding: some real-world sites emit JSON-LD with
+        // literal newlines inside description strings,
         // which RFC 8259 forbids. Browsers never parse JSON-LD; SEO crawlers
         // use forgiving parsers, so the bug ships unnoticed. PHP's json_decode
         // is strict, so we make the input compliant first.

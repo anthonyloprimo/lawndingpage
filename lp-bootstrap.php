@@ -1342,14 +1342,11 @@ function lawnding_read_json($path, array $fallback = []) {
     return is_array($decoded) ? $decoded : $fallback;
 }
 
-// Resolve the URL prefix for served assets. Combines lawnding_config('base_url')
-// with two legacy fallback heuristics that fire when base_url isn't detected:
-// SCRIPT_NAME starting with '/public/', or DOCUMENT_ROOT not having a sibling
-// 'res' dir. Either heuristic catches the case of an Apache vhost rooted at
-// the repo root rather than at public/. Returns the rtrim'd base ('' for
-// site-root, '/some/prefix' otherwise). Used internally by
-// lawnding_make_asset_url; admin entrypoints that need the value for inline
-// HTML (script/link tags) can read it directly.
+// Resolve the URL prefix for served assets. Prefer the detected/configured
+// browser-visible base URL. The only fallback is the explicit legacy case
+// where SCRIPT_NAME itself starts with /public/; do not infer /public from
+// DOCUMENT_ROOT, because Hestia/proxy installs may expose /res/... while PHP
+// sees an internal /instances/<tenant>/public path.
 function lawnding_asset_base_url(): string {
     $base = function_exists('lawnding_config')
         ? (string) lawnding_config('base_url', '')
@@ -1357,8 +1354,6 @@ function lawnding_asset_base_url(): string {
     if ($base === '') {
         $scriptName = $_SERVER['SCRIPT_NAME'] ?? '';
         if (is_string($scriptName) && str_starts_with($scriptName, '/public/')) {
-            $base = '/public';
-        } elseif (empty($_SERVER['DOCUMENT_ROOT']) || !is_dir($_SERVER['DOCUMENT_ROOT'] . '/res')) {
             $base = '/public';
         }
     }

@@ -1,3 +1,9 @@
+#### v1.23.1
+- Restored accidentally-removed first-run logic.
+- Fixed an error causing incorrect legacy fallback on the admin panel for image loading.
+
+-----
+
 #### v1.23.0
 - Merged the LIFURS v1.22.1 feature line into the split code/data architecture. This brings forward the event scraper, reworked Event List admin calendar, movable/unified modals, plugin relocation, Telegram login improvements, diagnostics, site config/per-pane settings, media gallery refinements, and the expanded test/tooling stack.
 - Preserved the instance-aware runtime layout: mutable site data and runtime admin state live under `data/`, while default first-run content is seeded from `resources/seed-instance/`.

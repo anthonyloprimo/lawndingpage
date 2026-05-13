@@ -7,6 +7,9 @@ if (!is_readable($bootstrapPath)) {
     $bootstrapPath = __DIR__ . '/../../lp-bootstrap.php';
 }
 require_once $bootstrapPath;
+if (function_exists('lawnding_initialize_instance_if_needed')) {
+    lawnding_initialize_instance_if_needed();
+}
 $tgAuthPath = function_exists('lawnding_admin_path')
     ? lawnding_admin_path('lib/tg-auth.php')
     : __DIR__ . '/../admin/lib/tg-auth.php';

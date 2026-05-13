@@ -7,6 +7,9 @@ if (!is_readable($bootstrapPath)) {
     $bootstrapPath = __DIR__ . '/../../../lp-bootstrap.php';
 }
 require_once $bootstrapPath;
+if (function_exists('lawnding_initialize_instance_if_needed')) {
+    lawnding_initialize_instance_if_needed();
+}
 // Suppress error display in the response. Errors are captured to
 // admin/errors.jsonl via the bootstrap-registered handler and surfaced in
 // the Diagnostics admin section, never echoed into HTML.
@@ -217,6 +220,9 @@ function require_csrf_token(&$errors) {
 // Persist user data to disk with the standard JSON format.
 function write_users_file($usersPath, $users, &$errors, $message) {
     $encoded = json_encode($users, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+    if (function_exists('lawnding_ensure_parent_dir')) {
+        lawnding_ensure_parent_dir($usersPath);
+    }
     if ($encoded === false || file_put_contents($usersPath, $encoded, LOCK_EX) === false) {
         $errors[] = $message;
         return false;

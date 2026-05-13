@@ -9,6 +9,7 @@ return [
     // 'data_dir' => '/absolute/path/to/data/public/res/data',
     // 'img_dir' => '/absolute/path/to/data/public/res/img',
     // 'users_path' => '/absolute/path/to/data/admin/users.json',
+
     // New path keys for shared-core / instance-aware layouts.
     // 'core_root_dir' => '/absolute/path/to/core/root',
     // 'core_public_dir' => '/absolute/path/to/core/public',
@@ -25,10 +26,12 @@ return [
     // 'instance_modules_dir' => '/absolute/path/to/instance/modules',
     // 'instance_config_path' => '/absolute/path/to/instance/lp-instance.php',
     // 'core_overrides_path' => '/absolute/path/to/core/lp-core-overrides.php',
+    // 'seed_root_dir' => '/absolute/path/to/core/resources/seed-instance',
     // 'errors_path' => '/absolute/path/to/instance/data/logs/errors.txt',
     // 'tg_bot_path' => '/absolute/path/to/instance/data/admin/lp-tgBot.json',
     // 'tg_membership_cache_path' => '/absolute/path/to/instance/data/admin/lp-tgMembershipCache.json',
     // 'initialized_flag_path' => '/absolute/path/to/instance/data/state/.lawndingpage-initialized',
+
     // 'session_cookie_name' => 'lp_demo',
     // 'session_cookie_path' => '/',
     // 'session_cookie_domain' => '.lawnding.page',

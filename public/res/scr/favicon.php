@@ -2,15 +2,6 @@
 
 declare(strict_types=1);
 
-// Load bootstrap so cache reads/writes follow the active instance data layout.
-$bootstrapPath = __DIR__ . '/../../../lp-bootstrap.php';
-if (!is_readable($bootstrapPath)) {
-    $bootstrapPath = __DIR__ . '/../../../../lp-bootstrap.php';
-}
-if (is_readable($bootstrapPath)) {
-    require_once $bootstrapPath;
-}
-
 header('Content-Type: application/json; charset=utf-8');
 
 $domains = collect_domains();
@@ -19,8 +10,8 @@ if (!$domains) {
     exit;
 }
 
-$cachePath = resolve_favicon_cache_path();
-$cache = read_cache(resolve_favicon_cache_read_path());
+$cachePath = dirname(__DIR__) . '/data/favicon-cache.json';
+$cache = read_cache($cachePath);
 $results = [];
 
 foreach ($domains as $domain) {
@@ -159,24 +150,6 @@ function read_cache(string $path): array
     return is_array($decoded) ? $decoded : [];
 }
 
-function resolve_favicon_cache_path(): string
-{
-    if (function_exists('lawnding_instance_data_path')) {
-        return lawnding_instance_data_path('favicon-cache.json');
-    }
-
-    return dirname(__DIR__, 3) . '/data/public/res/data/favicon-cache.json';
-}
-
-function resolve_favicon_cache_read_path(): string
-{
-    if (function_exists('lawnding_data_path')) {
-        return lawnding_data_path('favicon-cache.json');
-    }
-
-    return resolve_favicon_cache_path();
-}
-
 function write_cache(string $path, array $cache): void
 {
     $dir = dirname($path);
@@ -184,5 +157,5 @@ function write_cache(string $path, array $cache): void
         @mkdir($dir, 0755, true);
     }
 
-    file_put_contents($path, json_encode($cache));
+    file_put_contents($path, json_encode($cache), LOCK_EX);
 }

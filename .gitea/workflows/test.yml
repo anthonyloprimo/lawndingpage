@@ -1,0 +1,25 @@
+name: Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install PHP
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq php-cli php-mbstring php-gd php-curl
+
+      - name: Install PHPStan
+        run: bash tools/install-phpstan.sh
+
+      - name: Run test suite
+        run: php -d zend.assertions=1 tests/run.php

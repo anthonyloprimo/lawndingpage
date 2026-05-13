@@ -1,0 +1,1329 @@
+<?php
+// Event Scraper helpers — refresh, diff, ingest, render.
+//
+// Lazy-loaded by init.php on first hook fire OR by endpoint scripts at the
+// top of their request. Heavy logic lives here so init.php stays light per
+// the every-request load.
+
+// ------------------------------------------------------------------------
+// Logging — thin wrapper around lawnding_log_event so call sites stay
+// one-liners. Diagnostics admin UI surfaces these via the standard feed.
+// ------------------------------------------------------------------------
+
+function event_scraper_log(string $severity, string $eventSlug, array $context = []): void {
+    if (function_exists('lawnding_log_event')) {
+        lawnding_log_event($severity, 'event_scraper.' . $eventSlug, $context);
+    }
+}
+
+// ------------------------------------------------------------------------
+// Paths
+// ------------------------------------------------------------------------
+
+function event_scraper_plugin_dir(): string {
+    return __DIR__;
+}
+
+function event_scraper_cache_dir(): string {
+    return __DIR__ . '/cache';
+}
+
+function event_scraper_config_path(): string {
+    return dirname(__DIR__, 2) . '/lp-eventScraperConfig.json';
+}
+
+function event_scraper_adapter_path(string $adapterId): string {
+    return __DIR__ . '/adapters/' . $adapterId . '.json';
+}
+
+function event_scraper_catalogue_path(string $adapterId): string {
+    return __DIR__ . '/cache/catalogue-' . $adapterId . '.json';
+}
+
+function event_scraper_catalogue_prev_path(string $adapterId): string {
+    return __DIR__ . '/cache/catalogue-prev-' . $adapterId . '.json';
+}
+
+function event_scraper_last_scrape_path(string $adapterId): string {
+    return __DIR__ . '/cache/lastScrape-' . $adapterId . '.json';
+}
+
+// ------------------------------------------------------------------------
+// Config (lp-eventScraperConfig.json)
+// ------------------------------------------------------------------------
+
+function event_scraper_config_defaults(): array {
+    return [
+        'enabled'                  => false,
+        'cronToken'                => '',
+        'feeds'                    => [],
+        'siteDefaultSubscriptions' => [],
+    ];
+}
+
+function event_scraper_load_config(): array {
+    $path = event_scraper_config_path();
+    $defaults = event_scraper_config_defaults();
+    if (!is_readable($path)) {
+        return $defaults;
+    }
+    $raw = file_get_contents($path);
+    if ($raw === false) {
+        return $defaults;
+    }
+    $decoded = json_decode($raw, true);
+    if (!is_array($decoded)) {
+        return $defaults;
+    }
+    $merged = array_replace($defaults, $decoded);
+    if (!is_array($merged['feeds'])) {
+        $merged['feeds'] = [];
+    }
+    if (!is_array($merged['siteDefaultSubscriptions'])) {
+        $merged['siteDefaultSubscriptions'] = [];
+    }
+    return $merged;
+}
+
+// LOCK_EX + 0640. Bcrypt-style: refuse to write a config without a non-empty
+// cronToken when one was previously set (prevents a partial write from
+// nuking the cron auth and silently breaking the daily refresh).
+function event_scraper_save_config(array $config): bool {
+    $path = event_scraper_config_path();
+    $clean = array_replace(event_scraper_config_defaults(), $config);
+    $json = json_encode($clean, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+    if ($json === false) {
+        event_scraper_log('error', 'config_write_failed', [
+            'path'  => $path,
+            'phase' => 'json_encode',
+        ]);
+        return false;
+    }
+    $ok = @file_put_contents($path, $json, LOCK_EX);
+    if ($ok === false) {
+        event_scraper_log('error', 'config_write_failed', [
+            'path'   => $path,
+            'phase'  => 'file_put_contents',
+            'reason' => event_scraper_describe_write_failure($path),
+        ]);
+        return false;
+    }
+    @chmod($path, 0640);
+    return true;
+}
+
+// Best-effort post-mortem on a failed write — checks whether the directory
+// is writable and whether the file already exists with the wrong owner.
+// Pure inspection (read-only), feeds the diagnostics log so admins can
+// see "permission denied vs. directory missing vs. file owned by SSH user
+// while web is www-data" without SSHing in.
+function event_scraper_describe_write_failure(string $path): string {
+    $dir = dirname($path);
+    if (!is_dir($dir)) {
+        return 'parent directory does not exist: ' . $dir;
+    }
+    if (!is_writable($dir)) {
+        $statDir = @stat($dir);
+        $owner = $statDir ? ('uid=' . $statDir['uid'] . ' gid=' . $statDir['gid']) : 'unknown';
+        $procUser = function_exists('posix_geteuid') ? ('uid=' . posix_geteuid() . ' gid=' . posix_getegid()) : 'unknown';
+        return 'directory not writable by web process (' . $procUser . '); directory owner is ' . $owner;
+    }
+    if (file_exists($path) && !is_writable($path)) {
+        $statFile = @stat($path);
+        $owner = $statFile ? ('uid=' . $statFile['uid'] . ' gid=' . $statFile['gid']) : 'unknown';
+        return 'file exists but is not writable by web process; file owner is ' . $owner;
+    }
+    return 'unknown (file_put_contents returned false; check disk space and SELinux/AppArmor)';
+}
+
+// ------------------------------------------------------------------------
+// Adapters + feed lookup
+// ------------------------------------------------------------------------
+
+// Glob adapters/*.json. Memoize when a third call site appears.
+function event_scraper_discover_adapters(): array {
+    $files = glob(__DIR__ . '/adapters/*.json');
+    if (!$files) {
+        return [];
+    }
+    $out = [];
+    foreach ($files as $f) {
+        $raw = @file_get_contents($f);
+        if ($raw === false) {
+            continue;
+        }
+        $decoded = json_decode($raw, true);
+        if (!is_array($decoded)) {
+            continue;
+        }
+        $id = (string) ($decoded['id'] ?? '');
+        if ($id === '' || !preg_match('/^[a-zA-Z0-9_-]+$/', $id)) {
+            continue;
+        }
+        $out[$id] = $decoded;
+    }
+    ksort($out);
+    return $out;
+}
+
+// isConfigured = admin has saved this feed; UI renders placeholders otherwise.
+/**
+ * Resolved feed config — merges saved per-feed admin settings with the
+ * adapter's declared defaults. Returned shape is consumed by the picker
+ * UI and the orchestrator; missing keys fall back to safe defaults so
+ * an unconfigured feed still has a renderable label.
+ *
+ * @param array<string, mixed> $config Decoded contents of admin/lp-eventScraperConfig.json
+ * @return array{
+ *     id: string,
+ *     label: string,
+ *     adapterId: string,
+ *     defaultCategoryId: string,
+ *     allowlist: array<string, mixed>,
+ *     autoPublish: bool,
+ *     lastReviewedAt: string,
+ *     isConfigured: bool,
+ * }
+ */
+function event_scraper_get_feed(string $feedId, array $config): array {
+    $feed = is_array($config['feeds'][$feedId] ?? null) ? $config['feeds'][$feedId] : [];
+    $adapter = event_scraper_load_adapter($feedId);
+    return [
+        'id'                => $feedId,
+        'label'             => $feed['label'] ?? '' ?: (string) ($adapter['label'] ?? $feedId),
+        'adapterId'         => $feedId,
+        'defaultCategoryId' => (string) ($feed['defaultCategoryId'] ?? ''),
+        'allowlist'         => is_array($feed['allowlist'] ?? null) ? $feed['allowlist'] : [],
+        // Default true: when the source surfaces a new event, publish it
+        // to subscribed panes without admin click-through. Pre-existing
+        // configs without this key inherit the default.
+        'autoPublish'       => !isset($feed['autoPublish']) || (bool) $feed['autoPublish'],
+        'lastReviewedAt'    => (string) ($feed['lastReviewedAt'] ?? ''),
+        'isConfigured'      => is_array($config['feeds'][$feedId] ?? null),
+    ];
+}
+
+/**
+ * Read an adapter's JSON config. Returns null when the id fails the
+ * safe-id regex, the file is unreadable, or the JSON is malformed —
+ * callers should treat null as "no such adapter."
+ *
+ * @return array<string, mixed>|null
+ */
+function event_scraper_load_adapter(string $adapterId): ?array {
+    if (!preg_match('/^[a-zA-Z0-9_-]+$/', $adapterId)) {
+        return null;
+    }
+    $path = event_scraper_adapter_path($adapterId);
+    if (!is_readable($path)) {
+        return null;
+    }
+    $raw = file_get_contents($path);
+    if ($raw === false) {
+        return null;
+    }
+    $decoded = json_decode($raw, true);
+    return is_array($decoded) ? $decoded : null;
+}
+
+// ------------------------------------------------------------------------
+// Catalogue
+// ------------------------------------------------------------------------
+
+/**
+ * Read a previously-saved catalogue. Returns the empty-catalogue shape
+ * (not null) on missing file, unreadable file, or malformed JSON — so
+ * callers never need to null-check the return. The `events` key is
+ * always present and always an array, even when the on-disk shape is
+ * partially malformed.
+ *
+ * @return array{fetchedAt: string, sourceUrl: string, events: array<int|string, mixed>}
+ */
+function event_scraper_load_catalogue(string $adapterId): array {
+    $path = event_scraper_catalogue_path($adapterId);
+    if (!is_readable($path)) {
+        return ['fetchedAt' => '', 'sourceUrl' => '', 'events' => []];
+    }
+    $raw = file_get_contents($path);
+    if ($raw === false) {
+        return ['fetchedAt' => '', 'sourceUrl' => '', 'events' => []];
+    }
+    $decoded = json_decode($raw, true);
+    if (!is_array($decoded)) {
+        return ['fetchedAt' => '', 'sourceUrl' => '', 'events' => []];
+    }
+    $decoded['events'] = is_array($decoded['events'] ?? null) ? $decoded['events'] : [];
+    return $decoded;
+}
+
+/**
+ * Persist a catalogue to disk under LOCK_EX. Returns false on either
+ * json_encode failure or filesystem write failure; both failure paths
+ * emit a Diagnostics entry first so the operator sees why.
+ *
+ * @param array<string, mixed> $catalogue
+ */
+function event_scraper_save_catalogue(string $adapterId, array $catalogue): bool {
+    $path = event_scraper_catalogue_path($adapterId);
+    $json = json_encode($catalogue, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+    if ($json === false) {
+        event_scraper_log('error', 'catalogue_write_failed', [
+            'adapter' => $adapterId,
+            'path'    => $path,
+            'phase'   => 'json_encode',
+        ]);
+        return false;
+    }
+    if (@file_put_contents($path, $json, LOCK_EX) === false) {
+        event_scraper_log('error', 'catalogue_write_failed', [
+            'adapter' => $adapterId,
+            'path'    => $path,
+            'phase'   => 'file_put_contents',
+            'reason'  => event_scraper_describe_write_failure($path),
+        ]);
+        return false;
+    }
+    return true;
+}
+
+// ------------------------------------------------------------------------
+// Pure transforms (unit-testable)
+// ------------------------------------------------------------------------
+
+/**
+ * Diff two catalogue event lists keyed by sourceUid. Events missing a
+ * sourceUid are silently skipped (defensive against partial extractor
+ * output). The `changed` entries carry both the new event and the
+ * previous event so callers can diff specific fields downstream.
+ *
+ * @param array<int|string, mixed> $prev
+ * @param array<int|string, mixed> $next
+ * @return array{
+ *     new: list<array<string, mixed>>,
+ *     changed: list<array{uid: string, event: array<string, mixed>, previous: array<string, mixed>, fields: list<string>}>,
+ *     removed: list<array<string, mixed>>,
+ * }
+ */
+function event_scraper_diff(array $prev, array $next): array {
+    $prevById = [];
+    foreach ($prev as $e) {
+        if (is_array($e) && isset($e['sourceUid'])) {
+            $prevById[(string) $e['sourceUid']] = $e;
+        }
+    }
+    $nextById = [];
+    foreach ($next as $e) {
+        if (is_array($e) && isset($e['sourceUid'])) {
+            $nextById[(string) $e['sourceUid']] = $e;
+        }
+    }
+
+    // Cast keys back to string when iterating: PHP coerces numeric-looking
+    // string keys to int on assignment, so $uid would otherwise come out as
+    // int 2 when the source data uses string '2'. Stable string ids matter
+    // for set-membership tests downstream (allowlist lookup, etc.).
+    $new = [];
+    $changed = [];
+    foreach ($nextById as $uid => $event) {
+        $uid = (string) $uid;
+        if (!isset($prevById[$uid])) {
+            $new[] = $event;
+            continue;
+        }
+        $fields = event_scraper_event_field_diff($prevById[$uid], $event);
+        if ($fields) {
+            $changed[] = [
+                'uid'      => $uid,
+                'event'    => $event,
+                'previous' => $prevById[$uid],
+                'fields'   => $fields,
+            ];
+        }
+    }
+
+    $removed = [];
+    foreach ($prevById as $uid => $event) {
+        if (!isset($nextById[(string) $uid])) {
+            $removed[] = $event;
+        }
+    }
+
+    return ['new' => $new, 'changed' => $changed, 'removed' => $removed];
+}
+
+/**
+ * Field-by-field comparator. Returns the names of fields that differ
+ * between two event records. Comparison is restricted to fields the
+ * eventList renderer surfaces — internal-only fields (e.g. fetchedAt)
+ * don't contribute to "changed."
+ *
+ * @param array<string, mixed> $prev
+ * @param array<string, mixed> $next
+ * @return list<string>
+ */
+function event_scraper_event_field_diff(array $prev, array $next): array {
+    $watched = ['name', 'startDate', 'endDate', 'location', 'description', 'url', 'registrationUrl', 'image'];
+    $diff = [];
+    foreach ($watched as $f) {
+        if ((string) ($prev[$f] ?? '') !== (string) ($next[$f] ?? '')) {
+            $diff[] = $f;
+        }
+    }
+    return $diff;
+}
+
+/**
+ * Auto-publish: extend a feed's allowlist with any sourceUids new to
+ * the catalogue. Pure — caller passes $now and persists the result.
+ *
+ * Skip rules (returns the input feed config unchanged + empty addedUids):
+ *   - $isFirstRefresh true (caller decides; orchestrator passes true
+ *     when prev catalogue had zero events, which covers both genuine
+ *     first-runs and cache-wipe recovery — avoids flooding the
+ *     allowlist with every existing event)
+ *   - $newSourceUids empty
+ *   - autoPublish flag explicitly false (legacy configs without the
+ *     key still auto-publish; default is on)
+ *
+ * @param array<string, mixed> $feedConfig
+ * @param list<string>         $newSourceUids
+ * @return array{0: array<string, mixed>, 1: list<string>} [updatedFeedConfig, addedUids]
+ */
+function event_scraper_apply_auto_publish(
+    array $feedConfig,
+    array $newSourceUids,
+    bool $isFirstRefresh,
+    string $now
+): array {
+    if ($isFirstRefresh || !$newSourceUids) {
+        return [$feedConfig, []];
+    }
+    // autoPublish defaults to ON: legacy configs without the key auto-publish.
+    // Only skip when the admin has explicitly set it falsy.
+    if (isset($feedConfig['autoPublish']) && !$feedConfig['autoPublish']) {
+        return [$feedConfig, []];
+    }
+    $allowlist = is_array($feedConfig['allowlist'] ?? null) ? $feedConfig['allowlist'] : [];
+    $added = [];
+    foreach ($newSourceUids as $uid) {
+        $uid = trim((string) $uid);
+        if ($uid === '' || isset($allowlist[$uid])) {
+            continue;
+        }
+        $allowlist[$uid] = ['addedAt' => $now, 'addedBy' => 'auto'];
+        $added[] = $uid;
+    }
+    if (!$added) {
+        return [$feedConfig, []];
+    }
+    $feedConfig['allowlist'] = $allowlist;
+    return [$feedConfig, $added];
+}
+
+/**
+ * Resolve raw keyword strings into displayable badge records via the
+ * adapter's keywordBadges map. Pure. Unmapped keywords are silently
+ * dropped — an unmapped keyword usually means a one-off tag or a
+ * keyword the adapter hasn't been updated for, and rendering "?" for
+ * those would be noisier than the omission.
+ *
+ * @param list<mixed>                                                $keywords
+ * @param array<string, array{icon?: string, label?: string}>        $keywordBadgesMap
+ * @return list<array{icon: string, label: string}>
+ */
+function event_scraper_resolve_keyword_badges(array $keywords, array $keywordBadgesMap): array {
+    $out = [];
+    foreach ($keywords as $kw) {
+        if (!is_string($kw) || $kw === '') {
+            continue;
+        }
+        $entry = $keywordBadgesMap[$kw] ?? null;
+        if (!is_array($entry)) {
+            continue;
+        }
+        $icon = $entry['icon'] ?? '';
+        if ($icon === '') {
+            continue;
+        }
+        $label = isset($entry['label']) && trim($entry['label']) !== ''
+            ? trim($entry['label'])
+            : $kw;
+        $out[] = ['icon' => $icon, 'label' => $label];
+    }
+    return $out;
+}
+
+/**
+ * Map a normalized scraper event into an eventList event record. Empty
+ * required fields fall back to placeholder strings so the eventList
+ * validator (event_list_event_is_valid) doesn't silently drop the
+ * record. $keywordBadgesMap is the adapter's keywordBadges block —
+ * pass [] when the adapter doesn't declare one (extractor-emitted
+ * keywords[] then drop).
+ *
+ * @param array<string, mixed>                                $event
+ * @param array<string, array{icon?: string, label?: string}> $keywordBadgesMap
+ * @return array{
+ *     name: string,
+ *     startDate: string,
+ *     endDate: string,
+ *     startTime: string,
+ *     endTime: string,
+ *     allDay: bool,
+ *     address: string,
+ *     description: string,
+ *     categoryId: string,
+ *     host: string,
+ *     sourceUrl: string,
+ *     keywordBadges: list<array{icon: string, label: string}>,
+ *     source: string,
+ *     sourceAdapter: string,
+ *     sourceUid: string,
+ * }
+ */
+function event_scraper_to_eventlist_record(
+    array $event,
+    string $adapterId,
+    string $defaultCategoryId,
+    array $keywordBadgesMap = []
+): array {
+    $description = trim((string) ($event['description'] ?? ''));
+    if ($description === '') {
+        $description = (string) ($event['name'] ?? 'Event');
+    }
+
+    $address = trim((string) ($event['location'] ?? ''));
+    if ($address === '') {
+        $address = 'Location TBA';
+    }
+
+    // allDay is derived from the extractor's data: when an extractor sets
+    // startTime, the source had a real time and we honor it; otherwise the
+    // event is all-day (date-only sources).
+    $startTime = trim((string) ($event['startTime'] ?? ''));
+    $endTime = trim((string) ($event['endTime'] ?? ''));
+    if ($startTime === '') {
+        $endTime = '';
+        $allDay = true;
+    } else {
+        $allDay = false;
+    }
+
+    $keywords = is_array($event['keywords'] ?? null) ? $event['keywords'] : [];
+    $keywordBadges = event_scraper_resolve_keyword_badges($keywords, $keywordBadgesMap);
+
+    return [
+        'name'          => (string) ($event['name'] ?? ''),
+        'startDate'     => (string) ($event['startDate'] ?? ''),
+        'endDate'       => (string) ($event['endDate'] ?? ''),
+        'startTime'     => $startTime,
+        'endTime'       => $endTime,
+        'allDay'        => $allDay,
+        'address'       => $address,
+        'description'   => $description,
+        'categoryId'    => $defaultCategoryId,
+        'host'          => trim((string) ($event['host'] ?? '')),
+        'sourceUrl'     => trim((string) ($event['url'] ?? '')),
+        'keywordBadges' => $keywordBadges,
+        'source'        => 'eventScraper',
+        'sourceAdapter' => $adapterId,
+        'sourceUid'     => (string) ($event['sourceUid'] ?? ''),
+    ];
+}
+
+/**
+ * Build the {create, update, delete} changes payload that
+ * event_list_apply_events() consumes.
+ *
+ * Output rule, by zone:
+ *   in catalogue + in allowlist + new       -> create
+ *   in catalogue + in allowlist + existing  -> update (id preserved)
+ *   in catalogue + NOT allowlist            -> nothing if not existing; delete if existing
+ *   NOT in catalogue + existing scraped     -> delete (auto on source removal, per plan)
+ *   manual events (source !== 'eventScraper') -> never touched
+ *   lockedLocally=true on existing          -> update skipped (admin override preserved)
+ *
+ * @param list<mixed>                                         $catalogue         Normalized records from current scrape
+ * @param list<mixed>                                         $allowlistUids     sourceUids the admin opted in to ingest
+ * @param list<mixed>                                         $existingEvents    Current eventList events for the target pane
+ * @param array<string, array{icon?: string, label?: string}>|null $keywordBadgesMap Loaded from adapter when null
+ * @return array{
+ *     create: list<array<string, mixed>>,
+ *     update: list<array<string, mixed>>,
+ *     delete: list<string>,
+ * }
+ */
+function event_scraper_build_ingest_changes(
+    array $catalogue,
+    array $allowlistUids,
+    string $adapterId,
+    array $existingEvents,
+    string $defaultCategoryId,
+    ?array $keywordBadgesMap = null
+): array {
+    if ($keywordBadgesMap === null) {
+        $adapter = event_scraper_load_adapter($adapterId);
+        $keywordBadgesMap = is_array($adapter['keywordBadges'] ?? null) ? $adapter['keywordBadges'] : [];
+    }
+
+    $allowlistSet = [];
+    foreach ($allowlistUids as $uid) {
+        if (is_scalar($uid)) {
+            $allowlistSet[(string) $uid] = true;
+        }
+    }
+
+    $existingByUid = [];
+    foreach ($existingEvents as $event) {
+        if (!is_array($event)) {
+            continue;
+        }
+        if (($event['source'] ?? '') !== 'eventScraper') {
+            continue;
+        }
+        if (($event['sourceAdapter'] ?? '') !== $adapterId) {
+            continue;
+        }
+        $uid = (string) ($event['sourceUid'] ?? '');
+        if ($uid !== '') {
+            $existingByUid[$uid] = $event;
+        }
+    }
+
+    $catalogueByUid = [];
+    foreach ($catalogue as $event) {
+        if (!is_array($event)) {
+            continue;
+        }
+        $uid = (string) ($event['sourceUid'] ?? '');
+        if ($uid !== '') {
+            $catalogueByUid[$uid] = $event;
+        }
+    }
+
+    $creates = [];
+    $updates = [];
+    $deletes = [];
+
+    foreach ($catalogueByUid as $uid => $event) {
+        if (!isset($allowlistSet[$uid])) {
+            continue;
+        }
+        $record = event_scraper_to_eventlist_record($event, $adapterId, $defaultCategoryId, $keywordBadgesMap);
+        if (isset($existingByUid[$uid])) {
+            // lockedLocally=true means admin has overridden this record; preserve
+            // their edits by skipping the update emit. Removal-from-allowlist
+            // still triggers a delete in the loop below — admin's explicit
+            // remove-from-feed-config intent wins over the local lock.
+            if (!empty($existingByUid[$uid]['lockedLocally'])) {
+                continue;
+            }
+            $record['id'] = (string) ($existingByUid[$uid]['id'] ?? '');
+            $updates[] = $record;
+        } else {
+            $creates[] = $record;
+        }
+    }
+
+    foreach ($existingByUid as $uid => $event) {
+        if (!isset($catalogueByUid[$uid]) || !isset($allowlistSet[$uid])) {
+            $deletes[] = (string) ($event['id'] ?? '');
+        }
+    }
+
+    return [
+        'create' => $creates,
+        'update' => $updates,
+        'delete' => array_values(array_filter($deletes, fn ($id) => $id !== '')),
+    ];
+}
+
+// ------------------------------------------------------------------------
+// Subscription resolution
+// ------------------------------------------------------------------------
+
+// Per-pane override when "Use site defaults" is unticked; site default otherwise.
+function event_scraper_pane_subscriptions(string $paneId, ?array $config = null): array {
+    if ($config === null) {
+        $config = event_scraper_load_config();
+    }
+    $siteDefaults = is_array($config['siteDefaultSubscriptions'] ?? null)
+        ? $config['siteDefaultSubscriptions']
+        : [];
+
+    if (!function_exists('lawnding_module_settings_path') || !function_exists('lawnding_load_pane_settings')) {
+        return $siteDefaults;
+    }
+    $sidecarPath = lawnding_module_settings_path('eventList', $paneId);
+    if ($sidecarPath === '') {
+        return $siteDefaults;
+    }
+    $settings = lawnding_load_pane_settings($sidecarPath);
+    $useSiteDefaults = !isset($settings['useSiteDefaults']) || $settings['useSiteDefaults'] === true;
+    if ($useSiteDefaults) {
+        return $siteDefaults;
+    }
+    $override = is_array($settings['subscribedFeeds'] ?? null) ? $settings['subscribedFeeds'] : [];
+    return array_values(array_filter($override, 'is_string'));
+}
+
+// Inverse: which eventList panes subscribe to a given feed?
+function event_scraper_panes_subscribed_to(string $feedId, array $allEventListPanes, ?array $config = null): array {
+    if ($config === null) {
+        $config = event_scraper_load_config();
+    }
+    $out = [];
+    foreach ($allEventListPanes as $pane) {
+        $paneId = (string) ($pane['id'] ?? '');
+        if ($paneId === '') {
+            continue;
+        }
+        if (in_array($feedId, event_scraper_pane_subscriptions($paneId, $config), true)) {
+            $out[] = $paneId;
+        }
+    }
+    return $out;
+}
+
+// ------------------------------------------------------------------------
+// I/O wrappers
+// ------------------------------------------------------------------------
+
+// Built-in pool of recent real-browser UAs. Used when the adapter declares
+// userAgent: "@rotate" (or when a future caller passes an empty UA — defensive).
+// Update opportunistically; UAs decay over years but stay reasonable for a long
+// time as long as the major-version number stays plausible.
+function event_scraper_random_browser_ua(): string {
+    static $pool = [
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:120.0) Gecko/20100101 Firefox/120.0',
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:120.0) Gecko/20100101 Firefox/120.0',
+        'Mozilla/5.0 (X11; Linux x86_64; rv:120.0) Gecko/20100101 Firefox/120.0',
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15',
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0',
+    ];
+    return $pool[array_rand($pool)];
+}
+
+// Resolve adapter['userAgent'] to a concrete UA string. Accepts:
+//   string         -> used as-is (existing fixed-UA behavior)
+//   "@rotate"      -> random pick from the built-in browser pool
+//   array<string>  -> random pick from the adapter's own pool
+function event_scraper_pick_user_agent(array $adapter): string {
+    $ua = $adapter['userAgent'] ?? '';
+    if (is_array($ua)) {
+        $ua = array_values(array_filter($ua, 'is_string'));
+        return $ua ? $ua[array_rand($ua)] : '';
+    }
+    if ($ua === '@rotate') {
+        return event_scraper_random_browser_ua();
+    }
+    return (string) $ua;
+}
+
+// Fetch via cURL. Tolerant of cURL errors (returns status 0 with message).
+function event_scraper_fetch_url(string $url, string $userAgent, int $timeoutSeconds = 15): array {
+    if (!function_exists('curl_init')) {
+        // Surface in Diagnostics. Without curl the daily refresh is silently
+        // dead; admins reading the diagnostics feed need to see why.
+        if (function_exists('lawnding_log_event')) {
+            lawnding_log_event('error', 'event_scraper.curl_missing', [
+                'message' => 'PHP cURL extension is not loaded; install php-curl on the server.',
+                'url'     => $url,
+            ]);
+        }
+        return ['status' => 0, 'body' => '', 'error' => 'PHP cURL extension is not loaded; install php-curl on the server.'];
+    }
+    $ch = curl_init();
+    curl_setopt_array($ch, [
+        CURLOPT_URL            => $url,
+        CURLOPT_USERAGENT      => $userAgent,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_FOLLOWLOCATION => true,
+        CURLOPT_MAXREDIRS      => 3,
+        CURLOPT_CONNECTTIMEOUT => 5,
+        CURLOPT_TIMEOUT        => $timeoutSeconds,
+        CURLOPT_HTTPHEADER     => ['Accept: text/html,application/xhtml+xml'],
+    ]);
+    $body = curl_exec($ch);
+    $status = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $err = curl_error($ch);
+    curl_close($ch);
+    if ($body === false) {
+        return ['status' => $status, 'body' => '', 'error' => $err !== '' ? $err : 'fetch failed'];
+    }
+    return ['status' => $status, 'body' => (string) $body, 'error' => null];
+}
+
+// Read existing eventList events file (canonical writer is save-config.php;
+// we mirror its read shape). Returns the decoded {events: [...]} structure
+// or [] on missing/malformed.
+function event_scraper_load_pane_events(string $paneId): array {
+    if (!preg_match('/^[a-zA-Z0-9_-]+$/', $paneId)) {
+        return [];
+    }
+    $path = function_exists('lawnding_data_path')
+        ? lawnding_data_path($paneId . '.json')
+        : __DIR__ . '/../../../public/res/data/' . $paneId . '.json';
+    if (!is_readable($path)) {
+        return [];
+    }
+    $raw = file_get_contents($path);
+    if ($raw === false) {
+        return [];
+    }
+    $decoded = json_decode($raw, true);
+    if (!is_array($decoded)) {
+        return [];
+    }
+    return is_array($decoded['events'] ?? null) ? $decoded['events'] : [];
+}
+
+// Write the merged events array back. Race window matches save-config.php's
+// pre-existing last-write-wins behavior — same window the platform itself
+// uses; LOCK_EX is the project standard (the project docs File I/O section).
+function event_scraper_save_pane_events(string $paneId, array $events): bool {
+    if (!preg_match('/^[a-zA-Z0-9_-]+$/', $paneId)) {
+        event_scraper_log('error', 'pane_events_write_failed', [
+            'paneId' => $paneId,
+            'phase'  => 'validate',
+            'reason' => 'paneId failed allowlist regex (defense against path traversal)',
+        ]);
+        return false;
+    }
+    $path = function_exists('lawnding_data_path')
+        ? lawnding_data_path($paneId . '.json')
+        : __DIR__ . '/../../../public/res/data/' . $paneId . '.json';
+    $payload = ['events' => array_values($events)];
+    $json = json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+    if ($json === false) {
+        event_scraper_log('error', 'pane_events_write_failed', [
+            'paneId' => $paneId,
+            'path'   => $path,
+            'phase'  => 'json_encode',
+        ]);
+        return false;
+    }
+    if (@file_put_contents($path, $json, LOCK_EX) === false) {
+        event_scraper_log('error', 'pane_events_write_failed', [
+            'paneId' => $paneId,
+            'path'   => $path,
+            'phase'  => 'file_put_contents',
+            'reason' => event_scraper_describe_write_failure($path),
+        ]);
+        return false;
+    }
+    return true;
+}
+
+// ------------------------------------------------------------------------
+// Refresh orchestrator
+// ------------------------------------------------------------------------
+
+/**
+ * Fetch + extract + diff + ingest. Caller passes 'cron' or 'admin' as
+ * $trigger; the value is recorded in lastScrape.json for diagnostics.
+ *
+ * Success: `{status: 'ok', count: int, diff: array, ingested: array}`.
+ * Failure (each path emits a Diagnostics entry before returning):
+ * `{status: 'error', count: 0, error: string}`. Empty-result guard
+ * preserves the previous catalogue rather than nuking the calendar
+ * when the extractor returns 0 events from a degraded source.
+ *
+ * @return array<string, mixed>
+ */
+function event_scraper_run_refresh(string $adapterId, string $trigger): array {
+    $now = gmdate('c');
+    $writeLast = function (array $payload) use ($adapterId): void {
+        $path = event_scraper_last_scrape_path($adapterId);
+        $json = json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+        if ($json === false) {
+            return;
+        }
+        if (@file_put_contents($path, $json, LOCK_EX) === false) {
+            event_scraper_log('warn', 'last_scrape_write_failed', [
+                'adapter' => $adapterId,
+                'path'    => $path,
+                'reason'  => event_scraper_describe_write_failure($path),
+            ]);
+        }
+    };
+
+    $adapter = event_scraper_load_adapter($adapterId);
+    if (!$adapter) {
+        $err = "Adapter not found: $adapterId";
+        event_scraper_log('error', 'adapter_not_found', ['adapter' => $adapterId]);
+        $writeLast(['ranAt' => $now, 'status' => 'error', 'count' => 0, 'error' => $err, 'trigger' => $trigger]);
+        return ['status' => 'error', 'count' => 0, 'error' => $err];
+    }
+
+    $url = (string) ($adapter['url'] ?? '');
+    $userAgent = event_scraper_pick_user_agent($adapter);
+    if ($url === '' || $userAgent === '') {
+        $err = 'Adapter is missing required url or userAgent';
+        event_scraper_log('error', 'adapter_invalid', [
+            'adapter' => $adapterId,
+            'reason'  => 'missing url or userAgent',
+        ]);
+        $writeLast(['ranAt' => $now, 'status' => 'error', 'count' => 0, 'error' => $err, 'trigger' => $trigger]);
+        return ['status' => 'error', 'count' => 0, 'error' => $err];
+    }
+
+    $fetched = event_scraper_fetch_url($url, $userAgent);
+    if ($fetched['status'] !== 200 || $fetched['body'] === '') {
+        $err = 'Fetch failed: HTTP ' . $fetched['status'] . ' ' . (string) $fetched['error'];
+        $writeLast(['ranAt' => $now, 'status' => 'error', 'count' => 0, 'error' => $err, 'trigger' => $trigger]);
+        event_scraper_log('error', 'fetch_failed', [
+            'adapter' => $adapterId,
+            'status'  => $fetched['status'],
+            'error'   => $fetched['error'],
+        ]);
+        return ['status' => 'error', 'count' => 0, 'error' => $err];
+    }
+    // Capture payload size now; reused in the success log below.
+    $payloadSizeKb = round(strlen($fetched['body']) / 1024, 1);
+
+    $extractor = (string) ($adapter['extractor'] ?? '');
+    $extractorPath = __DIR__ . '/extractors/' . $extractor . '.php';
+    if (!preg_match('/^[a-zA-Z0-9_-]+$/', $extractor) || !is_readable($extractorPath)) {
+        $err = "Extractor not found: $extractor";
+        event_scraper_log('error', 'extractor_not_found', [
+            'adapter'   => $adapterId,
+            'extractor' => $extractor,
+            'path'      => $extractorPath,
+        ]);
+        $writeLast(['ranAt' => $now, 'status' => 'error', 'count' => 0, 'error' => $err, 'trigger' => $trigger]);
+        return ['status' => 'error', 'count' => 0, 'error' => $err];
+    }
+    require_once $extractorPath;
+    $extractFn = 'event_scraper_extract_' . $extractor;
+    if (!function_exists($extractFn)) {
+        $err = "Extractor function missing: $extractFn";
+        event_scraper_log('error', 'extractor_function_missing', [
+            'adapter'    => $adapterId,
+            'extractor'  => $extractor,
+            'expectedFn' => $extractFn,
+        ]);
+        $writeLast(['ranAt' => $now, 'status' => 'error', 'count' => 0, 'error' => $err, 'trigger' => $trigger]);
+        return ['status' => 'error', 'count' => 0, 'error' => $err];
+    }
+    $events = $extractFn($fetched['body'], $adapter);
+
+    // Guard against silent calendar nuke. If the extractor returns nothing
+    // (source format change, partial fetch, WAF returning a 200 soft-block
+    // page) we MUST NOT rewrite the catalogue — the next ingest pass would
+    // delete every previously-ingested event because none would still be
+    // "in the catalogue." A stale catalogue is strictly better than an
+    // empty one.
+    if (count($events) === 0) {
+        $err = 'Extractor produced 0 events; refusing to overwrite the catalogue. Previous data retained.';
+        event_scraper_log('error', 'empty_result', [
+            'adapter'   => $adapterId,
+            'payloadKb' => $payloadSizeKb,
+        ]);
+        $writeLast(['ranAt' => $now, 'status' => 'error', 'count' => 0, 'error' => $err, 'trigger' => $trigger]);
+        return ['status' => 'error', 'count' => 0, 'error' => $err];
+    }
+
+    $prev = event_scraper_load_catalogue($adapterId);
+    $diff = event_scraper_diff($prev['events'], $events);
+
+    // Rotate: prev <- old; current <- new. The copy is best-effort (the
+    // diff is already computed; rotation only matters for the next scrape's
+    // historical view), so a failure logs at warn, not error.
+    $cataloguePath = event_scraper_catalogue_path($adapterId);
+    if (file_exists($cataloguePath)) {
+        if (!@copy($cataloguePath, event_scraper_catalogue_prev_path($adapterId))) {
+            event_scraper_log('warn', 'catalogue_rotate_failed', [
+                'adapter' => $adapterId,
+                'reason'  => event_scraper_describe_write_failure(event_scraper_catalogue_prev_path($adapterId)),
+            ]);
+        }
+    }
+
+    if (!event_scraper_save_catalogue($adapterId, [
+        'fetchedAt' => $now,
+        'sourceUrl' => $url,
+        'events'    => $events,
+    ])) {
+        // catalogue_write_failed already logged inside event_scraper_save_catalogue.
+        $err = 'Fetched ' . count($events) . ' events, but failed to write the catalogue file. Check Diagnostics for the file-permissions detail.';
+        $writeLast(['ranAt' => $now, 'status' => 'error', 'count' => count($events), 'error' => $err, 'trigger' => $trigger]);
+        return ['status' => 'error', 'count' => count($events), 'error' => $err];
+    }
+
+    // Diagnostics for changes admins might want to know about, plus a
+    // single "scrape completed" info entry that always fires (even when
+    // nothing changed) so admins can see the cron is alive in the feed.
+    foreach ($diff['changed'] as $change) {
+        event_scraper_log('info', 'event_changed', [
+            'adapter' => $adapterId,
+            'uid'     => $change['uid'],
+            'name'    => $change['event']['name'] ?? '',
+            'fields'  => $change['fields'],
+        ]);
+    }
+    foreach ($diff['removed'] as $event) {
+        event_scraper_log('info', 'event_removed', [
+            'adapter'   => $adapterId,
+            'uid'       => $event['sourceUid'] ?? '',
+            'name'      => $event['name'] ?? '',
+            'startDate' => $event['startDate'] ?? '',
+        ]);
+    }
+    event_scraper_log('info', 'scrape_completed', [
+        'adapter'   => $adapterId,
+        'trigger'   => $trigger,
+        'count'     => count($events),
+        'newCount'  => count($diff['new']),
+        'changed'   => count($diff['changed']),
+        'removed'   => count($diff['removed']),
+        'payloadKb' => $payloadSizeKb,
+    ]);
+
+    // Ingest pass — only if a target pane is configured.
+    $config = event_scraper_load_config();
+
+    // Auto-publish: if the feed has autoPublish on (default true), extend
+    // its allowlist with any sourceUids new to the catalogue so the ingest
+    // step below picks them up. Skipped on first refresh (or post-cache-wipe)
+    // so brand-new feeds don't flood subscribed panes with the entire seed
+    // catalogue. Persistence failure reverts the in-memory change to avoid
+    // publish-then-vanish oscillation on the next scrape.
+    $feedConfigSnapshot = is_array($config['feeds'][$adapterId] ?? null)
+        ? $config['feeds'][$adapterId]
+        : null;
+    if ($feedConfigSnapshot !== null && $diff['new']) {
+        $newUids = [];
+        foreach ($diff['new'] as $e) {
+            if (isset($e['sourceUid'])) {
+                $newUids[] = (string) $e['sourceUid'];
+            }
+        }
+        $isFirstRefresh = empty($prev['events']);
+        [$updatedFeed, $autoAdded] = event_scraper_apply_auto_publish(
+            $feedConfigSnapshot,
+            $newUids,
+            $isFirstRefresh,
+            $now
+        );
+        if ($autoAdded) {
+            $config['feeds'][$adapterId] = $updatedFeed;
+            if (event_scraper_save_config($config)) {
+                event_scraper_log('info', 'events_auto_published', [
+                    'adapter'    => $adapterId,
+                    'count'      => count($autoAdded),
+                    'sourceUids' => $autoAdded,
+                ]);
+            } else {
+                // save_config already logged config_write_failed with the
+                // permission-aware reason. Revert so ingest doesn't publish
+                // events the next scrape's allowlist won't contain.
+                $config['feeds'][$adapterId] = $feedConfigSnapshot;
+            }
+        }
+    }
+
+    $ingested = event_scraper_apply_ingest($adapterId, $events, $config);
+
+    $writeLast([
+        'ranAt'   => $now,
+        'status'  => 'ok',
+        'count'   => count($events),
+        'diff'    => [
+            'new'     => count($diff['new']),
+            'changed' => count($diff['changed']),
+            'removed' => count($diff['removed']),
+        ],
+        'error'   => null,
+        'trigger' => $trigger,
+    ]);
+
+    return [
+        'status'   => 'ok',
+        'count'    => count($events),
+        'diff'     => $diff,
+        'ingested' => $ingested,
+    ];
+}
+
+/**
+ * Apply one feed's catalogue to every subscribing eventList pane.
+ * Returns `{status: 'ok', panes: [], reason: string}` when nothing
+ * subscribes; otherwise iterates subscribers and aggregates per-pane
+ * results. Top-level status is 'ok' only when every pane succeeded.
+ *
+ * @param list<mixed>           $catalogue
+ * @param array<string, mixed>  $config
+ * @return array{status: 'ok'|'error', panes: list<array<string, mixed>>, reason?: string}
+ */
+function event_scraper_apply_ingest(string $feedId, array $catalogue, array $config): array {
+    $feed = event_scraper_get_feed($feedId, $config);
+    if (!$feed['isConfigured']) {
+        return ['status' => 'ok', 'reason' => 'feed not configured', 'panes' => []];
+    }
+
+    $allPanes = event_scraper_eventlist_panes();
+    $subscribers = event_scraper_panes_subscribed_to($feedId, $allPanes, $config);
+    if (!$subscribers) {
+        return ['status' => 'ok', 'reason' => 'no panes subscribed', 'panes' => []];
+    }
+
+    $allowlistUids = array_keys($feed['allowlist']);
+    $defaultCategoryId = $feed['defaultCategoryId'];
+
+    $results = [];
+    $allOk = true;
+    foreach ($subscribers as $paneId) {
+        $r = event_scraper_apply_feed_to_pane($feedId, $paneId, $allowlistUids, $catalogue, $defaultCategoryId);
+        $r['paneId'] = $paneId;
+        if ($r['status'] !== 'ok') {
+            $allOk = false;
+        }
+        $results[] = $r;
+    }
+    return ['status' => $allOk ? 'ok' : 'error', 'panes' => $results];
+}
+
+/**
+ * Apply one feed's catalogue to one pane. Empty $allowlistUids wipes
+ * this feed's events from the pane (the unsubscribe path).
+ *
+ * @param list<mixed> $allowlistUids
+ * @param list<mixed> $catalogue
+ * @return array{status: 'ok'|'error', created?: int, updated?: int, deleted?: int, reason?: string}
+ */
+function event_scraper_apply_feed_to_pane(
+    string $feedId,
+    string $paneId,
+    array $allowlistUids,
+    array $catalogue,
+    string $defaultCategoryId
+): array {
+    $existing = event_scraper_load_pane_events($paneId);
+    $changes = event_scraper_build_ingest_changes(
+        $catalogue,
+        $allowlistUids,
+        $feedId,
+        $existing,
+        $defaultCategoryId
+    );
+    if (!$changes['create'] && !$changes['update'] && !$changes['delete']) {
+        return ['status' => 'ok', 'created' => 0, 'updated' => 0, 'deleted' => 0];
+    }
+    require_once dirname(__DIR__, 2) . '/modules/eventList/helpers.php';
+    $merged = event_list_apply_events(['events' => $existing], ['changes' => $changes]);
+    if (!event_scraper_save_pane_events($paneId, $merged['events'])) {
+        // pane_events_write_failed already logged inside the save helper.
+        return ['status' => 'error', 'reason' => 'pane events write failed'];
+    }
+    return [
+        'status'  => 'ok',
+        'created' => count($changes['create']),
+        'updated' => count($changes['update']),
+        'deleted' => count($changes['delete']),
+    ];
+}
+
+/**
+ * Failure-isolated multi-feed loop. Each feed's per-call exception is
+ * caught and logged; the outer loop continues so one broken feed
+ * can't take the cron pass down. Top-level status is 'ok' only when
+ * every feed succeeded.
+ *
+ * @return array{status: 'ok'|'error', feeds: list<array<string, mixed>>, message?: string}
+ */
+function event_scraper_run_all_feeds(string $trigger): array {
+    $config = event_scraper_load_config();
+    $feeds = is_array($config['feeds'] ?? null) ? $config['feeds'] : [];
+    if (!$feeds) {
+        return ['status' => 'ok', 'feeds' => [], 'message' => 'No feeds configured.'];
+    }
+    $results = [];
+    $allOk = true;
+    foreach ($feeds as $feedId => $_) {
+        $feedId = (string) $feedId;
+        try {
+            $r = event_scraper_run_refresh($feedId, $trigger);
+        } catch (\Throwable $e) {
+            event_scraper_log('error', 'feed_exception', [
+                'feed'  => $feedId,
+                'error' => $e->getMessage(),
+            ]);
+            $r = ['status' => 'error', 'count' => 0, 'error' => 'Uncaught: ' . $e->getMessage()];
+        }
+        $r['feedId'] = $feedId;
+        $results[] = $r;
+        if (($r['status'] ?? '') !== 'ok') {
+            $allOk = false;
+        }
+    }
+    return ['status' => $allOk ? 'ok' : 'error', 'feeds' => $results];
+}
+
+// ------------------------------------------------------------------------
+// Render
+// ------------------------------------------------------------------------
+
+// Returns the list of {id, name} for every pane whose module is eventList.
+// Used by the SITE CONFIG render to populate the target-pane select.
+function event_scraper_eventlist_panes(): array {
+    if (!function_exists('lawnding_load_panes') || !function_exists('lawnding_data_path')) {
+        return [];
+    }
+    $panes = lawnding_load_panes(lawnding_data_path('panes.json'));
+    $out = [];
+    foreach ($panes as $pane) {
+        if (!is_array($pane)) {
+            continue;
+        }
+        $moduleId = (string) ($pane['module'] ?? '');
+        if ($moduleId !== 'eventList') {
+            continue;
+        }
+        $id = (string) ($pane['id'] ?? '');
+        $name = (string) ($pane['name'] ?? $id);
+        if ($id !== '') {
+            $out[] = ['id' => $id, 'name' => $name];
+        }
+    }
+    return $out;
+}
+
+// SITE CONFIG slot — renders the multi-feed picker inside eventList's section.
+// PHP emits structure + server-known data; admin.js fetches the catalogue
+// data per-feed and fills the tables.
+function event_scraper_render_eventlist_extras(): void {
+    $config = event_scraper_load_config();
+    $adapters = event_scraper_discover_adapters();
+    $categories = function_exists('event_list_load_categories') ? event_list_load_categories() : [];
+    $cronToken = (string) ($config['cronToken'] ?? '');
+    $siteDefaults = is_array($config['siteDefaultSubscriptions'] ?? null) ? $config['siteDefaultSubscriptions'] : [];
+
+    $proxyUrl = function_exists('lawnding_asset_url')
+        ? lawnding_asset_url('res/scr/plugin-endpoint.php?plugin=eventScraper&endpoint=cron')
+        : '/res/scr/plugin-endpoint.php?plugin=eventScraper&endpoint=cron';
+    $hostHint = isset($_SERVER['HTTP_HOST']) ? (string) $_SERVER['HTTP_HOST'] : 'YOUR_HOST_HERE';
+    $cronUrl = 'https://' . $hostHint . $proxyUrl;
+    ?>
+    <fieldset class="siteConfigGroup eventScraperConfig"
+              data-cron-url="<?php echo htmlspecialchars($cronUrl, ENT_QUOTES, 'UTF-8'); ?>"
+              data-cron-token="<?php echo htmlspecialchars($cronToken, ENT_QUOTES, 'UTF-8'); ?>">
+        <legend>Event Scraper feeds</legend>
+        <p class="paneHint">Configure each feed's source data, then choose which feeds new Event List panes subscribe to by default. Per-pane overrides live in the gear icon on each pane.</p>
+
+        <div class="eventScraperGlobalStatus" aria-live="polite">
+            <span class="eventScraperGlobalStatusText">Loading feed list…</span>
+            <button type="button" class="eventScraperRefreshAllBtn" disabled>Refresh all feeds</button>
+        </div>
+
+        <fieldset class="eventScraperDefaultSubsBlock">
+            <legend>Default subscribed feeds</legend>
+            <p class="paneHint">New Event List panes (and panes with "Use site defaults" ticked) subscribe to these.</p>
+            <div class="eventScraperDefaultSubsList" data-site-defaults="<?php echo htmlspecialchars(json_encode(array_values($siteDefaults), JSON_UNESCAPED_SLASHES), ENT_QUOTES, 'UTF-8'); ?>">
+                <p class="eventScraperListEmpty">Loading…</p>
+            </div>
+            <div class="eventScraperDefaultSubsActions">
+                <button type="button" class="eventScraperSaveDefaultSubsBtn" disabled>Save defaults</button>
+                <span class="eventScraperSaveDefaultSubsStatus" aria-live="polite"></span>
+            </div>
+        </fieldset>
+
+        <div class="eventScraperFeedList">
+            <?php foreach ($adapters as $adapterId => $adapter): ?>
+                <?php
+                    $feed = event_scraper_get_feed((string) $adapterId, $config);
+                    $adapterLabel = (string) ($adapter['label'] ?? $adapterId);
+                    $adapterUrl = (string) ($adapter['url'] ?? '');
+                    $extractor = (string) ($adapter['extractor'] ?? '');
+                ?>
+                <fieldset class="eventScraperFeedBlock"
+                          data-feed-id="<?php echo htmlspecialchars((string) $adapterId, ENT_QUOTES, 'UTF-8'); ?>"
+                          data-configured="<?php echo $feed['isConfigured'] ? '1' : '0'; ?>">
+                    <legend><?php echo htmlspecialchars($feed['label'] ?: $adapterLabel, ENT_QUOTES, 'UTF-8'); ?></legend>
+                    <p class="paneHint">
+                        Source: <?php echo htmlspecialchars($adapterLabel, ENT_QUOTES, 'UTF-8'); ?>
+                        (<?php echo htmlspecialchars($extractor, ENT_QUOTES, 'UTF-8'); ?>) ·
+                        <?php echo htmlspecialchars($adapterUrl, ENT_QUOTES, 'UTF-8'); ?>
+                    </p>
+
+                    <div class="eventScraperControls">
+                        <label class="eventScraperControl">
+                            <span>Display name</span>
+                            <input type="text" class="eventScraperFeedLabel"
+                                   value="<?php echo htmlspecialchars($feed['label'] ?: $adapterLabel, ENT_QUOTES, 'UTF-8'); ?>">
+                        </label>
+                        <label class="eventScraperControl">
+                            <span>Default category</span>
+                            <select class="eventScraperDefaultCategory">
+                                <option value="">— None —</option>
+                                <?php foreach ($categories as $cat): ?>
+                                    <option value="<?php echo htmlspecialchars((string) $cat['id'], ENT_QUOTES, 'UTF-8'); ?>"
+                                        <?php if ((string) $cat['id'] === $feed['defaultCategoryId']) echo 'selected'; ?>>
+                                        <?php echo htmlspecialchars($cat['name'], ENT_QUOTES, 'UTF-8'); ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </label>
+                    </div>
+
+                    <label class="eventScraperAutoPublishRow">
+                        <input type="checkbox" class="eventScraperAutoPublish"
+                               <?php if ($feed['autoPublish']) echo 'checked'; ?>>
+                        <span class="eventScraperAutoPublishLabel">Auto-publish new events</span>
+                        <span class="eventScraperAutoPublishHint">New events found on refresh are added to subscribed panes automatically. Uncheck to require admin review per event.</span>
+                    </label>
+
+                    <div class="eventScraperFeedStatus" aria-live="polite">
+                        <span class="eventScraperFeedStatusText">
+                            <?php echo $feed['isConfigured'] ? 'Loading…' : 'Not configured yet — click "Refresh now" to fetch and start picking events.'; ?>
+                        </span>
+                        <button type="button" class="eventScraperRefreshBtn">Refresh now</button>
+                    </div>
+
+                    <div class="eventScraperFilter">
+                        <label class="eventScraperControl">
+                            <span>Filter</span>
+                            <input type="search" class="eventScraperFilterText" placeholder="Search by name…">
+                        </label>
+                        <label class="eventScraperControl">
+                            <span>Region</span>
+                            <select class="eventScraperFilterRegion">
+                                <option value="">All</option>
+                            </select>
+                        </label>
+                    </div>
+
+                    <div class="eventScraperList" aria-live="polite" aria-label="Available events">
+                        <p class="eventScraperListEmpty">No events cached yet.</p>
+                    </div>
+
+                    <div class="eventScraperActions">
+                        <span class="eventScraperSelectionCount" aria-live="polite">0 of 0 selected</span>
+                        <span class="eventScraperDirtyIndicator" aria-live="polite" hidden>* unsaved changes</span>
+                        <button type="button" class="eventScraperSaveBtn">Save feed</button>
+                        <span class="eventScraperSaveStatus" aria-live="polite"></span>
+                    </div>
+                </fieldset>
+            <?php endforeach; ?>
+            <?php if (!$adapters): ?>
+                <p class="paneHint">No adapters found in <code>admin/plugins/eventScraper/adapters/</code>. Drop a JSON adapter file there to add a feed.</p>
+            <?php endif; ?>
+        </div>
+
+        <details class="eventScraperCronSection">
+            <summary>Daily cron setup</summary>
+            <p class="paneHint">One cron command refreshes every configured feed in sequence. Per-feed failures don't stop the others. The token is sent in a header so it stays out of webserver access logs.</p>
+            <pre class="eventScraperCronLine" aria-label="Cron command"></pre>
+            <div class="eventScraperCronActions">
+                <button type="button" class="eventScraperCronCopyBtn"<?php if ($cronToken === '') echo ' disabled'; ?>>Copy command</button>
+                <button type="button" class="eventScraperCronRevealBtn"<?php if ($cronToken === '') echo ' disabled'; ?>>Reveal token</button>
+                <button type="button" class="eventScraperCronRotateBtn">Rotate token</button>
+                <span class="eventScraperCronStatus" aria-live="polite"></span>
+            </div>
+        </details>
+    </fieldset>
+    <?php
+}

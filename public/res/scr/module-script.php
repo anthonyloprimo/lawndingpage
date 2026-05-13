@@ -16,9 +16,10 @@ if (str_contains($file, '..') || !str_ends_with($file, '.js')) {
     exit;
 }
 
-$scriptPath = function_exists('lawnding_module_file')
-    ? lawnding_module_file($moduleId, $file)
-    : '';
+$modulesDir = function_exists('lawnding_admin_path')
+    ? lawnding_admin_path('modules')
+    : dirname(__DIR__, 3) . '/admin/modules';
+$scriptPath = rtrim($modulesDir, '/\\') . '/' . $moduleId . '/' . $file;
 if (!is_readable($scriptPath)) {
     http_response_code(404);
     exit;

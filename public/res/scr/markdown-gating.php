@@ -3,7 +3,7 @@
 
 function lawnding_markdown_gate_normalize_clearance($clearance) {
     $level = is_string($clearance) ? strtolower(trim($clearance)) : '';
-    if ($level === 'sfw' || $level === 'nsfw' || $level === 'nsfw_only') {
+    if ($level === 'sfw' || $level === 'nsfw') {
         return $level;
     }
     return 'none';
@@ -41,12 +41,16 @@ function lawnding_markdown_gate_append(string &$out, string $chunk, int $suppres
 function lawnding_markdown_gate_parse(string $markdown, string $clearance): array {
     $clearance = lawnding_markdown_gate_normalize_clearance($clearance);
     $allowSfw = $clearance === 'sfw' || $clearance === 'nsfw';
-    $allowNsfw = $clearance === 'nsfw' || $clearance === 'nsfw_only';
+    $allowNsfw = $clearance === 'nsfw';
     $len = strlen($markdown);
     $out = '';
     $stack = [];
     $suppressedDepth = 0;
-    $inFence = false;
+    // $fenceTicks doubles as the "in fence?" flag: 0 means not in a fence,
+    // >0 means the open fence required >= this many backticks to close.
+    // Combining the bool + count into one int sidesteps a PHPStan cross-
+    // iteration limitation where the two-variable correlation wasn't
+    // propagated through the loop body.
     $fenceTicks = 0;
     $inInline = false;
     $inlineTicks = 0;
@@ -67,17 +71,15 @@ function lawnding_markdown_gate_parse(string $markdown, string $clearance): arra
                 $ticks++;
             }
             if ($ticks >= 3) {
-                if (!$inFence) {
-                    $inFence = true;
+                if ($fenceTicks === 0) {
                     $fenceTicks = $ticks;
                 } elseif ($ticks >= $fenceTicks) {
-                    $inFence = false;
                     $fenceTicks = 0;
                 }
             }
         }
 
-        if (!$inFence && $markdown[$i] === '`') {
+        if ($fenceTicks === 0 && $markdown[$i] === '`') {
             $tickRun = 0;
             while (($i + $tickRun) < $len && $markdown[$i + $tickRun] === '`') {
                 $tickRun++;
@@ -97,7 +99,7 @@ function lawnding_markdown_gate_parse(string $markdown, string $clearance): arra
             continue;
         }
 
-        if (!$inFence && !$inInline) {
+        if ($fenceTicks === 0 && !$inInline) {
             $tag = lawnding_markdown_gate_match_tag($markdown, $i);
             if ($tag !== null) {
                 if ($tag['type'] === 'open') {
@@ -154,7 +156,8 @@ function lawnding_markdown_gate_fail_closed(string $markdown): string {
     $len = strlen($markdown);
     $out = '';
     $depth = 0;
-    $inFence = false;
+    // See lawnding_markdown_gate_parse for the $fenceTicks single-variable
+    // pattern: 0 = no fence, >0 = open with that tick count.
     $fenceTicks = 0;
     $inInline = false;
     $inlineTicks = 0;
@@ -175,17 +178,15 @@ function lawnding_markdown_gate_fail_closed(string $markdown): string {
                 $ticks++;
             }
             if ($ticks >= 3) {
-                if (!$inFence) {
-                    $inFence = true;
+                if ($fenceTicks === 0) {
                     $fenceTicks = $ticks;
                 } elseif ($ticks >= $fenceTicks) {
-                    $inFence = false;
                     $fenceTicks = 0;
                 }
             }
         }
 
-        if (!$inFence && $markdown[$i] === '`') {
+        if ($fenceTicks === 0 && $markdown[$i] === '`') {
             $tickRun = 0;
             while (($i + $tickRun) < $len && $markdown[$i + $tickRun] === '`') {
                 $tickRun++;
@@ -206,7 +207,7 @@ function lawnding_markdown_gate_fail_closed(string $markdown): string {
             continue;
         }
 
-        if (!$inFence && !$inInline) {
+        if ($fenceTicks === 0 && !$inInline) {
             $tag = lawnding_markdown_gate_match_tag($markdown, $i);
             if ($tag !== null) {
                 if ($tag['type'] === 'open') {
@@ -235,3 +236,4 @@ function lawnding_markdown_gate_apply(string $markdown, string $clearance, bool 
     }
     return $parsed;
 }
+

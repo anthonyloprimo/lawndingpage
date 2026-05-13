@@ -1,22 +1,180 @@
-### Changelog
+#### v1.23.0
+- Merged the LIFURS v1.22.1 feature line into the split code/data architecture. This brings forward the event scraper, reworked Event List admin calendar, movable/unified modals, plugin relocation, Telegram login improvements, diagnostics, site config/per-pane settings, media gallery refinements, and the expanded test/tooling stack.
+- Preserved the instance-aware runtime layout: mutable site data and runtime admin state live under `data/`, while default first-run content is seeded from `resources/seed-instance/`.
+- Added the new LIFURS default seed files, including `eventList.json` and `favicon-cache.json`, to the split seed-instance structure.
 
-#### IMPORTANT!  THIS CMS IS CURRENTLY BEST USED ON APACHE
-My apologies, I did not think to make note of this before.  This project utilizes `.htaccess` for a few directories.  As such, LawndingPage primarily is built for Apache servers.  Work will be made to do away with the need for those files, but no timeframe is given.  If you wish to use this on your own server, either use Apache, or be prepared to modify the code to support different file structures.  No guarantee is made.
+-----
+
+#### v1.22.0
+- Reworked how Event List panes are edited in the admin panel. The vertical stack of always-expanded event forms is gone — each pane now shows a calendar grid that mirrors the public-facing one. Click the "+" on any day to add a new event there with the date pre-filled; click an existing event bar to edit it (or remove it). Scraped events open editable in the same modal — saving a change marks the event as locally overridden so the next feed refresh won't undo your edits, and a Resume sync button puts the event back under the scraper's control. On phone-width screens the calendar collapses to a flat date-grouped list with the same click-to-edit modal.
+
+-----
+
+#### v1.21.0
+- Admin pop-up dialogs are now movable. Grab any modal by its title bar and drag it out of the way to peek at the page underneath; the title bar always stays at least partly on-screen so a modal can never get lost. Closing and reopening a modal returns it to the centered position.
+
+-----
+
+#### v1.20.2
+- Added NY Furs as a second Event Scraper feed, and broadened the platform to any Indico-powered events portal. Scraped events now display per-event start/end times when the source provides them, a "Hosted by" line, and small badges for any source-applied tags (All Ages, Fursuit Friendly, Outdoor, etc.). Each event card carries a Visit Site link to the upstream page; the .ics calendar export carries the same link in its URL field. New feeds default to auto-publishing newly-discovered events as they appear — flip the new "Auto-publish new events" toggle off on a feed to fall back to per-event review. Long event descriptions now scroll inside the event-detail modal instead of pushing past the viewport, and the modal stays above the navbar on small screens.
+
+-----
+
+#### v1.20.1
+- Reshaped the Event Scraper around feeds and subscriptions. Each source is now a "feed" that any number of Event List panes can subscribe to — pick which conventions a feed publishes once, then pick which panes show that feed. Site Config has a Default subscribed feeds block under Event List for new panes to inherit; the gear icon on each pane lets you override per pane. A single cron command refreshes every configured feed in sequence and isolates failures, so one source going down doesn't stall the rest. New feeds appear automatically when an adapter file is added to the install.
+
+-----
+
+#### v1.20.0
+- Added the Event Scraper. Pull convention dates from a configured external source into one of your Event List panes — pick which conventions you want to show, and the list refreshes itself daily. Scraped events sit alongside anything you've added manually (manual entries are never touched), new conventions are flagged in the picker so you can decide whether to include them, and date or location changes apply on the next refresh. Site Config carries a Daily cron setup section with the exact crontab line to paste.
+
+-----
+
+#### v1.19.1
+- The Telegram webhook now requires a per-install secret token. After saving your bot config to generate one, click the new Register webhook button (next to Test bot) to push it to Telegram in one call. A manual curl command is shown alongside as an alternative.
+
+-----
+
+#### v1.19.0
+- Added colored event categories. Set up a shared list under Site Config (name + color each), then assign one to each event from the per-event editor. The chosen color shows on the calendar grid bars and in a small legend above the grid. Deleting a category leaves existing events intact — they fall back to the default color until you reassign them.
+
+-----
+
+#### v1.16.0
+- Event list panes now use the per-pane Settings dialog for their three view options ("Show calendar view", "Open in calendar view by default", "Show past events on the public site"). Click the gear icon on any event-list pane to flip them; the inline checkboxes in the pane header and footer are gone.
+- Added matching defaults to Site Config under "Event List", so a full admin can set the defaults once and every event-list pane inherits them. Tick "Use site defaults" off in the per-pane dialog to override per pane.
+- Removed the "(saves to filename.json)" file hint that used to appear next to a pane's title in the admin editor. The data file location is implementation detail and didn't belong there.
+
+-----
+
+#### v1.15.0
+- Every pane in the admin panel now has a gear icon. Click it to open a per-pane Settings dialog covering the pane's icon and any module-specific options the pane's type provides. Previously, only the gallery had a gear (and only for its per-item override toggles); other pane types had to be edited via the inline icon popover.
+- The pane icon (upper-left of each pane header) is now display-only. The gear icon (upper-right) is the single entry point for editing per-pane settings.
+- Added a "Use site defaults" toggle to the per-pane Settings dialog for pane types whose modules expose options in Site Config (today: galleries, with the "Allow per-item custom thumbnail uploads" and "Allow replacing media files on existing items" toggles). Ticked, the pane inherits the site-wide defaults for those options. Unticked, the override controls pre-populate with the current effective values so you tweak from there instead of starting blank. The icon is always editable independently — its fallback is the module type's built-in icon, not a site-wide setting.
+- Added a "Use module default icon" button inside the icon controls so you can revert a pane's icon to the type's built-in default. The button only shows up when the current icon actually differs from that default.
+- The per-pane icon section now uses a chip-and-picker pattern: clicking the icon itself reveals a grid of built-in SVG icons to pick from. The old SVG-markup textbox and direct file upload have been removed from the per-pane modal — uploaded icons will move to a central Site Config library in a follow-up.
+
+-----
+
+#### v1.14.2
+- Fixed a bug where a gallery item's saved focal point silently disappeared from the editor after any page reload or any non-focal change. The thumbnail itself was always correct on the public site; only the editor's UI lost track of where the focal point was set.
+- Improved keyboard and screen-reader navigation in the public gallery lightbox. Focus stays inside the modal while it's open, returns to the originating gallery thumbnail when the modal closes, video controls remain reachable via Tab, and screen readers now announce the active item's caption.
+- In the gallery editor, the modal field formerly called Mouseover is now Hovertext, and hovering a thumbnail reveals that field's value instead of the original / resized byte counts. The byte counts are still visible in the modal's Info section.
+
+-----
+
+#### v1.14.1
+- Repeated failed sign-in attempts now lock the account out for 15 minutes after 5 misses, on both the public sign-in dialog and the /admin/ form. The lockout applies to the IP and the username independently, so neither a single attacker on one IP nor a botnet hitting one account can keep guessing forever. A successful sign-in clears the lockout.
+- Changing your password (or having an admin reset it for you) now signs you out from any "Stay signed in" devices. Closes a gap where a long-lived cookie could survive a password change.
+
+-----
+
+#### v1.14.0
+- Added a Sign in button to the upper right of the public page header. Click it to open a sign-in dialog with a username/password form and a Login with Telegram button alongside.
+- Added a "Stay signed in" checkbox to the dialog and to the admin login form. When ticked, a long-lived per-device cookie keeps you signed in for 30 days; clicking Log out invalidates that device's cookie without affecting your other browsers.
+- Removed the inline Telegram login widget from the navigation list — the new dialog replaces it as the single login entry point. Existing direct visits to /admin/ continue to work unchanged.
+
+-----
+
+#### v1.13.1
+- Fixed a bug where uploading a replacement icon for a pane left visitors seeing the old icon until they hard-refreshed.
+
+-----
+
+#### v1.13.0
+- Added a Site Config section to the admin panel for full admins. Sets the defaults that newly created media galleries inherit. Currently includes "Allow per-item custom thumbnail uploads" and "Allow replacing media files on existing items".
+- Each gallery pane now has a gear icon in the top-right corner. Click it to override the site defaults for that specific gallery — useful when one curated gallery needs custom thumbnails enabled while everything else stays locked down.
+- Media galleries auto-derive a 1:1 square thumbnail on upload, intelligently cropping to keep faces and high-contrast areas in frame instead of dumb-centering.
+- Click any image in the gallery's edit modal to set a focal point. The thumbnail re-derives around that point so cover-mode crops keep the right pixels visible.
+- The "Add new media" button now accepts multiple files at once.
+- The image edit modal now shows an Image Info section: original size, saved size, upload date, and uploader. Telegram uploaders show as their friendly handle (e.g. "@phinnay") instead of raw numeric IDs.
+- Delete buttons in the gallery now ask for confirmation via a blur-backdrop overlay over the image preview.
+- Caption changes in the edit modal enable the Save button immediately, instead of waiting for a focal-point change.
+- Thumbnail grid images now use lazy and async loading hints — long galleries scroll smoother on slow links.
+
+-----
+
+#### v1.12.8
+- Media galleries now accept image uploads only. Video uploads will return as an admin-controllable feature in a future release.
+
+-----
+
+#### v1.12.7
+- Added a "Skip to main content" link that appears at the top of every page when you press Tab. Lets keyboard users jump past the header and navigation in one keystroke.
+- The admin panel browser tab now shows a proper page title with your site name (was previously blank).
+- The main content area of the public site and admin panel now uses the proper landmark element, so screen readers can jump straight to it.
+- Event List calendar and events tabs are now properly labelled for screen readers.
+- Media gallery lightbox images now get descriptive alt text (uses the item's title, falls back to the filename when no title is set).
+- Login screen error and success messages now announce themselves to screen readers.
+- Closing the changelog popup returns focus to the link you opened it from, instead of dropping you at the top of the page.
+- Decorative icons in buttons and navigation are no longer announced redundantly by screen readers.
+
+-----
+
+#### v1.12.6
+- Notices on the public site and admin panel now announce themselves to screen readers when they appear. Save success, login errors, and other feedback that previously only showed visually are now spoken.
+- Modals now announce their title when opened, instead of just announcing "dialog".
+- Telegram permission checkboxes (Edit site, Add users, Edit users, Remove users) now identify which permission they toggle for screen reader users.
+
+-----
+
+#### v1.12.5
+- Added a Diagnostics section to the admin panel — admins with edit permission can browse recent runtime errors with severity color coding, click-to-expand details, and an optional 5-second auto-refresh. Captures errors from both the public page and the admin flow. Old entries roll off automatically once the log file gets large.
+- The legacy admin/errors.txt file is no longer written — the new Diagnostics view replaces it. If you have an existing errors.txt on your server, you can delete it manually.
+
+-----
+
+#### v1.12.4
+- Fixed a bug where red error banners on the public site stayed onscreen until manually dismissed, instead of fading out after 30 seconds like they do in the admin panel.
+
+-----
+
+#### v1.12.3
+- Added a calendar grid view to the Event List pane. Admins can enable it per-pane and choose whether it opens by default. Includes month navigation, a day-detail popup, and a toast when a selected day has no events.
+- Added Telegram allowlist and denylist fields to the bot configuration. Allowlisted user IDs gain access regardless of group membership; denylisted IDs are denied regardless.
+
+-----
+
+#### v1.12.2
+- Added a changelog popup to the site footer — click [CHANGELOG] to read version history without leaving the page.
+- Added GitHub and lawnding.page links to the site footer with a smaller font and wider spacing between groups.
+- Fixed a security gap where uploaded files retained their original filename extension instead of one derived from the file's actual content type.
+- Added file-write locking to all JSON and text write operations to prevent data corruption under concurrent saves.
+- Blocked direct browser access to files under the media gallery data directory.
+- Added execution protection to the image upload directory.
+
+-----
+
+#### v1.12.1
+- Added a proper editor for per-group admin permissions on Telegram groups.
+- Added an admin panel shortcut to the Telegram profile chip for users whose group grants admin access.
+- Logging out of the admin panel now returns you to the public site if you arrived via that shortcut, instead of dropping you on the admin login form.
+- Fixed a bug where, if your Telegram admin access was revoked mid-session, the first attempt to log back in with a normal admin account failed with "Security token invalid." 
+
+-----
 
 #### v1.12.0
-- Split user data from core CMS code.
-- Updated documentation
+- Added the ability for Telegram-authenticated visitors to earn admin permissions just by being in a configured Telegram group.  No need for a separate admin account.  Admins set per-group permissions.  Master accounts and full admin access still require a password-based admin account.
+- Read-only admin accounts stay read-only, even if the same person's Telegram identity would otherwise grant extra permissions.
+- Fixed a bug where a Telegram admin who lost their group membership mid-session could stay on the admin page until the next page load.  They now get logged out automatically with a yellow banner explaining why.
+- Fixed a bug where the admin login form didn't show revocation banners, leaving the user without context for why they got kicked.
+- Security fix: two diagnostic endpoints (for testing the bot token and validating group IDs) were reachable without logging in.  Both now require admin access.
 
 -----
 
 #### v1.11.0
-- Add whitelist/blacklist to telegram auth
-- Added calendar view to the eventList module.
+- Enhanced Telegram login handling, additional info is collected incluiding user icon. Move logout button to the top-right of the page header.
+- Telegram login now requires being a member of a configured Telegram group.  If you aren't in one, the login is rejected cleanly instead of leaving you half-authenticated.
+- Fixed a bug where losing your group membership mid-session didn't log you out.
+- Added top-of-screen banner notifications for login success, login rejection, and access revocation.  Same look as the admin save banner.
+- Logo and background image uploads now apply global cache busting and refresh immediately after saving.
+- Telegram membership cache also stores each visitor's username and first/last name on each fresh check.
+- Added a small plugin hook system so plugins can extend the public page without touching the core templates. 
 
 -----
 
 #### v1.10.2
-- Fixed routing issues in preparation for solo and multi-tenant shared-core deployments.
+- Mirrored to LIFURS repo and began development specific to that usecase. 
 
 -----
 
@@ -238,4 +396,3 @@ My apologies, I did not think to make note of this before.  This project utilize
 
 #### v1.0.0
 - Initial Version
-

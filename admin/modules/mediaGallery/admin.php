@@ -21,6 +21,17 @@ if (!defined('LAWNDING_MEDIA_GALLERY_ADMIN_ASSETS_INJECTED')) {
     echo '<script src="'
         . htmlspecialchars($scriptUrl, ENT_QUOTES, 'UTF-8')
         . '" defer></script>';
+
+    // smartcrop.js (vendored at v2.0.5) runs client-side before each
+    // upload to suggest a focal point. admin.js feature-detects
+    // window.smartcrop; if the script fails to load, uploads still
+    // succeed and the server falls back to centered crop.
+    $smartcropUrl = function_exists('lawnding_versioned_local_asset_url')
+        ? lawnding_versioned_local_asset_url('res/scr/smartcrop.js')
+        : '/res/scr/smartcrop.js';
+    echo '<script src="'
+        . htmlspecialchars($smartcropUrl, ENT_QUOTES, 'UTF-8')
+        . '" defer></script>';
 }
 
 // Pane metadata used for IDs, labels, and data file resolution.
@@ -35,7 +46,7 @@ if ($paneId === '' || $jsonFile === '') {
 
 $jsonPath = function_exists('lawnding_data_path')
     ? lawnding_data_path($jsonFile)
-    : __DIR__ . '/../../data/public/res/data/' . $jsonFile;
+    : __DIR__ . '/../../public/res/data/' . $jsonFile;
 
 $raw = is_readable($jsonPath) ? file_get_contents($jsonPath) : '';
 $decoded = $raw !== '' ? json_decode($raw, true) : null;
@@ -56,33 +67,32 @@ if ($iconHtml === '') {
     $iconHtml = '<span class="paneIconFallback">Icon</span>';
 }
 
-$dataFiles = [];
-if (!empty($paneData) && is_array($paneData)) {
-    foreach ($paneData as $file) {
-        if (is_string($file) && $file !== '') {
-            $dataFiles[] = $file;
-        }
-    }
-}
-$dataHint = $dataFiles ? 'saves to ' . implode(', ', $dataFiles) : '';
-
-$itemsJson = json_encode(['items' => $items], JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
+require_once __DIR__ . '/helpers.php';
+$itemsJson = json_encode(['items' => media_gallery_build_payload($items)], JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
 if ($itemsJson === false) {
     $itemsJson = '{"items":[]}';
 }
+
+// Resolve per-pane settings. The dialog editor moved to the shared
+// per-pane Settings modal in admin/config.php; this side still resolves
+// effective values to gate the per-item modal buttons below.
+$dataDirForSettings = function_exists('lawnding_data_path') ? lawnding_data_path('') : (dirname(__DIR__, 3) . '/public/res/data');
+$dataDirForSettings = rtrim($dataDirForSettings, '/\\');
+$paneSettingsPath = media_gallery_settings_path($dataDirForSettings, $paneId);
+$paneSettings = lawnding_load_pane_settings($paneSettingsPath);
+$canCustomThumbs = lawnding_resolve_pane_setting($paneSettings, 'mediaGallery', 'customThumbs');
+$canChangeMedia  = lawnding_resolve_pane_setting($paneSettings, 'mediaGallery', 'changeMedia');
 ?>
 <div class="pane glassConvex mediaGalleryPane" id="<?php echo htmlspecialchars($paneId); ?>" data-pane-type="mediaGallery" data-pane-id="<?php echo htmlspecialchars($paneId); ?>">
     <div class="paneHeader">
-        <button class="paneIconButton" type="button" data-pane-id="<?php echo htmlspecialchars($paneId); ?>" aria-label="Edit pane icon">
+        <span class="paneIconDisplay" aria-hidden="true">
             <span class="paneIconPreview"><?php echo $iconHtml; ?></span>
-        </button>
+        </span>
         <div class="paneHeaderTitle">
             <span class="paneTitle"><?php echo htmlspecialchars($paneName); ?></span>
-            <?php if ($dataHint !== ''): ?>
-                <span class="paneDataHint"><?php echo htmlspecialchars('(' . $dataHint . ')'); ?></span>
-            <?php endif; ?>
-            <span class="paneDataHint"><?php echo htmlspecialchars('Folder: mediaGalleryContent-' . $paneId); ?></span>
+            <span class="paneDataHint"><?php echo htmlspecialchars('Max upload size: ' . lawnding_app_upload_max_label()); ?></span>
         </div>
+        <button class="paneSettingsButton iconButton" type="button" data-pane-id="<?php echo htmlspecialchars($paneId); ?>" aria-label="Pane settings" title="Pane settings"><?php echo lawnding_icon_svg('settings'); ?></button>
     </div>
 
     <div class="mediaGalleryScroll">
@@ -102,10 +112,10 @@ if ($itemsJson === false) {
                     $itemTitle = isset($item['title']) ? (string) $item['title'] : '';
                     $itemOrder = isset($item['order']) ? (int) $item['order'] : 0;
                     $thumbPath = $itemThumb !== '' ? $itemThumb : $itemFile;
-                    $thumbUrl = function_exists('lawnding_instance_asset_url') ? lawnding_instance_asset_url($thumbPath) : $thumbPath;
+                    $thumbUrl = function_exists('lawnding_asset_url') ? lawnding_asset_url($thumbPath) : $thumbPath;
                 ?>
                 <div class="mediaGalleryItem<?php echo $itemType === 'video' ? ' isVideo' : ''; ?>" data-item-id="<?php echo htmlspecialchars($itemId); ?>" data-item-type="<?php echo htmlspecialchars($itemType); ?>" data-item-order="<?php echo (int) $itemOrder; ?>" data-item-file="<?php echo htmlspecialchars($itemFile); ?>" data-item-thumb="<?php echo htmlspecialchars($itemThumb); ?>" data-item-title="<?php echo htmlspecialchars($itemTitle); ?>">
-                    <button class="mediaGalleryThumbButton" type="button" aria-label="Edit media"<?php echo $thumbUrl !== '' ? ' style="background-image: url(' . htmlspecialchars($thumbUrl) . ');"' : ''; ?>></button>
+                    <button class="mediaGalleryThumbButton" type="button" aria-label="Edit media"><?php if ($thumbUrl !== ''): ?><img class="mediaGalleryThumb" src="<?php echo htmlspecialchars($thumbUrl); ?>" alt="<?php echo htmlspecialchars($itemTitle); ?>"><?php endif; ?></button>
                     <div class="mediaGalleryItemActions">
                         <button class="mediaGalleryMoveUp iconButton" type="button" title="Move up" aria-label="Move up"><?php echo lawnding_icon_svg('move_up'); ?></button>
                         <button class="mediaGalleryMoveDown iconButton" type="button" title="Move down" aria-label="Move down"><?php echo lawnding_icon_svg('move_down'); ?></button>
@@ -117,13 +127,12 @@ if ($itemsJson === false) {
 
     <div class="mediaGalleryControls">
         <div class="mediaGalleryControlsRow">
-            <div class="mediaGalleryFootnote">Uploads are saved immediately. Max upload size: 2MB.</div>
             <div class="mediaGalleryControlsActions">
                 <button class="mediaGalleryAddButton" type="button">
                     <svg class="mediaGalleryAddIcon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 15V18H15V20H18V23H20V20H23V18H20V15H18M13.3 21H5C3.9 21 3 20.1 3 19V5C3 3.9 3.9 3 5 3H19C20.1 3 21 3.9 21 5V13.3C20.4 13.1 19.7 13 19 13C17.9 13 16.8 13.3 15.9 13.9L14.5 12L11 16.5L8.5 13.5L5 18H13.1C13 18.3 13 18.7 13 19C13 19.7 13.1 20.4 13.3 21Z" /></svg>
                     Add new media
                 </button>
-                <input class="mediaGalleryUploadInput" type="file" accept="image/*,video/*" hidden>
+                <input class="mediaGalleryUploadInput" type="file" accept="image/*" multiple hidden>
             </div>
         </div>
     </div>
@@ -131,31 +140,62 @@ if ($itemsJson === false) {
     <textarea class="mediaGalleryChanges" name="pane[<?php echo htmlspecialchars($paneId); ?>][mediaChanges]" aria-label="<?php echo htmlspecialchars($paneName); ?> media changes" hidden></textarea>
     <script type="application/json" class="mediaGalleryData"><?php echo $itemsJson; ?></script>
 
-    <div class="userModalOverlay mediaGalleryModal" id="mediaGalleryModal-<?php echo htmlspecialchars($paneId); ?>" aria-hidden="true">
-        <div class="userModal glassConcave">
-            <h4>Media Details</h4>
+    <?php
+    if (function_exists('lawnding_modal_open') && function_exists('lawnding_modal_close')) {
+        lawnding_modal_open(
+            'mediaGalleryModal-' . $paneId,
+            'Media Details',
+            ['extra_class' => 'mediaGalleryModal']
+        );
+    ?>
             <div class="mediaGalleryModalBody">
                 <div class="mediaGalleryModalPreview">
-                    <div class="mediaGalleryModalImage" role="img" aria-label="Media preview"></div>
+                    <div class="mediaGalleryModalImage" role="img" aria-label="Media preview, click to set focal point" tabindex="0">
+                        <div class="mediaGalleryFocalMarker" aria-hidden="true" hidden></div>
+                    </div>
                     <video class="mediaGalleryModalVideo" controls playsinline></video>
+                    <div class="mediaGalleryConfirmDelete" role="alertdialog" aria-hidden="true" aria-labelledby="mediaGalleryConfirmDeletePrompt-<?php echo htmlspecialchars($paneId); ?>">
+                        <p id="mediaGalleryConfirmDeletePrompt-<?php echo htmlspecialchars($paneId); ?>" class="mediaGalleryConfirmDeletePrompt">Are you sure?</p>
+                        <div class="mediaGalleryActionRow mediaGalleryConfirmDeleteActions">
+                            <button class="mediaGalleryConfirmDeleteYes usersButton usersDanger" type="button">Yes, delete</button>
+                            <button class="mediaGalleryConfirmDeleteNo usersButton" type="button">No</button>
+                        </div>
+                    </div>
                 </div>
                 <div class="mediaGalleryModalActions">
-                    <label class="mediaGalleryField">
-                        <span class="mediaGalleryFieldLabel">Caption / Alt text</span>
-                        <input type="text" class="mediaGalleryCaptionInput" placeholder="Optional caption">
-                    </label>
-                    <div class="mediaGalleryButtonStack">
-                        <button class="mediaGalleryChangeButton usersButton" type="button">Change media</button>
-                        <input class="mediaGalleryChangeInput" type="file" accept="image/*,video/*" hidden>
-                        <button class="mediaGalleryThumbButtonAction usersButton" type="button">Set thumbnail</button>
-                        <input class="mediaGalleryThumbInput" type="file" accept="image/*" hidden>
-                        <button class="mediaGalleryThumbClear usersButton" type="button">Use default thumbnail</button>
-                        <button class="mediaGalleryRemoveButton usersButton usersDanger" type="button">Remove from gallery</button>
+                    <div class="mediaGalleryInfo">
+                        <h5 class="mediaGalleryInfoHeader">Info</h5>
+                        <dl class="mediaGalleryInfoList">
+                            <dt>Original size</dt><dd class="mediaGalleryInfoOriginalSize">—</dd>
+                            <dt>Saved size</dt><dd class="mediaGalleryInfoSavedSize">—</dd>
+                            <dt>Thumbnail coords</dt><dd class="mediaGalleryInfoFocalCoords">0%, 0%</dd>
+                            <dt>Uploaded at</dt><dd class="mediaGalleryInfoUploadedAt">—</dd>
+                            <dt>Uploaded by</dt><dd class="mediaGalleryInfoUploadedBy">—</dd>
+                            <dt>Hovertext</dt><dd class="mediaGalleryInfoHovertext"><input type="text" class="mediaGalleryCaptionInput" placeholder="Optional"></dd>
+                        </dl>
                     </div>
-                    <div class="mediaGalleryFootnote">Uploads are saved immediately. Max upload size: 2MB.</div>
+                    <?php // Always rendered; admin.js toggles `hidden` on
+                          // lp:per-pane-settings-saved so saves take effect
+                          // without a page reload. ?>
+                    <div class="mediaGalleryButtonStack" <?php echo (!$canChangeMedia && !$canCustomThumbs) ? 'hidden' : ''; ?>>
+                        <button class="mediaGalleryChangeButton usersButton" type="button" <?php echo $canChangeMedia ? '' : 'hidden'; ?>>Change media</button>
+                        <input class="mediaGalleryChangeInput" type="file" accept="image/*" hidden>
+                        <button class="mediaGalleryThumbButtonAction usersButton" type="button" <?php echo $canCustomThumbs ? '' : 'hidden'; ?>>Set thumbnail</button>
+                        <input class="mediaGalleryThumbInput" type="file" accept="image/*" hidden>
+                    </div>
+                    <p class="mediaGalleryModalHint">Tip!<br>Click the image to adjust the center of the thumbnail.</p>
+                    <div class="mediaGalleryActionRow mediaGalleryModalFooterActions">
+                        <button class="mediaGalleryModalCancel usersButton" type="button">Cancel</button>
+                    </div>
+                    <div class="mediaGalleryActionRow">
+                        <button class="mediaGalleryFocalSave usersButton" type="button" disabled>Save</button>
+                        <button class="mediaGalleryRemoveButton usersButton usersDanger" type="button">Delete</button>
+                    </div>
                 </div>
             </div>
-            <button class="userModalClose" type="button" aria-label="Close">×</button>
-        </div>
-    </div>
+    <?php
+        lawnding_modal_close();
+    }
+    ?>
+
 </div>

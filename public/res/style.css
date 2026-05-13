@@ -565,8 +565,14 @@ nav {
 
 /* Footer */
 .footer {
-    font-size: 14pt;
+    font-size: 9pt;
     color: #FFFFFFAA;
+    width: 100%;
+    text-align: center;
+}
+.footerSep {
+    padding: 0 0.6em;
+    opacity: 0.5;
 }
 .footer a {
     display: inline;
@@ -581,6 +587,117 @@ nav {
 }
 .footer .authorPlain {
     color: inherit;
+}
+.footer a.footerGhLink {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25em;
+}
+.footerGhIcon {
+    width: 1em;
+    height: 1em;
+    fill: currentColor;
+    flex-shrink: 0;
+}
+
+
+/* Shared modal-shell defaults — duplicated from config.css so any public
+   modal (login, eventList, changelog, future) gets the same flex layout,
+   padding, and handle-margin baseline as admin modals. Keep in sync. */
+.userModal {
+    width: min(520px, 92vw);
+    padding: 1rem;
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    position: relative;
+    --lp-modal-corner: 8px;
+    --lp-modal-handle-margin: -1rem -1rem 0;
+}
+
+.userModalActions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+/* Changelog modal */
+.changelogModal {
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+}
+.changelogModal[hidden] {
+    display: none;
+}
+.changelogModalBackdrop {
+    position: absolute;
+    inset: 0;
+    background: #00000077;
+    backdrop-filter: blur(4px);
+}
+/* Changelog inherits the shared .userModal shell (title slot, .lpModalCloseX,
+   gap between children). Overrides only the dimensions that genuinely differ
+   from the .userModal default, plus zeros padding so the inner sections own
+   their own spacing. --lp-modal-handle-margin: 0 keeps the title-bar slot
+   inside the dialog (no negative margin to negate, since padding is 0). */
+.changelogModalInner {
+    width: 100%;
+    max-width: 720px;
+    max-height: 80dvh;
+    padding: 0;
+    border-radius: 12px;
+    --lp-modal-corner: 12px;
+    --lp-modal-handle-margin: 0;
+    backdrop-filter: blur(12px);
+    background-color: #00000088;
+    box-shadow: 0 0 0 1px #FFFFFF22 inset, 0 0 0 1px #00000055, 0 8px 32px #00000088;
+}
+.changelogModalBody {
+    overflow-y: auto;
+    padding: 1.25rem 1.5rem;
+    flex: 1;
+    min-height: 0;
+    line-height: 1.6;
+}
+.changelogContent h1,
+.changelogContent h2,
+.changelogContent h3,
+.changelogContent h4 {
+    margin: 1.2rem 0 0.4rem;
+    line-height: 1.3;
+}
+.changelogContent h4 {
+    font-size: 1rem;
+}
+.changelogContent p {
+    margin: 0.4rem 0;
+}
+.changelogContent ul {
+    list-style: disc;
+    padding-left: 1.5rem;
+    margin: 0.4rem 0;
+}
+.changelogContent li {
+    margin: 0.2rem 0;
+}
+.changelogContent hr {
+    border: none;
+    border-top: 1px solid #FFFFFF33;
+    margin: 1.5rem 0;
+}
+.changelogContent code {
+    font-family: monospace;
+    background: #FFFFFF22;
+    padding: 0.1em 0.3em;
+    border-radius: 3px;
+    font-size: 0.9em;
 }
 
 
@@ -618,4 +735,527 @@ nav {
             width: 100%;
             margin: 0 auto;
         }
+}
+
+/* Top-of-page notice banners (mirrors admin notice styles in config.css). */
+.adminNotices {
+    position: fixed;
+    top: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(65vw, 720px);
+    z-index: 3000;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.adminNotice {
+    padding: 0.65rem 2.5rem;
+    border-radius: 8px;
+    border: 1px solid #FFFFFF22;
+    background: #FFFFFF11;
+    backdrop-filter: blur(8px);
+    box-shadow: 0 0 0 1px #FFFFFF22 inset, 0 1px 8px 2px #00000055;
+    font-size: 1.05rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    position: relative;
+    overflow: hidden;
+    color: #FFFFFF;
+}
+
+.adminNoticeText {
+    flex: 1;
+    text-align: center;
+}
+
+.adminNoticeClose {
+    position: absolute;
+    right: 0.6rem;
+    top: 50%;
+    transform: translateY(-50%);
+    border: 1px solid #FFFFFF44;
+    border-radius: 999px;
+    padding: 2px 8px;
+    background: #FFFFFF22;
+    color: inherit;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.adminNoticeClose:hover {
+    border-color: #FFFFFFAA;
+    background: #FFFFFF33;
+}
+
+.adminNotice--ok {
+    border-color: #5BB9FF88;
+    background: #1C355A88;
+    --notice-accent: #5BB9FF88;
+}
+
+.adminNotice--warning {
+    border-color: #FFD97788;
+    background: #4A3B1488;
+    --notice-accent: #FFD97788;
+}
+
+.adminNotice--danger {
+    border-color: #FF6B6B88;
+    background: #4A141488;
+    --notice-accent: #FF6B6B88;
+}
+
+.adminNoticeProgress {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    height: 3px;
+    width: 100%;
+    background: var(--notice-accent, #FFFFFF55);
+    opacity: 0.9;
+}
+
+/* Skip-to-content link for keyboard users. Visually hidden until focused;
+   then it pops to the top of the viewport. Positioning only — visual polish
+   (background, border, contrast) belongs in a future theme pass. */
+.skipLink {
+    position: absolute;
+    left: -9999px;
+    top: 0;
+    padding: 8px 12px;
+    z-index: 10000;
+}
+.skipLink:focus {
+    left: 0;
+}
+
+/* The Telegram plugin's stylesheet sets the same rule, but duplicating it
+   here means the absolute-positioned Sign in button below works even if the
+   TG plugin is ever disabled. position: relative is idempotent. */
+.header {
+    position: relative;
+}
+
+/* === Header logout form for bcrypt-only chip === */
+.lpHeaderLogoutForm {
+    display: inline-flex;
+    margin: 0;
+    padding: 0;
+}
+
+/* === Login button + modal — "honeyed glass" aesthetic ===
+   Warm honeyed amber accent (#E8B86F) is the single saturated color in this
+   composition, used on the header button, submit pill, focus rings, and
+   title underline. Telegram blue stays as the SSO brand color but is
+   refined down (deeper border-blend, tighter spacing). All transitions are
+   short (120-200ms); only the page-load entrance and modal open animations
+   are noticeable, and both honor prefers-reduced-motion. */
+
+@keyframes lpHeaderLoginEntrance {
+    from { opacity: 0; transform: translateY(-4px) scale(0.96); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+/* Header sign-in button: amber pill on dark glass header. The shadow stack
+   layers (in order) a hairline border, a warm spread glow, a neutral drop,
+   and an inset highlight — gives the pill physical presence without being
+   loud. Entrance animation runs once on first paint, ~350ms after page
+   load, drawing brief eye attention to the corner. */
+.lpHeaderLoginButton {
+    position: absolute;
+    top: 12px;
+    right: 16px;
+    z-index: 10;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 2.25rem;
+    padding: 0 1.15rem;
+    border-radius: 999px;
+    background-color: #E8B86F;
+    color: #1A1410;
+    border: 1px solid rgba(255, 230, 180, 0.35);
+    box-shadow:
+        0 0 0 1px rgba(0, 0, 0, 0.4),
+        0 6px 18px -6px rgba(232, 184, 111, 0.55),
+        0 2px 6px rgba(0, 0, 0, 0.35),
+        inset 0 1px 0 rgba(255, 255, 255, 0.35);
+    font-weight: 600;
+    font-size: 0.95rem;
+    line-height: 1;
+    letter-spacing: -0.005em;
+    cursor: pointer;
+    transition:
+        background-color 160ms ease,
+        box-shadow 200ms ease,
+        transform 160ms ease;
+    animation: lpHeaderLoginEntrance 520ms cubic-bezier(0.2, 0.7, 0.3, 1) 0.35s both;
+}
+.lpHeaderLoginButton:hover {
+    background-color: #F0C682;
+    box-shadow:
+        0 0 0 1px rgba(0, 0, 0, 0.4),
+        0 8px 22px -6px rgba(232, 184, 111, 0.7),
+        0 3px 8px rgba(0, 0, 0, 0.4),
+        inset 0 1px 0 rgba(255, 255, 255, 0.45);
+    transform: translateY(-1px);
+}
+.lpHeaderLoginButton:focus-visible {
+    outline: 2px solid rgba(232, 184, 111, 0.9);
+    outline-offset: 3px;
+}
+.lpHeaderLoginButton:active {
+    transform: translateY(0);
+    box-shadow:
+        0 0 0 1px rgba(0, 0, 0, 0.4),
+        0 4px 12px -6px rgba(232, 184, 111, 0.45),
+        0 1px 3px rgba(0, 0, 0, 0.4),
+        inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+/* === Login modal === */
+.lpLoginModal {
+    position: fixed;
+    inset: 0;
+    z-index: 250;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+}
+.lpLoginModal[hidden] {
+    display: none;
+}
+.lpLoginModal__backdrop {
+    position: absolute;
+    inset: 0;
+    background: #00000088;
+    backdrop-filter: blur(6px);
+}
+
+/* Login surface (public modal + admin login page) overrides .userModal's
+   defaults: narrower width keeps the sign-in form readable; more generous
+   padding gives the inputs room to breathe; 16px corner radius matches the
+   dialog's softer sign-in feel. --lp-modal-corner is bumped so the close-×
+   corner follows the larger curve. */
+#lpLoginModal .userModal,
+.userModal.adminLoginPanel {
+    width: min(380px, 92vw);
+    padding: 1.75rem 1.5rem 1.5rem;
+    gap: 0.875rem;
+    border-radius: 16px;
+    --lp-modal-corner: 16px;
+}
+
+
+.lpLoginModal__form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+}
+.lpLoginModal__field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.32rem;
+}
+/* Field labels: small caps + wide tracking suggests "form schema" rather
+   than "casual placeholder text." Reads as deliberate typesetting. */
+.lpLoginModal__fieldLabel {
+    font-size: 0.74rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: rgba(255, 255, 255, 0.7);
+    font-weight: 600;
+}
+.lpLoginModal__input {
+    width: 100%;
+    padding: 0.7rem 0.9rem;
+    border-radius: 8px;
+    background-color: rgba(255, 255, 255, 0.06);
+    color: #FFFFFF;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    font-size: 0.95rem;
+    transition:
+        border-color 160ms ease,
+        background-color 160ms ease,
+        box-shadow 160ms ease;
+}
+.lpLoginModal__input:hover {
+    border-color: rgba(255, 255, 255, 0.28);
+}
+/* Focus state echoes the amber accent — same color as the button + title
+   underline so the form feels keyed to one warm hue. The 3px halo at low
+   opacity is a refined alternative to the browser default outline. */
+.lpLoginModal__input:focus-visible {
+    outline: none;
+    background-color: rgba(255, 255, 255, 0.10);
+    border-color: rgba(232, 184, 111, 0.7);
+    box-shadow: 0 0 0 3px rgba(232, 184, 111, 0.18);
+}
+.lpLoginModal__remember {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+    color: rgba(255, 255, 255, 0.85);
+    cursor: pointer;
+    user-select: none;
+    margin-top: 0.1rem;
+}
+.lpLoginModal__remember input {
+    width: 1rem;
+    height: 1rem;
+    accent-color: #E8B86F;
+    cursor: pointer;
+}
+.lpLoginModal__error {
+    display: block;
+    color: #FFC4B0;
+    background-color: rgba(120, 30, 20, 0.32);
+    border: 1px solid rgba(255, 130, 110, 0.35);
+    border-radius: 8px;
+    padding: 0.6rem 0.8rem;
+    font-size: 0.875rem;
+    line-height: 1.4;
+}
+.lpLoginModal__error[hidden] {
+    display: none;
+}
+/* Submit button: matches the header sign-in button's amber pill exactly.
+   Same color, same shadow stack, same hover lift. The repetition between
+   "what you clicked to open the modal" and "what you click to submit" ties
+   the experience together — single warm action color throughout. */
+.lpLoginModal__submit {
+    width: 100%;
+    padding: 0.78rem 1rem;
+    border-radius: 999px;
+    background-color: #E8B86F;
+    color: #1A1410;
+    font-weight: 600;
+    font-size: 0.95rem;
+    letter-spacing: -0.005em;
+    border: 1px solid rgba(255, 230, 180, 0.35);
+    box-shadow:
+        0 0 0 1px rgba(0, 0, 0, 0.4),
+        0 6px 16px -6px rgba(232, 184, 111, 0.5),
+        0 2px 5px rgba(0, 0, 0, 0.35),
+        inset 0 1px 0 rgba(255, 255, 255, 0.32);
+    cursor: pointer;
+    transition:
+        background-color 160ms ease,
+        box-shadow 200ms ease,
+        transform 160ms ease;
+    margin-top: 0.4rem;
+}
+.lpLoginModal__submit:hover:not(:disabled) {
+    background-color: #F0C682;
+    box-shadow:
+        0 0 0 1px rgba(0, 0, 0, 0.4),
+        0 8px 20px -6px rgba(232, 184, 111, 0.65),
+        0 3px 7px rgba(0, 0, 0, 0.4),
+        inset 0 1px 0 rgba(255, 255, 255, 0.42);
+    transform: translateY(-1px);
+}
+.lpLoginModal__submit:focus-visible:not(:disabled) {
+    outline: 2px solid rgba(232, 184, 111, 0.9);
+    outline-offset: 3px;
+}
+.lpLoginModal__submit:active:not(:disabled) {
+    transform: translateY(0);
+}
+.lpLoginModal__submit:disabled {
+    background-color: rgba(255, 255, 255, 0.18);
+    color: rgba(255, 255, 255, 0.5);
+    border-color: rgba(255, 255, 255, 0.18);
+    box-shadow: none;
+    cursor: not-allowed;
+}
+/* Divider: gradient hairlines that fade to nothing at the edges, with
+   wider letter-tracking on "or" — feels typeset rather than utilitarian. */
+.lpLoginModal__divider {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    margin: 0.45rem 0 0.15rem;
+    color: rgba(255, 255, 255, 0.45);
+    font-size: 0.74rem;
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    font-weight: 500;
+}
+.lpLoginModal__divider::before,
+.lpLoginModal__divider::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(
+        90deg,
+        rgba(255, 255, 255, 0) 0%,
+        rgba(255, 255, 255, 0.22) 50%,
+        rgba(255, 255, 255, 0) 100%
+    );
+}
+/* Telegram button: keeps brand blue as the SSO marker (industry convention
+   — the color tells the user which provider it is at a glance) but the
+   border + shadow treatment matches the submit button's shape so the two
+   buttons read as siblings, not strangers. Pill radius, same lift on
+   hover, equivalent shadow weight. Slightly darker blue than vanilla
+   #229ED9 for a less-saturated, more-considered feel. */
+.lpLoginModal__telegram {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.6rem;
+    width: 100%;
+    padding: 0.72rem 1rem;
+    border-radius: 999px;
+    background-color: #2B9ED9;
+    color: #FFFFFF;
+    font-weight: 600;
+    font-size: 0.95rem;
+    letter-spacing: -0.005em;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow:
+        0 0 0 1px rgba(0, 0, 0, 0.4),
+        0 4px 14px -6px rgba(43, 158, 217, 0.45),
+        0 2px 5px rgba(0, 0, 0, 0.35),
+        inset 0 1px 0 rgba(255, 255, 255, 0.18);
+    cursor: pointer;
+    transition: background-color 160ms ease, box-shadow 200ms ease, transform 160ms ease;
+}
+.lpLoginModal__telegram svg {
+    flex-shrink: 0;
+    width: 18px;
+    height: 18px;
+}
+.lpLoginModal__telegram:hover:not(:disabled) {
+    background-color: #1F8FCC;
+    box-shadow:
+        0 0 0 1px rgba(0, 0, 0, 0.4),
+        0 6px 18px -6px rgba(43, 158, 217, 0.6),
+        0 3px 7px rgba(0, 0, 0, 0.4),
+        inset 0 1px 0 rgba(255, 255, 255, 0.22);
+    transform: translateY(-1px);
+}
+.lpLoginModal__telegram:focus-visible:not(:disabled) {
+    outline: 2px solid rgba(43, 158, 217, 0.9);
+    outline-offset: 3px;
+}
+.lpLoginModal__telegram:active:not(:disabled) {
+    transform: translateY(0);
+}
+.lpLoginModal__telegram:disabled {
+    background-color: rgba(255, 255, 255, 0.10);
+    color: rgba(255, 255, 255, 0.45);
+    border-color: rgba(255, 255, 255, 0.10);
+    box-shadow: none;
+    cursor: not-allowed;
+    font-style: italic;
+}
+
+/* Drag handle styling — cursor + title-bar tint. The factory adds
+   .lpModalHandle at runtime when drag actually binds, so opt-out modals
+   (lpModalNoDrag) never get any of this. Duplicated from config.css
+   so a future draggable public modal Just Works.
+   See admin/modules/README.md "UI convention": tinted title bar = draggable.
+   Never style a non-draggable modal with this treatment. */
+/* Universal title slot — uniform 40px band on every modal title.
+   Typography pinned so the heading level (h2 vs h4) can't shift it. */
+.userModal > h1,
+.userModal > h2,
+.userModal > h3,
+.userModal > h4,
+.userModal > h5,
+.userModal > h6 {
+    box-sizing: border-box;
+    height: 40px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    margin: var(--lp-modal-handle-margin, -1rem -1rem 0);
+    padding: 0 60px 0 1rem;
+    font-size: 1rem;
+    font-weight: 700;
+    border-top-left-radius: var(--lp-modal-corner, 8px);
+    border-top-right-radius: var(--lp-modal-corner, 8px);
+}
+
+.userModalHandle,
+.lpModalHandle {
+    cursor: grab;
+    user-select: none;
+    touch-action: none;
+}
+
+.isDragging .userModalHandle,
+.isDragging .lpModalHandle {
+    cursor: grabbing;
+}
+
+.isDragging {
+    user-select: none;
+}
+
+.lpModalHandle {
+    background: rgba(255, 255, 255, 0.06);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* Project convention (admin/modules/README.md "UI convention"):
+   every modal in the project carries this corner-flush × dismiss
+   in its top-right, draggable or not. Each dialog sets
+   --lp-modal-corner to its own border-radius so the button's
+   top-right curve follows the modal's outer shape.
+   Duplicated in config.css for the admin surface — keep in sync. */
+.lpModalCloseX {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 50px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.4rem;
+    font-weight: 700;
+    line-height: 1;
+    padding: 0;
+    border: none;
+    background: #661A1A;
+    color: #FFCCCC;
+    border-top-right-radius: var(--lp-modal-corner, 8px);
+    cursor: pointer;
+    opacity: 1;
+    transition: background-color 100ms ease, color 100ms ease;
+    z-index: 10;
+}
+.lpModalCloseX:hover {
+    background: #7A2222;
+    color: #FFFFFF;
+}
+.lpModalCloseX:focus-visible {
+    outline: 2px solid #FF9A9A;
+    outline-offset: -2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .lpHeaderLoginButton,
+    .lpHeaderLoginButton:hover,
+    .lpHeaderLoginButton:active,
+    .lpLoginModal__input,
+    .lpLoginModal__submit,
+    .lpLoginModal__submit:hover,
+    .lpLoginModal__submit:active,
+    .lpLoginModal__telegram,
+    .lpLoginModal__telegram:hover,
+    .lpLoginModal__telegram:active {
+        transition: none;
+        transform: none;
+    }
+    .lpHeaderLoginButton {
+        animation: none;
+    }
 }

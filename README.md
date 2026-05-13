@@ -7,6 +7,9 @@ It's created with HTML wrapped in PHP, as well as CSS and JS.
 
 Note: Inline JavaScript and inline `<style>` blocks are avoided for CSP compatibility. Runtime data is embedded in HTML data attributes and read by external JS files in `public/res/scr/`.
 
+#### IMPORTANT!  THIS CMS IS CURRENTLY BEST USED ON APACHE
+This project uses `.htaccess` rewrite and access-control files in several directories. LawndingPage is currently built primarily for Apache-backed hosting. Other web servers can work, but they need equivalent routing and access-control rules.
+
 ## IMPORTANT! If you are going to develop for this CMS:
 As of now, this project has expandability to some extent through use of what I call "modules" which are what lets you have custom panes ("pages") for a site.  So for the demo on the site, there is the Links list which is a special pane, and then Welcome and Events, which are panes that use the basicText and eventList modules to run logic and display content.  The second way to expand the site will be via plugins, which are more intended to modify the site's behavior *directly*.  Modules will most likely work as-is, and I will strive to keep it that way, so no matter the theme, if you add a module, you're good to go.
 
@@ -23,6 +26,8 @@ To set up LawndingPage, understand the structure of the files.
         - _template/
         - basicText/
         - eventList/
+        - externalLink/
+        - mediaGallery/
         - README.md
     - auth.php
     - config.php
@@ -64,6 +69,7 @@ To set up LawndingPage, understand the structure of the files.
                 - header.json
                 - links.json
                 - authorizedLinks.json
+                - eventList.json
                 - panes.json
                 - welcome.md
                 - favicon-cache.json
@@ -76,7 +82,7 @@ To set up LawndingPage, understand the structure of the files.
         - lp-tgBot.json
         - lp-tgMembershipCache.json
     - logs/
-        - errors.txt
+        - errors.jsonl
     - state/
         - .lawndingpage-initialized
 - resources/
@@ -116,7 +122,8 @@ The admin panel will appear similar to the site, with a few extra buttons in the
 From there, you can add links, edit the title and subtitle of the page, the logo, add other users, remove them, add and remove background images, and modify the text contents of each page.  Once you're done editing the pages, click the "Save All Changes" button.  Once you see the confirmation message at the top of the screen, go back to your web page and the changes should be instant.
 
 TODO: Add a proper write-up for the admin health check warnings and what they mean.
-TODO: Add guidance on checking `admin/errors.txt` for troubleshooting.
+
+For troubleshooting, the admin panel includes a **Diagnostics** section that any admin with edit permission can open from the navbar. It shows recent runtime errors with severity color coding and click-to-expand details. Errors are captured automatically from both the public site and the admin flow.
 
 ## Deployment Modes
 
@@ -138,7 +145,7 @@ data/
         lp-tgBot.json
         lp-tgMembershipCache.json
     logs/
-        errors.txt
+        errors.jsonl
     state/
         .lawndingpage-initialized
 ```
@@ -168,6 +175,8 @@ The initializer creates:
 - `data/public/res/data/header.json`
 - `data/public/res/data/links.json`
 - `data/public/res/data/authorizedLinks.json`
+- `data/public/res/data/eventList.json`
+- `data/public/res/data/favicon-cache.json`
 - `data/public/res/data/panes.json`
 - `data/public/res/data/welcome.md`
 - `data/public/res/img/logo.jpg`

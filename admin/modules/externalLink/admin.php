@@ -91,7 +91,7 @@ if ($paneId === '' || $jsonFile === '') {
 
 $jsonPath = function_exists('lawnding_data_path')
     ? lawnding_data_path($jsonFile)
-    : __DIR__ . '/../../data/public/res/data/' . $jsonFile;
+    : __DIR__ . '/../../public/res/data/' . $jsonFile;
 $settings = ['url' => '', 'openMode' => 'new', 'iconMode' => 'custom'];
 if (is_readable($jsonPath)) {
     $decoded = json_decode((string) file_get_contents($jsonPath), true);
@@ -109,17 +109,16 @@ if (isset($renderPaneIcon) && is_callable($renderPaneIcon)) {
 if ($iconHtml === '') {
     $iconHtml = '<span class="paneIconFallback">Icon</span>';
 }
-$dataHint = 'saves to ' . $jsonFile;
 ?>
 <div class="pane glassConvex externalLinkPane" id="<?php echo htmlspecialchars($paneId); ?>">
     <div class="paneHeader">
-        <button class="paneIconButton" type="button" data-pane-id="<?php echo htmlspecialchars($paneId); ?>" aria-label="Edit pane icon">
+        <span class="paneIconDisplay" aria-hidden="true">
             <span class="paneIconPreview"><?php echo $iconHtml; ?></span>
-        </button>
+        </span>
         <div class="paneHeaderTitle">
             <span class="paneTitle"><?php echo htmlspecialchars($paneName); ?></span>
-            <span class="paneDataHint"><?php echo htmlspecialchars('(' . $dataHint . ')'); ?></span>
         </div>
+        <button class="paneSettingsButton iconButton" type="button" data-pane-id="<?php echo htmlspecialchars($paneId); ?>" aria-label="Pane settings" title="Pane settings"><?php echo lawnding_icon_svg('settings'); ?></button>
     </div>
     <div class="externalLinkPaneBody">
         <div class="externalLinkRow">

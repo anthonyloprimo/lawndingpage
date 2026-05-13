@@ -1,0 +1,672 @@
+<?php
+require_once __DIR__ . '/../../../lp-bootstrap.php';
+
+function media_gallery_json_response($payload, $code = 200): void {
+    http_response_code($code);
+    header('Content-Type: application/json');
+    echo json_encode($payload);
+    exit;
+}
+
+function media_gallery_require_method(string $method): void {
+    if (($_SERVER['REQUEST_METHOD'] ?? '') !== $method) {
+        media_gallery_json_response(['error' => 'Method not allowed'], 405);
+    }
+}
+
+// Wraps lawnding_require_admin_mutation so each endpoint file doesn't
+// repeat the auth + CSRF dance. Returns a flat snapshot of the resolved
+// identity; callers that need full context can reach for the resolver
+// directly.
+function media_gallery_require_edit_site(): array {
+    $adminAuthPath = function_exists('lawnding_admin_path')
+        ? lawnding_admin_path('auth.php')
+        : dirname(__DIR__, 3) . '/admin/auth.php';
+    require_once $adminAuthPath;
+
+    $identity = lawnding_require_admin_mutation(
+        null,
+        function ($msg, $code) { media_gallery_json_response(['error' => $msg], $code); }
+    );
+
+    return [
+        'authUser' => $identity['authUser'],
+        'authRecord' => $identity['authRecord'],
+        'permissions' => $identity['context']['currentPermissions'],
+        'isFullAdmin' => $identity['context']['isFullAdmin'],
+        'canEditSite' => $identity['context']['canEditSite'],
+    ];
+}
+
+/**
+ * Resolve the per-request paths the endpoint handlers need. Public/data
+ * dirs fall back to the directory layout when lawnding_config() is
+ * unavailable — but in normal request flow lp-bootstrap has already
+ * populated it.
+ *
+ * @return array{public_dir: string, data_dir: string, panes_path: string}
+ */
+function media_gallery_paths(): array {
+    $publicDir = function_exists('lawnding_config')
+        ? lawnding_config('public_dir', dirname(__DIR__, 2))
+        : dirname(__DIR__, 2);
+    $dataDir = function_exists('lawnding_config')
+        ? lawnding_config('data_dir', $publicDir . '/res/data')
+        : $publicDir . '/res/data';
+    $panesPath = $dataDir . '/panes.json';
+
+    return [
+        'public_dir' => $publicDir,
+        'data_dir' => $dataDir,
+        'panes_path' => $panesPath,
+    ];
+}
+
+function media_gallery_is_valid_pane_id(string $paneId): bool {
+    return $paneId !== '' && preg_match('/^[a-zA-Z0-9]+$/', $paneId) === 1;
+}
+
+/**
+ * Read panes.json. Accepts both shapes for backward compat: the
+ * top-level array form (legacy) and the `{panes: [...]}` wrapper form.
+ * Returns [] when the file is missing or malformed so callers don't
+ * need to null-check.
+ *
+ * @return array<int|string, mixed>
+ */
+function media_gallery_load_panes(string $panesPath): array {
+    $decoded = lawnding_read_json($panesPath);
+    $panes = $decoded['panes'] ?? $decoded;
+    return is_array($panes) ? $panes : [];
+}
+
+/**
+ * Locate a mediaGallery pane by id. Returns null when the pane id
+ * isn't present in $panes or when the matching entry is for a
+ * different module (defensive against id collision after a module
+ * change in panes.json).
+ *
+ * @param array<int|string, mixed> $panes
+ * @return array<string, mixed>|null
+ */
+function media_gallery_find_pane(array $panes, string $paneId): ?array {
+    foreach ($panes as $pane) {
+        if (!is_array($pane)) {
+            continue;
+        }
+        if (($pane['id'] ?? '') === $paneId && ($pane['module'] ?? '') === 'mediaGallery') {
+            return $pane;
+        }
+    }
+    return null;
+}
+
+function media_gallery_pane_json_file(array $pane, string $paneId): string {
+    $data = $pane['data'] ?? [];
+    if (is_array($data) && !empty($data['json']) && is_string($data['json'])) {
+        return $data['json'];
+    }
+    // Fallback when pane.data.json isn't set: items.json lives inside
+    // the per-instance content directory so all data for one gallery
+    // (metadata + source files + thumbs) is colocated under one
+    // mediaGalleryContent-{paneId}/ folder. Pane renames just rename
+    // that folder; no separate JSON-rename step needed.
+    return 'mediaGalleryContent-' . $paneId . '/items.json';
+}
+
+/**
+ * Read a gallery's items.json. The `items` key is always present and
+ * always an array on return — the second pass repairs the shape after
+ * lawnding_read_json's defensive default in case the on-disk file has
+ * `items` set to a non-array value.
+ *
+ * @return array{items: array<int|string, mixed>}
+ */
+function media_gallery_load_data(string $path): array {
+    $decoded = lawnding_read_json($path, ['items' => []]);
+    if (!isset($decoded['items']) || !is_array($decoded['items'])) {
+        $decoded['items'] = [];
+    }
+    return $decoded;
+}
+
+function media_gallery_write_data(string $path, array $payload): void {
+    $encoded = json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+    if ($encoded === false || file_put_contents($path, $encoded, LOCK_EX) === false) {
+        media_gallery_json_response(['error' => 'Failed to write media gallery data'], 500);
+    }
+}
+
+// Load and validate the per-request pane state. Validates paneId, resolves
+// paths, finds the pane, builds the items.json path, loads it, and returns
+// the loaded state. On any validation failure, calls
+// media_gallery_json_response with a 4xx and exits — does not return.
+//
+// Endpoints invariably need {paths, jsonPath, data, items} together; the
+// 12-line preamble that produced these by hand was duplicated across all
+// 7 endpoints before this helper landed.
+function media_gallery_load_pane_state(string $paneId): array {
+    if (!media_gallery_is_valid_pane_id($paneId)) {
+        media_gallery_json_response(['error' => 'Invalid pane id.'], 400);
+    }
+    $paths = media_gallery_paths();
+    $panes = media_gallery_load_panes($paths['panes_path']);
+    $pane = media_gallery_find_pane($panes, $paneId);
+    if (!$pane) {
+        media_gallery_json_response(['error' => 'Pane not found.'], 404);
+    }
+    $jsonFile = media_gallery_pane_json_file($pane, $paneId);
+    $jsonPath = rtrim($paths['data_dir'], '/\\') . '/' . $jsonFile;
+    $data = media_gallery_load_data($jsonPath);
+    $items = $data['items'];
+    return [
+        'paths'     => $paths,
+        'json_path' => $jsonPath,
+        'data'      => $data,
+        'items'     => $items,
+    ];
+}
+
+// Resolve an item index by id, 4xx-ing on invalid/missing inputs. Mirrors
+// load_pane_state's "validate-or-exit" contract so call sites stay flat.
+function media_gallery_require_item(array $items, string $itemId): int {
+    if ($itemId === '') {
+        media_gallery_json_response(['error' => 'Invalid item id.'], 400);
+    }
+    $index = media_gallery_find_item_index($items, $itemId);
+    if ($index < 0) {
+        media_gallery_json_response(['error' => 'Media not found.'], 404);
+    }
+    return $index;
+}
+
+// Reindex orders, write the items.json, and emit the canonical JSON
+// response shape ({items: build_payload(items), ...extras}). Reindexing
+// is idempotent for already-sorted arrays, so callers don't need to
+// branch on whether their mutation affected order. Extras are merged on
+// the right of 'items' so callers can't accidentally clobber it.
+function media_gallery_save_and_respond(string $jsonPath, array $data, array $items, array $extras = []): void {
+    $items = media_gallery_reindex_orders($items);
+    $data['items'] = $items;
+    media_gallery_write_data($jsonPath, $data);
+    $response = ['items' => media_gallery_build_payload($items)] + $extras;
+    media_gallery_json_response($response);
+}
+
+function media_gallery_media_dir(string $dataDir, string $paneId): string {
+    return rtrim($dataDir, '/\\') . '/mediaGalleryContent-' . $paneId;
+}
+
+function media_gallery_thumbs_dir(string $dataDir, string $paneId): string {
+    return media_gallery_media_dir($dataDir, $paneId) . '/thumbs';
+}
+
+function media_gallery_settings_path(string $dataDir, string $paneId): string {
+    return media_gallery_media_dir($dataDir, $paneId) . '/settings.json';
+}
+
+function media_gallery_ensure_dir(string $dir): void {
+    if (!is_dir($dir)) {
+        mkdir($dir, 0775, true);
+    }
+}
+
+function media_gallery_generate_id(array $existing): int {
+    $max = 0;
+    foreach ($existing as $rec) {
+        if (!is_array($rec)) {
+            continue;
+        }
+        $id = (int) ($rec['id'] ?? 0);
+        if ($id > $max) {
+            $max = $id;
+        }
+    }
+    return $max + 1;
+}
+
+function media_gallery_find_item_index(array $items, string $itemId): int {
+    foreach ($items as $index => $item) {
+        if (is_array($item) && ($item['id'] ?? '') === $itemId) {
+            return (int) $index;
+        }
+    }
+    return -1;
+}
+
+function media_gallery_reindex_orders(array $items): array {
+    usort($items, function ($a, $b) {
+        $orderA = is_array($a) && isset($a['order']) ? (int) $a['order'] : 0;
+        $orderB = is_array($b) && isset($b['order']) ? (int) $b['order'] : 0;
+        return $orderA <=> $orderB;
+    });
+    $order = 1;
+    foreach ($items as &$item) {
+        if (!is_array($item)) {
+            $item = [];
+        }
+        $item['order'] = $order;
+        $order += 1;
+    }
+    unset($item);
+    return $items;
+}
+
+function media_gallery_safe_ext(string $name, string $mime = ''): string {
+    if ($mime !== '') {
+        static $mimeExt = [
+            'image/jpeg'      => 'jpg',
+            'image/png'       => 'png',
+            'image/gif'       => 'gif',
+            'image/webp'      => 'webp',
+            'video/mp4'       => 'mp4',
+            'video/webm'      => 'webm',
+            'video/quicktime' => 'mov',
+        ];
+        return $mimeExt[$mime] ?? 'bin';
+    }
+    $ext = strtolower(pathinfo($name, PATHINFO_EXTENSION));
+    $ext = preg_replace('/[^a-z0-9]+/', '', $ext);
+    return $ext !== '' ? $ext : 'bin';
+}
+
+function media_gallery_abs_from_asset(string $dataDir, string $path): ?string {
+    if ($path === '' || preg_match('#^https?://#i', $path)) {
+        return null;
+    }
+    $normalized = lawnding_normalize_asset_path($path);
+    if (!is_string($normalized)) {
+        return null;
+    }
+    $normalized = ltrim($normalized, '/');
+    if (!str_starts_with($normalized, 'res/data/')) {
+        return null;
+    }
+    $relative = substr($normalized, strlen('res/data/'));
+    return rtrim($dataDir, '/\\') . '/' . $relative;
+}
+
+/**
+ * Pure math: compute a cover-style crop window anchored on a focal
+ * point. Returns a 4-tuple `[cropX, cropY, cropW, cropH]` in source
+ * coords. Focal coords are normalized 0.0-1.0 and clamp to that range.
+ * The crop window is also clamped to the source bounds so a focal
+ * point near an edge doesn't slide the window off the image.
+ *
+ * Pairs with media_gallery_focal_crop_to_temp(); split for unit
+ * testability without GD.
+ *
+ * @return array{int, int, int, int}
+ */
+function media_gallery_focal_crop_window(int $srcW, int $srcH, int $targetW, int $targetH, float $focalX, float $focalY): array {
+    if ($srcW <= 0 || $srcH <= 0 || $targetW <= 0 || $targetH <= 0) {
+        return [0, 0, max(1, $srcW), max(1, $srcH)];
+    }
+    $ratio = max($targetW / $srcW, $targetH / $srcH);
+    $cropW = $targetW / $ratio;
+    $cropH = $targetH / $ratio;
+    $focalX = max(0.0, min(1.0, $focalX));
+    $focalY = max(0.0, min(1.0, $focalY));
+    $cropOffsetX = max(0.0, min((float) $srcW - $cropW, $srcW * $focalX - $cropW / 2));
+    $cropOffsetY = max(0.0, min((float) $srcH - $cropH, $srcH * $focalY - $cropH / 2));
+    return [
+        (int) round($cropOffsetX),
+        (int) round($cropOffsetY),
+        (int) round($cropW),
+        (int) round($cropH),
+    ];
+}
+
+// GD: crop $srcAbsPath to a focal-aware window and write a lossless PNG
+// to a tempfile. Returns the temp path on success, null on failure
+// (GD missing, decode failed, crop failed, write failed). Caller is
+// responsible for unlinking the temp file after use.
+//
+// The intermediate is PNG so the bytes pass through losslessly; the
+// final thumb format (webp/jpg) is selected by the caller's subsequent
+// lawnding_image_resize() call.
+function media_gallery_focal_crop_to_temp(string $srcAbsPath, int $targetW, int $targetH, float $focalX, float $focalY): ?string {
+    if (!extension_loaded('gd')) {
+        return null;
+    }
+    $info = @getimagesize($srcAbsPath);
+    if (!is_array($info) || $info[0] <= 0 || $info[1] <= 0) {
+        return null;
+    }
+    [$srcW, $srcH] = $info;
+    [$cropX, $cropY, $cropW, $cropH] = media_gallery_focal_crop_window($srcW, $srcH, $targetW, $targetH, $focalX, $focalY);
+
+    $bytes = @file_get_contents($srcAbsPath);
+    if ($bytes === false) {
+        return null;
+    }
+    $src = @imagecreatefromstring($bytes);
+    if (!$src) {
+        return null;
+    }
+
+    $cropped = @imagecrop($src, ['x' => $cropX, 'y' => $cropY, 'width' => $cropW, 'height' => $cropH]);
+    imagedestroy($src);
+    if (!$cropped) {
+        return null;
+    }
+
+    $tempPath = tempnam(sys_get_temp_dir(), 'lp-focal-crop-');
+    if ($tempPath === false) {
+        imagedestroy($cropped);
+        return null;
+    }
+    // tempnam created a file with no extension; rename to .png so the
+    // engine's format detector picks PNG output for the intermediate.
+    $tempPngPath = $tempPath . '.png';
+    @rename($tempPath, $tempPngPath);
+    $ok = imagepng($cropped, $tempPngPath);
+    imagedestroy($cropped);
+    if (!$ok) {
+        @unlink($tempPngPath);
+        return null;
+    }
+    return $tempPngPath;
+}
+
+// Derive a 1:1 400x400 thumbnail from a saved source image at
+// $srcAbsPath, writing it to the gallery's thumbs/ subdir as
+// media-{itemId}-thumb.{webp|jpg}. Returns the storage-form relative
+// path on success, '' on any failure (video item, GD missing, resize
+// returned false). Callers write the result to item.thumb; an empty
+// return value lets the renderer's existing fallback chain (item.file
+// when item.thumb is empty) take over.
+//
+// When focal coords are non-null, gallery does its own GD-side crop
+// to a focal-aware window first (via focal_crop_to_temp), then hands
+// the cropped intermediate to lawnding_image_resize for the final
+// resize/encode. Without focal coords, the engine's centered cover
+// mode is used directly. Engine stays feature-blind.
+function media_gallery_derive_thumb(string $srcAbsPath, string $dataDir, string $paneId, string $itemId, bool $isVideo, ?float $focalX = null, ?float $focalY = null): string {
+    if ($isVideo) {
+        return '';
+    }
+    if (!function_exists('lawnding_image_resize')) {
+        return '';
+    }
+    $thumbsDir = media_gallery_thumbs_dir($dataDir, $paneId);
+    media_gallery_ensure_dir($thumbsDir);
+    $thumbExt = function_exists('imagewebp') ? 'webp' : 'jpg';
+    $thumbFilename = 'media-' . $itemId . '-thumb.' . $thumbExt;
+    $thumbAbsPath = rtrim($thumbsDir, '/\\') . '/' . $thumbFilename;
+    $thumbRelative = lawnding_normalize_asset_path(
+        'res/data/mediaGalleryContent-' . $paneId . '/thumbs/' . $thumbFilename
+    );
+
+    if ($focalX !== null && $focalY !== null) {
+        $tempPath = media_gallery_focal_crop_to_temp($srcAbsPath, 400, 400, $focalX, $focalY);
+        if ($tempPath === null) {
+            return '';
+        }
+        $resized = lawnding_image_resize($tempPath, $thumbAbsPath, 400, 400, 'maxbox');
+        @unlink($tempPath);
+        return $resized ? $thumbRelative : '';
+    }
+
+    if (!lawnding_image_resize($srcAbsPath, $thumbAbsPath, 400, 400, 'cover')) {
+        return '';
+    }
+    return $thumbRelative;
+}
+
+function media_gallery_thumb_is_custom(array $item): bool {
+    return ($item['thumb_origin'] ?? null) === 'custom';
+}
+
+/**
+ * Merge a save_map mediaChanges payload into the existing items array.
+ * Pure — caller does I/O. The payload is the JS-side diff for the
+ * fields the per-item editor exposes (title, order). Unknown ids are
+ * silently ignored (the item may have been deleted out-of-band by
+ * another admin). After merging, items are re-sorted by order and
+ * order is re-numbered 1..N for stable contiguous values. Wired into
+ * save-config.php's save_map dispatch via the manifest's `validator`.
+ *
+ * @param array{items?: mixed}                                                                    $data
+ * @param array{updates?: list<array{id?: int|string, title?: int|string, order?: int|string}>}   $changes
+ * @return array<string, mixed>
+ */
+function media_gallery_apply_changes(array $data, array $changes): array {
+    $items = $data['items'] ?? [];
+    if (!is_array($items)) {
+        $items = [];
+    }
+    $updates = $changes['updates'] ?? [];
+    if (empty($updates)) {
+        $data['items'] = $items;
+        return $data;
+    }
+    $indexById = [];
+    foreach ($items as $index => $item) {
+        if (is_array($item) && isset($item['id'])) {
+            $indexById[(string) $item['id']] = $index;
+        }
+    }
+    foreach ($updates as $update) {
+        $id = isset($update['id']) ? (string) $update['id'] : '';
+        if ($id === '' || !isset($indexById[$id])) {
+            continue;
+        }
+        $idx = $indexById[$id];
+        if (!is_array($items[$idx])) {
+            $items[$idx] = [];
+        }
+        if (array_key_exists('title', $update)) {
+            $items[$idx]['title'] = (string) $update['title'];
+        }
+        if (array_key_exists('order', $update)) {
+            $items[$idx]['order'] = (int) $update['order'];
+        }
+    }
+    usort($items, function ($a, $b) {
+        $orderA = is_array($a) && isset($a['order']) ? (int) $a['order'] : 0;
+        $orderB = is_array($b) && isset($b['order']) ? (int) $b['order'] : 0;
+        return $orderA <=> $orderB;
+    });
+    $order = 1;
+    foreach ($items as &$item) {
+        if (!is_array($item)) {
+            $item = [];
+        }
+        $item['order'] = $order;
+        $order += 1;
+    }
+    unset($item);
+    $data['items'] = $items;
+    return $data;
+}
+
+// Rewrite stored item.file / item.thumb paths after a pane rename.
+// Items reference assets via storage-form paths like
+// "res/data/mediaGalleryContent-<paneId>/media-1234.jpg"; when the
+// pane is renamed, the directory has already been moved (by core's
+// generic pane_content_dir rename), but the strings inside items.json
+/**
+ * still point at the old segment. Pure string replace on the
+ * "mediaGalleryContent-<oldId>/" → "mediaGalleryContent-<newId>/"
+ * segment.
+ *
+ * @param array{items?: mixed} $data
+ * @return array<string, mixed>
+ */
+function media_gallery_update_paths(array $data, string $oldId, string $newId): array {
+    $items = $data['items'] ?? [];
+    if (!is_array($items)) {
+        $data['items'] = [];
+        return $data;
+    }
+    $oldSegment = 'mediaGalleryContent-' . $oldId . '/';
+    $newSegment = 'mediaGalleryContent-' . $newId . '/';
+    foreach ($items as &$item) {
+        if (!is_array($item)) {
+            $item = [];
+        }
+        if (!empty($item['file']) && is_string($item['file'])) {
+            $item['file'] = str_replace($oldSegment, $newSegment, $item['file']);
+        }
+        if (!empty($item['thumb']) && is_string($item['thumb'])) {
+            $item['thumb'] = str_replace($oldSegment, $newSegment, $item['thumb']);
+        }
+    }
+    unset($item);
+    $data['items'] = $items;
+    return $data;
+}
+
+/**
+ * Manifest-declared `on_rename` callback. Core renames the per-pane
+ * content directory generically; this callback updates the asset
+ * references stored inside items.json so they point at the new
+ * directory name. Signature is the contract with save-config.php's
+ * dispatch loop: ($prevId, $currentId, $context) where $context
+ * carries the data_dir and the previous module's manifest.
+ *
+ * Failure modes (each emits a Diagnostics entry, no exception):
+ *   - missing/empty data_dir in $context → silent no-op
+ *   - items.json missing or unreadable → silent no-op
+ *   - items.json corrupt JSON → logged, asset paths not rewritten
+ *   - encode/write failure after rewrite → logged, on-disk file stale
+ *
+ * @param array{data_dir?: string, manifest?: array<string, mixed>} $context
+ */
+function media_gallery_on_rename(string $prevId, string $currentId, array $context): void {
+    $dataDir = isset($context['data_dir']) ? (string) $context['data_dir'] : '';
+    if ($dataDir === '') {
+        return;
+    }
+    $manifest = $context['manifest'] ?? [];
+    $entries = $manifest['data_files'] ?? [];
+    if (!is_array($entries)) {
+        return;
+    }
+    // Locate the first JSON data file in the manifest — gallery has
+    // only one (items.json), and that's the file with embedded paths.
+    $jsonFile = '';
+    foreach ($entries as $entry) {
+        if (!is_array($entry)) {
+            continue;
+        }
+        $type = isset($entry['type']) ? (string) $entry['type'] : '';
+        $pattern = isset($entry['pattern']) ? (string) $entry['pattern'] : '';
+        if ($type === 'json' && $pattern !== '') {
+            $jsonFile = str_replace('{paneId}', $currentId, $pattern);
+            break;
+        }
+    }
+    if ($jsonFile === '') {
+        return;
+    }
+    $jsonPath = rtrim($dataDir, '/\\') . '/' . $jsonFile;
+    if (!is_readable($jsonPath)) {
+        return;
+    }
+    $decoded = json_decode((string) file_get_contents($jsonPath), true);
+    if (!is_array($decoded)) {
+        // items.json exists but is corrupt — log so admin sees it in
+        // Diagnostics, since the rename completed (dir already moved by
+        // core) but the asset paths inside the file can't be rewritten.
+        lawnding_log_event('error', 'media_gallery.on_rename.decode_failed', [
+            'prev_id'   => $prevId,
+            'pane_id'   => $currentId,
+            'json_path' => $jsonPath,
+        ]);
+        return;
+    }
+    $updated = media_gallery_update_paths($decoded, $prevId, $currentId);
+    $encoded = json_encode($updated, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+    if ($encoded === false) {
+        lawnding_log_event('error', 'media_gallery.on_rename.encode_failed', [
+            'prev_id'   => $prevId,
+            'pane_id'   => $currentId,
+            'json_path' => $jsonPath,
+        ]);
+        return;
+    }
+    if (file_put_contents($jsonPath, $encoded, LOCK_EX) === false) {
+        // Disk write failed after the dir-rename succeeded — gallery now
+        // points at the new dir but items.json still carries the old
+        // segment. Surface in Diagnostics so the admin can resave to
+        // recover (or fix the file by hand).
+        lawnding_log_event('error', 'media_gallery.on_rename.write_failed', [
+            'prev_id'   => $prevId,
+            'pane_id'   => $currentId,
+            'json_path' => $jsonPath,
+        ]);
+    }
+}
+
+/**
+ * Build the per-item payload the admin and public JS consume. Decorates
+ * each item with display-only fields (displayFile, displayThumb,
+ * uploaded_by_display) and reads from the TG membership cache once,
+ * lazily, when any item references a tg:<id> uploader. Skips items
+ * that aren't arrays — defensive against hand-edited items.json.
+ *
+ * @param list<mixed> $items
+ * @return list<array{
+ *     id: string,
+ *     type: string,
+ *     file: string,
+ *     thumb: string,
+ *     title: string,
+ *     order: int,
+ *     original_size: int,
+ *     saved_size: int,
+ *     focal_x: float|null,
+ *     focal_y: float|null,
+ *     uploaded_at: string,
+ *     uploaded_by: string,
+ *     uploaded_by_display: string,
+ *     displayFile: string,
+ *     displayThumb: string,
+ * }>
+ */
+function media_gallery_build_payload(array $items): array {
+    $tgProfiles = null;
+    $output = [];
+    foreach ($items as $item) {
+        if (!is_array($item)) {
+            continue;
+        }
+        $file = isset($item['file']) ? (string) $item['file'] : '';
+        $thumb = isset($item['thumb']) ? (string) $item['thumb'] : '';
+        $uploadedBy = isset($item['uploaded_by']) ? (string) $item['uploaded_by'] : '';
+        $uploadedByDisplay = $uploadedBy;
+        if (preg_match('/^tg:(\d+)$/', $uploadedBy, $m)) {
+            if ($tgProfiles === null) {
+                $tgCache = function_exists('lawnding_tg_cache_load') ? lawnding_tg_cache_load() : ['users' => []];
+                $tgProfiles = is_array($tgCache['users'] ?? null) ? $tgCache['users'] : [];
+            }
+            $profile = $tgProfiles[$m[1]]['profile'] ?? null;
+            if (is_array($profile) && function_exists('lawnding_format_tg_display_name')) {
+                $name = lawnding_format_tg_display_name($profile, null);
+                if ($name !== '') {
+                    $uploadedByDisplay = $name;
+                }
+            }
+        }
+        $output[] = [
+            'id'                  => isset($item['id']) ? (string) $item['id'] : '',
+            'type'                => isset($item['type']) ? (string) $item['type'] : 'image',
+            'file'                => $file,
+            'thumb'               => $thumb,
+            'title'               => isset($item['title']) ? (string) $item['title'] : '',
+            'order'               => isset($item['order']) ? (int) $item['order'] : 0,
+            'original_size'       => isset($item['original_size']) ? (int) $item['original_size'] : 0,
+            'saved_size'          => isset($item['saved_size']) ? (int) $item['saved_size'] : 0,
+            'focal_x'             => isset($item['focal_x']) && is_numeric($item['focal_x']) ? (float) $item['focal_x'] : null,
+            'focal_y'             => isset($item['focal_y']) && is_numeric($item['focal_y']) ? (float) $item['focal_y'] : null,
+            'uploaded_at'         => isset($item['uploaded_at']) ? (string) $item['uploaded_at'] : '',
+            'uploaded_by'         => $uploadedBy,
+            'uploaded_by_display' => $uploadedByDisplay,
+            'displayFile'         => $file !== '' ? lawnding_versioned_local_asset_url($file) : '',
+            'displayThumb'        => $thumb !== '' ? lawnding_versioned_local_asset_url($thumb) : '',
+        ];
+    }
+    return $output;
+}

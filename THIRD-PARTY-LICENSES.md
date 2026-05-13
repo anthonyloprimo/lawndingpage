@@ -4,6 +4,8 @@
 The following third-party components use this license:
 - Parsedown
 - jQuery
+- smartcrop.js (vendored at v2.0.5; runs client-side in the gallery's
+  upload flow to suggest a focal point before each upload)
 
 ```
 The MIT License (MIT)

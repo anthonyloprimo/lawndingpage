@@ -1,0 +1,48 @@
+# PHPStan configuration for LawndingPage / LPCore.
+#
+# Goal: statically catch array-shape drift in helpers — the bug class
+# that surfaced when event_scraper_load_catalogue's return shape was
+# inferred by callers instead of documented.
+#
+# Level is ratcheted up one PR at a time. Raise it only after the
+# codebase passes cleanly at the new level — never partway through a
+# phase. The PHAR lives at tools/phpstan.phar (gitignored; fetched by
+# tools/install-phpstan.sh).
+parameters:
+    level: 5
+
+    paths:
+        - admin
+        - lp-bootstrap.php
+        - public
+
+    # Third-party single-file vendor: Parsedown 1.7.4. Pinned, not
+    # ours to fix. Use the `analyse` sub-key so PHPStan still indexes
+    # the Parsedown class for callers (`new Parsedown()`) without
+    # linting the vendor code itself. See THIRD-PARTY-LICENSES.md.
+    excludePaths:
+        analyse:
+            - public/res/scr/Parsedown.php
+
+    # Documented analyzer-limitation exceptions. The rule per
+    # docs/api/conventions.md is: no source-level @phpstan-ignore
+    # ever — those silence findings in code that future readers can
+    # easily miss. Analyzer-config entries here ARE permitted when
+    # the limitation is documented and verified — the reason has to
+    # name the underlying analyzer behavior and point at a regression
+    # test that proves the runtime behavior is correct.
+    ignoreErrors:
+        # PHPStan can't propagate $fenceTicks mutations across
+        # while-loop iterations: it sees the assignment at "open
+        # fence" but doesn't carry the resulting non-zero value back
+        # to the top of the next iteration. The fence-close branch
+        # IS reached at runtime, verified by the fenced-code-block
+        # test cases in tests/test-markdown-gating.php (the test for
+        # "tags inside ``` should be treated as literal text" closes
+        # a fence with ``` and the suite passes).
+        -
+            message: '#Strict comparison using === between 0 and 0 will always evaluate to true#'
+            path: public/res/scr/markdown-gating.php
+        -
+            message: '#Comparison operation ">=" between int<3, max> and \*NEVER\*#'
+            path: public/res/scr/markdown-gating.php

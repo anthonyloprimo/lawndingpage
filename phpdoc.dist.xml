@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!--
+    phpDocumentor configuration for LawndingPage / LPCore.
+
+    Generates HTML API docs from the PHPDoc shape types added across
+    Phases 0-3 of the analyzer rollout. Output lives in build/docs/
+    (gitignored). The .github/workflows/build-docs.yml workflow runs
+    this on every push to main and publishes to GitHub Pages.
+
+    Bumping the pin: see tools/install-phpdocumentor.sh's header.
+-->
+<phpdocumentor configVersion="3"
+               xmlns="https://www.phpdoc.org">
+
+    <title>LawndingPage API</title>
+
+    <paths>
+        <output>build/docs</output>
+        <cache>build/phpdoc-cache</cache>
+    </paths>
+
+    <!--
+        Template selection: left commented-out. We use phpDocumentor's
+        built-in "default" template (modern vanilla CSS, no framework
+        dependency). The other bundled options were each tested and
+        rejected:
+          - "clean": Bootstrap 2.3.2 + jQuery 1.11, looks 2013-era
+          - "responsive-twig": broken in 3.9.1 (zero HTML output)
+        Doctum was also tried as an alternate generator but is
+        class-centric; our procedural codebase rendered as 0 entries.
+        If a future template becomes attractive, set <template name="..."/>
+        here as a sibling of <version> (NOT inside <version> — schema
+        rejects it there).
+    -->
+
+    <version number="latest">
+        <api>
+            <source dsn=".">
+                <path>admin</path>
+                <path>lp-bootstrap.php</path>
+                <path>public</path>
+            </source>
+            <ignore hidden="true" symlinks="true">
+                <path>tests/**/*</path>
+                <path>public/res/scr/Parsedown.php</path>
+                <path>public/res/scr/jquery-3.7.1.min.js</path>
+                <path>tools/**/*</path>
+                <path>build/**/*</path>
+            </ignore>
+            <extensions>
+                <extension>php</extension>
+            </extensions>
+        </api>
+    </version>
+
+</phpdocumentor>

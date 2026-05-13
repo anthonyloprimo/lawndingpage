@@ -6,13 +6,27 @@ function lawnding_tg_config_defaults(): array {
     return [
         'bot_username' => '',
         'bot_token' => '',
+        'webhook_secret_token' => '',
         'group_ids' => [],
         'whitelist_user_ids' => [],
         'blacklist_user_ids' => [],
         'membership_cache_ttl_minutes' => 30,
-        'unauthorized_message' => 'Unable to display member links.  Join the telegram group with the link above, or contact an admin for assistance.',
+        'unauthorized_message' => 'Login failed: you must be a member of a configured Telegram group to access this site.',
         'allowed_statuses' => ['member', 'administrator', 'creator'],
     ];
+}
+
+// Telegram bot tokens are formatted "<numeric_id>:<rest>". The numeric prefix
+// is the bot user ID, which the programmatic Telegram.Login.auth() widget
+// requires (the iframe widget uses bot_username instead). Returns '' if the
+// token is empty or doesn't have the expected shape.
+function lawnding_tg_bot_id_from_token(string $token): string {
+    if ($token === '' || strpos($token, ':') === false) {
+        return '';
+    }
+    $parts = explode(':', $token, 2);
+    $id = $parts[0];
+    return ($id !== '' && ctype_digit($id)) ? $id : '';
 }
 
 function lawnding_tg_normalize_content_level($value, string $default = 'sfw'): string {
@@ -44,10 +58,27 @@ function lawnding_tg_higher_content_level(string $left, string $right): string {
     return lawnding_tg_content_rank($right) > lawnding_tg_content_rank($left) ? $right : $left;
 }
 
+// Single source of truth for "which admin permissions a Telegram group is
+// allowed to grant." DO NOT add `full_admin` here — that permission and the
+// `master` flag are intentionally bcrypt-only. Adding `full_admin` would
+// silently relax the security invariant; see the project docs auth-model section.
+function lawnding_tg_eligible_permissions(): array {
+    return ['edit_site', 'add_users', 'edit_users', 'remove_users'];
+}
+
 function lawnding_tg_normalize_user_scope($value, string $default = 'sfw'): string {
     return lawnding_tg_normalize_content_level($value, $default);
 }
 
+/**
+ * Coerce whitelist/blacklist input into the canonical entry shape.
+ * Accepts a mix of bare-string ids (legacy form) and `{id, content}`
+ * objects in any order. Dedupes by id and keeps the higher content
+ * level when duplicates appear. Non-numeric ids are dropped.
+ *
+ * @param mixed $values
+ * @return list<array{id: string, content: 'sfw'|'nsfw'}>
+ */
 function lawnding_tg_normalize_user_entries($values): array {
     if (!is_array($values)) {
         return [];
@@ -82,30 +113,63 @@ function lawnding_tg_normalize_user_entries($values): array {
     return $entries;
 }
 
+/**
+ * Coerce group config input into the canonical entry shape. Accepts
+ * bare-string ids (legacy form), `{id, content}` objects, and the
+ * current `{id, content, permissions}` shape. Dedupes by id, keeps the
+ * higher content level, and unions permissions across duplicates.
+ * Permissions outside lawnding_tg_eligible_permissions() are silently
+ * dropped — defense against hand-edited configs (the save side errors
+ * out instead, so a normal admin save can't smuggle bad values in).
+ *
+ * @param mixed $values
+ * @return list<array{id: string, content: 'sfw'|'nsfw', permissions: list<string>}>
+ */
 function lawnding_tg_normalize_group_entries($values): array {
     if (!is_array($values)) {
         return [];
     }
+    $eligible = lawnding_tg_eligible_permissions();
     $order = [];
     $entriesById = [];
     foreach ($values as $value) {
         $groupId = '';
         $content = 'sfw';
+        $permissions = [];
         if (is_string($value) && trim($value) !== '') {
             $groupId = trim($value);
         } elseif (is_array($value)) {
             $groupId = isset($value['id']) && is_string($value['id']) ? trim($value['id']) : '';
             $content = lawnding_tg_normalize_content_level($value['content'] ?? 'sfw');
+            if (isset($value['permissions']) && is_array($value['permissions'])) {
+                foreach ($value['permissions'] as $perm) {
+                    if (!is_string($perm)) {
+                        continue;
+                    }
+                    $perm = trim($perm);
+                    if ($perm === '' || !in_array($perm, $eligible, true)) {
+                        continue;
+                    }
+                    if (!in_array($perm, $permissions, true)) {
+                        $permissions[] = $perm;
+                    }
+                }
+            }
         }
         if ($groupId === '') {
             continue;
         }
         if (!isset($entriesById[$groupId])) {
             $order[] = $groupId;
-            $entriesById[$groupId] = ['id' => $groupId, 'content' => $content];
+            $entriesById[$groupId] = ['id' => $groupId, 'content' => $content, 'permissions' => $permissions];
             continue;
         }
         $entriesById[$groupId]['content'] = lawnding_tg_higher_content_level($entriesById[$groupId]['content'], $content);
+        foreach ($permissions as $perm) {
+            if (!in_array($perm, $entriesById[$groupId]['permissions'], true)) {
+                $entriesById[$groupId]['permissions'][] = $perm;
+            }
+        }
     }
     $entries = [];
     foreach ($order as $groupId) {
@@ -116,19 +180,32 @@ function lawnding_tg_normalize_group_entries($values): array {
     return $entries;
 }
 
+/**
+ * Read admin/lp-tgBot.json merged with defaults. Returns the empty-
+ * defaults shape (not null) when the file is missing — every key is
+ * present so Telegram features silently degrade rather than throw.
+ * group_ids and whitelist/blacklist entries are normalized through
+ * their canonical helpers before being returned.
+ *
+ * @return array{
+ *     bot_username: string,
+ *     bot_token: string,
+ *     webhook_secret_token: string,
+ *     group_ids: list<array{id: string, content: 'sfw'|'nsfw', permissions: list<string>}>,
+ *     whitelist_user_ids: list<array{id: string, content: 'sfw'|'nsfw'}>,
+ *     blacklist_user_ids: list<array{id: string, content: 'sfw'|'nsfw'}>,
+ *     membership_cache_ttl_minutes: int,
+ *     unauthorized_message: string,
+ *     allowed_statuses: list<string>,
+ * }
+ */
 function lawnding_load_tg_config(): array {
     $defaults = lawnding_tg_config_defaults();
-    $path = function_exists('lawnding_runtime_file_path')
-        ? lawnding_runtime_file_path('tg_bot_path')
-        : (rtrim((string) (function_exists('lawnding_config') ? lawnding_config('admin_dir', dirname(__DIR__)) : dirname(__DIR__)), '/\\') . '/lp-tgBot.json');
-    if (!is_readable($path)) {
-        return $defaults;
-    }
-    $decoded = json_decode((string) file_get_contents($path), true);
-    if (!is_array($decoded)) {
-        return $defaults;
-    }
-    $merged = array_merge($defaults, $decoded);
+    $adminDir = function_exists('lawnding_config')
+        ? lawnding_config('admin_dir', dirname(__DIR__))
+        : dirname(__DIR__);
+    $path = rtrim((string) $adminDir, '/\\') . '/lp-tgBot.json';
+    $merged = array_merge($defaults, lawnding_read_json($path));
 
     $merged['group_ids'] = lawnding_tg_normalize_group_entries($merged['group_ids'] ?? []);
     $merged['whitelist_user_ids'] = lawnding_tg_normalize_user_entries($merged['whitelist_user_ids'] ?? []);
@@ -149,6 +226,7 @@ function lawnding_load_tg_config(): array {
 
     $merged['bot_username'] = is_string($merged['bot_username']) ? ltrim(trim($merged['bot_username']), '@') : '';
     $merged['bot_token'] = is_string($merged['bot_token']) ? trim($merged['bot_token']) : '';
+    $merged['webhook_secret_token'] = is_string($merged['webhook_secret_token'] ?? null) ? trim($merged['webhook_secret_token']) : '';
     $merged['unauthorized_message'] = is_string($merged['unauthorized_message'])
         ? trim($merged['unauthorized_message'])
         : $defaults['unauthorized_message'];
@@ -179,9 +257,10 @@ function lawnding_tg_verify_login_payload(array $payload, string $botToken): boo
 }
 
 function lawnding_tg_cache_path(): string {
-    return function_exists('lawnding_runtime_file_path')
-        ? lawnding_runtime_file_path('tg_membership_cache_path')
-        : (rtrim((string) (function_exists('lawnding_config') ? lawnding_config('admin_dir', dirname(__DIR__)) : dirname(__DIR__)), '/\\') . '/lp-tgMembershipCache.json');
+    $adminDir = function_exists('lawnding_config')
+        ? lawnding_config('admin_dir', dirname(__DIR__))
+        : dirname(__DIR__);
+    return rtrim((string) $adminDir, '/\\') . '/lp-tgMembershipCache.json';
 }
 
 function lawnding_tg_cache_fingerprint(array $tgConfig): string {
@@ -227,12 +306,8 @@ function lawnding_tg_cache_fingerprint(array $tgConfig): string {
 }
 
 function lawnding_tg_cache_load(): array {
-    $path = lawnding_tg_cache_path();
-    if (!is_readable($path)) {
-        return ['users' => []];
-    }
-    $decoded = json_decode((string) file_get_contents($path), true);
-    if (!is_array($decoded) || !is_array($decoded['users'] ?? null)) {
+    $decoded = lawnding_read_json(lawnding_tg_cache_path());
+    if (!is_array($decoded['users'] ?? null)) {
         return ['users' => []];
     }
     return ['users' => $decoded['users']];
@@ -243,9 +318,6 @@ function lawnding_tg_cache_write(array $cache): void {
     $payload = json_encode($cache, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
     if ($payload === false) {
         return;
-    }
-    if (function_exists('lawnding_ensure_parent_dir')) {
-        lawnding_ensure_parent_dir($path);
     }
     file_put_contents($path, $payload . PHP_EOL, LOCK_EX);
 }
@@ -263,33 +335,28 @@ function lawnding_tg_cache_prune(array &$cache, int $now): void {
     }
 }
 
+// Converts a {sfw, nsfw} access array to a content-level string.
+// Returns 'nsfw' when both flags are set, 'sfw' when only sfw, '' when neither.
+// Callers that check === '' for "no access" continue to work unchanged.
+function lawnding_tg_access_clearance(array $access): string {
+    if (!empty($access['nsfw'])) {
+        return 'nsfw';
+    }
+    if (!empty($access['sfw'])) {
+        return 'sfw';
+    }
+    return '';
+}
+
+// Converts a content-level string back to a {sfw, nsfw} access array.
 function lawnding_tg_access_from_clearance(string $clearance): array {
-    $normalized = strtolower(trim($clearance));
-    if ($normalized === 'nsfw') {
+    if ($clearance === 'nsfw') {
         return ['sfw' => true, 'nsfw' => true];
     }
-    if ($normalized === 'nsfw_only') {
-        return ['sfw' => false, 'nsfw' => true];
-    }
-    if ($normalized === 'sfw') {
+    if ($clearance === 'sfw') {
         return ['sfw' => true, 'nsfw' => false];
     }
     return ['sfw' => false, 'nsfw' => false];
-}
-
-function lawnding_tg_access_clearance(array $access): string {
-    $allowSfw = !empty($access['sfw']);
-    $allowNsfw = !empty($access['nsfw']);
-    if ($allowSfw && $allowNsfw) {
-        return 'nsfw';
-    }
-    if ($allowNsfw) {
-        return 'nsfw_only';
-    }
-    if ($allowSfw) {
-        return 'sfw';
-    }
-    return 'none';
 }
 
 function lawnding_tg_user_entry_by_id(array $entries, string $userId): ?array {
@@ -301,19 +368,37 @@ function lawnding_tg_user_entry_by_id(array $entries, string $userId): ?array {
     return null;
 }
 
+// Applies a whitelist or blacklist entry to an access array in-place.
 function lawnding_tg_apply_user_override(array &$access, ?array $entry, bool $isBlacklist): void {
     if (!$entry) {
         return;
     }
     $scope = lawnding_tg_normalize_user_scope($entry['content'] ?? 'sfw');
     if ($scope === 'nsfw') {
+        $access['sfw'] = !$isBlacklist;
         $access['nsfw'] = !$isBlacklist;
         return;
     }
     $access['sfw'] = !$isBlacklist;
+    // Denying SFW must also deny NSFW — NSFW requires SFW as a prerequisite, so
+    // leaving nsfw:true here would let a blacklisted user bypass via lawnding_tg_access_clearance().
+    if ($isBlacklist) {
+        $access['nsfw'] = false;
+    }
 }
 
-function lawnding_tg_user_access(array $tgConfig, $userId): array {
+/**
+ * Core membership check. Whitelist entries grant access regardless of
+ * group membership; blacklist entries deny it. $profile is written to
+ * the cache when supplied so the membership cache doubles as a visitor
+ * directory (numeric ID → handle/name).
+ *
+ * @param array<string, mixed>      $tgConfig
+ * @param int|string|null           $userId
+ * @param array<string, mixed>|null $profile
+ * @return array{sfw: bool, nsfw: bool}
+ */
+function lawnding_tg_user_access(array $tgConfig, $userId, ?array $profile = null): array {
     $token = (string) ($tgConfig['bot_token'] ?? '');
     $groupIds = is_array($tgConfig['group_ids'] ?? null) ? $tgConfig['group_ids'] : [];
     $whitelistUserIds = is_array($tgConfig['whitelist_user_ids'] ?? null) ? $tgConfig['whitelist_user_ids'] : [];
@@ -322,7 +407,7 @@ function lawnding_tg_user_access(array $tgConfig, $userId): array {
     if ($userId === null || $userId === '') {
         return ['sfw' => false, 'nsfw' => false];
     }
-    if ($token === '' && empty($whitelistUserIds) && empty($blacklistUserIds)) {
+    if ($token === '' && empty($groupIds) && empty($whitelistUserIds) && empty($blacklistUserIds)) {
         return ['sfw' => false, 'nsfw' => false];
     }
     $ttlMinutes = isset($tgConfig['membership_cache_ttl_minutes']) ? (int) $tgConfig['membership_cache_ttl_minutes'] : 30;
@@ -371,7 +456,7 @@ function lawnding_tg_user_access(array $tgConfig, $userId): array {
                 continue;
             }
             $resp = $bot->getChatMember($groupId, $userId);
-            if (!is_array($resp) || empty($resp['ok']) || !is_array($resp['result'] ?? null)) {
+            if (empty($resp['ok']) || !is_array($resp['result'] ?? null)) {
                 $statuses[(string) $groupId] = 'error';
                 continue;
             }
@@ -386,30 +471,110 @@ function lawnding_tg_user_access(array $tgConfig, $userId): array {
         }
     }
 
-    $cacheKeyString = (string) $cacheKey;
-    lawnding_tg_apply_user_override($access, lawnding_tg_user_entry_by_id($whitelistUserIds, $cacheKeyString), false);
-    lawnding_tg_apply_user_override($access, lawnding_tg_user_entry_by_id($blacklistUserIds, $cacheKeyString), true);
+    lawnding_tg_apply_user_override($access, lawnding_tg_user_entry_by_id($whitelistUserIds, $cacheKey), false);
+    lawnding_tg_apply_user_override($access, lawnding_tg_user_entry_by_id($blacklistUserIds, $cacheKey), true);
 
-    $authorizedLevel = $access['nsfw']
-        ? 'nsfw'
-        : ($access['sfw'] ? 'sfw' : '');
-
-    $cache['users'][$cacheKey] = [
+    $entry = [
         'authorized' => $access['sfw'] || $access['nsfw'],
-        'content_level' => $authorizedLevel,
+        'content_level' => lawnding_tg_access_clearance($access),
         'access' => $access,
         'checked_at' => $now,
         'expires_at' => $now + $ttlSeconds,
         'fingerprint' => $fingerprint,
         'statuses' => $statuses,
     ];
+    // Snapshot the visitor's display profile when the caller supplies it.
+    if (is_array($profile)) {
+        $entry['profile'] = [
+            'username' => is_string($profile['username'] ?? null) ? trim((string) $profile['username']) : '',
+            'first_name' => is_string($profile['first_name'] ?? null) ? trim((string) $profile['first_name']) : '',
+            'last_name' => is_string($profile['last_name'] ?? null) ? trim((string) $profile['last_name']) : '',
+        ];
+    } elseif (isset($cache['users'][$cacheKey]['profile']) && is_array($cache['users'][$cacheKey]['profile'])) {
+        $entry['profile'] = $cache['users'][$cacheKey]['profile'];
+    }
+    $cache['users'][$cacheKey] = $entry;
     lawnding_tg_cache_write($cache);
 
     return $access;
 }
 
-function lawnding_tg_user_content_level(array $tgConfig, $userId): string {
-    return lawnding_tg_access_clearance(lawnding_tg_user_access($tgConfig, $userId));
+// Returns a content-level string ('' | 'sfw' | 'nsfw') for backward compat
+// with all callers that check === '' for "no access".
+function lawnding_tg_user_content_level(array $tgConfig, $userId, ?array $profile = null): string {
+    return lawnding_tg_access_clearance(lawnding_tg_user_access($tgConfig, $userId, $profile));
+}
+
+// Return the union of admin permissions granted by the Telegram groups the
+// user is currently a member of (per the cached membership statuses). Intended
+// for consumers that have already called lawnding_tg_user_content_level() in
+// the same request — this function is a pure cache reader and does NOT trigger
+// API calls. If the cache is cold for this user, returns [].
+function lawnding_tg_user_permissions(array $tgConfig, $userId): array {
+    if ($userId === null || $userId === '') {
+        return [];
+    }
+    $cache = lawnding_tg_cache_load();
+    $cacheKey = (string) $userId;
+    if (!isset($cache['users'][$cacheKey]) || !is_array($cache['users'][$cacheKey])) {
+        return [];
+    }
+    $entry = $cache['users'][$cacheKey];
+    if (empty($entry['authorized'])) {
+        return [];
+    }
+    $statuses = isset($entry['statuses']) && is_array($entry['statuses']) ? $entry['statuses'] : [];
+    $allowedStatuses = is_array($tgConfig['allowed_statuses'] ?? null) ? $tgConfig['allowed_statuses'] : [];
+    $groupIds = is_array($tgConfig['group_ids'] ?? null) ? $tgConfig['group_ids'] : [];
+    $eligible = lawnding_tg_eligible_permissions();
+    $merged = [];
+    foreach ($groupIds as $groupEntry) {
+        if (!is_array($groupEntry)) {
+            continue;
+        }
+        $groupId = (string) ($groupEntry['id'] ?? '');
+        if ($groupId === '') {
+            continue;
+        }
+        $status = isset($statuses[$groupId]) ? (string) $statuses[$groupId] : '';
+        if ($status === '' || !in_array($status, $allowedStatuses, true)) {
+            continue;
+        }
+        $groupPerms = isset($groupEntry['permissions']) && is_array($groupEntry['permissions'])
+            ? $groupEntry['permissions']
+            : [];
+        foreach ($groupPerms as $perm) {
+            if (!is_string($perm)) {
+                continue;
+            }
+            $perm = trim($perm);
+            if ($perm === '' || !in_array($perm, $eligible, true)) {
+                continue;
+            }
+            if (!in_array($perm, $merged, true)) {
+                $merged[] = $perm;
+            }
+        }
+    }
+    return $merged;
+}
+
+// Format a display-friendly name for a Telegram identity.
+// Prefers @handle, falls back to first+last, then to "User #<id>".
+function lawnding_format_tg_display_name(?array $tgUser, $tgUserId): string {
+    $handle = is_array($tgUser) && isset($tgUser['username']) ? trim((string) $tgUser['username']) : '';
+    if ($handle !== '') {
+        return '@' . $handle;
+    }
+    $first = is_array($tgUser) && isset($tgUser['first_name']) ? trim((string) $tgUser['first_name']) : '';
+    $last  = is_array($tgUser) && isset($tgUser['last_name'])  ? trim((string) $tgUser['last_name'])  : '';
+    if ($first !== '') {
+        return $first . ($last !== '' ? ' ' . $last : '');
+    }
+    if ($tgUserId !== null && $tgUserId !== '') {
+        return 'User #' . (int) $tgUserId;
+    }
+    return '';
 }
 
 function lawnding_tg_user_authorized(array $tgConfig, $userId): bool {

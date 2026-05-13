@@ -4,15 +4,14 @@ $(document).ready(function() {
     const steps = buildTutorialSteps();
     let currentStep = 0;
     let pendingLogoFile = null;
+    let gdNoticeShown = false;
+
     let linkCounter = $('#linksConfig .linksConfigCard').length;
     let authLinkCounter = $('#authLinksConfig .authLinksConfigCard').length;
     let initialSnapshot = null;
     let pendingBgDelete = null;
     let authLinksNeedsNormalization = $('#authLinksConfig').attr('data-needs-normalization') === 'true';
     const csrfToken = window.appConfig && window.appConfig.csrfToken ? window.appConfig.csrfToken : '';
-    let activeModal = null;
-    let lastFocusedElement = null;
-    const modalStack = [];
     const modalBackgroundSelectors = ['#header', '#container', 'nav', '.adminNotices'];
     const defaultBackgroundSettings = { mode: 'random_load', duration: 5 };
 
@@ -22,234 +21,126 @@ $(document).ready(function() {
         }
     }
 
-    function parseTgGroupEntries(rawValue) {
-        const lines = String(rawValue || '')
-            .split('\n')
-            .map((value) => value.trim())
-            .filter((value) => value.length > 0);
-        const order = [];
-        const entriesById = new Map();
-        lines.forEach((line) => {
-            const parts = line.split(/\s+/).filter((value) => value.length > 0);
-            if (!parts.length) {
-                return;
+    // Unified handler for jQuery $.ajax error callbacks against admin
+    // endpoints. Hides the saving overlay first, then extracts a
+    // user-facing message from xhr.responseText (parsed JSON .error →
+    // raw text → defaultMsg fallback chain) and shows the danger
+    // notice. Use from each $.ajax({ error }) handler instead of
+    // duplicating the parse + cleanup boilerplate. Sites that need
+    // additional concerns (a 403 special case, etc.) handle those
+    // inline before the call.
+    function handleEndpointError(xhr, defaultMsg) {
+        hideSavingOverlay();
+        let message = defaultMsg;
+        const responseText = xhr && xhr.responseText ? xhr.responseText : '';
+        if (responseText) {
+            try {
+                const parsed = JSON.parse(responseText);
+                if (parsed && parsed.error) {
+                    message = parsed.error;
+                }
+            } catch (err) {
+                message = responseText;
             }
-            const id = parts[0];
-            const content = parts[1] && /^nsfw$/i.test(parts[1]) ? 'NSFW' : 'SFW';
-            if (!entriesById.has(id)) {
-                order.push(id);
-                entriesById.set(id, { id, content });
-                return;
-            }
-            if (content === 'NSFW') {
-                entriesById.set(id, { id, content: 'NSFW' });
-            }
-        });
-        return order.map((id) => entriesById.get(id)).filter(Boolean);
+        }
+        addAdminNotice('danger', message);
     }
 
-    function parseTgUserEntries(rawValue) {
-        const lines = String(rawValue || '')
-            .split('\n')
-            .map((value) => value.trim())
-            .filter((value) => value.length > 0);
+    function readTgGroupRows() {
         const order = [];
         const entriesById = new Map();
-        lines.forEach((line) => {
-            const parts = line.split(/\s+/).filter((value) => value.length > 0);
-            if (!parts.length) {
+        $('#tgBotGroupList .tgBotGroupCard').each(function() {
+            const $card = $(this);
+            const id = String($card.find('.tgBotGroupIdInput').val() || '').trim();
+            if (!id) {
                 return;
             }
-            const id = parts[0];
-            if (!/^-?\d+$/.test(id)) {
-                return;
-            }
-            const content = parts[1] && /^nsfw$/i.test(parts[1]) ? 'NSFW' : 'SFW';
+            const contentRaw = String($card.find('.tgBotGroupContentSelect').val() || 'SFW').toUpperCase();
+            const content = contentRaw === 'NSFW' ? 'NSFW' : 'SFW';
+            const permissions = [];
+            $card.find('.tgBotGroupPerm:checked').each(function() {
+                const val = String($(this).val() || '').trim();
+                if (val && permissions.indexOf(val) === -1) {
+                    permissions.push(val);
+                }
+            });
             if (!entriesById.has(id)) {
                 order.push(id);
-                entriesById.set(id, { id, content });
+                entriesById.set(id, { id, content, permissions: permissions.slice() });
                 return;
             }
+            const existing = entriesById.get(id);
             if (content === 'NSFW') {
-                entriesById.set(id, { id, content: 'NSFW' });
+                existing.content = 'NSFW';
             }
-        });
-        return order.map((id) => entriesById.get(id)).filter(Boolean);
-    }
-
-    function setModalBackgroundState(isOpen) {
-        modalBackgroundSelectors.forEach((selector) => {
-            document.querySelectorAll(selector).forEach((node) => {
-                if (isOpen) {
-                    node.setAttribute('inert', '');
-                    node.setAttribute('aria-hidden', 'true');
-                } else {
-                    node.removeAttribute('inert');
-                    node.removeAttribute('aria-hidden');
+            permissions.forEach((perm) => {
+                if (existing.permissions.indexOf(perm) === -1) {
+                    existing.permissions.push(perm);
                 }
             });
         });
+        return order.map((id) => entriesById.get(id)).filter(Boolean);
     }
 
-    function getFocusableElements($modal) {
-        return $modal
-            .find('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')
-            .filter(':visible')
-            .filter(function() {
-                return !this.disabled;
-            });
+    function createTgBotGroupCard() {
+        const deleteIcon = $('#tgBotGroupDeleteIcon').html() || '';
+        return `
+            <div class="tgBotGroupCard">
+                <input class="linksConfigInput tgBotGroupIdInput" type="text" value="" placeholder="-1001234567890" aria-label="Group ID">
+                <select class="linksConfigInput tgBotGroupContentSelect" aria-label="Content level">
+                    <option value="SFW" selected>SFW</option>
+                    <option value="NSFW">NSFW</option>
+                </select>
+                <label class="tgBotGroupPermCell" title="Edit site content (header, panes, links).">
+                    <input type="checkbox" class="tgBotGroupPerm" value="edit_site" aria-label="Edit site">
+                </label>
+                <label class="tgBotGroupPermCell" title="Create new user accounts.">
+                    <input type="checkbox" class="tgBotGroupPerm" value="add_users" aria-label="Add users">
+                </label>
+                <label class="tgBotGroupPermCell" title="Edit existing user accounts.">
+                    <input type="checkbox" class="tgBotGroupPerm" value="edit_users" aria-label="Edit users">
+                </label>
+                <label class="tgBotGroupPermCell" title="Remove user accounts.">
+                    <input type="checkbox" class="tgBotGroupPerm" value="remove_users" aria-label="Remove users">
+                </label>
+                <button class="iconButton removeTgBotGroup" type="button" aria-label="Remove group" title="Remove group">
+                    ${deleteIcon}
+                </button>
+            </div>
+        `;
     }
 
-    function focusModal($modal) {
-        const $focusable = getFocusableElements($modal);
-        const $autoFocus = $modal.find('[autofocus]').filter(':visible').first();
-        const $dialog = $modal.find('.userModal').first();
-        if ($autoFocus.length) {
-            $autoFocus.focus();
-            return;
-        }
-        if ($focusable.length) {
-            $focusable.first().focus();
-            return;
-        }
-        if ($dialog.length) {
-            $dialog.attr('tabindex', '-1').focus();
-        }
-    }
-
-    function findModalConfirm($modal) {
-        const selectors = [
-            '[data-modal-confirm]',
-            'button[type="submit"]',
-            'button:not(.userModalClose)'
-        ];
-        for (let i = 0; i < selectors.length; i += 1) {
-            const $candidate = $modal.find(selectors[i]).filter(':visible').filter(function() {
-                return !this.disabled;
-            });
-            if ($candidate.length) {
-                return $candidate.first();
-            }
-        }
-        return $();
-    }
-
-    function handleModalKeydown(event) {
-        if (!activeModal) {
-            return;
-        }
-
-        const $modal = activeModal;
-        if (event.key === 'Escape') {
-            event.preventDefault();
-            const $cancel = $modal.find('.userModalClose, [data-modal-cancel]').filter(':visible').first();
-            if ($cancel.length) {
-                $cancel.trigger('click');
-            } else {
-                closeAdminModal($modal);
-            }
-            return;
-        }
-
-        if (event.key === 'Enter' && !event.isComposing) {
-            const target = event.target;
-            if (target && (target.tagName === 'TEXTAREA' || target.isContentEditable)) {
-                return;
-            }
-            if (target && target.closest && target.closest('button, a[href], input[type="submit"], input[type="button"]')) {
-                return;
-            }
-            const $confirm = findModalConfirm($modal);
-            if ($confirm.length) {
-                event.preventDefault();
-                $confirm.trigger('click');
-            }
-            return;
-        }
-
-        if (event.key === 'Tab') {
-            const $focusable = getFocusableElements($modal);
-            if (!$focusable.length) {
-                event.preventDefault();
-                return;
-            }
-            const first = $focusable.first().get(0);
-            const last = $focusable.last().get(0);
-            if (event.shiftKey && document.activeElement === first) {
-                event.preventDefault();
-                last.focus();
-            } else if (!event.shiftKey && document.activeElement === last) {
-                event.preventDefault();
-                first.focus();
-            }
-        }
-    }
-
-    function openAdminModal($modal) {
-        if (!$modal || !$modal.length) {
-            return;
-        }
-        const modalEl = $modal.get(0);
-        if (modalStack.length === 0) {
-            lastFocusedElement = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-        }
-        if (!modalStack.includes(modalEl)) {
-            modalStack.push(modalEl);
-        }
-        activeModal = $modal;
-        $modal.addClass('isOpen').attr('aria-hidden', 'false');
-        if (modalStack.length === 1) {
-            setModalBackgroundState(true);
-        }
-        focusModal($modal);
-        $(document).off('keydown.adminModal').on('keydown.adminModal', handleModalKeydown);
-    }
-
-    function closeAdminModal($modal) {
-        const $target = $modal && $modal.length ? $modal : activeModal;
-        if (!$target || !$target.length) {
-            return;
-        }
-        const targetEl = $target.get(0);
-        $target.removeClass('isOpen').attr('aria-hidden', 'true');
-        const index = modalStack.indexOf(targetEl);
-        if (index !== -1) {
-            modalStack.splice(index, 1);
-        }
-        if (modalStack.length === 0) {
-            activeModal = null;
-            setModalBackgroundState(false);
-            $(document).off('keydown.adminModal');
-            if (lastFocusedElement && typeof lastFocusedElement.focus === 'function') {
-                lastFocusedElement.focus();
-            }
-            lastFocusedElement = null;
-        } else {
-            const nextModalEl = modalStack[modalStack.length - 1];
-            activeModal = $(nextModalEl);
-            focusModal(activeModal);
-        }
-    }
-
-    window.openAdminModal = openAdminModal;
-    window.closeAdminModal = closeAdminModal;
-
-    function resetAdminModalState() {
-        $('.userModalOverlay').removeClass('isOpen').attr('aria-hidden', 'true');
-        modalStack.length = 0;
-        activeModal = null;
-        setModalBackgroundState(false);
-        $(document).off('keydown.adminModal');
-        if (lastFocusedElement && typeof lastFocusedElement.focus === 'function') {
-            lastFocusedElement.focus();
-        }
-        lastFocusedElement = null;
-    }
+    // Modal lifecycle, focus trap, drag — all delegated to modal-core.js.
+    const modalManager = window.lpModalFactory({
+        backgroundSelectors: modalBackgroundSelectors,
+    });
+    const openAdminModal       = modalManager.open;
+    const closeAdminModal      = modalManager.close;
+    const resetAdminModalState = modalManager.reset;
+    window.openAdminModal      = openAdminModal;
+    window.closeAdminModal     = closeAdminModal;
 
     // Bind Help button
     $('.helpTutorial').on('click', function() {
         startTutorial();
     });
+
+    // Notice banners — admin-side thin wrapper around the shared manager in
+    // notice-core.js. The public site (app.js) has its own wrapper using the
+    // same factory. skipActionBearing is admin-only: banners that contain a
+    // form or button stay onscreen until the user dismisses them, so a save
+    // dialog isn't yanked away mid-interaction.
+    //
+    // Initialized BEFORE the bind* sequence below because bindAdminNotices()
+    // references noticeManager — a TDZ error there silently halted init in
+    // earlier code, leaving initialSnapshot null and breaking the save flow.
+    const noticeManager = window.lpNoticeFactory({ skipActionBearing: true });
+
+    function addAdminNotice(type, text, options) {
+        return noticeManager.add(type, text, options);
+    }
+
+    window.addAdminNotice = addAdminNotice;
 
     bindLinksControls();
     bindAuthLinksControls();
@@ -259,8 +150,6 @@ $(document).ready(function() {
     bindUserActions();
     bindPaneManagement();
     bindMigrationFlow();
-    bindRuntimeMigrationConflictFlow();
-    bindEventListEditors();
     bindMarkdownToolbars();
     bindHeadlineEditingMode();
     bindBackgroundEditingMode();
@@ -474,7 +363,23 @@ $(document).ready(function() {
         const $toggle = $('#authLinksToggle');
         const $tokenToggle = $('.authLinksTokenToggle');
         const $testBot = $('.authLinksTestBotButton');
+        const $registerWebhook = $('.authLinksRegisterWebhookButton');
         const $validateGroups = $('.authLinksValidateGroupsButton');
+        const $groupList = $('#tgBotGroupList');
+        const $addGroupButton = $('.addTgBotGroup');
+
+        if ($groupList.length) {
+            $groupList.on('click', '.removeTgBotGroup', function() {
+                $(this).closest('.tgBotGroupCard').remove();
+            });
+        }
+        if ($addGroupButton.length && $groupList.length) {
+            $addGroupButton.on('click', function() {
+                const $newCard = $(createTgBotGroupCard());
+                $groupList.append($newCard);
+                $newCard.find('.tgBotGroupIdInput').trigger('focus');
+            });
+        }
 
         if (!$list.length) {
             return;
@@ -537,11 +442,14 @@ $(document).ready(function() {
         if ($tokenToggle.length) {
             $tokenToggle.on('click', function() {
                 const $button = $(this);
-                const $input = $('#tgBotToken');
+                const targetSelector = $button.data('target') || '#tgBotToken';
+                const $input = $(targetSelector);
                 const isVisible = $button.attr('data-visible') === 'true';
+                const labelShow = $button.data('aria-show') || 'Show token';
+                const labelHide = $button.data('aria-hide') || 'Hide token';
                 $input.attr('type', isVisible ? 'password' : 'text');
                 $button.attr('data-visible', isVisible ? 'false' : 'true');
-                $button.attr('aria-label', isVisible ? 'Show token' : 'Hide token');
+                $button.attr('aria-label', isVisible ? labelShow : labelHide);
                 const icon = isVisible
                     ? $button.data('icon-closed')
                     : $button.data('icon-open');
@@ -564,11 +472,13 @@ $(document).ready(function() {
 
         if ($testBot.length) {
             $testBot.on('click', function() {
-                const basePath = window.appConfig && typeof window.appConfig.basePath === 'string'
-                    ? window.appConfig.basePath.replace(/\/$/, '')
-                    : '';
-                const url = basePath ? `${basePath}/res/scr/tg-test.php` : '/res/scr/tg-test.php';
-                fetch(url, { method: 'GET' })
+                const basePath = lpGetBasePath();
+                const proxyPath = '/res/scr/plugin-endpoint.php?plugin=telegram&endpoint=test';
+                const url = basePath ? `${basePath}${proxyPath}` : proxyPath;
+                const csrfToken = (window.appConfig && window.appConfig.csrfToken) || '';
+                const body = new URLSearchParams();
+                body.append('csrf_token', csrfToken);
+                fetch(url, { method: 'POST', body })
                     .then((resp) => resp.json())
                     .then((data) => {
                         const ok = data && data.ok;
@@ -582,22 +492,45 @@ $(document).ready(function() {
             });
         }
 
+        if ($registerWebhook.length) {
+            $registerWebhook.on('click', function() {
+                const basePath = lpGetBasePath();
+                const proxyPath = '/res/scr/plugin-endpoint.php?plugin=telegram&endpoint=register-webhook';
+                const url = basePath ? `${basePath}${proxyPath}` : proxyPath;
+                const csrfToken = (window.appConfig && window.appConfig.csrfToken) || '';
+                const body = new URLSearchParams();
+                body.append('csrf_token', csrfToken);
+                fetch(url, { method: 'POST', body })
+                    .then((resp) => resp.json())
+                    .then((data) => {
+                        const ok = data && data.ok;
+                        const desc = data && data.description ? String(data.description) : 'No response message.';
+                        const expected = 'Expected: ok=true with the registered webhook URL.';
+                        alert(`${ok ? 'OK' : 'FAILED'}: ${desc}\n${expected}`);
+                    })
+                    .catch((err) => {
+                        alert(`FAILED: ${err && err.message ? err.message : 'Request failed.'}\nExpected: ok=true with the registered webhook URL.`);
+                    });
+            });
+        }
+
         if ($validateGroups.length) {
             $validateGroups.on('click', function() {
-                const basePath = window.appConfig && typeof window.appConfig.basePath === 'string'
-                    ? window.appConfig.basePath.replace(/\/$/, '')
-                    : '';
-                const url = basePath ? `${basePath}/res/scr/tg-validate-groups.php` : '/res/scr/tg-validate-groups.php';
-                const raw = $('#tgBotGroupIds').val() || '';
-                const groupIds = parseTgGroupEntries(raw).map((entry) => entry.id);
+                const basePath = lpGetBasePath();
+                const proxyPath = '/res/scr/plugin-endpoint.php?plugin=telegram&endpoint=validate-groups';
+                const url = basePath ? `${basePath}${proxyPath}` : proxyPath;
+                const groupIds = readTgGroupRows().map((entry) => entry.id);
                 if (!groupIds.length) {
                     alert('No group IDs found. Add at least one ID and try again.');
                     return;
                 }
+                const csrfToken = (window.appConfig && window.appConfig.csrfToken) || '';
+                const body = new URLSearchParams();
+                body.append('csrf_token', csrfToken);
+                groupIds.forEach((id) => body.append('group_ids[]', id));
                 fetch(url, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ group_ids: groupIds })
+                    body
                 })
                     .then((resp) => resp.json())
                     .then((data) => {
@@ -627,17 +560,24 @@ $(document).ready(function() {
         refreshAuthLinkControls($list);
     }
 
-    function refreshLinkControls($list) {
-        const $cards = $list ? $list.find('.linksConfigCard') : $('.linksConfigCard');
-        $cards.find('.moveUpLink, .moveDownLink').prop('disabled', false);
-        if ($cards.length === 0) {
+    // Disable the up/down move arrows at list boundaries. Shared
+    // algorithm for the three reorderable lists in the admin
+    // (links, auth links, backgrounds); each public wrapper just
+    // queries its own row collection and delegates here.
+    function refreshListControls($items) {
+        $items.find('.moveUpLink, .moveDownLink').prop('disabled', false);
+        if ($items.length === 0) {
             return;
         }
-        $cards.first().find('.moveUpLink').prop('disabled', true);
-        $cards.last().find('.moveDownLink').prop('disabled', true);
-        if ($cards.length === 1) {
-            $cards.first().find('.moveDownLink').prop('disabled', true);
+        $items.first().find('.moveUpLink').prop('disabled', true);
+        $items.last().find('.moveDownLink').prop('disabled', true);
+        if ($items.length === 1) {
+            $items.first().find('.moveDownLink').prop('disabled', true);
         }
+    }
+
+    function refreshLinkControls($list) {
+        refreshListControls($list ? $list.find('.linksConfigCard') : $('.linksConfigCard'));
     }
 
     function buildLinkIdFromText(text, prefix = 'link') {
@@ -924,16 +864,7 @@ $(document).ready(function() {
     }
 
     function refreshBackgroundControls() {
-        const $rows = $('#bgConfig').find('.bgConfigList .bgConfigRow').not('.bgConfigHeader');
-        $rows.find('.moveUpLink, .moveDownLink').prop('disabled', false);
-        if ($rows.length === 0) {
-            return;
-        }
-        $rows.first().find('.moveUpLink').prop('disabled', true);
-        $rows.last().find('.moveDownLink').prop('disabled', true);
-        if ($rows.length === 1) {
-            $rows.first().find('.moveDownLink').prop('disabled', true);
-        }
+        refreshListControls($('#bgConfig').find('.bgConfigList .bgConfigRow').not('.bgConfigHeader'));
     }
 
     function initBackgroundSettings() {
@@ -973,16 +904,20 @@ $(document).ready(function() {
             credentials: 'same-origin'
         })
             .then((response) => response.json().then((data) => ({ ok: response.ok, status: response.status, data })))
-            .then(({ ok, data }) => {
+            .then(({ ok, status, data }) => {
                 if (!ok) {
                     const message = data && data.error ? data.error : 'Background upload failed.';
-                    addAdminNotice('danger', message);
+                    addAdminNotice(status === 413 ? 'warning' : 'danger', message);
                     hideSavingOverlay();
                     return;
                 }
                 renderBackgrounds(data.backgrounds || []);
                 initialSnapshot.backgrounds = getBackgroundsData();
                 addAdminNotice('ok', 'Background uploaded.');
+                if (data.gd_unavailable && !gdNoticeShown) {
+                    gdNoticeShown = true;
+                    addAdminNotice('ok', 'For better performance, install the PHP GD extension on your server.');
+                }
                 hideSavingOverlay();
             })
             .catch((error) => {
@@ -1001,9 +936,7 @@ $(document).ready(function() {
 
     // Save handler: gather data and POST to save endpoint.
     function bindSaveHandler() {
-        const basePath = window.appConfig && typeof window.appConfig.basePath === 'string'
-            ? window.appConfig.basePath.replace(/\/$/, '')
-            : '';
+        const basePath = lpGetBasePath();
         const saveUrl = basePath ? `${basePath}/res/scr/save-config.php` : '/res/scr/save-config.php';
 
         $('.saveChanges').on('click', function() {
@@ -1067,13 +1000,42 @@ $(document).ready(function() {
                 hasChanges = true;
             }
 
+            // Site Config (lp-siteConfig.json). Bracket-notation field names
+            // unpack into $_POST['siteConfig'][<module>][<key>] server-side.
+            // The hidden __rendered marker tells the PHP handler to honor
+            // this submission even if every box is unchecked (otherwise an
+            // all-unchecked submit would have no siteConfig keys at all).
+            let siteConfigChanged = false;
+            if (currentSnapshot.siteConfig && !isEqualSnapshot(currentSnapshot.siteConfig, initialSnapshot.siteConfig)) {
+                formData.append('siteConfig[__rendered]', '1');
+                Object.keys(currentSnapshot.siteConfig).forEach((module) => {
+                    const flags = currentSnapshot.siteConfig[module] || {};
+                    Object.keys(flags).forEach((key) => {
+                        const value = flags[key];
+                        // Bool: append "1" only when checked (HTML form
+                        // semantics; PHP reads !empty()).
+                        // Number: always append, including 0, so the int
+                        // value lands in $_POST verbatim.
+                        if (typeof value === 'boolean') {
+                            if (value) {
+                                formData.append('siteConfig[' + module + '][' + key + ']', '1');
+                            }
+                        } else if (typeof value === 'number') {
+                            formData.append('siteConfig[' + module + '][' + key + ']', String(value));
+                        }
+                    });
+                });
+                hasChanges = true;
+                siteConfigChanged = true;
+            }
+
             if (!hasChanges) {
                 addAdminNotice('warning', 'No changes to save.');
                 return;
             }
 
-            if (!validateEventLists()) {
-                addAdminNotice('danger', 'Please fix event list errors before saving.');
+            if (!validatePaneInlineErrors()) {
+                addAdminNotice('danger', 'Please fix the highlighted errors before saving.');
                 return;
             }
 
@@ -1086,11 +1048,23 @@ $(document).ready(function() {
                 contentType: false,
                 success: function(resp) {
                     console.log('Save successful', resp);
+                    if (siteConfigChanged) {
+                        // Site config drives server-side conditional rendering
+                        // (gear modal checkbox states, per-item modal button
+                        // visibility) that JS state propagation can't refresh
+                        // in place. Hard-reload so every conditional re-derives.
+                        addAdminNotice('ok', 'Site config saved. Reloading…', { persist: true });
+                        setTimeout(function() { window.location.reload(); }, 600);
+                        return;
+                    }
                     addAdminNotice('ok', 'Changes saved.');
+                    if (resp && resp.gd_unavailable && !gdNoticeShown) {
+                        gdNoticeShown = true;
+                        addAdminNotice('ok', 'For better performance, install the PHP GD extension on your server.');
+                    }
                     let refreshPromise = Promise.resolve();
                     if (typeof window.refreshEventListUIs === 'function') {
                         window.refreshEventListUIs();
-                        addAdminNotice('ok', 'Event list re-sorted.');
                     }
                     if (typeof window.refreshMediaGalleryUIs === 'function') {
                         const result = window.refreshMediaGalleryUIs();
@@ -1107,26 +1081,12 @@ $(document).ready(function() {
                     });
                 },
                 error: function(xhr) {
-                    const responseText = xhr && xhr.responseText ? xhr.responseText : '';
                     if (xhr && xhr.status === 403) {
                         addAdminNotice('danger', 'You do not have permission to edit site content.');
                         hideSavingOverlay();
                         return;
                     }
-                    let message = 'Save failed. Please try again.';
-                    if (responseText) {
-                        try {
-                            const parsed = JSON.parse(responseText);
-                            if (parsed && parsed.error) {
-                                message = parsed.error;
-                            }
-                        } catch (err) {
-                            message = responseText;
-                        }
-                    }
-                    console.error('Save failed', responseText);
-                    addAdminNotice('danger', message);
-                    hideSavingOverlay();
+                    handleEndpointError(xhr, 'Save failed. Please try again.');
                 }
             });
         });
@@ -1212,25 +1172,44 @@ $(document).ready(function() {
         return { links };
     }
 
+    function parseTgUserEntries(rawValue) {
+        const lines = String(rawValue || '').split('\n').map((v) => v.trim()).filter((v) => v.length > 0);
+        const order = [];
+        const entriesById = new Map();
+        lines.forEach((line) => {
+            const parts = line.split(/\s+/).filter((v) => v.length > 0);
+            if (!parts.length) { return; }
+            const id = parts[0];
+            if (!/^-?\d+$/.test(id)) { return; }
+            const content = parts[1] && /^nsfw$/i.test(parts[1]) ? 'NSFW' : 'SFW';
+            if (!entriesById.has(id)) {
+                order.push(id);
+                entriesById.set(id, { id, content });
+                return;
+            }
+            if (content === 'NSFW') { entriesById.set(id, { id, content: 'NSFW' }); }
+        });
+        return order.map((id) => entriesById.get(id)).filter(Boolean);
+    }
+
     function getTgBotData() {
         const token = ($('#tgBotToken').val() || '').trim();
+        const webhookSecret = ($('#tgBotWebhookSecret').val() || '').trim();
         const username = ($('#tgBotUsername').val() || '').trim();
         const ttlRaw = ($('#tgBotCacheTtl').val() || '').trim();
         const ttlValue = parseInt(ttlRaw, 10);
         const ttl = Number.isFinite(ttlValue) && ttlValue > 0 ? ttlValue : 30;
         const message = ($('#tgBotUnauthorizedMessage').val() || '').trim();
-        const groupRaw = $('#tgBotGroupIds').val() || '';
-        const whitelistRaw = $('#tgBotWhitelistUserIds').val() || '';
-        const blacklistRaw = $('#tgBotBlacklistUserIds').val() || '';
-        const entries = parseTgGroupEntries(groupRaw);
-        const whitelistEntries = parseTgUserEntries(whitelistRaw);
-        const blacklistEntries = parseTgUserEntries(blacklistRaw);
+        const entries = readTgGroupRows();
         entries.sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }));
+        const whitelistEntries = parseTgUserEntries($('#tgBotWhitelistUserIds').val() || '');
+        const blacklistEntries = parseTgUserEntries($('#tgBotBlacklistUserIds').val() || '');
         whitelistEntries.sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }));
         blacklistEntries.sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }));
         return {
             bot_username: username,
             bot_token: token,
+            webhook_secret_token: webhookSecret,
             group_ids: entries,
             whitelist_user_ids: whitelistEntries,
             blacklist_user_ids: blacklistEntries,
@@ -1310,6 +1289,41 @@ $(document).ready(function() {
         return changed;
     }
 
+    function getSiteConfigData() {
+        // Walks every checkbox or number input inside #siteConfig with a
+        // name shaped like siteConfig[<module>][<key>], so new flags added
+        // to lawnding_site_config_defaults() (and rendered by the PHP form)
+        // flow through the snapshot/diff path without any JS updates.
+        // Type detection mirrors the PHP form: checkboxes become bools,
+        // number inputs become ints. Returns null when the section isn't
+        // rendered (user lacks edit_site) so the snapshot diff stays clean.
+        const $section = $('#siteConfig');
+        if (!$section.length) {
+            return null;
+        }
+        const data = {};
+        $section.find('input[type="checkbox"][name^="siteConfig["], input[type="number"][name^="siteConfig["]').each(function() {
+            const $input = $(this);
+            const name = $input.attr('name') || '';
+            const m = name.match(/^siteConfig\[([^\]]+)\]\[([^\]]+)\]$/);
+            if (!m) {
+                return; // skips siteConfig[__rendered] and any non-flag inputs
+            }
+            const moduleKey = m[1];
+            const flagKey = m[2];
+            if (!data[moduleKey]) {
+                data[moduleKey] = {};
+            }
+            if ($input.attr('type') === 'checkbox') {
+                data[moduleKey][flagKey] = $input.is(':checked');
+            } else {
+                const parsed = parseInt($input.val(), 10);
+                data[moduleKey][flagKey] = Number.isFinite(parsed) ? parsed : 0;
+            }
+        });
+        return data;
+    }
+
     function captureSnapshot() {
         return {
             header: getHeaderData(),
@@ -1317,85 +1331,21 @@ $(document).ready(function() {
             authLinks: getAuthLinksData(),
             tgBot: getTgBotData(),
             backgrounds: getBackgroundsData(),
-            panes: getPaneSaveData()
+            panes: getPaneSaveData(),
+            siteConfig: getSiteConfigData()
         };
     }
 
-    function isEndBeforeStart(startDate, startTime, endDate, endTime) {
-        if (!startDate || !startTime || !endDate || !endTime) {
-            return false;
-        }
-        const startKey = `${startDate} ${startTime}`;
-        const endKey = `${endDate} ${endTime}`;
-        return endKey < startKey;
-    }
-
-    // Validate all event list panes and show inline errors.
-    function validateEventLists() {
+    // Save All gate. Modules that do inline per-card validation populate
+    // .eventValidation elements on input; this checks whether any pane
+    // currently shows a non-empty error and blocks the save if so.
+    function validatePaneInlineErrors() {
         let isValid = true;
-        $('[data-pane-type="eventList"]').each(function() {
-            const $pane = $(this);
-            const paneId = $pane.data('pane-id') || $pane.attr('id') || '';
-            const payloadField = $pane.find('.eventListPayload');
-            if (!payloadField.length) {
-                return;
-            }
-            let parsed = null;
-            try {
-                parsed = JSON.parse(payloadField.val() || '{}');
-            } catch (err) {
+        $('.eventValidation').each(function() {
+            if (($(this).text() || '').trim() !== '') {
                 isValid = false;
-                return;
+                return false;
             }
-            const events = Array.isArray(parsed.events) ? parsed.events : [];
-            const seen = new Set();
-            events.forEach((event, idx) => {
-                const $card = $pane.find('.eventCard').eq(idx);
-                const $message = $card.find('.eventValidation');
-                if (!$message.length) {
-                    return;
-                }
-                $message.text('');
-                if (!event || typeof event !== 'object') {
-                    $message.text('Invalid event data.');
-                    isValid = false;
-                    return;
-                }
-                const errors = [];
-                if (!event.name) {
-                    errors.push('Name is required.');
-                }
-                if (!event.startDate) {
-                    errors.push('Start date is required.');
-                }
-                if (!event.startTime) {
-                    errors.push('Start time is required.');
-                }
-                if ((event.endDate && !event.endTime) || (!event.endDate && event.endTime)) {
-                    errors.push('End date and time must both be set or both be blank.');
-                }
-                if (event.endDate && event.endTime && isEndBeforeStart(event.startDate, event.startTime, event.endDate, event.endTime)) {
-                    errors.push('End date/time cannot be earlier than start date/time.');
-                }
-                if (!event.address) {
-                    errors.push('Address is required.');
-                }
-                if (!event.description) {
-                    errors.push('Description is required.');
-                }
-                const dedupeKey = `${String(event.name || '').toLowerCase()}|${event.startDate || ''}|${event.startTime || ''}`;
-                if (event.name && event.startDate && event.startTime) {
-                    if (seen.has(dedupeKey)) {
-                        errors.push('Duplicate event (name + date + time).');
-                    } else {
-                        seen.add(dedupeKey);
-                    }
-                }
-                if (errors.length) {
-                    $message.text(errors.join(' '));
-                    isValid = false;
-                }
-            });
         });
         return isValid;
     }
@@ -1475,16 +1425,7 @@ $(document).ready(function() {
     }
 
     function refreshAuthLinkControls($list) {
-        const $cards = $list ? $list.find('.authLinksConfigCard') : $('.authLinksConfigCard');
-        $cards.find('.moveUpLink, .moveDownLink').prop('disabled', false);
-        if ($cards.length === 0) {
-            return;
-        }
-        $cards.first().find('.moveUpLink').prop('disabled', true);
-        $cards.last().find('.moveDownLink').prop('disabled', true);
-        if ($cards.length === 1) {
-            $cards.first().find('.moveDownLink').prop('disabled', true);
-        }
+        refreshListControls($list ? $list.find('.authLinksConfigCard') : $('.authLinksConfigCard'));
     }
 
     function updateAuthLinkIdForCard($card) {
@@ -1653,9 +1594,7 @@ $(document).ready(function() {
     }
 
     function buildUrl(fileName) {
-        const basePath = window.appConfig && typeof window.appConfig.basePath === 'string'
-            ? window.appConfig.basePath.replace(/\/$/, '')
-            : '';
+        const basePath = lpGetBasePath();
         return basePath ? `${basePath}/res/scr/${fileName}` : `/res/scr/${fileName}`;
     }
 
@@ -1697,18 +1636,23 @@ $(document).ready(function() {
             const displayUrl = bg && typeof bg.displayUrl === 'string' ? bg.displayUrl : url;
             const author = bg && typeof bg.author === 'string' ? bg.author : '';
             const authorUrl = bg && typeof bg.authorUrl === 'string' ? bg.authorUrl : '';
+            const originalSize = bg && parseInt(bg.original_size, 10) > 0 ? parseInt(bg.original_size, 10) : 0;
+            const savedSize = bg && parseInt(bg.saved_size, 10) > 0 ? parseInt(bg.saved_size, 10) : 0;
+            const sizeAttr = originalSize > 0
+                ? ` data-size-info="Original: ${lpFormatBytes(originalSize)}\nResized:  ${lpFormatBytes(savedSize)}"`
+                : '';
             const isEmpty = !displayUrl;
             const row = `
-                <div class="bgConfigRow" data-current-url="${escapeHtml(url)}" data-author-url="${escapeHtml(authorUrl)}" data-index="${index}">
-                    <div class="bgThumbWrap ${isEmpty ? 'empty' : ''}">
-                        <img class="bgThumb" src="${escapeHtml(displayUrl)}" alt="Background preview">
-                        <button class="bgChange" type="button">Change</button>
+                <div class="bgConfigRow" data-current-url="${lpEscapeHtml(url)}" data-author-url="${lpEscapeHtml(authorUrl)}" data-index="${index}">
+                    <div class="bgThumbWrap ${isEmpty ? 'empty' : ''}"${sizeAttr}>
+                        <img class="bgThumb" src="${lpEscapeHtml(displayUrl)}" alt="Background preview">
                     </div>
-                    <input class="bgAuthorInput" type="text" name="bgAuthor[]" value="${escapeHtml(author)}" placeholder="Author">
-                    <input class="bgAuthorUrlInput" type="text" name="bgAuthorUrl[]" value="${escapeHtml(authorUrl)}" placeholder="URL">
+                    <input class="bgAuthorInput" type="text" name="bgAuthor[]" value="${lpEscapeHtml(author)}" placeholder="Author">
+                    <input class="bgAuthorUrlInput" type="text" name="bgAuthorUrl[]" value="${lpEscapeHtml(authorUrl)}" placeholder="URL">
                     <div class="bgRowActions">
                         <button class="moveUpLink iconButton" type="button" title="Move background up" aria-label="Move background up">${moveUpIcon}</button>
                         <button class="moveDownLink iconButton" type="button" title="Move background down" aria-label="Move background down">${moveDownIcon}</button>
+                        <button class="bgChange iconButton" type="button" title="Change background image" aria-label="Change background image">Change</button>
                         <button class="deleteBackground usersDanger iconButton" type="button" aria-label="Delete background" title="Remove this background">${deleteIcon}</button>
                     </div>
                 </div>
@@ -2099,10 +2043,8 @@ $(document).ready(function() {
                 return icon.value;
             }
             if (icon.type === 'file' && icon.value) {
-                const instanceAssetBasePath = window.appConfig && typeof window.appConfig.instanceAssetBasePath === 'string'
-                    ? window.appConfig.instanceAssetBasePath.replace(/\/$/, '')
-                    : '';
-                const src = instanceAssetBasePath ? `${instanceAssetBasePath}/res/img/panes/${icon.value}` : `/res/img/panes/${icon.value}`;
+                const basePath = lpGetBasePath();
+                const src = basePath ? `${basePath}/res/img/panes/${icon.value}` : `/res/img/panes/${icon.value}`;
                 return `<img src="${src}" alt="">`;
             }
             return '<span class="paneIconFallback">Icon</span>';
@@ -2149,8 +2091,17 @@ $(document).ready(function() {
                     reserved.delete(pane.id.toLowerCase());
                 }
             });
-            const ids = panesState.map((pane) => pane.id);
-            const duplicates = ids.filter((id, idx) => id && ids.indexOf(id) !== idx);
+            const seen = new Set();
+            const duplicates = new Set();
+            panesState.forEach((pane) => {
+                const id = pane.id;
+                if (!id) return;
+                if (seen.has(id)) {
+                    duplicates.add(id);
+                } else {
+                    seen.add(id);
+                }
+            });
             let isValid = true;
             $('.paneManageName').removeClass('isInvalid');
             panesState.forEach((pane, index) => {
@@ -2158,7 +2109,7 @@ $(document).ready(function() {
                 if (!pane.name || !pane.id) {
                     invalid = true;
                 }
-                if (duplicates.includes(pane.id)) {
+                if (duplicates.has(pane.id)) {
                     invalid = true;
                 }
                 if (pane.id && reserved.has(pane.id.toLowerCase())) {
@@ -2223,7 +2174,9 @@ $(document).ready(function() {
                     $(this).find('.paneManageIconButton').html(html);
                 }
             });
-            $(`#${paneId} .paneIconButton`).html(html);
+            // .paneIconDisplay = dashboard chip; legacy .paneIconButton
+            // selector kept for holdover contexts (PR2 retires it).
+            $(`#${paneId} .paneIconDisplay, #${paneId} .paneIconButton`).html(html);
             $(`.navPaneItem[data-pane-id="${paneId}"] .navLink`).html(renderIconPreview(pane.icon));
         }
 
@@ -2277,9 +2230,7 @@ $(document).ready(function() {
                     formData.append(`paneIconFile_${pane.id}`, pane.iconFile);
                 }
             });
-            const basePath = window.appConfig && typeof window.appConfig.basePath === 'string'
-                ? window.appConfig.basePath.replace(/\/$/, '')
-                : '';
+            const basePath = lpGetBasePath();
             const saveUrl = basePath ? `${basePath}/res/scr/save-config.php` : '/res/scr/save-config.php';
 
             showSavingOverlay();
@@ -2306,20 +2257,7 @@ $(document).ready(function() {
                     }
                 },
                 error: function(xhr) {
-                    hideSavingOverlay();
-                    const responseText = xhr && xhr.responseText ? xhr.responseText : '';
-                    let message = 'Pane save failed. Please try again.';
-                    if (responseText) {
-                        try {
-                            const parsed = JSON.parse(responseText);
-                            if (parsed && parsed.error) {
-                                message = parsed.error;
-                            }
-                        } catch (err) {
-                            message = responseText;
-                        }
-                    }
-                    addAdminNotice('danger', message);
+                    handleEndpointError(xhr, 'Pane save failed. Please try again.');
                 }
             });
         }
@@ -2339,14 +2277,13 @@ $(document).ready(function() {
             openPaneIconModal(panesState[index].id);
         });
 
-        // Icon button inside pane headers (outside the management list).
-        $(document).on('click', '.paneIconButton', function() {
-            if ($(this).hasClass('paneManageIconButton')) {
-                return;
-            }
+        // Universal gear → per-pane Settings modal. Pane-header icon
+        // (.paneIconDisplay) is intentionally non-interactive.
+        // .paneManageIconButton in the bulk modal still uses #paneIconModal (PR2).
+        $(document).on('click', '.paneSettingsButton', function() {
             const paneId = $(this).data('pane-id') || $(this).closest('.pane').attr('id');
             if (paneId) {
-                openPaneIconModal(String(paneId));
+                openPerPaneSettingsModal(String(paneId));
             }
         });
 
@@ -2532,6 +2469,344 @@ $(document).ready(function() {
             savePaneManagementChanges({ force: true, reload: false });
         });
 
+        // Per-pane Settings modal — universal across modules. Hydrates
+        // from window.appConfig.perPaneSettings; saves POST to
+        // pane-icon-save.php then pane-settings-save.php (sequenced).
+        const $perPaneSettingsModal = $('#panePerPaneSettingsModal');
+        let activePerPaneSettingsId = null;
+        // Selected picker chip's SVG, or '' when none picked. Pre-populated
+        // from the saved icon on open so "no change" detection works.
+        let activePerPaneSelectedSvg = '';
+
+        function getPerPaneSettingsData() {
+            const cfg = window.appConfig && window.appConfig.perPaneSettings;
+            return cfg && typeof cfg === 'object' ? cfg : { panes: {}, modules: {} };
+        }
+
+        // <fieldset disabled> cascades to all descendant form controls
+        // (chip button, picker chips, module checkboxes). Toggle is hidden
+        // when the module declares no per_pane_settings.
+        function syncPerPaneOverridesEnabled() {
+            const $useDefaultsLabel = $('.panePerPaneSettingsUseDefaults');
+            const $useDefaultsInput = $('#panePerPaneSettingsUseDefaultsInput');
+            const visible = !$useDefaultsLabel.is('[hidden]');
+            const checked = $useDefaultsInput.prop('checked');
+            $('.panePerPaneSettingsOverrides').prop('disabled', visible && checked);
+        }
+
+        function openPerPaneSettingsModal(paneId) {
+            const data = getPerPaneSettingsData();
+            const paneData = data.panes && data.panes[paneId];
+            if (!paneData) {
+                return;
+            }
+            activePerPaneSettingsId = paneId;
+
+            const moduleData = (data.modules && data.modules[paneData.module]) || { default_icon: '', per_pane_settings: [] };
+            const declared = Array.isArray(moduleData.per_pane_settings) ? moduleData.per_pane_settings : [];
+            const hasModuleSettings = declared.length > 0;
+
+            $('#panePerPaneSettingsModal-title').text(`${paneData.name || 'Pane'} Settings`);
+            $('#panePerPaneSettingsActiveId').val(paneId);
+
+            // Progressive disclosure: chip is the click-to-change trigger,
+            // editor (picker grid) hidden until clicked.
+            const icon = paneData.icon || { type: 'none', value: '' };
+            const moduleDefaultIcon = moduleData.default_icon || '';
+
+            // Preview falls back to module default for type='none' so the
+            // chip shows the icon as the dashboard renders it.
+            let previewIcon = icon;
+            if (icon.type === 'none' && moduleDefaultIcon) {
+                previewIcon = { type: 'svg', value: moduleDefaultIcon };
+            }
+            $('.panePerPaneSettingsIconCurrent .paneIconPreview').html(renderIconPreview(previewIcon));
+
+            // Default state: summary visible, editor hidden.
+            $('.panePerPaneSettingsIconSummary').removeAttr('hidden');
+            $('.panePerPaneSettingsIconEditor').attr('hidden', 'hidden');
+
+            // Picker entries: module default first (always), "Current"
+            // entry only when the saved SVG isn't covered by default or
+            // library, then library entries. Chip matching savedSvg is
+            // pre-selected.
+            activePerPaneSelectedSvg = icon.type === 'svg' ? icon.value : '';
+            const iconLibrary = Array.isArray(data.iconLibrary) ? data.iconLibrary : [];
+            const savedSvg = icon.type === 'svg' && icon.value
+                ? icon.value
+                : (icon.type === 'none' && moduleDefaultIcon ? moduleDefaultIcon : '');
+            const $picker = $('#panePerPaneSettingsIconPicker');
+            $picker.empty();
+
+            const renderChoice = (key, label, svg, isSelected) => {
+                const $choice = $('<button class="panePerPaneSettingsIconChoice" type="button" role="radio"></button>');
+                $choice.attr('data-key', key);
+                $choice.attr('data-svg', svg);
+                $choice.attr('aria-label', label);
+                $choice.attr('title', label);
+                $choice.html(svg);
+                $choice.attr('aria-checked', isSelected ? 'true' : 'false');
+                if (isSelected) {
+                    $choice.addClass('isSelected');
+                }
+                return $choice;
+            };
+
+            const entries = [];
+            if (moduleDefaultIcon) {
+                entries.push({ key: 'module-default', label: 'Module default', svg: moduleDefaultIcon });
+            }
+            const libraryHasSaved = savedSvg && iconLibrary.some((e) => e.svg === savedSvg);
+            const savedIsModuleDefault = savedSvg && savedSvg === moduleDefaultIcon;
+            if (savedSvg && !libraryHasSaved && !savedIsModuleDefault) {
+                entries.push({ key: 'current', label: 'Current icon', svg: savedSvg });
+            }
+            iconLibrary.forEach((entry) => entries.push(entry));
+
+            entries.forEach((entry) => {
+                const isMatch = entry.svg === savedSvg;
+                $picker.append(renderChoice(entry.key, entry.label, entry.svg, isMatch));
+            });
+
+            // "Use site defaults" toggle visibility + state.
+            const $useDefaultsLabel = $('.panePerPaneSettingsUseDefaults');
+            const $useDefaultsInput = $('#panePerPaneSettingsUseDefaultsInput');
+            if (hasModuleSettings) {
+                $useDefaultsLabel.removeAttr('hidden');
+                $useDefaultsInput.prop('checked', !!paneData.useSiteDefaults);
+            } else {
+                $useDefaultsLabel.attr('hidden', 'hidden');
+                $useDefaultsInput.prop('checked', true);
+            }
+
+            // Module checkboxes pre-populate from resolvedValues so
+            // unchecking the toggle starts from today's effective values.
+            const $moduleSection = $('.panePerPaneSettingsModuleSection');
+            const $moduleControls = $('#panePerPaneSettingsModuleControls');
+            $moduleControls.empty();
+            if (hasModuleSettings) {
+                $moduleSection.removeAttr('hidden');
+                const resolved = paneData.resolvedValues || {};
+                declared.forEach((entry) => {
+                    const $label = $('<label class="siteConfigToggle"><input type="checkbox"><span></span></label>');
+                    $label.find('input').attr('name', entry.key).prop('checked', !!resolved[entry.key]);
+                    $label.find('span').text(entry.label || entry.key);
+                    $moduleControls.append($label);
+                });
+            } else {
+                $moduleSection.attr('hidden', 'hidden');
+            }
+
+            syncPerPaneOverridesEnabled();
+
+            // Plugin contribution slot — fired after core's modal data is
+            // wired up but before it's shown. Listeners filter by moduleId.
+            $(document).trigger('lp:perPaneModalOpening', [{
+                $modal: $perPaneSettingsModal,
+                paneId: paneId,
+                moduleId: paneData.module,
+                useSiteDefaults: !!paneData.useSiteDefaults,
+            }]);
+
+            openAdminModal($perPaneSettingsModal);
+        }
+
+        $(document).on('change', '#panePerPaneSettingsUseDefaultsInput', function() {
+            syncPerPaneOverridesEnabled();
+        });
+
+        // Chip is the click-to-change trigger; reveals the picker.
+        // Every modal open resets to summary state.
+        $(document).on('click', '#panePerPaneSettingsIconChange', function() {
+            $('.panePerPaneSettingsIconSummary').attr('hidden', 'hidden');
+            $('.panePerPaneSettingsIconEditor').removeAttr('hidden');
+        });
+
+        // Picker click — clicked chip's SVG becomes the proposed icon
+        // and the chip preview updates live (no save needed to see it).
+        $(document).on('click', '.panePerPaneSettingsIconChoice', function() {
+            const svg = $(this).attr('data-svg') || '';
+            if (svg === '') {
+                return;
+            }
+            activePerPaneSelectedSvg = svg;
+            $('.panePerPaneSettingsIconChoice').removeClass('isSelected').attr('aria-checked', 'false');
+            $(this).addClass('isSelected').attr('aria-checked', 'true');
+            $('.panePerPaneSettingsIconCurrent .paneIconPreview').html(renderIconPreview({ type: 'svg', value: svg }));
+        });
+
+        function refreshPaneAfterSave(paneId) {
+            const data = getPerPaneSettingsData();
+            const paneData = data.panes && data.panes[paneId];
+            if (!paneData) {
+                return;
+            }
+            const moduleData = (data.modules && data.modules[paneData.module]) || {};
+            // type='none' renders as module default_icon (matches PHP renderer).
+            let previewIcon = paneData.icon || { type: 'none', value: '' };
+            if (previewIcon.type === 'none' && moduleData.default_icon) {
+                previewIcon = { type: 'svg', value: moduleData.default_icon };
+            }
+            const html = `<span class="paneIconPreview">${renderIconPreview(previewIcon)}</span>`;
+            // Dashboard chip + sidebar nav.
+            $(`#${paneId} .paneIconDisplay`).html(html);
+            $(`.navPaneItem[data-pane-id="${paneId}"] .navLink`).html(renderIconPreview(previewIcon));
+
+            // Keep panesState coherent so the legacy management modal
+            // shows the current icon if opened later.
+            const stateIdx = panesState.findIndex((entry) => entry.id === paneId);
+            if (stateIdx >= 0) {
+                panesState[stateIdx].icon = paneData.icon;
+                $paneList.find(`.paneManageRow[data-pane-index="${stateIdx}"] .paneManageIconButton`).html(html);
+            }
+        }
+
+        // Returns the icon-save POST body, null when unchanged (caller
+        // skips the icon roundtrip — the existing icon must survive a
+        // toggle-only save), or {error:...} for unsafe SVG.
+        function resolvePerPaneSettingsIconPayload(paneData) {
+            const existingType = (paneData.icon && paneData.icon.type) || 'none';
+            const existingValue = (paneData.icon && paneData.icon.value) || '';
+
+            // Toggle-on forces icon to clear (pane inherits site default).
+            const $defaultsLabel = $('.panePerPaneSettingsUseDefaults');
+            const $defaultsInput = $('#panePerPaneSettingsUseDefaultsInput');
+            const useSiteDefaults = $defaultsInput.prop('checked') && !$defaultsLabel.is('[hidden]');
+            if (useSiteDefaults) {
+                if (existingType === 'none') {
+                    return null; // already cleared; no-op
+                }
+                return { type: 'none', svg: '', file: null };
+            }
+
+            const svg = (activePerPaneSelectedSvg || '').trim();
+            if (svg === '') {
+                // Nothing picked — preserve the saved icon.
+                return null;
+            }
+            if (svg.indexOf('<script') !== -1 || /\son[a-z]+\s*=\s*["']?/i.test(svg)) {
+                return { error: 'SVG icons cannot contain scripts or inline event handlers.' };
+            }
+            if (existingType === 'svg' && svg === existingValue) {
+                return null; // unchanged
+            }
+            return { type: 'svg', svg: svg, file: null };
+        }
+
+        $(document).on('click', '#panePerPaneSettingsSave', function() {
+            if (!activePerPaneSettingsId) {
+                return;
+            }
+            const paneId = activePerPaneSettingsId;
+            const data = getPerPaneSettingsData();
+            const paneData = data.panes && data.panes[paneId];
+            if (!paneData) {
+                return;
+            }
+            const moduleId = paneData.module || '';
+
+            const iconPayload = resolvePerPaneSettingsIconPayload(paneData);
+            if (iconPayload && iconPayload.error) {
+                addAdminNotice('danger', iconPayload.error);
+                return;
+            }
+
+            const basePath = lpGetBasePath();
+            const iconUrl = basePath ? `${basePath}/res/scr/pane-icon-save.php` : '/res/scr/pane-icon-save.php';
+            const settingsUrl = basePath ? `${basePath}/res/scr/pane-settings-save.php` : '/res/scr/pane-settings-save.php';
+
+            showSavingOverlay();
+
+            // Step 1 (conditional): null payload skips the icon POST so
+            // the saved icon survives a toggle-only / settings-only save.
+            const iconStep = iconPayload
+                ? (() => {
+                    const iconForm = new FormData();
+                    iconForm.append('paneId', paneId);
+                    iconForm.append('iconType', iconPayload.type);
+                    if (iconPayload.type === 'svg') {
+                        iconForm.append('iconSvg', iconPayload.svg);
+                    } else if (iconPayload.type === 'file' && iconPayload.file) {
+                        iconForm.append('iconFile', iconPayload.file);
+                    }
+                    appendCsrf(iconForm);
+                    return fetch(iconUrl, { method: 'POST', body: iconForm, credentials: 'same-origin' })
+                        .then((r) => r.json().then((j) => ({ ok: r.ok, body: j })))
+                        .then(({ ok, body }) => {
+                            if (!ok) {
+                                throw new Error((body && body.error) || 'Failed to save icon.');
+                            }
+                            if (body.icon) {
+                                paneData.icon = body.icon;
+                            }
+                        });
+                })()
+                : Promise.resolve();
+
+            iconStep
+                .then(() => {
+                    const settingsForm = new FormData();
+                    settingsForm.append('paneId', paneId);
+                    settingsForm.append('module', moduleId);
+                    const useSiteDefaults = $('#panePerPaneSettingsUseDefaultsInput').prop('checked');
+                    settingsForm.append('useSiteDefaults', useSiteDefaults ? '1' : '0');
+                    if (!useSiteDefaults) {
+                        $('#panePerPaneSettingsModuleControls input[type="checkbox"]').each(function() {
+                            if ($(this).prop('checked')) {
+                                settingsForm.append($(this).attr('name'), '1');
+                            }
+                        });
+                    }
+                    appendCsrf(settingsForm);
+                    return fetch(settingsUrl, { method: 'POST', body: settingsForm, credentials: 'same-origin' })
+                        .then((r) => r.json().then((j) => ({ ok: r.ok, body: j })));
+                })
+                .then(({ ok, body }) => {
+                    hideSavingOverlay();
+                    if (!ok) {
+                        throw new Error((body && body.error) || 'Failed to save pane settings.');
+                    }
+                    if (body.persisted && body.settings) {
+                        paneData.useSiteDefaults = !!body.settings.useSiteDefaults;
+                        const moduleEntry = (data.modules && data.modules[moduleId]) || {};
+                        const declared = Array.isArray(moduleEntry.per_pane_settings) ? moduleEntry.per_pane_settings : [];
+                        const siteDefaults = (moduleEntry.siteDefaults && typeof moduleEntry.siteDefaults === 'object')
+                            ? moduleEntry.siteDefaults
+                            : {};
+                        const newResolved = {};
+                        declared.forEach((entry) => {
+                            if (paneData.useSiteDefaults) {
+                                // Inheriting — read the siteDefaults snapshot so
+                                // the next open shows actual defaults, not stale
+                                // per-pane values.
+                                newResolved[entry.key] = !!siteDefaults[entry.key];
+                            } else if (typeof body.settings[entry.key] !== 'undefined') {
+                                newResolved[entry.key] = !!body.settings[entry.key];
+                            } else {
+                                // Defensive — shouldn't happen with current endpoint.
+                                newResolved[entry.key] = !!(paneData.resolvedValues || {})[entry.key];
+                            }
+                        });
+                        paneData.resolvedValues = newResolved;
+                    }
+                    // Listeners: mediaGallery/admin.js (per-item button
+                    // visibility). See feedback_shared_event_channel_for_module_updates.
+                    $(document).trigger('lp:per-pane-settings-saved', [{
+                        paneId: paneId,
+                        module: moduleId,
+                        useSiteDefaults: paneData.useSiteDefaults,
+                        resolvedValues: paneData.resolvedValues || {}
+                    }]);
+                    refreshPaneAfterSave(paneId);
+                    closeAdminModal($perPaneSettingsModal);
+                    addAdminNotice('ok', 'Pane settings saved.');
+                })
+                .catch((err) => {
+                    hideSavingOverlay();
+                    addAdminNotice('danger', (err && err.message) || 'Save failed.');
+                });
+        });
+
         renderPaneList();
     }
 
@@ -2584,9 +2859,7 @@ $(document).ready(function() {
 
         // Request a migration preview from save-config.php.
         function fetchPreview() {
-            const basePath = window.appConfig && typeof window.appConfig.basePath === 'string'
-                ? window.appConfig.basePath.replace(/\/$/, '')
-                : '';
+            const basePath = lpGetBasePath();
             const saveUrl = basePath ? `${basePath}/res/scr/save-config.php` : '/res/scr/save-config.php';
             const formData = new FormData();
             formData.append('action', 'migration_preview');
@@ -2611,20 +2884,7 @@ $(document).ready(function() {
                     openModal();
                 },
                 error: function(xhr) {
-                    hideSavingOverlay();
-                    const responseText = xhr && xhr.responseText ? xhr.responseText : '';
-                    let message = 'Migration preview failed.';
-                    if (responseText) {
-                        try {
-                            const parsed = JSON.parse(responseText);
-                            if (parsed && parsed.error) {
-                                message = parsed.error;
-                            }
-                        } catch (err) {
-                            message = responseText;
-                        }
-                    }
-                    addAdminNotice('danger', message);
+                    handleEndpointError(xhr, 'Migration preview failed.');
                 }
             });
         }
@@ -2638,9 +2898,7 @@ $(document).ready(function() {
                 addAdminNotice('danger', 'Migration preview not available.');
                 return;
             }
-            const basePath = window.appConfig && typeof window.appConfig.basePath === 'string'
-                ? window.appConfig.basePath.replace(/\/$/, '')
-                : '';
+            const basePath = lpGetBasePath();
             const saveUrl = basePath ? `${basePath}/res/scr/save-config.php` : '/res/scr/save-config.php';
             const formData = new FormData();
             formData.append('action', 'migration_apply');
@@ -2660,42 +2918,13 @@ $(document).ready(function() {
                     window.location.reload();
                 },
                 error: function(xhr) {
-                    hideSavingOverlay();
-                    const responseText = xhr && xhr.responseText ? xhr.responseText : '';
-                    let message = 'Migration failed.';
-                    if (responseText) {
-                        try {
-                            const parsed = JSON.parse(responseText);
-                            if (parsed && parsed.error) {
-                                message = parsed.error;
-                            }
-                        } catch (err) {
-                            message = responseText;
-                        }
-                    }
-                    addAdminNotice('danger', message);
+                    handleEndpointError(xhr, 'Migration failed.');
                 }
             });
         });
 
         $(document).on('click', '#migrationModal .userModalClose', function() {
             closeModal();
-        });
-    }
-
-    function bindRuntimeMigrationConflictFlow() {
-        const $reviewButton = $('#runtimeMigrationReviewButton');
-        const $modal = $('#runtimeMigrationConflictModal');
-        if (!$reviewButton.length || !$modal.length) {
-            return;
-        }
-
-        $reviewButton.on('click', function() {
-            openAdminModal($modal);
-        });
-
-        $(document).on('click', '#runtimeMigrationConflictModal .userModalClose', function() {
-            closeAdminModal($modal);
         });
     }
 
@@ -2743,94 +2972,18 @@ $(document).ready(function() {
         });
     }
 
-    function buildMarkdownToolbarHtml() {
-        return `
-            <div class="markdownToolbar" role="toolbar" aria-label="Markdown formatting">
-                <div class="markdownToolbarGroup">
-                    <button class="usersButton iconButton mdToolbarButton" type="button" data-md-action="bold" title="Bold" aria-label="Bold">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13.5,15.5H10V12.5H13.5A1.5,1.5 0 0,1 15,14A1.5,1.5 0 0,1 13.5,15.5M10,6.5H13A1.5,1.5 0 0,1 14.5,8A1.5,1.5 0 0,1 13,9.5H10M15.6,10.79C16.57,10.11 17.25,9 17.25,8C17.25,5.74 15.5,4 13.25,4H7V18H14.04C16.14,18 17.75,16.3 17.75,14.21C17.75,12.69 16.89,11.39 15.6,10.79Z" /></svg>
-                    </button>
-                    <button class="usersButton iconButton mdToolbarButton" type="button" data-md-action="italic" title="Italic" aria-label="Italic">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10,4V7H12.21L8.79,15H6V18H14V15H11.79L15.21,7H18V4H10Z" /></svg>
-                    </button>
-                    <select class="markdownHeadingSelect" aria-label="Insert heading">
-                        <option value="">Heading</option>
-                        <option value="1">Heading 1</option>
-                        <option value="2">Heading 2</option>
-                        <option value="3">Heading 3</option>
-                        <option value="4">Heading 4</option>
-                        <option value="5">Heading 5</option>
-                        <option value="6">Heading 6</option>
-                    </select>
-                    <button class="usersButton iconButton mdToolbarButton" type="button" data-md-action="ul" title="Bulleted list" aria-label="Bulleted list">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M7,5H21V7H7V5M7,13V11H21V13H7M4,4.5A1.5,1.5 0 0,1 5.5,6A1.5,1.5 0 0,1 4,7.5A1.5,1.5 0 0,1 2.5,6A1.5,1.5 0 0,1 4,4.5M4,10.5A1.5,1.5 0 0,1 5.5,12A1.5,1.5 0 0,1 4,13.5A1.5,1.5 0 0,1 2.5,12A1.5,1.5 0 0,1 4,10.5M7,19V17H21V19H7M4,16.5A1.5,1.5 0 0,1 5.5,18A1.5,1.5 0 0,1 4,19.5A1.5,1.5 0 0,1 2.5,18A1.5,1.5 0 0,1 4,16.5Z" /></svg>
-                    </button>
-                    <button class="usersButton iconButton mdToolbarButton" type="button" data-md-action="ol" title="Numbered list" aria-label="Numbered list">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M7,13V11H21V13H7M7,19V17H21V19H7M7,7V5H21V7H7M3,8V5H2V4H4V8H3M2,17V16H5V20H2V19H4V18.5H3V17.5H4V17H2M4.25,10A0.75,0.75 0 0,1 5,10.75C5,10.95 4.92,11.14 4.79,11.27L3.12,13H5V14H2V13.08L4,11H2V10H4.25Z" /></svg>
-                    </button>
-                    <button class="usersButton iconButton mdToolbarButton" type="button" data-md-action="quote" title="Quote" aria-label="Quote">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9 22C8.4 22 8 21.6 8 21V18H4C2.9 18 2 17.1 2 16V4C2 2.9 2.9 2 4 2H20C21.1 2 22 2.9 22 4V16C22 17.1 21.1 18 20 18H13.9L10.2 21.7C10 21.9 9.8 22 9.5 22H9M10 16V19.1L13.1 16H20V4H4V16H10M16.3 6L14.9 9H17V13H13V8.8L14.3 6H16.3M10.3 6L8.9 9H11V13H7V8.8L8.3 6H10.3Z" /></svg>
-                    </button>
-                    <button class="usersButton iconButton mdToolbarButton" type="button" data-md-action="code" title="Code" aria-label="Code">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M5,3H7V5H5V10A2,2 0 0,1 3,12A2,2 0 0,1 5,14V19H7V21H5C3.93,20.73 3,20.1 3,19V15A2,2 0 0,0 1,13H0V11H1A2,2 0 0,0 3,9V5A2,2 0 0,1 5,3M19,3A2,2 0 0,1 21,5V9A2,2 0 0,0 23,11H24V13H23A2,2 0 0,0 21,15V19A2,2 0 0,1 19,21H17V19H19V14A2,2 0 0,1 21,12A2,2 0 0,1 19,10V5H17V3H19M12,15A1,1 0 0,1 13,16A1,1 0 0,1 12,17A1,1 0 0,1 11,16A1,1 0 0,1 12,15M8,15A1,1 0 0,1 9,16A1,1 0 0,1 8,17A1,1 0 0,1 7,16A1,1 0 0,1 8,15M16,15A1,1 0 0,1 17,16A1,1 0 0,1 16,17A1,1 0 0,1 15,16A1,1 0 0,1 16,15Z" /></svg>
-                    </button>
-                    <button class="usersButton iconButton mdToolbarButton" type="button" data-md-action="link" title="Link" aria-label="Link">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19,3H5A2,2 0 0,0 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V5A2,2 0 0,0 19,3M19,19H5V5H19V19M13.94,10.06C14.57,10.7 14.92,11.54 14.92,12.44C14.92,13.34 14.57,14.18 13.94,14.81L11.73,17C11.08,17.67 10.22,18 9.36,18C8.5,18 7.64,17.67 7,17C5.67,15.71 5.67,13.58 7,12.26L8.35,10.9L8.34,11.5C8.33,12 8.41,12.5 8.57,12.94L8.62,13.09L8.22,13.5C7.91,13.8 7.74,14.21 7.74,14.64C7.74,15.07 7.91,15.47 8.22,15.78C8.83,16.4 9.89,16.4 10.5,15.78L12.7,13.59C13,13.28 13.18,12.87 13.18,12.44C13.18,12 13,11.61 12.7,11.3C12.53,11.14 12.44,10.92 12.44,10.68C12.44,10.45 12.53,10.23 12.7,10.06C13.03,9.73 13.61,9.74 13.94,10.06M18,9.36C18,10.26 17.65,11.1 17,11.74L15.66,13.1V12.5C15.67,12 15.59,11.5 15.43,11.06L15.38,10.92L15.78,10.5C16.09,10.2 16.26,9.79 16.26,9.36C16.26,8.93 16.09,8.53 15.78,8.22C15.17,7.6 14.1,7.61 13.5,8.22L11.3,10.42C11,10.72 10.82,11.13 10.82,11.56C10.82,12 11,12.39 11.3,12.7C11.47,12.86 11.56,13.08 11.56,13.32C11.56,13.56 11.47,13.78 11.3,13.94C11.13,14.11 10.91,14.19 10.68,14.19C10.46,14.19 10.23,14.11 10.06,13.94C8.75,12.63 8.75,10.5 10.06,9.19L12.27,7C13.58,5.67 15.71,5.68 17,7C17.65,7.62 18,8.46 18,9.36Z" /></svg>
-                    </button>
-                    <button class="usersButton iconButton mdToolbarButton" type="button" data-md-action="image" title="Image" aria-label="Image">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 19C13 19.7 13.13 20.37 13.35 21H5C3.9 21 3 20.11 3 19V5C3 3.9 3.9 3 5 3H19C20.11 3 21 3.9 21 5V13.35C20.37 13.13 19.7 13 19 13V5H5V19H13M13.96 12.29L11.21 15.83L9.25 13.47L6.5 17H13.35C13.75 15.88 14.47 14.91 15.4 14.21L13.96 12.29M20 18V15H18V18H15V20H18V23H20V20H23V18H20Z" /></svg>
-                    </button>
-                    <button class="usersButton mdToolbarButton mdTagButton" type="button" data-md-action="sfw_tag" title="Insert SFW tag" aria-label="Insert SFW tag">SFW</button>
-                    <button class="usersButton mdToolbarButton mdTagButton" type="button" data-md-action="nsfw_tag" title="Insert NSFW tag" aria-label="Insert NSFW tag">NSFW</button>
-                    <button class="usersButton iconButton mdToolbarButton mdTextIcon" type="button" data-md-action="linebreak" title="Line break" aria-label="Line break">&lt;br&gt;</button>
-                    <button class="usersButton iconButton mdToolbarButton mdTextIcon" type="button" data-md-action="hr" title="Horizontal rule" aria-label="Horizontal rule">&lt;hr&gt;</button>
-                </div>
-                <div class="markdownToolbarPreview">
-                    <div class="markdownGatingControls">
-                        <span class="markdownGatingLabel">Content Gating:</span>
-                        <div class="markdownGatingMeter">
-                            <button class="usersButton mdGatingButton mdGatingButtonNone isActive" type="button" data-md-gating-level="none" title="Preview with no gated content">NONE</button>
-                            <button class="usersButton mdGatingButton mdGatingButtonPair mdGatingButtonPairStart" type="button" data-md-gating-level="sfw" title="Preview with SFW gated content">SFW</button>
-                            <button class="usersButton mdGatingButton mdGatingButtonPair mdGatingButtonPairEnd" type="button" data-md-gating-level="nsfw" title="Preview with SFW and NSFW gated content">NSFW</button>
-                        </div>
-                    </div>
-                    <button class="usersButton iconButton mdToolbarButton mdPreviewButton" type="button" data-md-action="preview" title="Preview" aria-label="Preview" aria-pressed="false">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12,9A3,3 0 0,0 9,12A3,3 0 0,0 12,15A3,3 0 0,0 15,12A3,3 0 0,0 12,9M12,17A5,5 0 0,1 7,12A5,5 0 0,1 12,7A5,5 0 0,1 17,12A5,5 0 0,1 12,17M12,4.5C7,4.5 2.73,7.61 1,12C2.73,16.39 7,19.5 12,19.5C17,19.5 21.27,16.39 23,12C21.27,7.61 17,4.5 12,4.5Z" /></svg>
-                    </button>
-                </div>
-            </div>
-        `;
-    }
+    // Toolbar HTML render moved to admin/plugins/markdownEditor/. The plugin's
+    // editor.js sets window.lpMarkdownEditor.toolbarHtml() and (for legacy
+    // call sites) window.buildMarkdownToolbarHtml.
 
+    // Sync each .markdownToolbar's gating-level active state from its
+    // .markdownEditor's data-mdGatingLevel. The plugin's helper hardcodes
+    // NONE as active in the markup; this re-applies the correct state on
+    // dynamically rebuilt toolbars (e.g. eventList card re-render after save).
     function ensureMarkdownToolbarEnhancements($context) {
         const $scope = $context && $context.length ? $context : $(document);
         $scope.find('.markdownToolbar').each(function() {
-            const $toolbar = $(this);
-            const $group = $toolbar.find('.markdownToolbarGroup').first();
-            const $preview = $toolbar.find('.markdownToolbarPreview').first();
-            if ($group.length && !$group.find('[data-md-action="sfw_tag"]').length) {
-                $group.append('<button class="usersButton mdToolbarButton mdTagButton" type="button" data-md-action="sfw_tag" title="Insert SFW tag" aria-label="Insert SFW tag">SFW</button>');
-                $group.append('<button class="usersButton mdToolbarButton mdTagButton" type="button" data-md-action="nsfw_tag" title="Insert NSFW tag" aria-label="Insert NSFW tag">NSFW</button>');
-            }
-            if ($preview.length && !$preview.find('.markdownGatingControls').length) {
-                const controls = `
-                    <div class="markdownGatingControls">
-                        <span class="markdownGatingLabel">Content Gating:</span>
-                        <div class="markdownGatingMeter">
-                            <button class="usersButton mdGatingButton mdGatingButtonNone isActive" type="button" data-md-gating-level="none" title="Preview with no gated content">NONE</button>
-                            <button class="usersButton mdGatingButton mdGatingButtonPair mdGatingButtonPairStart" type="button" data-md-gating-level="sfw" title="Preview with SFW gated content">SFW</button>
-                            <button class="usersButton mdGatingButton mdGatingButtonPair mdGatingButtonPairEnd" type="button" data-md-gating-level="nsfw" title="Preview with SFW and NSFW gated content">NSFW</button>
-                        </div>
-                    </div>
-                `;
-                const $previewButton = $preview.find('[data-md-action="preview"]').first();
-                if ($previewButton.length) {
-                    $(controls).insertBefore($previewButton);
-                } else {
-                    $preview.append(controls);
-                }
-            }
-            const $editor = $toolbar.closest('.markdownEditor');
+            const $editor = $(this).closest('.markdownEditor');
             if ($editor.length) {
                 setMarkdownGatingLevel($editor, getMarkdownGatingLevel($editor));
             }
@@ -2864,7 +3017,7 @@ $(document).ready(function() {
         requestMarkdownPreview(markdown, clearance, function(html) {
             $preview.html(html).removeAttr('hidden');
         }, function(message) {
-            $preview.html(`<p>${escapeHtml(message || 'Preview failed.')}</p>`).removeAttr('hidden');
+            $preview.html(`<p>${lpEscapeHtml(message || 'Preview failed.')}</p>`).removeAttr('hidden');
         });
     }
 
@@ -2982,9 +3135,7 @@ $(document).ready(function() {
     }
 
     function requestMarkdownPreview(markdown, clearance, onSuccess, onError) {
-        const basePath = window.appConfig && typeof window.appConfig.basePath === 'string'
-            ? window.appConfig.basePath.replace(/\/$/, '')
-            : '';
+        const basePath = lpGetBasePath();
         const previewUrl = basePath ? `${basePath}/res/scr/markdown-preview.php` : '/res/scr/markdown-preview.php';
         const formData = new FormData();
         formData.append('markdown', markdown);
@@ -3104,307 +3255,6 @@ $(document).ready(function() {
         textarea.selectionEnd = urlEnd;
     }
 
-    // Event list module: serialize events, validate fields, and manage card UI.
-    function bindEventListEditors() {
-        const $eventPanes = $('[data-pane-type="eventList"]');
-        if (!$eventPanes.length) {
-            return;
-        }
-
-        const paneApis = [];
-        let pendingEventDelete = null;
-
-        function openEventDeleteModal(action) {
-            pendingEventDelete = action;
-            openAdminModal($('#eventDeleteConfirmModal'));
-        }
-
-        $(document).on('click', '#eventDeleteConfirmYes', function() {
-            if (typeof pendingEventDelete === 'function') {
-                pendingEventDelete();
-            }
-            pendingEventDelete = null;
-            closeAdminModal($('#eventDeleteConfirmModal'));
-        });
-
-        $(document).on('click', '#eventDeleteConfirmModal .userModalClose', function() {
-            pendingEventDelete = null;
-            closeAdminModal($('#eventDeleteConfirmModal'));
-        });
-
-        $eventPanes.each(function() {
-            const $pane = $(this);
-            const paneId = $pane.data('pane-id') || $pane.attr('id') || '';
-            const $list = $pane.find('.eventList');
-            const $payload = $pane.find('.eventListPayload');
-            const $toggle = $pane.find('.eventShowPast');
-            const $showCalendar = $pane.find('.eventShowCalendar');
-            const $calendarDefault = $pane.find('.eventCalendarDefault');
-
-            function getBrowserTimeZone() {
-                if (typeof Intl !== 'undefined' && Intl.DateTimeFormat) {
-                    return Intl.DateTimeFormat().resolvedOptions().timeZone || '';
-                }
-                return '';
-            }
-
-            function normalizeEventId(name, startDate, startTime) {
-                const base = `${name}-${startDate}-${startTime}`.toLowerCase();
-                return base.replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-            }
-
-            function getEventCards() {
-                return $list.find('.eventCard');
-            }
-
-            function collectEvents() {
-                const events = [];
-                getEventCards().each(function() {
-                    const $card = $(this);
-                    const name = ($card.find('.eventNameInput').val() || '').trim();
-                    const startDate = ($card.find('.eventStartDateInput').val() || '').trim();
-                    const startTime = ($card.find('.eventStartTimeInput').val() || '').trim();
-                    const endDate = ($card.find('.eventEndDateInput').val() || '').trim();
-                    const endTime = ($card.find('.eventEndTimeInput').val() || '').trim();
-                    const timeZone = ($card.find('.eventTimezoneInput').val() || '').trim() || getBrowserTimeZone();
-                    const address = ($card.find('.eventAddressInput').val() || '').trim();
-                    const description = ($card.find('.eventDescriptionInput').val() || '').trim();
-                    const id = normalizeEventId(name, startDate, startTime);
-                    events.push({
-                        id,
-                        name,
-                        startDate,
-                        startTime,
-                        endDate,
-                        endTime,
-                        timeZone,
-                        address,
-                        description
-                    });
-                });
-                // Sort newest to oldest for storage and reload order.
-                events.sort(compareEventsDesc);
-                return events;
-            }
-
-            function validateEvents(events) {
-                let isValid = true;
-                const seen = new Set();
-
-                getEventCards().each(function(index) {
-                    const $card = $(this);
-                    const $message = $card.find('.eventValidation');
-                    $message.text('');
-                    const event = events[index];
-                    if (!event) {
-                        return;
-                    }
-
-                    const errors = [];
-                    if (!event.name) {
-                        errors.push('Name is required.');
-                    }
-                    if (!event.startDate) {
-                        errors.push('Start date is required.');
-                    }
-                    if (!event.startTime) {
-                        errors.push('Start time is required.');
-                    }
-                    if ((event.endDate && !event.endTime) || (!event.endDate && event.endTime)) {
-                        errors.push('End date and time must both be set or both be blank.');
-                    }
-                    if (event.endDate && event.endTime && isEndBeforeStart(event.startDate, event.startTime, event.endDate, event.endTime)) {
-                        errors.push('End date/time cannot be earlier than start date/time.');
-                    }
-                    if (!event.address) {
-                        errors.push('Address is required.');
-                    }
-                    if (!event.description) {
-                        errors.push('Description is required.');
-                    }
-
-                    const dedupeKey = `${event.name.toLowerCase()}|${event.startDate}|${event.startTime}`;
-                    if (event.name && event.startDate && event.startTime) {
-                        if (seen.has(dedupeKey)) {
-                            errors.push('Duplicate event (name + date + time).');
-                        } else {
-                            seen.add(dedupeKey);
-                        }
-                    }
-
-                    if (errors.length) {
-                        $message.text(errors.join(' '));
-                        isValid = false;
-                    }
-                });
-
-                return isValid;
-            }
-
-            function updatePayload() {
-                const events = collectEvents();
-                const payload = {
-                    showPast: $toggle.is(':checked'),
-                    showCalendar: $showCalendar.is(':checked'),
-                    calendarDefault: $calendarDefault.is(':checked'),
-                    events
-                };
-                $payload.val(JSON.stringify(payload));
-                return events;
-            }
-
-            function refreshValidation() {
-                const events = updatePayload();
-                return validateEvents(events);
-            }
-
-            function ensureEmptyState() {
-                const hasCards = getEventCards().length > 0;
-                $list.find('.eventEmpty').remove();
-                if (!hasCards) {
-                    $list.append('<div class="eventEmpty">No events yet. Click Add Event to create one.</div>');
-                }
-            }
-
-            function addEventCard(data, prepend) {
-                const markdownToolbar = buildMarkdownToolbarHtml();
-                const template = `
-                    <div class=\"eventCard\">
-                        <div class=\"eventNameRow\">
-                            <label class=\"eventNameLabel\">
-                                <span class=\"eventFieldTitle\">Event Name</span>
-                                <input type=\"text\" class=\"eventNameInput\" placeholder=\"Event name\">
-                            </label>
-                            <div class=\"eventCardActions\">
-                                <button class=\"deleteLink iconButton\" type=\"button\" title=\"Remove event\" aria-label=\"Remove event\">${$('.linksConfig .deleteLink').first().html() || ''}</button>
-                            </div>
-                        </div>
-                        <div class=\"eventSectionDivider\" aria-hidden=\"true\"></div>
-                        <div class=\"eventTimeRow\">
-                            <div class=\"eventFieldTitle eventFieldTitleRow\">When</div>
-                            <div class=\"eventTimeFields\">
-                                <div class=\"eventTimeGroup\">
-                                    <span class=\"eventTimeLabel\">From</span>
-                                    <input type=\"date\" class=\"eventStartDateInput\" aria-label=\"Start date\">
-                                    <input type=\"time\" class=\"eventStartTimeInput\" aria-label=\"Start time\">
-                                </div>
-                                <div class=\"eventTimeDash\">-</div>
-                                <div class=\"eventTimeGroup\">
-                                    <span class=\"eventTimeLabel\">To</span>
-                                    <input type=\"date\" class=\"eventEndDateInput\" aria-label=\"End date\">
-                                    <input type=\"time\" class=\"eventEndTimeInput\" aria-label=\"End time\">
-                                </div>
-                            </div>
-                        </div>
-                        <div class=\"eventSectionDivider\" aria-hidden=\"true\"></div>
-                        <div class=\"eventTimeZoneRow\">
-                            <span class=\"eventFieldTitle\">Time Zone</span>
-                            <input type=\"text\" class=\"eventTimezoneInput\" placeholder=\"America/New_York\" aria-label=\"Time zone\">
-                        </div>
-                        <div class=\"eventSectionDivider\" aria-hidden=\"true\"></div>
-                        <div class=\"eventAddressRow\">
-                            <div class=\"eventFieldTitle\">Address</div>
-                            <input type=\"text\" class=\"eventAddressInput\" placeholder=\"123 Main St, City, State\" aria-label=\"Address\">
-                        </div>
-                        <div class=\"eventSectionDivider\" aria-hidden=\"true\"></div>
-                        <div class=\"eventDescriptionLabel\">
-                            <span class=\"eventFieldTitle\">Description</span>
-                            <div class=\"markdownEditor\">
-                                ${markdownToolbar}
-                                <textarea class=\"eventDescriptionInput markdownTextarea\" rows=\"4\" placeholder=\"Details, host, venue, etc.\"></textarea>
-                                <div class=\"markdownPreview\" aria-live=\"polite\" hidden></div>
-                            </div>
-                        </div>
-                        <div class=\"eventValidation\" aria-live=\"polite\"></div>
-                    </div>\n                `;
-                const $card = $(template);
-                if (data) {
-                    $card.find('.eventNameInput').val(data.name || '');
-                    $card.find('.eventStartDateInput').val(data.startDate || data.date || '');
-                    $card.find('.eventStartTimeInput').val(data.startTime || '');
-                    $card.find('.eventEndDateInput').val(data.endDate || (data.endTime ? (data.startDate || data.date || '') : ''));
-                    $card.find('.eventEndTimeInput').val(data.endTime || '');
-                    $card.find('.eventTimezoneInput').val(data.timeZone || getBrowserTimeZone());
-                    $card.find('.eventAddressInput').val(data.address || '');
-                    $card.find('.eventDescriptionInput').val(data.description || '');
-                } else {
-                    $card.find('.eventTimezoneInput').val(getBrowserTimeZone());
-                }
-                if (prepend) {
-                    $list.prepend($card);
-                } else {
-                    $list.append($card);
-                }
-                const $scroll = $pane.find('.eventListScroll');
-                if ($scroll.length) {
-                    $scroll.scrollTop(0);
-                }
-                ensureEmptyState();
-                refreshValidation();
-            }
-
-            function compareEventsDesc(a, b) {
-                const aKey = `${a.startDate || a.date || ''} ${a.startTime || ''}`;
-                const bKey = `${b.startDate || b.date || ''} ${b.startTime || ''}`;
-                return bKey.localeCompare(aKey);
-            }
-
-            function renderFromEvents(events) {
-                $list.empty();
-                if (!events.length) {
-                    ensureEmptyState();
-                    refreshValidation();
-                    return;
-                }
-                const sorted = events.slice().sort(compareEventsDesc);
-                sorted.forEach((event) => addEventCard(event, false));
-                ensureEmptyState();
-                refreshValidation();
-            }
-
-            $pane.on('click', '.eventAddButton', function() {
-                addEventCard(null, true);
-            });
-
-            $pane.on('click', '.eventCard .deleteLink', function() {
-                const $card = $(this).closest('.eventCard');
-                openEventDeleteModal(function() {
-                    $card.remove();
-                    ensureEmptyState();
-                    refreshValidation();
-                });
-            });
-
-            $pane.on('input change', '.eventCard input, .eventCard textarea, .eventShowPast, .eventShowCalendar, .eventCalendarDefault', function() {
-                refreshValidation();
-            });
-
-            // Ensure initial ordering and payload on load.
-            renderFromEvents(collectEvents());
-
-            paneApis.push({
-                refresh: function() {
-                    let parsed = null;
-                    try {
-                        parsed = JSON.parse($payload.val() || '{}');
-                    } catch (err) {
-                        parsed = null;
-                    }
-                    const events = parsed && Array.isArray(parsed.events) ? parsed.events : [];
-                    renderFromEvents(events);
-                }
-            });
-        });
-
-        window.refreshEventListUIs = function() {
-            paneApis.forEach(function(api) {
-                if (api && typeof api.refresh === 'function') {
-                    api.refresh();
-                }
-            });
-        };
-    }
-
     function applySiteEditPermissions() {
         const isReadOnlyUser = window.appConfig && window.appConfig.isReadOnlyUser === true;
         const canEditSite = !isReadOnlyUser && !(window.appConfig && window.appConfig.canEditSite === false);
@@ -3423,39 +3273,6 @@ $(document).ready(function() {
         $targets.prop('disabled', true);
     }
 
-    function addAdminNotice(type, text, options) {
-        const $notices = $('#adminNotices');
-        if (!$notices.length) {
-            return;
-        }
-        const safeType = type || 'ok';
-        const $notice = $(`
-            <div class="adminNotice adminNotice--${safeType}">
-                <span class="adminNoticeText"></span>
-                <button type="button" class="adminNoticeClose" aria-label="Dismiss notification">×</button>
-            </div>
-        `);
-        $notice.find('.adminNoticeText').text(text);
-        $notices.append($notice);
-
-        const persist = options && options.persist;
-        if (safeType !== 'danger' && !persist) {
-            const timeoutMs = safeType === 'warning' ? 15000 : 5000;
-            scheduleNoticeTimeout($notice, timeoutMs);
-        }
-    }
-
-    window.addAdminNotice = addAdminNotice;
-
-    function escapeHtml(value) {
-        return String(value)
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;')
-            .replace(/'/g, '&#39;');
-    }
-
     function showSavingOverlay() {
         $('#savingOverlay').addClass('isActive').attr('aria-hidden', 'false');
     }
@@ -3467,123 +3284,8 @@ $(document).ready(function() {
     window.showSavingOverlay = showSavingOverlay;
     window.hideSavingOverlay = hideSavingOverlay;
 
-    function noticeHasAction($notice) {
-        if (!$notice || !$notice.length) {
-            return false;
-        }
-        return $notice.find('form, button:not(.adminNoticeClose), input[type="submit"], input[type="button"]').length > 0;
-    }
-
     function bindAdminNotices() {
-        $(document)
-            .off('click.adminNoticeClose')
-            .on('click.adminNoticeClose', '.adminNoticeClose', function() {
-            const $notice = $(this).closest('.adminNotice');
-            clearNoticeTimer($notice);
-            $notice.remove();
-        });
-        $('#adminNotices .adminNotice').each(function() {
-            const $notice = $(this);
-            if ($notice.data('persist')) {
-                return;
-            }
-            if ($notice.hasClass('adminNotice--danger')) {
-                return;
-            }
-            if (noticeHasAction($notice)) {
-                return;
-            }
-            const timeoutMs = $notice.hasClass('adminNotice--warning') ? 15000 : 5000;
-            scheduleNoticeTimeout($notice, timeoutMs);
-        });
-    }
-
-    function scheduleNoticeTimeout($notice, durationMs) {
-        if (!$notice.length || durationMs <= 0) {
-            return;
-        }
-        if ($notice.data('noticeTimerActive')) {
-            return;
-        }
-        $notice.data('noticeTimerActive', true);
-
-        let remainingMs = durationMs;
-        let startTime = Date.now();
-        let rafId = null;
-        let paused = false;
-
-        let $progress = $notice.find('.adminNoticeProgress');
-        if (!$progress.length) {
-            $progress = $('<div class="adminNoticeProgress"></div>');
-            $notice.append($progress);
-        }
-
-        function updateProgress() {
-            if (paused) {
-                return;
-            }
-            const elapsed = Date.now() - startTime;
-            const left = Math.max(remainingMs - elapsed, 0);
-            const percent = (left / durationMs) * 100;
-            $progress.css('width', `${percent}%`);
-
-            if (left <= 0) {
-                $notice.addClass('isClosing');
-                $notice.fadeOut(200, function() {
-                    clearNoticeTimer($notice);
-                    $notice.remove();
-                });
-                return;
-            }
-            rafId = requestAnimationFrame(updateProgress);
-            $notice.data('noticeRafId', rafId);
-        }
-
-        function pauseTimer() {
-            if (paused) {
-                return;
-            }
-            paused = true;
-            remainingMs = Math.max(remainingMs - (Date.now() - startTime), 0);
-            if (rafId) {
-                cancelAnimationFrame(rafId);
-                rafId = null;
-            }
-        }
-
-        function resumeTimer() {
-            if (!paused) {
-                return;
-            }
-            paused = false;
-            startTime = Date.now();
-            rafId = requestAnimationFrame(updateProgress);
-            $notice.data('noticeRafId', rafId);
-        }
-
-        $notice.on('mouseenter.noticeTimer', pauseTimer);
-        $notice.on('mouseleave.noticeTimer', resumeTimer);
-
-        rafId = requestAnimationFrame(updateProgress);
-        $notice.data('noticeRafId', rafId);
-        $notice.data('noticePause', pauseTimer);
-        $notice.data('noticeResume', resumeTimer);
-    }
-
-    function clearNoticeTimer($notice) {
-        if (!$notice || !$notice.length) {
-            return;
-        }
-        const rafId = $notice.data('noticeRafId');
-        if (rafId) {
-            cancelAnimationFrame(rafId);
-        }
-        $notice.off('mouseenter.noticeTimer');
-        $notice.off('mouseleave.noticeTimer');
-        $notice.removeData('noticeRafId');
-        $notice.removeData('noticeTimerActive');
-        $notice.removeData('noticePause');
-        $notice.removeData('noticeResume');
+        return noticeManager.bind();
     }
 
     function updateEditSitePermissionFromUsers() {
@@ -3664,4 +3366,22 @@ $(document).ready(function() {
             }
         ];
     }
+
+    // Pending-changes indicator on the global Save button. Modules emit
+    // `lp:adminDirty` with `{moduleId, paneId, hasPending}` whenever they
+    // stage or clear edits; the source key is moduleId:paneId so each pane
+    // tracks independently. Any non-empty source → button gets
+    // .hasPendingChanges (small dot via CSS).
+    const dirtyAdminSources = new Set();
+    $(document).on('lp:adminDirty', function(event, payload) {
+        if (!payload) { return; }
+        const key = (payload.moduleId || '?') + ':' + (payload.paneId || '?');
+        if (payload.hasPending) {
+            dirtyAdminSources.add(key);
+        } else {
+            dirtyAdminSources.delete(key);
+        }
+        $('.saveChanges').toggleClass('hasPendingChanges', dirtyAdminSources.size > 0);
+    });
 });
+

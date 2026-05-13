@@ -9,58 +9,19 @@ function respond($payload, $code = 200) {
     exit;
 }
 
-function require_csrf_token() {
-    $sessionToken = $_SESSION['csrf_token'] ?? '';
-    $postedToken = $_POST['csrf_token'] ?? '';
-    if (!is_string($sessionToken) || $sessionToken === '' || !is_string($postedToken) || $postedToken === '') {
-        respond(['error' => 'Forbidden'], 403);
-    }
-    if (!hash_equals($sessionToken, $postedToken)) {
-        respond(['error' => 'Forbidden'], 403);
-    }
-}
-
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     respond(['error' => 'Method not allowed'], 405);
 }
 
-if (empty($_SESSION['auth_user'])) {
-    respond(['error' => 'Unauthorized'], 401);
-}
+$adminAuthPath = function_exists('lawnding_admin_path')
+    ? lawnding_admin_path('auth.php')
+    : dirname(__DIR__, 3) . '/admin/auth.php';
+require_once $adminAuthPath;
 
-$usersPath = function_exists('lawnding_runtime_file_path')
-    ? lawnding_runtime_file_path('users_path')
-    : (function_exists('lawnding_config')
-        ? lawnding_config('users_path', dirname(__DIR__, 3) . '/admin/users.json')
-        : dirname(__DIR__, 3) . '/admin/users.json');
-$users = is_readable($usersPath) ? json_decode(file_get_contents($usersPath), true) : [];
-$authUser = $_SESSION['auth_user'];
-$record = null;
-if (is_array($users)) {
-    foreach ($users as $user) {
-        if (is_array($user) && ($user['username'] ?? '') === $authUser) {
-            $record = $user;
-            break;
-        }
-    }
-}
-if (!$record) {
-    respond(['error' => 'Unauthorized'], 401);
-}
-if (!empty($record['read_only']) && empty($record['master'])) {
-    respond(['error' => 'Forbidden'], 403);
-}
-$permissions = $record['permissions'] ?? [];
-if (!is_array($permissions)) {
-    $permissions = [];
-}
-$isFullAdmin = !empty($record['master']) || in_array('full_admin', $permissions, true);
-$canEditSite = $isFullAdmin || in_array('edit_site', $permissions, true);
-if (!$canEditSite) {
-    respond(['error' => 'Forbidden'], 403);
-}
-
-require_csrf_token();
+lawnding_require_admin_mutation(
+    null,
+    function ($msg, $code) { respond(['error' => $msg], $code); }
+);
 
 $markdown = $_POST['markdown'] ?? '';
 if (!is_string($markdown)) {
@@ -69,13 +30,13 @@ if (!is_string($markdown)) {
 
 if (!class_exists('Parsedown')) {
     $parsedownPath = function_exists('lawnding_public_path')
-        ? lawnding_core_public_path('res/scr/Parsedown.php')
+        ? lawnding_public_path('res/scr/Parsedown.php')
         : __DIR__ . '/Parsedown.php';
     require_once $parsedownPath;
 }
 if (!function_exists('lawnding_markdown_gate_apply')) {
     $gatingPath = function_exists('lawnding_public_path')
-        ? lawnding_core_public_path('res/scr/markdown-gating.php')
+        ? lawnding_public_path('res/scr/markdown-gating.php')
         : __DIR__ . '/markdown-gating.php';
     require_once $gatingPath;
 }

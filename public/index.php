@@ -7,14 +7,22 @@ if (!is_readable($bootstrapPath)) {
     $bootstrapPath = __DIR__ . '/../../lp-bootstrap.php';
 }
 require_once $bootstrapPath;
-if (function_exists('lawnding_initialize_instance_if_needed')) {
-    lawnding_initialize_instance_if_needed();
-}
 $tgAuthPath = function_exists('lawnding_admin_path')
-    ? lawnding_core_admin_path('lib/tg-auth.php')
+    ? lawnding_admin_path('lib/tg-auth.php')
     : __DIR__ . '/../admin/lib/tg-auth.php';
 require_once $tgAuthPath;
+$rememberLibPath = function_exists('lawnding_admin_path')
+    ? lawnding_admin_path('lib/remember-me.php')
+    : __DIR__ . '/../admin/lib/remember-me.php';
+require_once $rememberLibPath;
 lawnding_init_session();
+lawnding_consume_remember_cookie();
+// Anyone authenticated while viewing the public page is, by definition,
+// "coming from public" — flag it so the admin logout flow sends them back
+// here instead of the admin login form.
+if (!empty($_SESSION['auth_user'])) {
+    $_SESSION['logout_return_public'] = true;
+}
 // Prevent stale HTML/PHP responses from being cached.
 $cacheHeadersPath = function_exists('lawnding_public_path')
     ? lawnding_core_public_path('res/scr/cache_headers.php')
@@ -32,6 +40,70 @@ ini_set('display_errors', '0');
 header("Content-Security-Policy: default-src 'self'; script-src 'self' https://telegram.org; style-src 'self'; img-src 'self' data: https://www.google.com https://t0.gstatic.com https://t1.gstatic.com https://t2.gstatic.com https://t3.gstatic.com; font-src 'self' data:; connect-src 'self'; frame-src https://telegram.org https://oauth.telegram.org; frame-ancestors 'none'");
 header('X-Frame-Options: DENY');
 
+// Seed missing data files from the split seed-instance defaults on first request after deploy.
+lawnding_ensure_data_files();
+
+// Hook primitive + plugin autoload now live in lp-bootstrap.php so
+// both entrypoints can register and fire hooks. Public-only fallback
+// for header_auth_area registers below, after plugins load, so plugin
+// callbacks have first crack and the fallback only fires when none did.
+lawnding_load_plugins();
+
+// Core: render the upper-right header for non-Telegram auth states. The
+// Telegram plugin's own header_auth_area callback owns its chip; this
+// callback covers the other two states (bcrypt-only signed in, fully
+// signed out) so the three callbacks have disjoint conditions and at most
+// one emits per render.
+lawnding_register_hook('header_auth_area', function (array $ctx): void {
+    $tgUser = is_array($ctx['tgUser'] ?? null) ? $ctx['tgUser'] : null;
+    $tgLoggedIn = $tgUser && !empty($tgUser['id']);
+    if ($tgLoggedIn) {
+        return; // Telegram plugin handles this case.
+    }
+    $bcryptLoggedIn = !empty($_SESSION['auth_user'] ?? null);
+    if ($bcryptLoggedIn) {
+        // Bcrypt-only chip. Reuses the .tgHeader* visual classes from the
+        // Telegram plugin's stylesheet (always loaded) so the rhythm matches
+        // the Telegram-logged-in case: chip with name, logout, admin link.
+        // The avatar is omitted — bcrypt users have no avatar to show.
+        $username = (string) ($_SESSION['auth_user'] ?? '');
+        $adminUrl = function_exists('lawnding_asset_url')
+            ? lawnding_asset_url('admin/')
+            : '/admin/';
+        $csrf = (string) ($_SESSION['csrf_token'] ?? '');
+        $logoutAction = htmlspecialchars($adminUrl, ENT_QUOTES, 'UTF-8');
+        echo '<div class="tgHeaderAuth">';
+        echo   '<div class="tgHeaderAuthRow">';
+        echo     '<div class="tgHeaderChip">';
+        echo       '<span class="tgHeaderName">'
+            . htmlspecialchars($username, ENT_QUOTES, 'UTF-8') . '</span>';
+        echo     '</div>';
+        // Logout form posts to /admin/ which validates $_POST['csrf_token']
+        // and respects the logout_return_public flag set on public-side login.
+        echo     '<form method="post" action="' . $logoutAction
+            . '" class="lpHeaderLogoutForm">';
+        echo       '<input type="hidden" name="action" value="logout">';
+        echo       '<input type="hidden" name="csrf_token" value="'
+            . htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8') . '">';
+        echo       '<button type="submit" class="tgHeaderLogout"'
+            . ' title="Log out" aria-label="Log out">';
+        echo         '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"'
+            . ' focusable="false" aria-hidden="true">';
+        echo           '<path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/>';
+        echo         '</svg>';
+        echo       '</button>';
+        echo     '</form>';
+        echo   '</div>';
+        echo   '<a class="tgHeaderAdmin" href="' . $logoutAction
+            . '?from=public" title="Go to admin panel">Admin panel</a>';
+        echo '</div>';
+        return;
+    }
+    // Fully signed out — show the modal trigger.
+    echo '<button type="button" class="lpHeaderLoginButton" data-lp-login-trigger'
+       . ' aria-haspopup="dialog" aria-controls="lpLoginModal">Sign in</button>';
+});
+
 // Resolve a data file path using bootstrap helpers when available.
 function lawnding_public_data_path($file) {
     return function_exists('lawnding_data_path')
@@ -42,15 +114,6 @@ function lawnding_public_data_path($file) {
 // Read a file if it exists; otherwise return the fallback.
 function lawnding_read_file($path, $fallback = '') {
     return is_readable($path) ? file_get_contents($path) : $fallback;
-}
-
-// Decode a JSON file into an array; otherwise return the fallback.
-function lawnding_read_json($path, array $fallback = []) {
-    if (!is_readable($path)) {
-        return $fallback;
-    }
-    $decoded = json_decode(file_get_contents($path), true);
-    return is_array($decoded) ? $decoded : $fallback;
 }
 
 function lawnding_public_absolute_url(string $path): string {
@@ -103,7 +166,10 @@ function lawnding_icon_svg(string $name): string {
     }
 
     $path = htmlspecialchars($paths[$name], ENT_QUOTES, 'UTF-8');
-    return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="' . $path . '" /></svg>';
+    // Decorative-by-default: every consumer wraps the icon in a button or link
+    // that already provides an accessible name. aria-hidden prevents screen
+    // readers from announcing the icon as a redundant element.
+    return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="' . $path . '" /></svg>';
 }
 
 // Render a single link list item (link or separator).
@@ -145,27 +211,7 @@ function lawnding_render_link_item($link): string {
         . '</li>';
 }
 
-function lawnding_auth_access_flags($userAccess): array {
-    if (is_array($userAccess)) {
-        return [
-            'sfw' => !empty($userAccess['sfw']),
-            'nsfw' => !empty($userAccess['nsfw']),
-        ];
-    }
-    $level = is_string($userAccess) ? strtolower(trim($userAccess)) : '';
-    if ($level === 'nsfw') {
-        return ['sfw' => true, 'nsfw' => true];
-    }
-    if ($level === 'nsfw_only') {
-        return ['sfw' => false, 'nsfw' => true];
-    }
-    if ($level === 'sfw') {
-        return ['sfw' => true, 'nsfw' => false];
-    }
-    return ['sfw' => false, 'nsfw' => false];
-}
-
-function lawnding_auth_link_allowed($link, $userAccess): bool {
+function lawnding_auth_link_allowed($link, string $userContentLevel): bool {
     if (!is_array($link)) {
         return false;
     }
@@ -182,11 +228,10 @@ function lawnding_auth_link_allowed($link, $userAccess): bool {
     if ($linkContent !== 'nsfw') {
         $linkContent = 'sfw';
     }
-    $flags = lawnding_auth_access_flags($userAccess);
-    return $linkContent === 'nsfw' ? $flags['nsfw'] : $flags['sfw'];
+    return $userContentLevel === 'nsfw' || $linkContent === 'sfw';
 }
 
-function lawnding_filter_auth_links(array $links, $userAccess): array {
+function lawnding_filter_auth_links(array $links, string $userContentLevel): array {
     $filtered = [];
     $pendingSeparator = false;
     foreach ($links as $link) {
@@ -199,7 +244,7 @@ function lawnding_filter_auth_links(array $links, $userAccess): array {
             }
             continue;
         }
-        if (!lawnding_auth_link_allowed($link, $userAccess)) {
+        if (!lawnding_auth_link_allowed($link, $userContentLevel)) {
             continue;
         }
         if ($pendingSeparator) {
@@ -233,28 +278,60 @@ if (is_array($linksPayload) && array_key_exists('links', $linksPayload)) {
 $authLinksEnabled = !empty($linksSettings['auth_links']);
 $authLinksData = [];
 $tgConfig = lawnding_load_tg_config();
-$tgBotMessage = (string) ($tgConfig['unauthorized_message'] ?? 'Unable to display member links.  Join the telegram group with the link above, or contact an admin for assistance.');
-$tgBotUsername = isset($tgConfig['bot_username']) && is_string($tgConfig['bot_username'])
-    ? ltrim(trim($tgConfig['bot_username']), '@')
-    : '';
+$tgBotMessage = $tgConfig['unauthorized_message'];
+$tgBotUsername = ltrim(trim($tgConfig['bot_username']), '@');
+$tgBotId = lawnding_tg_bot_id_from_token($tgConfig['bot_token']);
 $returnPath = '/';
 $authEndpoint = function_exists('lawnding_asset_url')
-    ? lawnding_asset_url('plugins/telegram/auth.php')
-    : '/plugins/telegram/auth.php';
+    ? lawnding_asset_url('res/scr/plugin-endpoint.php?plugin=telegram&endpoint=auth')
+    : '/res/scr/plugin-endpoint.php?plugin=telegram&endpoint=auth';
 $logoutEndpoint = function_exists('lawnding_asset_url')
-    ? lawnding_asset_url('plugins/telegram/logout.php')
-    : '/plugins/telegram/logout.php';
-$tgAuthUrl = lawnding_public_absolute_url($authEndpoint . '?return=' . rawurlencode($returnPath));
-$tgLogoutUrl = $logoutEndpoint . '?return=' . rawurlencode($returnPath);
+    ? lawnding_asset_url('res/scr/plugin-endpoint.php?plugin=telegram&endpoint=logout')
+    : '/res/scr/plugin-endpoint.php?plugin=telegram&endpoint=logout';
+// $authEndpoint / $logoutEndpoint already carry ?plugin=...&endpoint=...,
+// so return joins with '&'. Using '?' produced a double-query the proxy
+// rejected as "Invalid endpoint name."
+$tgAuthUrl = lawnding_public_absolute_url($authEndpoint . '&return=' . rawurlencode($returnPath));
+$tgLogoutUrl = $logoutEndpoint . '&return=' . rawurlencode($returnPath);
 $authLinksState = 'logged_out';
-$authLinksUserAccess = ['sfw' => false, 'nsfw' => false];
+$authLinksUserLevel = '';
 $markdownGateClearance = 'none';
 $tgUser = isset($_SESSION['tg_user']) && is_array($_SESSION['tg_user']) ? $_SESSION['tg_user'] : null;
 $tgUserId = $tgUser['id'] ?? ($_SESSION['tg_user_id'] ?? null);
-$viewerAccess = ['sfw' => false, 'nsfw' => false];
+$viewerContentLevel = '';
 if (!empty($tgUserId)) {
-    $viewerAccess = lawnding_tg_user_access($tgConfig, $tgUserId);
-    $markdownGateClearance = lawnding_tg_access_clearance($viewerAccess);
+    $viewerContentLevel = lawnding_tg_user_content_level($tgConfig, $tgUserId, $tgUser);
+    if ($viewerContentLevel === '') {
+        // Group membership lapsed since login. Drop the session entirely
+        // instead of degrading to a half-authorized state, and surface a
+        // banner on the next render. Shared with the admin-side revocation
+        // path via lawnding_admin_handle_tg_revocation() in admin/auth.php
+        // so both surfaces tear down identically.
+        $adminAuthPath = function_exists('lawnding_admin_path')
+            ? lawnding_admin_path('auth.php')
+            : __DIR__ . '/../admin/auth.php';
+        require_once $adminAuthPath;
+        lawnding_admin_handle_tg_revocation();
+        $tgUser = null;
+        $tgUserId = null;
+    } elseif ($viewerContentLevel === 'nsfw') {
+        $markdownGateClearance = 'nsfw';
+    } elseif ($viewerContentLevel === 'sfw') {
+        $markdownGateClearance = 'sfw';
+    }
+}
+// Telegram-authenticated visitors whose groups grant any admin permission
+// get a shortcut button on the public header. Pure cache read — the content
+// level check above already warmed the membership cache.
+$adminShortcutUrl = '';
+if (!empty($tgUserId) && $viewerContentLevel !== '') {
+    $tgAdminPerms = lawnding_tg_user_permissions($tgConfig, $tgUserId);
+    if (!empty($tgAdminPerms)) {
+        // ?from=public is a one-shot arrival marker picked up by admin/index.php
+        // so logging out from this session returns the visitor to the public
+        // site instead of the admin login form.
+        $adminShortcutUrl = lawnding_asset_url('admin/') . '?from=public';
+    }
 }
 if ($authLinksEnabled) {
     $authLinksJsonPath = lawnding_public_data_path('authorizedLinks.json');
@@ -267,16 +344,14 @@ if ($authLinksEnabled) {
 }
 if ($authLinksEnabled) {
     if (!empty($tgUserId)) {
-        $authLinksUserAccess = $viewerAccess;
-        $authLinksState = !empty($authLinksUserAccess['sfw']) || !empty($authLinksUserAccess['nsfw'])
-            ? 'authorized'
-            : 'unauthorized';
+        $authLinksUserLevel = $viewerContentLevel;
+        $authLinksState = $authLinksUserLevel !== '' ? 'authorized' : 'unauthorized';
     } else {
         $authLinksState = 'logged_out';
     }
 }
 if ($authLinksEnabled && $authLinksState === 'authorized') {
-    $authLinksData = lawnding_filter_auth_links($authLinksData, $authLinksUserAccess);
+    $authLinksData = lawnding_filter_auth_links($authLinksData, $authLinksUserLevel);
 }
 
 // Load header configuration with defaults if missing.
@@ -306,128 +381,59 @@ $resolveAssetUrl = function ($path) {
     if (preg_match('#^[a-z][a-z0-9+.-]*:#i', $path) || str_starts_with($path, '//')) {
         return $path;
     }
-    if (function_exists('lawnding_normalize_legacy_public_asset_path')) {
-        $path = lawnding_normalize_legacy_public_asset_path($path);
-    }
-    if (str_starts_with(ltrim((string) $path, '/'), 'res/')) {
-        return function_exists('lawnding_instance_asset_url') ? lawnding_instance_asset_url($path) : $path;
-    }
     return function_exists('lawnding_asset_url') ? lawnding_asset_url($path) : $path;
 };
 $headerDataResolved = $headerData;
-$headerDataResolved['logo'] = $resolveAssetUrl($headerDataResolved['logo'] ?? '');
+$headerDataResolved['logo'] = lawnding_versioned_local_asset_url($headerData['logo'] ?? '');
 if (!empty($headerDataResolved['backgrounds']) && is_array($headerDataResolved['backgrounds'])) {
-    $headerDataResolved['backgrounds'] = array_map(function ($bg) use ($resolveAssetUrl) {
+    $headerDataResolved['backgrounds'] = array_map(function ($bg) {
         if (is_string($bg)) {
-            return $resolveAssetUrl($bg);
+            return lawnding_versioned_local_asset_url($bg);
         }
         if (is_array($bg)) {
-            $bg['url'] = $resolveAssetUrl($bg['url'] ?? '');
+            $bg['url'] = lawnding_versioned_local_asset_url($bg['url'] ?? '');
             return $bg;
         }
         return $bg;
     }, $headerDataResolved['backgrounds']);
 }
-$faviconUrl = is_string($headerDataResolved['logo'] ?? null) && $headerDataResolved['logo'] !== ''
-    ? $headerDataResolved['logo']
-    : $resolveAssetUrl('res/img/logo.jpg');
-$faviconToken = defined('SITE_VERSION') ? (string) SITE_VERSION : '';
-$faviconPathRaw = is_string($headerData['logo'] ?? null) ? $headerData['logo'] : '';
-if ($faviconPathRaw !== '' && !preg_match('#^[a-z][a-z0-9+.-]*:#i', $faviconPathRaw) && !str_starts_with($faviconPathRaw, '//')) {
-    $faviconPath = function_exists('lawnding_normalize_legacy_public_asset_path')
-        ? (string) lawnding_normalize_legacy_public_asset_path($faviconPathRaw)
-        : $faviconPathRaw;
-    $faviconPath = ltrim($faviconPath, '/');
-    if (str_starts_with($faviconPath, 'res/')) {
-        $faviconFsPath = function_exists('lawnding_instance_asset_path')
-            ? lawnding_instance_asset_path($faviconPath)
-            : __DIR__ . '/' . $faviconPath;
-        if (is_file($faviconFsPath)) {
-            $mtime = @filemtime($faviconFsPath);
-            if (is_int($mtime) && $mtime > 0) {
-                $faviconToken = (string) $mtime;
+$faviconRaw = is_string($headerData['logo'] ?? null) && $headerData['logo'] !== ''
+    ? $headerData['logo']
+    : 'res/img/logo.jpg';
+$faviconHref = lawnding_versioned_local_asset_url(
+    $faviconRaw,
+    defined('SITE_VERSION') ? (string) SITE_VERSION : ''
+);
+$headerDataJson = htmlspecialchars(json_encode($headerDataResolved, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT), ENT_QUOTES, 'UTF-8');
+
+// Render pane icon from panes.json (SVG string or uploaded file reference).
+// Falls back to the module manifest's default_icon when the pane has no
+// icon set, so panes created before this fallback existed (or any pane
+// the admin hasn't manually iconified) still render with a sensible icon
+// on the navbar.
+function lawnding_render_pane_icon(array $pane): string {
+    $icon = $pane['icon'] ?? [];
+    if (is_array($icon)) {
+        $type = $icon['type'] ?? '';
+        if ($type === 'svg') {
+            $svg = $icon['value'] ?? '';
+            if (is_string($svg) && $svg !== '' && lawnding_is_safe_svg($svg)) {
+                return $svg;
+            }
+        } elseif ($type === 'file') {
+            $value = $icon['value'] ?? '';
+            if (is_string($value) && $value !== '') {
+                $src = lawnding_versioned_local_asset_url('res/img/panes/' . ltrim($value, '/'));
+                return '<img class="navLinkIconImage" src="' . htmlspecialchars($src, ENT_QUOTES, 'UTF-8') . '" alt="">';
             }
         }
     }
-}
-$faviconHref = $faviconUrl;
-if ($faviconToken !== '') {
-    $faviconHref .= (str_contains($faviconHref, '?') ? '&' : '?') . 'v=' . rawurlencode($faviconToken);
-}
-$legacyFallbackConsoleScript = function_exists('lawnding_render_legacy_fallback_console_script')
-    ? lawnding_render_legacy_fallback_console_script()
-    : '';
-$headerDataJson = htmlspecialchars(json_encode($headerDataResolved, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT), ENT_QUOTES, 'UTF-8');
-
-// Load pane instances and module manifests for dynamic public rendering.
-function lawnding_load_panes(string $path): array {
-    if (!is_readable($path)) {
-        return [];
-    }
-    $decoded = json_decode(file_get_contents($path), true);
-    if (!is_array($decoded) || !isset($decoded['panes']) || !is_array($decoded['panes'])) {
-        return [];
-    }
-    return $decoded['panes'];
-}
-
-// Sort panes by explicit order while preserving original order as tie-breaker.
-function lawnding_sort_panes(array $panes): array {
-    $indexed = [];
-    foreach ($panes as $index => $pane) {
-        if (is_array($pane)) {
-            $pane['_index'] = $index;
-            $indexed[] = $pane;
+    $moduleId = $pane['module'] ?? '';
+    if (is_string($moduleId) && $moduleId !== '') {
+        $default = lawnding_module_default_icon($moduleId);
+        if ($default !== '' && lawnding_is_safe_svg($default)) {
+            return $default;
         }
-    }
-    usort($indexed, function ($a, $b) {
-        $orderA = isset($a['order']) ? (int) $a['order'] : PHP_INT_MAX;
-        $orderB = isset($b['order']) ? (int) $b['order'] : PHP_INT_MAX;
-        if ($orderA === $orderB) {
-            return ($a['_index'] ?? 0) <=> ($b['_index'] ?? 0);
-        }
-        return $orderA <=> $orderB;
-    });
-    foreach ($indexed as &$pane) {
-        unset($pane['_index']);
-    }
-    return $indexed;
-}
-
-// Minimal SVG sanitizer to block scripts and inline event handlers.
-function lawnding_is_safe_svg(?string $svg): bool {
-    if (!is_string($svg) || $svg === '') {
-        return false;
-    }
-    if (stripos($svg, '<script') !== false) {
-        return false;
-    }
-    if (preg_match('/\\son[a-z]+\\s*=\\s*["\']?/i', $svg)) {
-        return false;
-    }
-    return true;
-}
-
-// Render pane icon from panes.json (SVG string or uploaded file reference).
-function lawnding_render_pane_icon(array $pane): string {
-    $icon = $pane['icon'] ?? [];
-    if (!is_array($icon)) {
-        return '';
-    }
-    $type = $icon['type'] ?? '';
-    if ($type === 'svg') {
-        $svg = $icon['value'] ?? '';
-        return lawnding_is_safe_svg($svg) ? $svg : '';
-    }
-    if ($type === 'file') {
-        $value = $icon['value'] ?? '';
-        if (!is_string($value) || $value === '') {
-            return '';
-        }
-        $src = function_exists('lawnding_asset_url')
-            ? lawnding_instance_asset_url('res/img/panes/' . ltrim($value, '/'))
-            : 'res/img/panes/' . ltrim($value, '/');
-        return '<img class="navLinkIconImage" src="' . htmlspecialchars($src, ENT_QUOTES, 'UTF-8') . '" alt="">';
     }
     return '';
 }
@@ -477,13 +483,13 @@ $isLinksHidden = !$showLinks;
     <title><?php echo htmlspecialchars($headerData['title'] ?? ''); ?></title>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-    <script src="<?php echo htmlspecialchars(lawnding_asset_url('res/scr/no-zoom.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
+    <script src="<?php echo htmlspecialchars(lawnding_versioned_local_asset_url('res/scr/no-zoom.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
     
     <link rel="icon" href="<?php echo htmlspecialchars($faviconHref, ENT_QUOTES, 'UTF-8'); ?>"/>
-    <link rel="stylesheet" href="<?php echo htmlspecialchars(lawnding_asset_url('res/style.css'), ENT_QUOTES, 'UTF-8'); ?>">
+    <link rel="stylesheet" href="<?php echo htmlspecialchars(lawnding_versioned_local_asset_url('res/style.css'), ENT_QUOTES, 'UTF-8'); ?>">
 
-    <script src="<?php echo htmlspecialchars(lawnding_asset_url('res/scr/jquery-3.7.1.min.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
-    <?php echo $legacyFallbackConsoleScript; ?>
+    <script src="<?php echo htmlspecialchars(lawnding_versioned_local_asset_url('res/scr/jquery-3.7.1.min.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
+    <?php lawnding_run_hook('head_assets'); ?>
     <noscript>
         <style>
             body.is-loading #header,
@@ -494,8 +500,21 @@ $isLinksHidden = !$showLinks;
     </noscript>
 </head>
 <body class="is-loading<?php echo $isLinksOnly ? ' linksOnly' : ''; ?><?php echo $isLinksHidden ? ' linksHidden' : ''; ?>" data-header-json="<?php echo $headerDataJson; ?>">
+    <!-- Keyboard skip target — reveals on focus, jumps past the header. -->
+    <a class="skipLink" href="#container">Skip to main content</a>
     <!-- No-JS fallback for browsers with JavaScript disabled. -->
     <div id="noJsWarning"><noscript>This site requires JavaScript to function properly. Please enable JavaScript in your browser.</noscript></div>
+    <!-- Flash notice container (drained from $_SESSION['lp_flash']). -->
+    <!-- aria-live: notices added/replaced here are announced by screen readers. -->
+    <div class="adminNotices" id="adminNotices" aria-live="polite" aria-atomic="true">
+        <?php $flash = lawnding_flash_consume(); ?>
+        <?php if ($flash !== null): ?>
+            <div class="adminNotice adminNotice--<?php echo htmlspecialchars($flash['type'], ENT_QUOTES, 'UTF-8'); ?>"<?php echo $flash['type'] === 'danger' ? ' role="alert"' : ''; ?>>
+                <span class="adminNoticeText"><?php echo htmlspecialchars($flash['text'], ENT_QUOTES, 'UTF-8'); ?></span>
+                <button type="button" class="adminNoticeClose" aria-label="Dismiss notification">×</button>
+            </div>
+        <?php endif; ?>
+    </div>
     <!-- Header with logo and title/subtitle. -->
     <header class="header" id="header">
         <div class="logo" id="logo"></div>
@@ -503,9 +522,14 @@ $isLinksHidden = !$showLinks;
             <h1><?php echo htmlspecialchars($headerData['title'] ?? ''); ?></h1>
             <h2><?php echo htmlspecialchars($headerData['subtitle'] ?? ''); ?></h2>
         </div>
+        <?php lawnding_run_hook('header_auth_area', [
+            'tgUser' => $tgUser,
+            'logoutUrl' => $tgLogoutUrl,
+            'adminUrl' => $adminShortcutUrl,
+        ]); ?>
     </header>
     <!-- Main content panes. -->
-    <div class="container" id="container">
+    <main class="container" id="container">
         <?php if ($showLinks): ?>
             <div class="pane glassConvex alwaysShow" id="links">
                 <h3>LINKS</h3>
@@ -513,42 +537,10 @@ $isLinksHidden = !$showLinks;
                     <?php foreach ($linksData as $link): ?>
                         <?php echo lawnding_render_link_item($link); ?>
                     <?php endforeach; ?>
-                    <?php if ($authLinksEnabled): ?>
-                        <?php if ($authLinksState === 'authorized'): ?>
-                            <?php foreach ($authLinksData as $link): ?>
-                                <?php echo lawnding_render_link_item($link); ?>
-                            <?php endforeach; ?>
-                            <li class="linkItem fullWidth authLinksLogout" id="authLinksLogout">
-                                <a class="authLinkLogoutButton" href="<?php echo htmlspecialchars($tgLogoutUrl, ENT_QUOTES, 'UTF-8'); ?>">Log out</a>
-                            </li>
-                        <?php elseif ($authLinksState === 'unauthorized'): ?>
-                            <li class="linkItem fullWidth authLinksNotice" id="authLinksNotice">
-                                <div class="link authLinkMessage">
-                                    <span class="authLinkLogo authLinkLogo--warning" aria-hidden="true">
-                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" focusable="false"><path d="M13 14H11V9H13M13 18H11V16H13M1 21H23L12 2L1 21Z" /></svg>
-                                    </span>
-                                    <span class="linkLabel"><?php echo htmlspecialchars($tgBotMessage); ?></span>
-                                </div>
-                            </li>
-                            <li class="linkItem fullWidth authLinksLogout" id="authLinksLogout">
-                                <a class="authLinkLogoutButton" href="<?php echo htmlspecialchars($tgLogoutUrl, ENT_QUOTES, 'UTF-8'); ?>">Log out</a>
-                            </li>
-                        <?php else: ?>
-                            <li class="linkItem fullWidth authLinksLogin" id="authLinksLogin">
-                                <div class="lpTgLoginWidget">
-                                    <?php if ($tgBotUsername !== ''): ?>
-                                        <script async src="https://telegram.org/js/telegram-widget.js?22"
-                                            data-telegram-login="<?php echo htmlspecialchars($tgBotUsername, ENT_QUOTES, 'UTF-8'); ?>"
-                                            data-size="large"
-                                            data-userpic="false"
-                                            data-auth-url="<?php echo htmlspecialchars($tgAuthUrl, ENT_QUOTES, 'UTF-8'); ?>"
-                                            data-request-access="write"></script>
-                                    <?php else: ?>
-                                        Telegram login unavailable. Configure bot username in Telegram settings.
-                                    <?php endif; ?>
-                                </div>
-                            </li>
-                        <?php endif; ?>
+                    <?php if ($authLinksEnabled && $authLinksState === 'authorized'): ?>
+                        <?php foreach ($authLinksData as $link): ?>
+                            <?php echo lawnding_render_link_item($link); ?>
+                        <?php endforeach; ?>
                     <?php endif; ?>
                 </ul>
             </div>
@@ -557,15 +549,15 @@ $isLinksHidden = !$showLinks;
         <?php foreach ($panes as $pane): ?>
             <?php
             $moduleId = isset($pane['module']) ? (string) $pane['module'] : '';
-            $modulePath = function_exists('lawnding_module_file')
-                ? lawnding_module_file($moduleId, 'public.php')
+            $modulePath = function_exists('lawnding_admin_path')
+                ? lawnding_admin_path('modules/' . $moduleId . '/public.php')
                 : __DIR__ . '/../admin/modules/' . $moduleId . '/public.php';
             if ($moduleId !== '' && is_readable($modulePath)) {
                 include $modulePath;
             }
             ?>
         <?php endforeach; ?>
-    </div>
+    </main>
     <!-- Bottom navigation for pane switching and footer credits. -->
     <nav>
         <div class="navBarWrap" id="navBarWrap">
@@ -627,10 +619,72 @@ $isLinksHidden = !$showLinks;
             </div>
         </div>
         <div class="footer">
-            Powered by <a href="https://lawnding.page">LawndingPage</a> <?php echo htmlspecialchars(SITE_VERSION, ENT_QUOTES, 'UTF-8'); ?>.  Background image by <span class="authorPlain"></span><a class="authorLink hidden" href="" rel="noopener" target="_blank"><span class="authorName"></span></a>.
+            <?php echo lawnding_footer_platform_html(); ?><span class="footerSep"> · </span>Background image by <span class="authorPlain"></span><a class="authorLink hidden" href="" rel="noopener" target="_blank"><span class="authorName"></span></a>.
         </div>
     </nav>
-    <script src="<?php echo htmlspecialchars(lawnding_asset_url('res/scr/public-data.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
-    <script src="<?php echo htmlspecialchars(lawnding_asset_url('res/scr/app.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
+    <?php lawnding_render_changelog_modal(); ?>
+    <?php
+    // Login modal — rendered only for visitors who aren't authenticated by
+    // either bcrypt or Telegram. The data-* attributes carry the runtime
+    // values the JS needs (CSRF, endpoint URLs, optional Telegram bot info).
+    $lpShowLoginModal = empty($_SESSION['auth_user']) && empty($tgUser);
+    if ($lpShowLoginModal):
+        $lpLoginEndpoint = lawnding_asset_url('res/scr/login.php');
+        $lpTgAuthEndpoint = lawnding_asset_url('res/scr/plugin-endpoint.php?plugin=telegram&endpoint=auth');
+    ?>
+    <div id="lpLoginModal" class="lpLoginModal" role="dialog" aria-modal="true"
+         aria-labelledby="lpLoginModalTitle" hidden
+         data-csrf-token="<?php echo htmlspecialchars((string) ($_SESSION['csrf_token'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>"
+         data-login-endpoint="<?php echo htmlspecialchars($lpLoginEndpoint, ENT_QUOTES, 'UTF-8'); ?>">
+        <div class="lpLoginModal__backdrop" data-lp-login-dismiss aria-hidden="true"></div>
+        <div class="userModal glassConcave lpModalNoDrag" role="document">
+            <button type="button" class="lpModalCloseX"
+                    data-lp-login-dismiss aria-label="Close sign-in dialog">×</button>
+            <h4 id="lpLoginModalTitle">Sign in</h4>
+            <form class="lpLoginModal__form" novalidate data-lp-login-form>
+                <label class="lpLoginModal__field">
+                    <span class="lpLoginModal__fieldLabel">Username</span>
+                    <input type="text" name="username" autocomplete="username"
+                           class="lpLoginModal__input" required>
+                </label>
+                <label class="lpLoginModal__field">
+                    <span class="lpLoginModal__fieldLabel">Password</span>
+                    <input type="password" name="password" autocomplete="current-password"
+                           class="lpLoginModal__input" required>
+                </label>
+                <label class="lpLoginModal__remember">
+                    <input type="checkbox" name="remember" value="1">
+                    <span>Stay signed in</span>
+                </label>
+                <output role="alert" aria-live="polite"
+                        class="lpLoginModal__error" data-lp-login-error hidden></output>
+                <button type="submit" class="lpLoginModal__submit">Sign in</button>
+            </form>
+            <div class="lpLoginModal__divider" aria-hidden="true">
+                <span>or</span>
+            </div>
+            <button type="button" class="lpLoginModal__telegram"
+                    data-lp-login-telegram
+                    data-tg-bot-id="<?php echo htmlspecialchars($tgBotId, ENT_QUOTES, 'UTF-8'); ?>"
+                    data-tg-auth-endpoint="<?php echo htmlspecialchars($lpTgAuthEndpoint, ENT_QUOTES, 'UTF-8'); ?>"
+                    <?php echo $tgBotId === '' ? 'disabled aria-disabled="true"' : ''; ?>>
+                <svg aria-hidden="true" focusable="false" width="20" height="20" viewBox="0 0 24 24">
+                    <path fill="currentColor" d="M9.78 18.65l.28-4.23 7.68-6.92c.34-.31-.07-.46-.52-.19L7.74 13.3 3.64 12c-.88-.25-.89-.86.2-1.3l15.97-6.16c.73-.33 1.43.18 1.15 1.3l-2.72 12.81c-.19.91-.74 1.13-1.5.71l-4.14-3.06-1.99 1.93c-.23.23-.42.42-.83.42z"/>
+                </svg>
+                <span><?php echo $tgBotId === '' ? 'Telegram login unavailable' : 'Login with Telegram'; ?></span>
+            </button>
+        </div>
+    </div>
+    <?php endif; ?>
+    <script src="<?php echo htmlspecialchars(lawnding_versioned_local_asset_url('res/scr/public-data.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
+    <script src="<?php echo htmlspecialchars(lawnding_versioned_local_asset_url('res/scr/shared-utils.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
+    <script src="<?php echo htmlspecialchars(lawnding_versioned_local_asset_url('res/scr/notice-core.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
+    <script src="<?php echo htmlspecialchars(lawnding_versioned_local_asset_url('res/scr/modal-core.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
+    <script src="<?php echo htmlspecialchars(lawnding_versioned_local_asset_url('res/scr/public-modals.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
+    <script src="<?php echo htmlspecialchars(lawnding_versioned_local_asset_url('res/scr/app.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
+    <?php if ($lpShowLoginModal): ?>
+    <script src="<?php echo htmlspecialchars(lawnding_versioned_local_asset_url('res/scr/login-modal.js'), ENT_QUOTES, 'UTF-8'); ?>" defer></script>
+    <script src="<?php echo htmlspecialchars(lawnding_versioned_local_asset_url('res/scr/tg-login.js'), ENT_QUOTES, 'UTF-8'); ?>" defer></script>
+    <?php endif; ?>
 </body>
 </html>

@@ -1,0 +1,77 @@
+<?php
+// Telegram login auth endpoint (redirect mode).
+require_once __DIR__ . '/../../../../lp-bootstrap.php';
+$tgAuthPath = function_exists('lawnding_admin_path')
+    ? lawnding_admin_path('lib/tg-auth.php')
+    : __DIR__ . '/../../../../admin/lib/tg-auth.php';
+require_once $tgAuthPath;
+
+lawnding_init_session();
+
+$tgConfig = lawnding_load_tg_config();
+$returnTo = lawnding_tg_relative_return_path($_GET['return'] ?? '/');
+$redirectTarget = function_exists('lawnding_asset_url')
+    ? lawnding_asset_url(ltrim($returnTo, '/'))
+    : $returnTo;
+if ($redirectTarget === '') {
+    $redirectTarget = '/';
+}
+
+$payload = $_GET;
+// Strip routing params that aren't part of Telegram's signed payload:
+// `return` is our own redirect target; `plugin`/`endpoint` are the proxy's
+// own dispatch keys. Including them in the data-check string would cause the
+// HMAC to mismatch and the login to silently fail.
+unset($payload['return'], $payload['plugin'], $payload['endpoint']);
+$hashOk = lawnding_tg_verify_login_payload($payload, $tgConfig['bot_token']);
+$authDate = isset($payload['auth_date']) ? (int) $payload['auth_date'] : 0;
+$authFresh = $authDate > 0 && (time() - $authDate) <= 86400;
+
+if (!$hashOk || !$authFresh) {
+    unset($_SESSION['tg_user'], $_SESSION['tg_user_id']);
+    $_SESSION['tg_login_error'] = 'Telegram login verification failed.';
+    header('Location: ' . $redirectTarget, true, 302);
+    exit;
+}
+
+$tgUser = [
+    'id' => isset($payload['id']) ? (int) $payload['id'] : 0,
+    'username' => (string) ($payload['username'] ?? ''),
+    'first_name' => (string) ($payload['first_name'] ?? ''),
+    'last_name' => (string) ($payload['last_name'] ?? ''),
+    'photo_url' => (string) ($payload['photo_url'] ?? ''),
+    'auth_date' => $authDate,
+];
+
+if (empty($tgUser['id'])) {
+    unset($_SESSION['tg_user'], $_SESSION['tg_user_id']);
+    $_SESSION['tg_login_error'] = 'Telegram user data missing.';
+    header('Location: ' . $redirectTarget, true, 302);
+    exit;
+}
+
+// Group membership gate. Policy: no session unless the user is in at least one
+// configured group. Force-refresh ensures we don't accept a stale cached "yes"
+// from a previous session that may have lapsed.
+$_SESSION['tg_membership_force_refresh'] = true;
+$contentLevel = lawnding_tg_user_content_level($tgConfig, $tgUser['id'], $tgUser);
+if ($contentLevel === '') {
+    unset($_SESSION['tg_user'], $_SESSION['tg_user_id'], $_SESSION['tg_membership_force_refresh']);
+    $rejectionText = trim($tgConfig['unauthorized_message']);
+    if ($rejectionText === '') {
+        $rejectionText = 'Login failed: you must be a member of a Telegram group to access this site.';
+    }
+    lawnding_flash_set('warning', $rejectionText);
+    header('Location: ' . $redirectTarget, true, 302);
+    exit;
+}
+
+$_SESSION['tg_user'] = $tgUser;
+$_SESSION['tg_user_id'] = $tgUser['id'];
+unset($_SESSION['tg_login_error']);
+
+$displayName = lawnding_format_tg_display_name($tgUser, $tgUser['id']);
+lawnding_flash_set('ok', 'Logged in as ' . $displayName);
+
+header('Location: ' . $redirectTarget, true, 302);
+exit;

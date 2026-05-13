@@ -15,87 +15,28 @@ function backgrounds_require_method(string $method): void {
     }
 }
 
-// Allowed admin permissions used across the admin UI.
-function backgrounds_allowed_permissions(): array {
-    return ['full_admin', 'add_users', 'edit_users', 'remove_users', 'edit_site'];
-}
-
-// Resolve the users.json path using bootstrap config when available.
-function backgrounds_users_path(): string {
-    return function_exists('lawnding_runtime_file_path')
-        ? lawnding_runtime_file_path('users_path')
-        : (function_exists('lawnding_config')
-            ? lawnding_config('users_path', dirname(__DIR__, 3) . '/admin/users.json')
-            : dirname(__DIR__, 3) . '/admin/users.json');
-}
-
-// Load users.json into an array (empty on failure).
-function backgrounds_load_users(string $usersPath): array {
-    if (!is_readable($usersPath)) {
-        return [];
-    }
-    $decoded = json_decode((string) file_get_contents($usersPath), true);
-    return is_array($decoded) ? $decoded : [];
-}
-
-// Find a user record by username.
-function backgrounds_find_user(array $users, string $username): ?array {
-    foreach ($users as $user) {
-        if (is_array($user) && ($user['username'] ?? '') === $username) {
-            return $user;
-        }
-    }
-    return null;
-}
-
 // Require an authenticated session and edit_site permission.
+// Signature unchanged so existing callers (backgrounds-upload/delete/list)
+// continue to work without edits. CSRF enforcement is handled inside the
+// shared gate for POST requests; GET endpoints (list) skip it.
 function backgrounds_require_edit_site(): array {
-    if (empty($_SESSION['auth_user'])) {
-        backgrounds_json_response(['error' => 'Unauthorized'], 401);
-    }
+    $adminAuthPath = function_exists('lawnding_admin_path')
+        ? lawnding_admin_path('auth.php')
+        : dirname(__DIR__, 3) . '/admin/auth.php';
+    require_once $adminAuthPath;
 
-    $authUser = (string) $_SESSION['auth_user'];
-    $usersPath = backgrounds_users_path();
-    $users = backgrounds_load_users($usersPath);
-    $authRecord = backgrounds_find_user($users, $authUser);
-    if (!$authRecord) {
-        backgrounds_json_response(['error' => 'Unauthorized'], 401);
-    }
-    if (!empty($authRecord['read_only']) && empty($authRecord['master'])) {
-        backgrounds_json_response(['error' => 'Forbidden'], 403);
-    }
-
-    $permissions = $authRecord['permissions'] ?? [];
-    if (!is_array($permissions)) {
-        $permissions = [];
-    }
-    $allowed = backgrounds_allowed_permissions();
-    $permissions = array_values(array_intersect($permissions, $allowed));
-    $isFullAdmin = !empty($authRecord['master']) || in_array('full_admin', $permissions, true);
-    $canEditSite = $isFullAdmin || in_array('edit_site', $permissions, true);
-    if (!$canEditSite) {
-        backgrounds_json_response(['error' => 'Forbidden'], 403);
-    }
+    $identity = lawnding_require_admin_mutation(
+        null,
+        function ($msg, $code) { backgrounds_json_response(['error' => $msg], $code); }
+    );
 
     return [
-        'authUser' => $authUser,
-        'authRecord' => $authRecord,
-        'permissions' => $permissions,
-        'isFullAdmin' => $isFullAdmin,
-        'canEditSite' => $canEditSite,
+        'authUser' => $identity['authUser'],
+        'authRecord' => $identity['authRecord'],
+        'permissions' => $identity['context']['currentPermissions'],
+        'isFullAdmin' => $identity['context']['isFullAdmin'],
+        'canEditSite' => $identity['context']['canEditSite'],
     ];
-}
-
-// Require a valid CSRF token for state-changing requests.
-function backgrounds_require_csrf(): void {
-    $sessionToken = $_SESSION['csrf_token'] ?? '';
-    $postedToken = $_POST['csrf_token'] ?? '';
-    if (!is_string($sessionToken) || $sessionToken === '' || !is_string($postedToken) || $postedToken === '') {
-        backgrounds_json_response(['error' => 'Forbidden'], 403);
-    }
-    if (!hash_equals($sessionToken, $postedToken)) {
-        backgrounds_json_response(['error' => 'Forbidden'], 403);
-    }
 }
 
 // Resolve paths used by the backgrounds endpoints.
@@ -120,57 +61,7 @@ function backgrounds_paths(): array {
 
 // Load header.json with a minimal fallback structure.
 function backgrounds_load_header(string $headerPath): array {
-    $headerData = [
-        'backgrounds' => [],
-    ];
-    if (is_readable($headerPath)) {
-        $decoded = json_decode((string) file_get_contents($headerPath), true);
-        if (is_array($decoded)) {
-            $headerData = array_merge($headerData, $decoded);
-        }
-    }
-    return $headerData;
-}
-
-// Normalize stored asset paths into res/... form for consistent matching.
-function backgrounds_normalize_asset_path($path) {
-    if (!is_string($path) || $path === '') {
-        return $path;
-    }
-    if (preg_match('#^https?://#i', $path)) {
-        return $path;
-    }
-    $trimmed = ltrim($path, '/');
-    $baseUrl = function_exists('lawnding_config')
-        ? trim((string) lawnding_config('base_url', ''), '/')
-        : '';
-    if ($baseUrl !== '' && str_starts_with($trimmed, $baseUrl . '/res/')) {
-        return substr($trimmed, strlen($baseUrl) + 1);
-    }
-    if (str_starts_with($trimmed, 'public/res/')) {
-        return substr($trimmed, strlen('public/'));
-    }
-    if (str_starts_with($trimmed, 'res/')) {
-        return $trimmed;
-    }
-    return $path;
-}
-
-// Build a displayable URL for the UI preview.
-function backgrounds_make_asset_url($path) {
-    if (!is_string($path) || $path === '') {
-        return $path;
-    }
-    if (preg_match('#^https?://#i', $path)) {
-        return $path;
-    }
-    if (function_exists('lawnding_normalize_legacy_public_asset_path')) {
-        $path = lawnding_normalize_legacy_public_asset_path($path);
-    }
-    if (str_starts_with(ltrim($path, '/'), 'res/')) {
-        return function_exists('lawnding_instance_asset_url') ? lawnding_instance_asset_url($path) : $path;
-    }
-    return $path;
+    return array_merge(['backgrounds' => []], lawnding_read_json($headerPath));
 }
 
 // Convert raw backgrounds into a normalized payload for the UI.
@@ -187,13 +78,15 @@ function backgrounds_build_payload(array $backgroundsRaw): array {
             $author = $bg['author'] ?? '';
             $authorUrl = $bg['authorUrl'] ?? '';
         }
-        $url = backgrounds_normalize_asset_path($url);
+        $url = lawnding_normalize_asset_path($url);
         $backgrounds[] = [
-            'url' => $url,
-            'author' => $author,
-            'authorUrl' => $authorUrl ?: '',
-            'displayUrl' => backgrounds_make_asset_url($url),
-            'index' => $index,
+            'url'           => $url,
+            'author'        => $author,
+            'authorUrl'     => $authorUrl ?: '',
+            'displayUrl'    => lawnding_make_asset_url($url),
+            'index'         => $index,
+            'original_size' => isset($bg['original_size']) ? (int) $bg['original_size'] : 0,
+            'saved_size'    => isset($bg['saved_size']) ? (int) $bg['saved_size'] : 0,
         ];
     }
     return $backgrounds;

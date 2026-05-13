@@ -15,13 +15,13 @@ if ($paneId === '' || $markdownFile === '') {
 
 $markdownPath = function_exists('lawnding_data_path')
     ? lawnding_data_path($markdownFile)
-    : __DIR__ . '/../../data/public/res/data/' . $markdownFile;
+    : __DIR__ . '/../../public/res/data/' . $markdownFile;
 
 $markdown = is_readable($markdownPath) ? file_get_contents($markdownPath) : '';
 
 if (!class_exists('Parsedown')) {
     $parsedownPath = function_exists('lawnding_public_path')
-        ? lawnding_core_public_path('res/scr/Parsedown.php')
+        ? lawnding_public_path('res/scr/Parsedown.php')
         : __DIR__ . '/../../public/res/scr/Parsedown.php';
     require_once $parsedownPath;
 }

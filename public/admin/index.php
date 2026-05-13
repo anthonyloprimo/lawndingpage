@@ -7,9 +7,10 @@ if (!is_readable($bootstrapPath)) {
     $bootstrapPath = __DIR__ . '/../../../lp-bootstrap.php';
 }
 require_once $bootstrapPath;
-if (function_exists('lawnding_initialize_instance_if_needed')) {
-    lawnding_initialize_instance_if_needed();
-}
+// Suppress error display in the response. Errors are captured to
+// admin/errors.jsonl via the bootstrap-registered handler and surfaced in
+// the Diagnostics admin section, never echoed into HTML.
+ini_set('display_errors', '0');
 // Prevent stale HTML/PHP responses from being cached.
 $cacheHeadersPath = function_exists('lawnding_public_path')
     ? lawnding_core_public_path('res/scr/cache_headers.php')
@@ -21,8 +22,20 @@ $versionPath = function_exists('lawnding_public_path')
     : __DIR__ . '/../res/version.php';
 require_once $versionPath;
 
+// Seed missing data files from the split seed-instance defaults on first request after deploy.
+lawnding_ensure_data_files();
+
+// Load plugins so admin-side hook callbacks are registered before the
+// head emits and fires head_assets.
+lawnding_load_plugins();
+
 // Content Security Policy for the admin entrypoint + clickjacking protection.
-header("Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'");
+// img-src includes blob: so URL.createObjectURL output (used by
+// smartcrop.js client-side analysis in the gallery upload flow) can
+// be loaded as Image() src. blob: URLs are same-origin-only by design
+// -- this doesn't open a remote-load vector, only lets the page
+// display its own in-memory image data.
+header("Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'");
 header('X-Frame-Options: DENY');
 
 // Build the canonical public admin URL so redirects never expose rewritten upstream paths.
@@ -55,20 +68,38 @@ if ($requestPath !== null && $requestPath !== '') {
     }
 }
 
-// Resolve admin root and configure error logging.
+// Admin root used by the health checks below.
 $adminRoot = function_exists('lawnding_config')
-    ? lawnding_config('instance_runtime_admin_dir', dirname(__DIR__, 2) . '/admin')
+    ? lawnding_config('admin_dir', dirname(__DIR__, 2) . '/admin')
     : dirname(__DIR__, 2) . '/admin';
-$errorLogPath = function_exists('lawnding_runtime_file_path')
-    ? lawnding_runtime_file_path('errors_path')
-    : ($adminRoot . '/errors.txt');
-if (function_exists('lawnding_ensure_parent_dir')) {
-    lawnding_ensure_parent_dir($errorLogPath);
-}
-ini_set('log_errors', '1');
-ini_set('error_log', $errorLogPath);
 
 lawnding_init_session(); // Initialize PHP session storage and load existing session data.
+
+// Pick up the "arrived via public-site shortcut" marker. When the visitor
+// lands here via the Admin-panel button on the public header, we stash a
+// session flag so their eventual logout redirects them back to the public
+// site root rather than the admin login form. The flag survives admin-page
+// navigation until session destruction on logout.
+if (($_GET['from'] ?? '') === 'public') {
+    $_SESSION['logout_return_public'] = true;
+}
+
+// Load centralized auth/identity helpers (shared with mutation endpoints).
+// admin/auth.php defines lawnding_resolve_admin_identity(), build_permission_context(),
+// lawnding_load_users_file(), etc.
+$adminAuthPath = function_exists('lawnding_admin_path')
+    ? lawnding_admin_path('auth.php')
+    : dirname(__DIR__, 2) . '/admin/auth.php';
+require_once $adminAuthPath;
+$rememberLibPath = function_exists('lawnding_admin_path')
+    ? lawnding_admin_path('lib/remember-me.php')
+    : dirname(__DIR__, 2) . '/admin/lib/remember-me.php';
+require_once $rememberLibPath;
+$rateLimitLibPath = function_exists('lawnding_admin_path')
+    ? lawnding_admin_path('lib/rate-limit.php')
+    : dirname(__DIR__, 2) . '/admin/lib/rate-limit.php';
+require_once $rateLimitLibPath;
+lawnding_consume_remember_cookie();
 
 // Users file location (stored outside public web root).
 $usersPath = function_exists('lawnding_config')
@@ -94,14 +125,9 @@ if (is_readable($usersPath)) {
     $usersFileIssue = 'missing';
 }
 
-$hasUsers = is_array($users) && count($users) > 0;
+$hasUsers = count($users) > 0;
 if (!$hasUsers && $usersFileIssue === null) {
     $usersFileIssue = 'empty';
-}
-
-// CSRF token stored in the session and embedded in forms.
-if (empty($_SESSION['csrf_token'])) {
-    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
 
 // Normalize action once for all POST handlers.
@@ -113,8 +139,6 @@ $success = '';
 $usersErrors = [];
 $usersSuccess = '';
 $usersWarnings = [];
-$runtimeMigrationErrors = [];
-$runtimeMigrationSuccess = '';
 $usersPermissionsNeedsFix = false;
 $usersPermissionsFixResult = null;
 $passwordChangeSuccess = '';
@@ -153,11 +177,13 @@ function find_user($users, $username) {
 }
 
 // Keep only known permissions and normalize array order.
-function normalize_permissions($permissions, $allowedPermissions) {
-    if (!is_array($permissions)) {
-        return [];
+if (!function_exists('normalize_permissions')) {
+    function normalize_permissions($permissions, $allowedPermissions) {
+        if (!is_array($permissions)) {
+            return [];
+        }
+        return array_values(array_intersect($permissions, $allowedPermissions));
     }
-    return array_values(array_intersect($permissions, $allowedPermissions));
 }
 
 // Check if users.json permissions are too open or missing group read.
@@ -173,9 +199,9 @@ function users_permissions_needs_fix($usersPath) {
     return ($mode & 0037) !== 0 || (($mode & 0070) === 0);
 }
 
-// Append a warning with a pointer to errors.txt for detail.
+// Append a warning with a pointer to the Diagnostics view for detail.
 function add_health_warning(&$warnings, $message) {
-    $warnings[] = $message . ' Check errors.txt for more information.';
+    $warnings[] = $message . ' Check the Diagnostics view for more information.';
 }
 
 // Validate CSRF token and append to the provided errors array on failure.
@@ -191,9 +217,6 @@ function require_csrf_token(&$errors) {
 // Persist user data to disk with the standard JSON format.
 function write_users_file($usersPath, $users, &$errors, $message) {
     $encoded = json_encode($users, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
-    if (function_exists('lawnding_ensure_parent_dir')) {
-        lawnding_ensure_parent_dir($usersPath);
-    }
     if ($encoded === false || file_put_contents($usersPath, $encoded, LOCK_EX) === false) {
         $errors[] = $message;
         return false;
@@ -217,28 +240,9 @@ function enforce_users_permissions($usersPath, &$warnings) {
 }
 
 // Compute effective permissions for the current user.
-function build_permission_context($authRecord, $allowedPermissions) {
-    $isReadOnlyUser = $authRecord && !empty($authRecord['read_only']);
-    $currentPermissions = $authRecord ? normalize_permissions($authRecord['permissions'] ?? [], $allowedPermissions) : [];
-    if ($isReadOnlyUser) {
-        $currentPermissions = [];
-    }
-    $isMasterUser = $authRecord && !empty($authRecord['master']);
-    $isFullAdmin = !$isReadOnlyUser && ($isMasterUser || in_array('full_admin', $currentPermissions, true));
-    if ($isFullAdmin) {
-        $currentPermissions = $allowedPermissions;
-    }
-    return [
-        'currentPermissions' => $currentPermissions,
-        'isReadOnlyUser' => $isReadOnlyUser,
-        'isMasterUser' => $isMasterUser,
-        'isFullAdmin' => $isFullAdmin,
-        'canAddUsers' => !$isReadOnlyUser && ($isFullAdmin || in_array('add_users', $currentPermissions, true)),
-        'canEditUsers' => !$isReadOnlyUser && ($isFullAdmin || in_array('edit_users', $currentPermissions, true)),
-        'canRemoveUsers' => !$isReadOnlyUser && ($isFullAdmin || in_array('remove_users', $currentPermissions, true)),
-        'canEditSite' => !$isReadOnlyUser && ($isFullAdmin || in_array('edit_site', $currentPermissions, true)),
-    ];
-}
+// build_permission_context() now lives in admin/auth.php so mutation
+// endpoints can share it. Kept here as a no-op marker; the require_once
+// above defines the canonical version.
 
 // First-run account creation flow.
 if ($action === 'create_admin') {
@@ -255,6 +259,12 @@ if ($action === 'create_admin') {
 
         if ($username === '' || strlen($username) < 3 || strlen($username) > 32) {
             $errors[] = 'Username must be 3-32 characters.';
+        }
+        if (str_starts_with(strtolower($username), 'tg:')) {
+            // The 'tg:' prefix is reserved for synthetic Telegram-derived
+            // sessions (admin/auth.php sentinel). Bcrypt usernames must not
+            // collide with that namespace.
+            $errors[] = 'Usernames cannot start with "tg:" (reserved).';
         }
         if (strlen($password) < 8 || strlen($password) > 128) {
             $errors[] = 'Password must be 8-128 characters.';
@@ -295,22 +305,48 @@ if ($action === 'login') {
         if (require_csrf_token($errors)) {
             $username = trim($_POST['username'] ?? '');
             $password = $_POST['password'] ?? '';
-            $user = find_user($users, $username);
-            if (!$user || !password_verify($password, $user['password_hash'] ?? '')) {
-                $errors[] = 'Username/password incorrect.';
+
+            // Brute-force gate: refuse the attempt before reaching
+            // password_verify if this IP or username is currently locked.
+            $clientIp = lawnding_client_ip();
+            $rateLimitPath = lawnding_rate_limit_path();
+            $lock = lawnding_rate_limit_check($clientIp, $username, $rateLimitPath);
+            if ($lock !== null) {
+                $minutes = max(1, (int) ceil($lock['seconds_remaining'] / 60));
+                $suffix = $minutes === 1 ? '' : 's';
+                $errors[] = "Too many failed attempts. Try again in {$minutes} minute{$suffix}.";
             } else {
-                session_regenerate_id(true); // Prevent session fixation by rotating the ID on login.
-                $_SESSION['auth_user'] = $user['username']; // Store the authenticated user in the session.
+                $user = find_user($users, $username);
+                if (!$user || !password_verify($password, $user['password_hash'] ?? '')) {
+                    $errors[] = 'Username/password incorrect.';
+                    lawnding_log_event('info', 'login_failed', [
+                        'attempted_username' => $username,
+                        'user_exists' => $user !== null,
+                    ]);
+                    lawnding_rate_limit_record_failure($clientIp, $username, $rateLimitPath);
+                } else {
+                    session_regenerate_id(true); // Prevent session fixation by rotating the ID on login.
+                    $_SESSION['auth_user'] = $user['username']; // Store the authenticated user in the session.
+                    lawnding_rate_limit_record_success($clientIp, $user['username'], $rateLimitPath);
+                    if (isset($_POST['remember']) && (string) $_POST['remember'] === '1') {
+                        lawnding_remember_token_issue($user['username'], lawnding_remember_tokens_path());
+                    }
+                }
             }
         }
     }
 }
 
 // Resolve the current authenticated user and permission flags.
-$authUser = $_SESSION['auth_user'] ?? '';
-$authRecord = $authUser !== '' ? find_user($users, $authUser) : null;
-$forcePasswordChange = $authRecord && !empty($authRecord['must_change_password']);
-$permissionContext = build_permission_context($authRecord, $allowedPermissions);
+// The resolver accepts either a bcrypt-logged-in user (from users.json),
+// a Telegram-logged-in user with admin perms from their group memberships,
+// or both (union of perms, bcrypt canonical). See admin/auth.php.
+$tgConfig = lawnding_load_tg_config();
+$identity = lawnding_resolve_admin_identity($tgConfig, $users, $allowedPermissions);
+$authUser = $identity['authUser'];
+$authRecord = $identity['authRecord'];
+$displayName = $identity['displayName'];
+$permissionContext = $identity['context'];
 $currentPermissions = $permissionContext['currentPermissions'];
 $isReadOnlyUser = $permissionContext['isReadOnlyUser'];
 $isMasterUser = $permissionContext['isMasterUser'];
@@ -319,22 +355,43 @@ $canAddUsers = $permissionContext['canAddUsers'];
 $canEditUsers = $permissionContext['canEditUsers'];
 $canRemoveUsers = $permissionContext['canRemoveUsers'];
 $canEditSite = $permissionContext['canEditSite'];
+$forcePasswordChange = $authRecord && !empty($authRecord['must_change_password']);
 if ($isReadOnlyUser) {
     $forcePasswordChange = false;
 }
 
-// Health checks for files and directories needed by the admin app.
-if (!file_exists($errorLogPath)) {
-    $logDir = dirname($errorLogPath);
-    if ((is_dir($logDir) || (function_exists('lawnding_ensure_dir') && lawnding_ensure_dir($logDir))) && is_writable($logDir)) {
-        @touch($errorLogPath);
+// Login surface needs the Telegram widget origins; admin UI proper stays strict.
+$tgBotId = lawnding_tg_bot_id_from_token($tgConfig['bot_token']);
+$tgAdminAuthEndpoint = function_exists('lawnding_asset_url')
+    ? lawnding_asset_url('res/scr/plugin-endpoint.php?plugin=telegram&endpoint=auth')
+    : '/res/scr/plugin-endpoint.php?plugin=telegram&endpoint=auth';
+if (!$identity['isAuthenticated'] && $tgBotId !== '') {
+    header("Content-Security-Policy: default-src 'self'; script-src 'self' https://telegram.org; style-src 'self'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-src https://telegram.org https://oauth.telegram.org; frame-ancestors 'none'");
+}
+
+// Promote a Telegram-derived session to a "logged-in admin" identity by
+// persisting the tg:<id> sentinel into $_SESSION['auth_user']. Mirrors the
+// session-fixation defense bcrypt login does at line ~273 below — fires once
+// on the first such promotion (gated on $_SESSION['tg_admin_regenerated']).
+$identityIsTgOnly = $identity['isAuthenticated']
+    && in_array('telegram', $identity['sources'], true)
+    && !in_array('bcrypt', $identity['sources'], true);
+if ($identityIsTgOnly) {
+    if (($_SESSION['auth_user'] ?? '') !== $authUser) {
+        $_SESSION['auth_user'] = $authUser;
     }
-    if (!file_exists($errorLogPath)) {
-        add_health_warning($usersWarnings, 'Health check: Unable to create errors.txt in the logs directory.');
+    if (empty($_SESSION['tg_admin_regenerated'])) {
+        session_regenerate_id(true);
+        $_SESSION['tg_admin_regenerated'] = true;
     }
 }
-if (file_exists($errorLogPath) && !is_writable($errorLogPath)) {
-    add_health_warning($usersWarnings, 'Health check: errors.txt is not writable.');
+
+// Health checks for files and directories needed by the admin app.
+$errorsLogPath = lawnding_logs_path();
+if (!is_dir($adminRoot) || !is_writable($adminRoot)) {
+    add_health_warning($usersWarnings, 'Health check: admin directory is not writable; runtime errors cannot be captured.');
+} elseif (file_exists($errorsLogPath) && !is_writable($errorsLogPath)) {
+    add_health_warning($usersWarnings, 'Health check: errors.jsonl is not writable.');
 }
 
 if (PHP_VERSION_ID < 80000) {
@@ -356,86 +413,17 @@ $imgDir = function_exists('lawnding_config')
     : dirname(__DIR__) . '/res/img';
 
 if (is_dir($dataDir) && !is_writable($dataDir)) {
-    add_health_warning($usersWarnings, 'Health check: site data directory is not writable.');
+    add_health_warning($usersWarnings, 'Health check: res/data is not writable.');
 }
 if (is_dir($imgDir) && !is_writable($imgDir)) {
-    add_health_warning($usersWarnings, 'Health check: site image directory is not writable.');
+    add_health_warning($usersWarnings, 'Health check: res/img is not writable.');
 }
 if (file_exists($usersPath)) {
     if (!is_writable($usersPath)) {
         add_health_warning($usersWarnings, 'Health check: users.json is not writable.');
     }
 } elseif (!is_writable(dirname($usersPath))) {
-    add_health_warning($usersWarnings, 'Health check: users directory is not writable for users.json.');
-}
-
-// Admin action: copy legacy site/runtime files into the new instance data tree.
-if ($action === 'run_runtime_migration') {
-    if (!$authRecord) {
-        $runtimeMigrationErrors[] = 'Login required to run the site-data migration.';
-    } elseif (!$isFullAdmin) {
-        $runtimeMigrationErrors[] = 'Site-data migration requires full admin access.';
-    } elseif (require_csrf_token($runtimeMigrationErrors)) {
-        $conflictChoices = [];
-        $postedConflictChoices = $_POST['migration_conflict_choice'] ?? [];
-        if (is_array($postedConflictChoices)) {
-            foreach ($postedConflictChoices as $key => $value) {
-                if (!is_string($key)) {
-                    continue;
-                }
-                $choice = is_string($value) ? strtolower(trim($value)) : '';
-                if ($choice === 'legacy' || $choice === 'new') {
-                    $conflictChoices[$key] = $choice;
-                }
-            }
-        }
-        if (function_exists('lawnding_run_runtime_migration')) {
-            $migrationResult = lawnding_run_runtime_migration('copy', $conflictChoices);
-            if (!empty($migrationResult['errors'])) {
-                $runtimeMigrationErrors = array_merge($runtimeMigrationErrors, $migrationResult['errors']);
-            }
-            if ($migrationResult['ok']) {
-                $processedLabels = array_map(
-                    static fn(array $entry): string => (string) ($entry['label'] ?? ''),
-                    $migrationResult['processed'] ?? []
-                );
-                if ($processedLabels !== []) {
-                    $runtimeMigrationSuccess = 'Migration copied: ' . implode(', ', array_filter($processedLabels)) . '. Verify the site, then finalize the migration to delete the legacy copies.';
-                } else {
-                    $runtimeMigrationSuccess = 'Migration is already up to date. Verify the site, then finalize the migration to delete any remaining legacy copies.';
-                }
-            }
-        } else {
-            $runtimeMigrationErrors[] = 'Migration helpers are unavailable in this install.';
-        }
-    }
-}
-
-// Admin action: remove legacy files after the new paths are verified.
-if ($action === 'finalize_runtime_migration') {
-    if (!$authRecord) {
-        $runtimeMigrationErrors[] = 'Login required to finalize the migration.';
-    } elseif (!$isFullAdmin) {
-        $runtimeMigrationErrors[] = 'Finalizing the migration requires full admin access.';
-    } elseif (require_csrf_token($runtimeMigrationErrors)) {
-        if (function_exists('lawnding_finalize_runtime_migration')) {
-            $migrationResult = lawnding_finalize_runtime_migration();
-            if (!empty($migrationResult['errors'])) {
-                $runtimeMigrationErrors = array_merge($runtimeMigrationErrors, $migrationResult['errors']);
-            }
-            if ($migrationResult['ok']) {
-                $removedLabels = array_map(
-                    static fn(array $entry): string => (string) ($entry['label'] ?? ''),
-                    $migrationResult['removed'] ?? []
-                );
-                $runtimeMigrationSuccess = $removedLabels !== []
-                    ? 'Legacy files removed: ' . implode(', ', array_filter($removedLabels)) . '.'
-                    : 'No legacy files remain. Migration is complete.';
-            }
-        } else {
-            $runtimeMigrationErrors[] = 'Migration helpers are unavailable in this install.';
-        }
-    }
+    add_health_warning($usersWarnings, 'Health check: admin directory is not writable for users.json.');
 }
 
 // Admin action: fix users.json permissions to 0640.
@@ -495,6 +483,14 @@ if ($action === 'change_password') {
                     $passwordChangeSuccess = 'Password updated. You can now use the admin panel.';
                     $authRecord['must_change_password'] = false;
                     $forcePasswordChange = false;
+                    // Invalidate all "Stay signed in" cookies for this user
+                    // across every device. Password change is the canonical
+                    // "I think someone got in" signal — leaving long-lived
+                    // cookies valid would let the attacker back in.
+                    lawnding_remember_token_revoke_all_for_user(
+                        $authRecord['username'],
+                        lawnding_remember_tokens_path()
+                    );
                 }
             }
         }
@@ -518,6 +514,9 @@ if ($action === 'create_user') {
 
             if ($newUsername === '' || strlen($newUsername) < 3 || strlen($newUsername) > 32) {
                 $usersErrors[] = 'Username must be 3-32 characters.';
+            }
+            if (str_starts_with(strtolower($newUsername), 'tg:')) {
+                $usersErrors[] = 'Usernames cannot start with "tg:" (reserved).';
             }
             if (strlen($tempPassword) < 8 || strlen($tempPassword) > 128) {
                 $usersErrors[] = 'Temporary password must be 8-128 characters.';
@@ -688,6 +687,14 @@ if ($action === 'reset_password') {
                         $resetUsername = $targetUsername;
                         $resetLogoutAfterReset = $resetLogoutAfter;
                         enforce_users_permissions($usersPath, $usersWarnings);
+                        // Invalidate every "Stay signed in" cookie for the
+                        // target user — they're getting a new temp password,
+                        // so any device that auto-logs-in via remember-me
+                        // could otherwise dodge the forced password change.
+                        lawnding_remember_token_revoke_all_for_user(
+                            $targetUsername,
+                            lawnding_remember_tokens_path()
+                        );
                     }
                 } elseif (count($usersErrors) === 0) {
                     $usersErrors[] = 'User not found.';
@@ -768,13 +775,29 @@ if ($action === 'remove_user') {
 if ($action === 'logout') {
     if (!require_csrf_token($errors)) {
     } else {
+        // Capture the "came from public site" intent before session wipe,
+        // since $_SESSION = [] below will erase the flag along with everything
+        // else. If set, route the browser back to the site's public root;
+        // otherwise keep the traditional admin-login landing.
+        $returnToPublic = !empty($_SESSION['logout_return_public']);
+        $logoutTarget = $returnToPublic
+            ? (rtrim((string) lawnding_config('base_url', ''), '/') . '/')
+            : admin_redirect_path();
+
+        // Revoke this device's remember-me token (if any) — clears the
+        // cookie and removes the matching entry from the token store.
+        // Other devices' tokens are untouched.
+        $rememberRaw = isset($_COOKIE[LP_REMEMBER_COOKIE_NAME]) && is_string($_COOKIE[LP_REMEMBER_COOKIE_NAME])
+            ? $_COOKIE[LP_REMEMBER_COOKIE_NAME] : '';
+        lawnding_remember_token_revoke($rememberRaw, lawnding_remember_tokens_path());
+
         $_SESSION = [];
         if (ini_get('session.use_cookies')) {
             $params = session_get_cookie_params();
             setcookie(session_name(), '', time() - 42000, $params['path'], $params['domain'], $params['secure'], $params['httponly']);
         }
         session_destroy();
-        header('Location: ' . admin_redirect_path());
+        header('Location: ' . $logoutTarget);
         exit;
     }
 }
@@ -802,12 +825,6 @@ if ($flash) {
     if (!empty($flash['usersWarnings']) && is_array($flash['usersWarnings'])) {
         $usersWarnings = array_merge($usersWarnings, $flash['usersWarnings']);
     }
-    if (!empty($flash['runtimeMigrationErrors']) && is_array($flash['runtimeMigrationErrors'])) {
-        $runtimeMigrationErrors = $flash['runtimeMigrationErrors'];
-    }
-    if (!empty($flash['runtimeMigrationSuccess']) && is_string($flash['runtimeMigrationSuccess'])) {
-        $runtimeMigrationSuccess = $flash['runtimeMigrationSuccess'];
-    }
     if (array_key_exists('usersPermissionsNeedsFix', $flash)) {
         $usersPermissionsNeedsFix = (bool) $flash['usersPermissionsNeedsFix'];
     }
@@ -825,12 +842,6 @@ if ($flash) {
     }
 }
 
-$runtimeMigrationStatus = function_exists('lawnding_runtime_migration_status')
-    ? lawnding_runtime_migration_status()
-    : ['pending' => [], 'conflicts' => [], 'cleanup' => [], 'needs_migration' => false, 'cleanup_pending' => false];
-$runtimeMigrationNeedsCopy = !empty($runtimeMigrationStatus['needs_migration']);
-$runtimeMigrationNeedsCleanup = !$runtimeMigrationNeedsCopy && !empty($runtimeMigrationStatus['cleanup_pending']);
-
 // If we just logged out or removed ourselves, redirect to the login screen.
 if ($logoutAfterAction) {
     header('Location: ' . admin_redirect_path());
@@ -846,8 +857,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action !== 'logout') {
         'usersErrors' => $usersErrors,
         'usersSuccess' => $usersSuccess,
         'usersWarnings' => $usersWarnings,
-        'runtimeMigrationErrors' => $runtimeMigrationErrors,
-        'runtimeMigrationSuccess' => $runtimeMigrationSuccess,
         'usersPermissionsNeedsFix' => $usersPermissionsNeedsFix,
         'usersPermissionsFixResult' => $usersPermissionsFixResult,
         'resetPassword' => $resetPassword,
@@ -861,7 +870,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action !== 'logout') {
 // If authenticated and not forced to change password, render the admin app.
 if ($authRecord && !$forcePasswordChange) {
     $adminConfigPath = function_exists('lawnding_admin_path')
-        ? lawnding_core_admin_path('config.php')
+        ? lawnding_admin_path('config.php')
         : dirname(__DIR__, 2) . '/admin/config.php';
     require $adminConfigPath;
     exit;
@@ -875,62 +884,52 @@ if ($authRecord && !$forcePasswordChange) {
     <title>Admin Panel</title>
     <?php
         $assetBase = function_exists('lawnding_config') ? rtrim(lawnding_config('base_url', ''), '/') : '';
-        $headerLogoPath = 'res/img/logo.jpg';
-        $headerPath = function_exists('lawnding_data_path')
-            ? lawnding_data_path('header.json')
-            : __DIR__ . '/../res/data/header.json';
-        if (is_readable($headerPath)) {
-            $headerDecoded = json_decode((string) file_get_contents($headerPath), true);
-            if (is_array($headerDecoded) && !empty($headerDecoded['logo']) && is_string($headerDecoded['logo'])) {
-                $headerLogoPath = $headerDecoded['logo'];
+        if ($assetBase === '') {
+            $scriptName = $_SERVER['SCRIPT_NAME'] ?? '';
+            if (is_string($scriptName) && str_starts_with($scriptName, '/public/')) {
+                $assetBase = '/public';
             }
         }
-        if (function_exists('lawnding_normalize_legacy_public_asset_path')) {
-            $headerLogoPath = (string) lawnding_normalize_legacy_public_asset_path($headerLogoPath);
-        }
-        $logoPathTrimmed = ltrim($headerLogoPath, '/');
-        $faviconUrl = '';
-        if (preg_match('#^[a-z][a-z0-9+.-]*:#i', $headerLogoPath) || str_starts_with($headerLogoPath, '//')) {
-            $faviconUrl = $headerLogoPath;
-        } elseif (str_starts_with($logoPathTrimmed, 'res/')) {
-            $faviconUrl = function_exists('lawnding_instance_asset_url')
-                ? lawnding_instance_asset_url($logoPathTrimmed)
-                : (($assetBase !== '' ? $assetBase : '') . '/' . $logoPathTrimmed);
-        } else {
-            $faviconUrl = function_exists('lawnding_instance_asset_url')
-                ? lawnding_instance_asset_url('res/img/logo.jpg')
-                : (($assetBase !== '' ? $assetBase : '') . '/res/img/logo.jpg');
-            $logoPathTrimmed = 'res/img/logo.jpg';
-        }
-        $faviconToken = defined('SITE_VERSION') ? (string) SITE_VERSION : '';
-        if (str_starts_with($logoPathTrimmed, 'res/')) {
-            $logoFsPath = function_exists('lawnding_instance_asset_path')
-                ? lawnding_instance_asset_path($logoPathTrimmed)
-                : __DIR__ . '/../' . $logoPathTrimmed;
-            if (is_file($logoFsPath)) {
-                $mtime = @filemtime($logoFsPath);
-                if (is_int($mtime) && $mtime > 0) {
-                    $faviconToken = (string) $mtime;
-                }
-            }
-        }
-        if ($faviconToken !== '') {
-            $faviconUrl .= (str_contains($faviconUrl, '?') ? '&' : '?') . 'v=' . rawurlencode($faviconToken);
-        }
-        $legacyFallbackConsoleScript = function_exists('lawnding_render_legacy_fallback_console_script')
-            ? lawnding_render_legacy_fallback_console_script()
-            : '';
+        $headerData = lawnding_read_json(
+            function_exists('lawnding_data_path')
+                ? lawnding_data_path('header.json')
+                : __DIR__ . '/../res/data/header.json'
+        );
+        $faviconRaw = is_string($headerData['logo'] ?? null) && $headerData['logo'] !== ''
+            ? $headerData['logo']
+            : 'res/img/logo.jpg';
+        $faviconUrl = lawnding_versioned_local_asset_url(
+            $faviconRaw,
+            defined('SITE_VERSION') ? (string) SITE_VERSION : ''
+        );
     ?>
     <?php // Deprecated: site-version.js cache-busting is no longer loaded. ?>
     <script src="<?php echo htmlspecialchars($assetBase . '/res/scr/no-zoom.js', ENT_QUOTES, 'UTF-8'); ?>"></script>
     <link rel="icon" href="<?php echo htmlspecialchars($faviconUrl, ENT_QUOTES, 'UTF-8'); ?>">
     <link rel="stylesheet" href="<?php echo htmlspecialchars($assetBase . '/res/style.css', ENT_QUOTES, 'UTF-8'); ?>">
     <link rel="stylesheet" href="<?php echo htmlspecialchars($assetBase . '/res/admin.css', ENT_QUOTES, 'UTF-8'); ?>">
-    <?php echo $legacyFallbackConsoleScript; ?>
+    <?php lawnding_run_hook('head_assets'); ?>
 </head>
 <body>
+    <?php
+    // Drain any session flash so revocation banners (e.g. from
+    // lawnding_admin_handle_tg_revocation) surface here instead of being
+    // stranded for the next public-page visit. No JS on this surface, so
+    // the close button is intentionally omitted — the banner clears on the
+    // next navigation.
+    $loginFlash = function_exists('lawnding_flash_consume') ? lawnding_flash_consume() : null;
+    ?>
+    <?php if ($loginFlash !== null): ?>
+        <div class="adminNotices" id="adminNotices" aria-live="polite" aria-atomic="true">
+            <div class="adminNotice adminNotice--<?php echo htmlspecialchars($loginFlash['type'], ENT_QUOTES, 'UTF-8'); ?>"<?php echo $loginFlash['type'] === 'danger' ? ' role="alert"' : ''; ?>>
+                <span class="adminNoticeText"><?php echo htmlspecialchars($loginFlash['text'], ENT_QUOTES, 'UTF-8'); ?></span>
+            </div>
+        </div>
+    <?php endif; ?>
+    <!-- Keyboard skip target — reveals on focus, jumps past notices to the form. -->
+    <a class="skipLink" href="#loginWrap">Skip to login form</a>
     <!-- Login / first-run / password reset screen. -->
-    <div class="loginWrap">
+    <div class="loginWrap" id="loginWrap">
         <div class="loginPane">
             <?php if ($forcePasswordChange): ?>
                 <div class="notice">
@@ -945,78 +944,110 @@ if ($authRecord && !$forcePasswordChange) {
                 </div>
             <?php endif; ?>
 
-            <div class="pane glassConvex">
-                <h3>ADMIN PANEL</h3>
-            <!-- Status messages for the login screen. -->
-            <?php if (count($errors) > 0): ?>
-                <div class="message error">
-                    <?php echo htmlspecialchars(implode(' ', $errors)); ?>
-                </div>
-            <?php elseif ($success): ?>
-                <div class="message success">
-                    <?php echo htmlspecialchars($success); ?>
-                </div>
-            <?php elseif ($passwordChangeSuccess): ?>
-                <div class="message success">
-                    <?php echo htmlspecialchars($passwordChangeSuccess); ?>
-                </div>
-            <?php elseif (!empty($usersWarnings)): ?>
-                <div class="message error">
-                    <?php echo htmlspecialchars(implode(' ', $usersWarnings)); ?>
-                </div>
-            <?php endif; ?>
+            <?php
+                // Title + submit text vary per form; everything else (shell,
+                // field/input chrome, error block) is shared with the public
+                // login modal via the .userModal + .lpLoginModal__* classes.
+                if ($forcePasswordChange) {
+                    $loginPanelTitle = 'Update password';
+                } elseif (!$hasUsers) {
+                    $loginPanelTitle = 'Create admin account';
+                } else {
+                    $loginPanelTitle = 'Sign in';
+                }
+            ?>
+            <div class="userModal glassConcave lpModalNoDrag adminLoginPanel">
+                <h4><?php echo htmlspecialchars($loginPanelTitle); ?></h4>
+                <!-- role="alert" / role="status" so screen readers announce the
+                     message even though it appears on a fresh page render. -->
+                <?php if (count($errors) > 0): ?>
+                    <div class="message error" role="alert">
+                        <?php echo htmlspecialchars(implode(' ', $errors)); ?>
+                    </div>
+                <?php elseif ($success): ?>
+                    <div class="message success" role="status">
+                        <?php echo htmlspecialchars($success); ?>
+                    </div>
+                <?php elseif ($passwordChangeSuccess): ?>
+                    <div class="message success" role="status">
+                        <?php echo htmlspecialchars($passwordChangeSuccess); ?>
+                    </div>
+                <?php elseif (!empty($usersWarnings)): ?>
+                    <div class="message error" role="alert">
+                        <?php echo htmlspecialchars(implode(' ', $usersWarnings)); ?>
+                    </div>
+                <?php endif; ?>
 
-            <!-- The form changes based on first-run, forced reset, or normal login. -->
-            <?php if ($forcePasswordChange): ?>
-                <form class="loginForm" method="post" action="">
-                    <input type="hidden" name="action" value="change_password">
-                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
-                    <label class="loginField">
-                        New Password
-                        <input class="loginInput" type="password" name="new_password" autocomplete="new-password" required>
-                    </label>
-                    <label class="loginField">
-                        Confirm Password
-                        <input class="loginInput" type="password" name="confirm_password" autocomplete="new-password" required>
-                    </label>
-                    <button class="loginButton" type="submit">Update Password</button>
-                </form>
-                <?php elseif (!$hasUsers): ?>
-                <form class="loginForm" method="post" action="">
-                    <input type="hidden" name="action" value="create_admin">
+                <?php if ($forcePasswordChange): ?>
+                    <form class="lpLoginModal__form" method="post" action="">
+                        <input type="hidden" name="action" value="change_password">
                         <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
-                        <label class="loginField">
-                            Username
-                            <input class="loginInput" type="text" name="username" autocomplete="username" required>
+                        <label class="lpLoginModal__field">
+                            <span class="lpLoginModal__fieldLabel">New password</span>
+                            <input class="lpLoginModal__input" type="password" name="new_password" autocomplete="new-password" required>
                         </label>
-                        <label class="loginField">
-                            Password
-                            <input class="loginInput" type="password" name="password" autocomplete="new-password" required>
+                        <label class="lpLoginModal__field">
+                            <span class="lpLoginModal__fieldLabel">Confirm password</span>
+                            <input class="lpLoginModal__input" type="password" name="confirm_password" autocomplete="new-password" required>
                         </label>
-                        <label class="loginField">
-                            Confirm Password
-                            <input class="loginInput" type="password" name="confirm_password" autocomplete="new-password" required>
+                        <button class="lpLoginModal__submit" type="submit">Update password</button>
+                    </form>
+                <?php elseif (!$hasUsers): ?>
+                    <form class="lpLoginModal__form" method="post" action="">
+                        <input type="hidden" name="action" value="create_admin">
+                        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+                        <label class="lpLoginModal__field">
+                            <span class="lpLoginModal__fieldLabel">Username</span>
+                            <input class="lpLoginModal__input" type="text" name="username" autocomplete="username" required>
                         </label>
-                        <button class="loginButton" type="submit">Create Admin</button>
+                        <label class="lpLoginModal__field">
+                            <span class="lpLoginModal__fieldLabel">Password</span>
+                            <input class="lpLoginModal__input" type="password" name="password" autocomplete="new-password" required>
+                        </label>
+                        <label class="lpLoginModal__field">
+                            <span class="lpLoginModal__fieldLabel">Confirm password</span>
+                            <input class="lpLoginModal__input" type="password" name="confirm_password" autocomplete="new-password" required>
+                        </label>
+                        <button class="lpLoginModal__submit" type="submit">Create admin account</button>
                     </form>
                 <?php else: ?>
-                    <form class="loginForm" method="post" action="">
+                    <form class="lpLoginModal__form" method="post" action="">
                         <input type="hidden" name="action" value="login">
                         <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
-                        <label class="loginField">
-                            Username
-                            <input class="loginInput" type="text" name="username" autocomplete="username" required>
+                        <label class="lpLoginModal__field">
+                            <span class="lpLoginModal__fieldLabel">Username</span>
+                            <input class="lpLoginModal__input" type="text" name="username" autocomplete="username" required>
                         </label>
-                        <label class="loginField">
-                            Password
-                            <input class="loginInput" type="password" name="password" autocomplete="current-password" required>
+                        <label class="lpLoginModal__field">
+                            <span class="lpLoginModal__fieldLabel">Password</span>
+                            <input class="lpLoginModal__input" type="password" name="password" autocomplete="current-password" required>
                         </label>
-                        <button class="loginButton" type="submit">Login</button>
+                        <label class="lpLoginModal__remember">
+                            <input type="checkbox" name="remember" value="1">
+                            <span>Stay signed in</span>
+                        </label>
+                        <button class="lpLoginModal__submit" type="submit">Sign in</button>
                     </form>
+                    <output role="alert" aria-live="polite"
+                            class="lpLoginModal__error" data-lp-login-error hidden></output>
+                    <div class="lpLoginModal__divider" aria-hidden="true"><span>or</span></div>
+                    <button type="button" class="lpLoginModal__telegram"
+                            data-lp-login-telegram
+                            data-tg-bot-id="<?php echo htmlspecialchars($tgBotId, ENT_QUOTES, 'UTF-8'); ?>"
+                            data-tg-auth-endpoint="<?php echo htmlspecialchars($tgAdminAuthEndpoint, ENT_QUOTES, 'UTF-8'); ?>"
+                            <?php echo $tgBotId === '' ? 'disabled aria-disabled="true"' : ''; ?>>
+                        <svg aria-hidden="true" focusable="false" width="20" height="20" viewBox="0 0 24 24">
+                            <path fill="currentColor" d="M9.78 18.65l.28-4.23 7.68-6.92c.34-.31-.07-.46-.52-.19L7.74 13.3 3.64 12c-.88-.25-.89-.86.2-1.3l15.97-6.16c.73-.33 1.43.18 1.15 1.3l-2.72 12.81c-.19.91-.74 1.13-1.5.71l-4.14-3.06-1.99 1.93c-.23.23-.42.42-.83.42z"/>
+                        </svg>
+                        <span><?php echo $tgBotId === '' ? 'Telegram login unavailable' : 'Login with Telegram'; ?></span>
+                    </button>
                 <?php endif; ?>
             </div>
         </div>
     </div>
     <div class="footer adminFooter">LawndingPage Admin Panel</div>
+    <?php if (!$identity['isAuthenticated'] && $tgBotId !== ''): ?>
+    <script src="<?php echo htmlspecialchars(lawnding_versioned_local_asset_url('res/scr/tg-login.js'), ENT_QUOTES, 'UTF-8'); ?>" defer></script>
+    <?php endif; ?>
 </body>
 </html>

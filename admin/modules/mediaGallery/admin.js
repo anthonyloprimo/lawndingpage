@@ -10,12 +10,9 @@ $(document).ready(function() {
     }
     window.__mediaGalleryAdminInitialized = true;
 
-    const basePath = window.appConfig && typeof window.appConfig.basePath === 'string'
-        ? window.appConfig.basePath.replace(/\/$/, '')
-        : '';
-    const instanceAssetBasePath = window.appConfig && typeof window.appConfig.instanceAssetBasePath === 'string'
-        ? window.appConfig.instanceAssetBasePath.replace(/\/$/, '')
-        : '';
+    let gdNoticeShown = false;
+
+    const basePath = lpGetBasePath();
     const csrfToken = window.appConfig && window.appConfig.csrfToken ? window.appConfig.csrfToken : '';
 
     function buildUrl(file) {
@@ -32,24 +29,14 @@ $(document).ready(function() {
         if (basePath && path.startsWith(basePath + '/')) {
             return path;
         }
-        if (instanceAssetBasePath && path.startsWith(instanceAssetBasePath + '/')) {
-            return path;
-        }
         if (path.startsWith('/res/')) {
-            return (instanceAssetBasePath || basePath) + path;
+            return basePath + path;
         }
         if (path.startsWith('res/')) {
-            if (instanceAssetBasePath) {
-                return `${instanceAssetBasePath}/${path}`;
-            }
             return basePath ? `${basePath}/${path}` : `/${path}`;
         }
         if (path.startsWith('public/res/')) {
-            console.warn('LawndingPage legacy fallback (asset):', path, '->', path.slice('public/'.length));
             const trimmed = path.slice('public/'.length);
-            if (instanceAssetBasePath) {
-                return `${instanceAssetBasePath}/${trimmed}`;
-            }
             return basePath ? `${basePath}/${trimmed}` : `/${trimmed}`;
         }
         return path;
@@ -97,19 +84,11 @@ $(document).ready(function() {
     }
 
     function showSaving() {
-        if (typeof window.showSavingOverlay === 'function') {
-            window.showSavingOverlay();
-        } else {
-            $('#savingOverlay').addClass('isActive').attr('aria-hidden', 'false');
-        }
+        window.showSavingOverlay();
     }
 
     function hideSaving() {
-        if (typeof window.hideSavingOverlay === 'function') {
-            window.hideSavingOverlay();
-        } else {
-            $('#savingOverlay').removeClass('isActive').attr('aria-hidden', 'true');
-        }
+        window.hideSavingOverlay();
     }
 
     function normalizeItems(items) {
@@ -118,13 +97,30 @@ $(document).ready(function() {
         }
         return items.map((item) => {
             const safe = item && typeof item === 'object' ? item : {};
+            // focal_x/focal_y are tri-state: a number in [0, 1] when set, null
+            // when unset (centered crop). Preserve the distinction -- treating
+            // null as 0 would silently anchor the marker to the top-left.
+            const focalX = Number.isFinite(safe.focal_x) ? safe.focal_x : null;
+            const focalY = Number.isFinite(safe.focal_y) ? safe.focal_y : null;
             return {
                 id: String(safe.id || ''),
                 type: safe.type === 'video' ? 'video' : 'image',
                 file: String(safe.file || ''),
                 thumb: String(safe.thumb || ''),
                 title: String(safe.title || ''),
-                order: Number.isFinite(Number(safe.order)) ? Number(safe.order) : 0
+                order: Number.isFinite(Number(safe.order)) ? Number(safe.order) : 0,
+                original_size: parseInt(safe.original_size, 10) || 0,
+                saved_size:    parseInt(safe.saved_size,    10) || 0,
+                focal_x:       focalX,
+                focal_y:       focalY,
+                uploaded_at:           String(safe.uploaded_at || ''),
+                uploaded_by:           String(safe.uploaded_by || ''),
+                uploaded_by_display:   String(safe.uploaded_by_display || safe.uploaded_by || ''),
+                // displayFile/displayThumb carry the server's mtime cache-busting
+                // (?v=<filemtime>). Drop them and the renderer falls back to the
+                // raw path, which serves stale bytes after a thumb regen.
+                displayFile:           String(safe.displayFile || ''),
+                displayThumb:          String(safe.displayThumb || '')
             };
         }).filter((item) => item.id !== '');
     }
@@ -145,10 +141,21 @@ $(document).ready(function() {
     }
 
     function getThumbUrl(item) {
+        // Prefer the server-built display* URLs when available -- they
+        // carry mtime-based ?v= cache busting so freshly regenerated
+        // thumbs (after focal save, replace, etc.) render the new bytes
+        // instead of the stale cached version. Fall back to the raw
+        // path when the server hasn't supplied a display URL.
+        if (item.displayThumb) {
+            return item.displayThumb;
+        }
         if (item.thumb) {
             return makeAssetUrl(item.thumb);
         }
         if (item.type === 'image') {
+            if (item.displayFile) {
+                return item.displayFile;
+            }
             return makeAssetUrl(item.file);
         }
         return '';
@@ -176,7 +183,19 @@ $(document).ready(function() {
             const $thumb = $('<button class="mediaGalleryThumbButton" type="button" aria-label="Edit media"></button>');
             const thumbUrl = getThumbUrl(item);
             if (thumbUrl) {
-                $thumb.css('background-image', `url('${thumbUrl}')`);
+                $thumb.append($('<img class="mediaGalleryThumb">').attr({
+                    src: thumbUrl,
+                    alt: item.title || '',
+                    loading: 'lazy',
+                    decoding: 'async'
+                }));
+            }
+            // Hover text shows the item's caption (the modal's "Hovertext"
+            // input). Original/Resized byte sizes used to live here too but
+            // moved into the modal's Info section, which is the canonical
+            // place for that detail now.
+            if (item.title) {
+                $thumb.attr('data-hover-text', item.title);
             }
             const $actions = $(
                 '<div class="mediaGalleryItemActions">'
@@ -284,7 +303,13 @@ $(document).ready(function() {
         state.activeItemId = itemId;
         const $modal = state.$modal;
         $modal.toggleClass('isVideo', item.type === 'video');
+        $modal.removeClass('isConfirmingDelete');
+        state.modalOriginalTitle = item.title || '';
         $modal.find('.mediaGalleryCaptionInput').val(item.title || '');
+        $modal.find('.mediaGalleryFocalMarker').attr('hidden', '');
+        state.modalNaturalDims = null;
+        state.pendingFocal = null;
+        state.pendingThumbClear = false;
 
         const fileUrl = makeAssetUrl(item.file);
         const $image = $modal.find('.mediaGalleryModalImage');
@@ -298,7 +323,14 @@ $(document).ready(function() {
             $video.removeAttr('src');
             $video.get(0).load();
             $image.css('background-image', fileUrl ? `url('${fileUrl}')` : 'none');
+            loadModalNaturalDims(state, fileUrl, itemId, function() {
+                positionFocalMarker(state);
+            });
         }
+
+        updateSaveEnabled(state);
+        populateImageInfo($modal, item);
+        updateFocalCoordsDisplay(state);
 
         if (typeof window.openAdminModal === 'function') {
             window.openAdminModal($modal);
@@ -307,8 +339,25 @@ $(document).ready(function() {
         }
     }
 
+    function populateImageInfo($modal, item) {
+        const fmt = window.lpFormatBytes || function (b) { return b ? b + ' B' : '—'; };
+        const orig = item.original_size > 0 ? fmt(item.original_size) : '—';
+        const saved = item.saved_size > 0 ? fmt(item.saved_size) : '—';
+        let when = '—';
+        if (item.uploaded_at) {
+            const d = new Date(item.uploaded_at);
+            when = isNaN(d.getTime()) ? item.uploaded_at : d.toLocaleString();
+        }
+        const who = item.uploaded_by_display || item.uploaded_by || '—';
+        $modal.find('.mediaGalleryInfoOriginalSize').text(orig);
+        $modal.find('.mediaGalleryInfoSavedSize').text(saved);
+        $modal.find('.mediaGalleryInfoUploadedAt').text(when);
+        $modal.find('.mediaGalleryInfoUploadedBy').text(who);
+    }
+
     function closeModal(state) {
         const $modal = state.$modal;
+        $modal.removeClass('isConfirmingDelete');
         const $video = $modal.find('.mediaGalleryModalVideo');
         if ($video.length) {
             $video.get(0).pause();
@@ -321,11 +370,246 @@ $(document).ready(function() {
             $modal.removeClass('isOpen').attr('aria-hidden', 'true');
         }
         state.activeItemId = null;
+        state.pendingFocal = null;
+        state.pendingThumbClear = false;
+        state.modalOriginalTitle = '';
+        updateSaveEnabled(state);
+    }
+
+    // Compute the on-screen bounding rect of the displayed image inside
+    // a container with object-fit/background-size: contain semantics.
+    // Returns { left, top, width, height } in container coords, or null
+    // if naturalDims are unavailable.
+    function computeImageDisplayBounds(rect, naturalDims) {
+        if (!naturalDims || !naturalDims.w || !naturalDims.h || rect.width <= 0 || rect.height <= 0) {
+            return null;
+        }
+        const containerAspect = rect.width / rect.height;
+        const naturalAspect = naturalDims.w / naturalDims.h;
+        if (containerAspect > naturalAspect) {
+            const imgH = rect.height;
+            const imgW = imgH * naturalAspect;
+            return { left: (rect.width - imgW) / 2, top: 0, width: imgW, height: imgH };
+        }
+        const imgW = rect.width;
+        const imgH = imgW / naturalAspect;
+        return { left: 0, top: (rect.height - imgH) / 2, width: imgW, height: imgH };
+    }
+
+    // Read whichever focal value should currently drive the marker:
+    // pendingFocal (in-flight, unsaved click/arrow change) wins; falls
+    // back to the saved item.focal_x / focal_y. pendingFocal is cleared
+    // by openModal/closeModal/saveFocalToServer so it never leaks across
+    // sessions.
+    function getDisplayedFocal(state, item) {
+        if (state.pendingFocal) {
+            return state.pendingFocal;
+        }
+        return { focal_x: item.focal_x, focal_y: item.focal_y };
+    }
+
+    function positionFocalMarker(state) {
+        const $marker = state.$modal.find('.mediaGalleryFocalMarker');
+        const item = state.items.find((entry) => entry.id === state.activeItemId);
+        if (!item || item.type === 'video') {
+            $marker.attr('hidden', '');
+            return;
+        }
+        const focal = getDisplayedFocal(state, item);
+        if (focal.focal_x == null || focal.focal_y == null) {
+            $marker.attr('hidden', '');
+            return;
+        }
+        const $modalImage = state.$modal.find('.mediaGalleryModalImage');
+        const naturalDims = state.modalNaturalDims;
+        if (!naturalDims) {
+            $marker.attr('hidden', '');
+            return;
+        }
+        const rect = $modalImage[0].getBoundingClientRect();
+        const bounds = computeImageDisplayBounds(rect, naturalDims);
+        if (!bounds) {
+            $marker.attr('hidden', '');
+            return;
+        }
+        const left = bounds.left + bounds.width * focal.focal_x;
+        const top = bounds.top + bounds.height * focal.focal_y;
+        $marker.css({ left: left + 'px', top: top + 'px' }).removeAttr('hidden');
+    }
+
+    function isCaptionDirty(state) {
+        const $input = state.$modal.find('.mediaGalleryCaptionInput');
+        if (!$input.length) {
+            return false;
+        }
+        const current = $input.val() || '';
+        const baseline = typeof state.modalOriginalTitle === 'string' ? state.modalOriginalTitle : '';
+        return current !== baseline;
+    }
+
+    function updateSaveEnabled(state) {
+        const hasChanges = state.pendingFocal !== null
+            || state.pendingThumbClear === true
+            || isCaptionDirty(state);
+        state.$modal.find('.mediaGalleryFocalSave').prop('disabled', !hasChanges);
+    }
+
+    function setPendingFocal(state, focalX, focalY) {
+        state.pendingFocal = { focal_x: focalX, focal_y: focalY };
+        positionFocalMarker(state);
+        updateFocalCoordsDisplay(state);
+        updateSaveEnabled(state);
+    }
+
+    // Format the displayed focal as "X%, Y%" -- 0-1 normalized values
+    // multiplied by 100 and rounded for readability. Reset state (null/null)
+    // shows "0%, 0%" to convey "no focal point set, default thumbnail."
+    function updateFocalCoordsDisplay(state) {
+        const item = state.items.find((entry) => entry.id === state.activeItemId);
+        if (!item) {
+            return;
+        }
+        const focal = getDisplayedFocal(state, item);
+        let display = '0%, 0%';
+        if (focal.focal_x != null && focal.focal_y != null) {
+            const x = Math.round(focal.focal_x * 100);
+            const y = Math.round(focal.focal_y * 100);
+            display = x + '%, ' + y + '%';
+        }
+        state.$modal.find('.mediaGalleryInfoFocalCoords').text(display);
+    }
+
+    // Unified "click outside the image = use default thumbnail" gesture.
+    // Replaces the removed "Use default thumbnail" button: clears the
+    // pending focal (server falls back to default crop) AND sets
+    // pendingThumbClear (any custom uploaded thumbnail is dropped on save).
+    // A saved item may have either or both set, so both must reset.
+    function resetFocalToDefault(state) {
+        state.pendingThumbClear = true;
+        setPendingFocal(state, null, null);
+    }
+
+    // itemId acts as a stale-request token: if the user navigates to a
+    // different item before this load completes, the result is dropped
+    // instead of stomping the current item's modalNaturalDims.
+    function loadModalNaturalDims(state, src, itemId, callback) {
+        if (!src) {
+            if (state.activeItemId === itemId) {
+                state.modalNaturalDims = null;
+                callback();
+            }
+            return;
+        }
+        const img = new Image();
+        img.onload = function() {
+            if (state.activeItemId !== itemId) {
+                return;
+            }
+            state.modalNaturalDims = { w: img.naturalWidth, h: img.naturalHeight };
+            callback();
+        };
+        img.onerror = function() {
+            if (state.activeItemId !== itemId) {
+                return;
+            }
+            state.modalNaturalDims = null;
+            callback();
+        };
+        img.src = src;
+    }
+
+    function saveCaptionToServer(state, itemId, title, onSuccess) {
+        const formData = new URLSearchParams();
+        formData.append('module', 'mediaGallery');
+        formData.append('endpoint', 'caption');
+        formData.append('paneId', state.paneId);
+        formData.append('itemId', itemId);
+        formData.append('title', title);
+        if (csrfToken) {
+            formData.append('csrf_token', csrfToken);
+        }
+        fetch(buildUrl('module-endpoint.php'), {
+            method: 'POST',
+            credentials: 'same-origin',
+            body: formData,
+        })
+            .then((response) => response.json().then((data) => ({ ok: response.ok, data })))
+            .then(({ ok, data }) => {
+                if (!ok || !data || data.error) {
+                    if (typeof window.addAdminNotice === 'function') {
+                        window.addAdminNotice('danger', (data && data.error) || 'Failed to save caption.');
+                    }
+                    return;
+                }
+                if (Array.isArray(data.items)) {
+                    state.items = data.items;
+                    state.initialItems = JSON.parse(JSON.stringify(data.items));
+                    renderGrid(state);
+                }
+                if (typeof onSuccess === 'function') {
+                    onSuccess();
+                }
+            })
+            .catch(() => {
+                if (typeof window.addAdminNotice === 'function') {
+                    window.addAdminNotice('danger', 'Failed to save caption.');
+                }
+            });
+    }
+
+    function saveFocalToServer(state, itemId, focalX, focalY, onSuccess) {
+        const formData = new URLSearchParams();
+        formData.append('module', 'mediaGallery');
+        formData.append('endpoint', 'focal');
+        formData.append('paneId', state.paneId);
+        formData.append('itemId', itemId);
+        formData.append('focal_x', focalX === null ? '' : String(focalX));
+        formData.append('focal_y', focalY === null ? '' : String(focalY));
+        if (csrfToken) {
+            formData.append('csrf_token', csrfToken);
+        }
+        fetch(buildUrl('module-endpoint.php'), {
+            method: 'POST',
+            credentials: 'same-origin',
+            body: formData,
+        })
+            .then((response) => response.json().then((data) => ({ ok: response.ok, data })))
+            .then(({ ok, data }) => {
+                if (!ok || !data || data.error) {
+                    if (typeof window.addAdminNotice === 'function') {
+                        window.addAdminNotice('danger', (data && data.error) || 'Failed to save focal point.');
+                    }
+                    return;
+                }
+                if (Array.isArray(data.items)) {
+                    state.items = data.items;
+                    state.initialItems = JSON.parse(JSON.stringify(data.items));
+                    renderGrid(state);
+                }
+                if (typeof onSuccess === 'function') {
+                    onSuccess();
+                }
+            })
+            .catch(() => {
+                if (typeof window.addAdminNotice === 'function') {
+                    window.addAdminNotice('danger', 'Failed to save focal point.');
+                }
+            });
     }
 
     function refreshFromServer(state) {
-        const url = buildUrl(`media-gallery-list.php?paneId=${encodeURIComponent(state.paneId)}`);
-        return fetch(url, { credentials: 'same-origin' })
+        const formData = new FormData();
+        formData.append('module', 'mediaGallery');
+        formData.append('endpoint', 'list');
+        formData.append('paneId', state.paneId);
+        if (csrfToken) {
+            formData.append('csrf_token', csrfToken);
+        }
+        return fetch(buildUrl('module-endpoint.php'), {
+            method: 'POST',
+            body: formData,
+            credentials: 'same-origin'
+        })
             .then((response) => response.json().then((data) => ({ ok: response.ok, data })))
             .then(({ ok, data }) => {
                 if (!ok || !data) {
@@ -336,18 +620,133 @@ $(document).ready(function() {
             .catch(() => {});
     }
 
-    function uploadMedia(state, file) {
+    // Run smartcrop.js (vendored at v2.0.5) on a picked file to suggest
+    // a focal point before upload. Resolves to {focal_x, focal_y} on
+    // success, or null on any failure (smartcrop missing, image decode
+    // failed, non-image file). Failure-graceful by design: a null
+    // resolution just means the upload posts without focal coords and
+    // the server falls back to centered crop -- same as today's
+    // behavior with no focal hint, never worse.
+    //
+    // The focal point is computed as the center of smartcrop's chosen
+    // 400x400 crop window, normalized to [0, 1] of source pixel
+    // dimensions. That's the same shape the server expects from a
+    // human-set focal-point picker click.
+    function smartcropFocalForFile(file) {
+        return new Promise(function(resolve) {
+            if (typeof window.smartcrop === 'undefined') {
+                resolve(null);
+                return;
+            }
+            if (!file || !file.type || file.type.indexOf('image/') !== 0) {
+                resolve(null);
+                return;
+            }
+            let blobUrl;
+            try {
+                blobUrl = URL.createObjectURL(file);
+            } catch (e) {
+                resolve(null);
+                return;
+            }
+            const img = new Image();
+            const cleanup = function() {
+                try { URL.revokeObjectURL(blobUrl); } catch (e) { /* ignore */ }
+            };
+            img.onload = function() {
+                if (!img.naturalWidth || !img.naturalHeight) {
+                    cleanup();
+                    resolve(null);
+                    return;
+                }
+                let cropPromise;
+                try {
+                    cropPromise = window.smartcrop.crop(img, { width: 400, height: 400 });
+                } catch (e) {
+                    cleanup();
+                    resolve(null);
+                    return;
+                }
+                cropPromise.then(function(result) {
+                    cleanup();
+                    const tc = result && result.topCrop;
+                    if (!tc || typeof tc.x !== 'number' || typeof tc.y !== 'number'
+                        || typeof tc.width !== 'number' || typeof tc.height !== 'number') {
+                        resolve(null);
+                        return;
+                    }
+                    const focalX = (tc.x + tc.width / 2) / img.naturalWidth;
+                    const focalY = (tc.y + tc.height / 2) / img.naturalHeight;
+                    resolve({
+                        focal_x: Math.max(0, Math.min(1, focalX)),
+                        focal_y: Math.max(0, Math.min(1, focalY)),
+                    });
+                }).catch(function() {
+                    cleanup();
+                    resolve(null);
+                });
+            };
+            img.onerror = function() {
+                cleanup();
+                resolve(null);
+            };
+            img.src = blobUrl;
+        });
+    }
+
+    // Smartcrop the file (best-effort) then hand off to uploadMedia
+    // with the resulting focal coords merged into options.focal.
+    // Wrapper exists so callers (single + batch) share the same
+    // smartcrop-then-upload control flow without duplicating it.
+    function smartcropAndUpload(state, file, options) {
+        smartcropFocalForFile(file).then(function(focal) {
+            const merged = Object.assign({}, options || {});
+            if (focal) {
+                merged.focal = focal;
+            }
+            uploadMedia(state, file, merged);
+        });
+    }
+
+    // options.focal                  -- {focal_x, focal_y} pre-computed
+    //                                   before upload (smartcrop or
+    //                                   future hooks). Posted alongside
+    //                                   the file so the server stores
+    //                                   them on the new item and uses
+    //                                   them in derive_thumb.
+    // options.suppressSuccessNotice  -- caller will surface a batch
+    //                                   summary instead of per-file
+    //                                   notices.
+    // options.onComplete(ok)         -- called after the upload
+    //                                   resolves (success or failure).
+    //                                   Lets the batch driver chain
+    //                                   the next upload once this one
+    //                                   has fully settled, including
+    //                                   the items-payload sync.
+    function uploadMedia(state, file, options) {
+        options = options || {};
         if (!file) {
+            if (typeof options.onComplete === 'function') {
+                options.onComplete(false);
+            }
             return;
         }
         const formData = new FormData();
+        formData.append('module', 'mediaGallery');
+        formData.append('endpoint', 'upload');
         formData.append('paneId', state.paneId);
         formData.append('mediaFile', file);
+        if (options.focal
+            && typeof options.focal.focal_x === 'number'
+            && typeof options.focal.focal_y === 'number') {
+            formData.append('focal_x', String(options.focal.focal_x));
+            formData.append('focal_y', String(options.focal.focal_y));
+        }
         if (csrfToken) {
             formData.append('csrf_token', csrfToken);
         }
         showSaving();
-        fetch(buildUrl('media-gallery-upload.php'), {
+        fetch(buildUrl('module-endpoint.php'), {
             method: 'POST',
             body: formData,
             credentials: 'same-origin'
@@ -360,17 +759,32 @@ $(document).ready(function() {
                         const rawSummary = summarizeRawError(raw);
                         message = rawSummary || `Upload failed (HTTP ${status}).`;
                     }
-                    addNotice('danger', message);
+                    addNotice(status === 413 ? 'warning' : 'danger', message);
                     hideSaving();
+                    if (typeof options.onComplete === 'function') {
+                        options.onComplete(false);
+                    }
                     return;
                 }
                 setItemsFromPayload(state, data.items || []);
-                addNotice('ok', 'Media uploaded.');
+                if (!options.suppressSuccessNotice) {
+                    addNotice('ok', 'Media uploaded.');
+                }
+                if (data.gd_unavailable && !gdNoticeShown) {
+                    gdNoticeShown = true;
+                    addNotice('ok', 'For better performance, install the PHP GD extension on your server.');
+                }
                 hideSaving();
+                if (typeof options.onComplete === 'function') {
+                    options.onComplete(true);
+                }
             })
             .catch(() => {
                 addNotice('danger', 'Upload failed. Please try again.');
                 hideSaving();
+                if (typeof options.onComplete === 'function') {
+                    options.onComplete(false);
+                }
             });
     }
 
@@ -379,6 +793,8 @@ $(document).ready(function() {
             return;
         }
         const formData = new FormData();
+        formData.append('module', 'mediaGallery');
+        formData.append('endpoint', 'replace');
         formData.append('paneId', state.paneId);
         formData.append('itemId', itemId);
         formData.append('mediaFile', file);
@@ -386,22 +802,26 @@ $(document).ready(function() {
             formData.append('csrf_token', csrfToken);
         }
         showSaving();
-        fetch(buildUrl('media-gallery-replace.php'), {
+        fetch(buildUrl('module-endpoint.php'), {
             method: 'POST',
             body: formData,
             credentials: 'same-origin'
         })
-            .then((response) => response.json().then((data) => ({ ok: response.ok, data })))
-            .then(({ ok, data }) => {
+            .then((response) => response.json().then((data) => ({ ok: response.ok, status: response.status, data })))
+            .then(({ ok, status, data }) => {
                 if (!ok) {
                     const message = data && data.error ? data.error : 'Upload failed.';
-                    addNotice('danger', message);
+                    addNotice(status === 413 ? 'warning' : 'danger', message);
                     hideSaving();
                     return;
                 }
                 setItemsFromPayload(state, data.items || []);
                 openModal(state, itemId);
                 addNotice('ok', 'Media updated.');
+                if (data.gd_unavailable && !gdNoticeShown) {
+                    gdNoticeShown = true;
+                    addNotice('ok', 'For better performance, install the PHP GD extension on your server.');
+                }
                 hideSaving();
             })
             .catch(() => {
@@ -415,6 +835,8 @@ $(document).ready(function() {
             return;
         }
         const formData = new FormData();
+        formData.append('module', 'mediaGallery');
+        formData.append('endpoint', 'thumb');
         formData.append('paneId', state.paneId);
         formData.append('itemId', itemId);
         formData.append('thumbFile', file);
@@ -422,16 +844,16 @@ $(document).ready(function() {
             formData.append('csrf_token', csrfToken);
         }
         showSaving();
-        fetch(buildUrl('media-gallery-thumb.php'), {
+        fetch(buildUrl('module-endpoint.php'), {
             method: 'POST',
             body: formData,
             credentials: 'same-origin'
         })
-            .then((response) => response.json().then((data) => ({ ok: response.ok, data })))
-            .then(({ ok, data }) => {
+            .then((response) => response.json().then((data) => ({ ok: response.ok, status: response.status, data })))
+            .then(({ ok, status, data }) => {
                 if (!ok) {
                     const message = data && data.error ? data.error : 'Thumbnail upload failed.';
-                    addNotice('danger', message);
+                    addNotice(status === 413 ? 'warning' : 'danger', message);
                     hideSaving();
                     return;
                 }
@@ -446,8 +868,16 @@ $(document).ready(function() {
             });
     }
 
-    function clearThumbnail(state, itemId) {
+    // Called from the Save flow after the user has clicked "Use default
+    // thumbnail" (which only marks state.pendingThumbClear). Posts the
+    // clear to the server and yields to onSuccess so the Save handler
+    // can chain into a focal save if one is also pending. Doesn't re-
+    // open the modal -- the Save handler closes it after all chained
+    // commits finish.
+    function clearThumbnail(state, itemId, onSuccess) {
         const formData = new FormData();
+        formData.append('module', 'mediaGallery');
+        formData.append('endpoint', 'thumb');
         formData.append('paneId', state.paneId);
         formData.append('itemId', itemId);
         formData.append('clear', '1');
@@ -455,7 +885,7 @@ $(document).ready(function() {
             formData.append('csrf_token', csrfToken);
         }
         showSaving();
-        fetch(buildUrl('media-gallery-thumb.php'), {
+        fetch(buildUrl('module-endpoint.php'), {
             method: 'POST',
             body: formData,
             credentials: 'same-origin'
@@ -469,9 +899,10 @@ $(document).ready(function() {
                     return;
                 }
                 setItemsFromPayload(state, data.items || []);
-                openModal(state, itemId);
-                addNotice('ok', 'Thumbnail cleared.');
                 hideSaving();
+                if (typeof onSuccess === 'function') {
+                    onSuccess();
+                }
             })
             .catch(() => {
                 addNotice('danger', 'Thumbnail update failed. Please try again.');
@@ -481,13 +912,15 @@ $(document).ready(function() {
 
     function deleteMedia(state, itemId) {
         const formData = new FormData();
+        formData.append('module', 'mediaGallery');
+        formData.append('endpoint', 'delete');
         formData.append('paneId', state.paneId);
         formData.append('itemId', itemId);
         if (csrfToken) {
             formData.append('csrf_token', csrfToken);
         }
         showSaving();
-        fetch(buildUrl('media-gallery-delete.php'), {
+        fetch(buildUrl('module-endpoint.php'), {
             method: 'POST',
             body: formData,
             credentials: 'same-origin'
@@ -502,7 +935,7 @@ $(document).ready(function() {
                 }
                 setItemsFromPayload(state, data.items || []);
                 closeModal(state);
-                addNotice('ok', 'Media removed.');
+                addNotice('ok', 'Media deleted.');
                 hideSaving();
             })
             .catch(() => {
@@ -521,6 +954,10 @@ $(document).ready(function() {
         const $dataScript = $pane.find('.mediaGalleryData');
         const $modal = $pane.find('.mediaGalleryModal');
         if ($modal.length && !$modal.parent().is('body')) {
+            // Reparent for layering. After this, $pane no longer contains
+            // the modal — search modal contents via $modal / state.$modal,
+            // never $pane.find('.modal-thing'). See
+            // feedback_modal_reparent_capture_reference memory.
             $('body').append($modal);
         }
 
@@ -559,6 +996,20 @@ $(document).ready(function() {
         renderGrid(state);
         paneStates.push(state);
 
+        // Live-toggle per-item modal buttons on settings save (avoids F5).
+        // Search in state.$modal — the modal was reparented to <body> on
+        // init so it's no longer inside state.$pane.
+        $(document).on('lp:per-pane-settings-saved', function(event, detail) {
+            if (!detail || detail.paneId !== state.paneId || detail.module !== 'mediaGallery') {
+                return;
+            }
+            const perms = detail.resolvedValues || {};
+            const $stack = state.$modal.find('.mediaGalleryButtonStack');
+            $stack.find('.mediaGalleryChangeButton').prop('hidden', !perms.changeMedia);
+            $stack.find('.mediaGalleryThumbButtonAction').prop('hidden', !perms.customThumbs);
+            $stack.prop('hidden', !perms.changeMedia && !perms.customThumbs);
+        });
+
         $pane.on('click', '.mediaGalleryThumbButton', function() {
             const itemId = $(this).closest('.mediaGalleryItem').data('item-id') || '';
             if (itemId) {
@@ -585,14 +1036,52 @@ $(document).ready(function() {
         });
 
         $pane.find('.mediaGalleryUploadInput').on('change', function() {
-            const file = this.files && this.files[0] ? this.files[0] : null;
+            const files = this.files ? Array.from(this.files) : [];
             this.value = '';
-            if (file) {
-                uploadMedia(state, file);
+            if (files.length === 0) {
+                return;
             }
+            if (files.length === 1) {
+                smartcropAndUpload(state, files[0]);
+                return;
+            }
+
+            // Sequential batch upload. endpoints/upload.php does a
+            // read-modify-write on the gallery's JSON file -- two
+            // concurrent uploads would race and the second writer's
+            // append could clobber the first's. Chaining via the
+            // onComplete callback guarantees each request reads the
+            // post-previous-write state.
+            const total = files.length;
+            let succeeded = 0;
+            let failed = 0;
+            const next = function(index) {
+                if (index >= total) {
+                    if (succeeded > 0 && failed === 0) {
+                        addNotice('ok', succeeded + ' files uploaded.');
+                    } else if (succeeded > 0 && failed > 0) {
+                        addNotice('warning', succeeded + ' uploaded, ' + failed + ' failed.');
+                    }
+                    // If all failed, the per-file danger notices already
+                    // surfaced the reasons.
+                    return;
+                }
+                smartcropAndUpload(state, files[index], {
+                    suppressSuccessNotice: true,
+                    onComplete: function(ok) {
+                        if (ok) {
+                            succeeded++;
+                        } else {
+                            failed++;
+                        }
+                        next(index + 1);
+                    },
+                });
+            };
+            next(0);
         });
 
-        $modal.on('click', '.userModalClose', function() {
+        $modal.on('click', '.userModalClose, .mediaGalleryModalCancel', function() {
             closeModal(state);
         });
 
@@ -608,6 +1097,7 @@ $(document).ready(function() {
                 return;
             }
             updateItemTitle(state, itemId, $(this).val() || '');
+            updateSaveEnabled(state);
         });
 
         $modal.on('click', '.mediaGalleryChangeButton', function() {
@@ -636,18 +1126,173 @@ $(document).ready(function() {
             }
         });
 
-        $modal.on('click', '.mediaGalleryThumbClear', function() {
+        // Reset focal when a click lands on the modal's own padding ring,
+        // the gap between heading and body, or the gap between preview and
+        // actions -- the natural "empty space" around the image. Mirrors
+        // the letterbox-click reset that fires inside .mediaGalleryModalImage,
+        // covering the case where the image fills the preview exactly and
+        // has no letterbox padding to click.
+        // event.target === this means the click landed on the bound
+        // element's own content/padding, not on any descendant -- so this
+        // automatically excludes the caption input, buttons, Image Info
+        // text, heading, close button, etc.
+        $modal.on('click', '.userModal, .mediaGalleryModalBody, .mediaGalleryModalActions', function(event) {
+            if (event.target !== this) {
+                return;
+            }
             const itemId = state.activeItemId;
-            if (itemId) {
-                clearThumbnail(state, itemId);
+            if (!itemId) {
+                return;
+            }
+            const item = state.items.find((entry) => entry.id === itemId);
+            if (!item || item.type === 'video') {
+                return;
+            }
+            resetFocalToDefault(state);
+        });
+
+        $modal.on('click', '.mediaGalleryModalImage', function(event) {
+            const itemId = state.activeItemId;
+            if (!itemId) {
+                return;
+            }
+            const item = state.items.find((entry) => entry.id === itemId);
+            if (!item || item.type === 'video' || !state.modalNaturalDims) {
+                return;
+            }
+            const $modalImage = $(this);
+            const rect = $modalImage[0].getBoundingClientRect();
+            const bounds = computeImageDisplayBounds(rect, state.modalNaturalDims);
+            if (!bounds) {
+                return;
+            }
+            const clickX = event.clientX - rect.left - bounds.left;
+            const clickY = event.clientY - rect.top - bounds.top;
+            // Click on the letterbox padding (outside the displayed image
+            // area) is the reset gesture: pendingFocal cleared, custom
+            // thumbnail also cleared, Save button stays enabled so the
+            // reset can be committed.
+            if (clickX < 0 || clickX > bounds.width || clickY < 0 || clickY > bounds.height) {
+                resetFocalToDefault(state);
+                return;
+            }
+            const focalX = Math.max(0, Math.min(1, clickX / bounds.width));
+            const focalY = Math.max(0, Math.min(1, clickY / bounds.height));
+            setPendingFocal(state, focalX, focalY);
+        });
+
+        $modal.on('keydown', '.mediaGalleryModalImage', function(event) {
+            const itemId = state.activeItemId;
+            if (!itemId) {
+                return;
+            }
+            const item = state.items.find((entry) => entry.id === itemId);
+            if (!item || item.type === 'video') {
+                return;
+            }
+            const STEP = 0.05;
+            let dx = 0;
+            let dy = 0;
+            switch (event.key) {
+                case 'ArrowLeft':  dx = -STEP; break;
+                case 'ArrowRight': dx = STEP;  break;
+                case 'ArrowUp':    dy = -STEP; break;
+                case 'ArrowDown':  dy = STEP;  break;
+                default: return;
+            }
+            event.preventDefault();
+            const displayed = getDisplayedFocal(state, item);
+            const baseX = displayed.focal_x == null ? 0.5 : displayed.focal_x;
+            const baseY = displayed.focal_y == null ? 0.5 : displayed.focal_y;
+            const newFocalX = Math.max(0, Math.min(1, baseX + dx));
+            const newFocalY = Math.max(0, Math.min(1, baseY + dy));
+            setPendingFocal(state, newFocalX, newFocalY);
+        });
+
+        $modal.on('click', '.mediaGalleryFocalSave', function() {
+            const itemId = state.activeItemId;
+            if (!itemId) {
+                return;
+            }
+
+            const finishSave = function() {
+                state.pendingFocal = null;
+                state.pendingThumbClear = false;
+                state.modalOriginalTitle = '';
+                closeModal(state);
+            };
+
+            // Order matters across the chained commits:
+            // 1. Caption FIRST -- thumb-clear and focal-save endpoints
+            //    each return a refreshed items payload that would
+            //    overwrite our local item.title mutation if caption ran
+            //    later.
+            // 2. Thumb-clear NEXT -- focal-save preserves an existing
+            //    custom thumb and only re-derives the auto-thumb when
+            //    item.thumb isn't custom. Clearing first makes item.
+            //    thumb empty so focal-save's re-derive fires correctly.
+            // 3. Focal-save LAST -- consumes whatever item state the
+            //    earlier saves produced.
+            const commitFocalIfPending = function() {
+                if (state.pendingFocal !== null) {
+                    saveFocalToServer(
+                        state,
+                        itemId,
+                        state.pendingFocal.focal_x,
+                        state.pendingFocal.focal_y,
+                        finishSave
+                    );
+                } else {
+                    finishSave();
+                }
+            };
+
+            const commitThumbIfPending = function() {
+                if (state.pendingThumbClear) {
+                    clearThumbnail(state, itemId, commitFocalIfPending);
+                } else {
+                    commitFocalIfPending();
+                }
+            };
+
+            if (isCaptionDirty(state)) {
+                const newTitle = state.$modal.find('.mediaGalleryCaptionInput').val() || '';
+                saveCaptionToServer(state, itemId, newTitle, commitThumbIfPending);
+            } else {
+                commitThumbIfPending();
+            }
+        });
+
+        $(window).on('resize', function() {
+            if (state.activeItemId && state.$modal.hasClass('isOpen')) {
+                positionFocalMarker(state);
             }
         });
 
         $modal.on('click', '.mediaGalleryRemoveButton', function() {
             const itemId = state.activeItemId;
-            if (itemId) {
-                deleteMedia(state, itemId);
+            if (!itemId) {
+                return;
             }
+            $modal.addClass('isConfirmingDelete');
+            // Move focus to the No button so the default Enter / Esc
+            // path is "back out" rather than "confirm delete." The Yes
+            // button explicitly receives danger styling but isn't the
+            // default focus.
+            $modal.find('.mediaGalleryConfirmDeleteNo').trigger('focus');
+        });
+
+        $modal.on('click', '.mediaGalleryConfirmDeleteYes', function() {
+            const itemId = state.activeItemId;
+            if (!itemId) {
+                return;
+            }
+            $modal.removeClass('isConfirmingDelete');
+            deleteMedia(state, itemId);
+        });
+
+        $modal.on('click', '.mediaGalleryConfirmDeleteNo', function() {
+            $modal.removeClass('isConfirmingDelete');
         });
     });
 

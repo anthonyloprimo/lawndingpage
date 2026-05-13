@@ -18,11 +18,18 @@ $parsedownPath = function_exists('lawnding_public_path')
     : __DIR__ . '/../public/res/scr/Parsedown.php';
 require $parsedownPath;
 
+// Telegram normalization helpers (group/user entry dedup, content-level merge).
+// Loaded transitively today via admin/auth.php in callers, but make the
+// dependency explicit here since the admin config UI consumes these helpers
+// directly to render the bot config pane.
+require_once __DIR__ . '/lib/tg-auth.php';
+require_once __DIR__ . '/lib/per-pane-settings.php';
+
 // Helper for data file lookups that works with or without bootstrap helpers.
 $dataPath = function (string $file): string {
     return function_exists('lawnding_data_path')
         ? lawnding_data_path($file)
-        : __DIR__ . '/../data/public/res/data/' . $file;
+        : __DIR__ . '/../public/res/data/' . $file;
 };
 
 // Read file contents if available; otherwise return the provided fallback.
@@ -30,14 +37,13 @@ $readFile = function (string $path, string $fallback = ''): string {
     return is_readable($path) ? (string) file_get_contents($path) : $fallback;
 };
 
-// Read JSON and return an array; if missing/invalid, return the fallback.
-$readJson = function (string $path, array $fallback = []): array {
-    if (!is_readable($path)) {
-        return $fallback;
-    }
-    $decoded = json_decode((string) file_get_contents($path), true);
-    return is_array($decoded) ? $decoded : $fallback;
-};
+// Fallback for missing labels. "customThumbs" -> "Custom thumbs",
+// "mediaGallery" -> "Media gallery". Splits on case transitions, lowers
+// the rest, capitalizes the first word.
+function lawnding_camel_to_label(string $key): string {
+    $spaced = preg_replace('/([a-z])([A-Z])/', '$1 $2', $key);
+    return ucfirst(strtolower((string) $spaced));
+}
 
 // Render a shared SVG icon by name to avoid inline duplication.
 function lawnding_icon_svg(string $name): string {
@@ -59,6 +65,10 @@ function lawnding_icon_svg(string $name): string {
         'changelog' => 'M13,9H18.5L13,3.5V9M6,2H14L20,8V20A2,2 0 0,1 18,22H6C4.89,22 4,21.1 4,20V4C4,2.89 4.89,2 6,2M6.12,15.5L9.86,19.24L11.28,17.83L8.95,15.5L11.28,13.17L9.86,11.76L6.12,15.5M17.28,15.5L13.54,11.76L12.12,13.17L14.45,15.5L12.12,17.83L13.54,19.24L17.28,15.5Z',
         'eye_open' => 'M12,9A3,3 0 0,0 9,12A3,3 0 0,0 12,15A3,3 0 0,0 15,12A3,3 0 0,0 12,9M12,17A5,5 0 0,1 7,12A5,5 0 0,1 12,7A5,5 0 0,1 17,12A5,5 0 0,1 12,17M12,4.5C7,4.5 2.73,7.61 1,12C2.73,16.39 7,19.5 12,19.5C17,19.5 21.27,16.39 23,12C21.27,7.61 17,4.5 12,4.5Z',
         'eye_closed' => 'M12 17.5C8.2 17.5 4.8 15.4 3.2 12H1C2.7 16.4 7 19.5 12 19.5S21.3 16.4 23 12H20.8C19.2 15.4 15.8 17.5 12 17.5Z',
+        'diagnostics' => 'M13,14H11V9H13M13,18H11V16H13M1,21H23L12,2L1,21Z',
+        'settings' => 'M12,15.5A3.5,3.5 0 0,1 8.5,12A3.5,3.5 0 0,1 12,8.5A3.5,3.5 0 0,1 15.5,12A3.5,3.5 0 0,1 12,15.5M19.43,12.97C19.47,12.65 19.5,12.33 19.5,12C19.5,11.67 19.47,11.34 19.43,11L21.54,9.37C21.73,9.22 21.78,8.95 21.66,8.73L19.66,5.27C19.54,5.05 19.27,4.96 19.05,5.05L16.56,6.05C16.04,5.66 15.5,5.32 14.87,5.07L14.5,2.42C14.46,2.18 14.25,2 14,2H10C9.75,2 9.54,2.18 9.5,2.42L9.13,5.07C8.5,5.32 7.96,5.66 7.44,6.05L4.95,5.05C4.73,4.96 4.46,5.05 4.34,5.27L2.34,8.73C2.21,8.95 2.27,9.22 2.46,9.37L4.57,11C4.53,11.34 4.5,11.67 4.5,12C4.5,12.33 4.53,12.65 4.57,12.97L2.46,14.63C2.27,14.78 2.21,15.05 2.34,15.27L4.34,18.73C4.46,18.95 4.73,19.03 4.95,18.95L7.44,17.94C7.96,18.34 8.5,18.68 9.13,18.93L9.5,21.58C9.54,21.82 9.75,22 10,22H14C14.25,22 14.46,21.82 14.5,21.58L14.87,18.93C15.5,18.67 16.04,18.34 16.56,17.94L19.05,18.95C19.27,19.03 19.54,18.95 19.66,18.73L21.66,15.27C21.78,15.05 21.73,14.78 21.54,14.63L19.43,12.97Z',
+        'lock' => 'M12,17A2,2 0 0,0 14,15C14,13.89 13.1,13 12,13A2,2 0 0,0 10,15A2,2 0 0,0 12,17M18,8A2,2 0 0,1 20,10V20A2,2 0 0,1 18,22H6A2,2 0 0,1 4,20V10C4,8.89 4.9,8 6,8H7V6A5,5 0 0,1 12,1A5,5 0 0,1 17,6V8H18M12,3A3,3 0 0,0 9,6V8H15V6A3,3 0 0,0 12,3Z',
+        'lock_open' => 'M18,20V10H6V20H18M18,8A2,2 0 0,1 20,10V20A2,2 0 0,1 18,22H6C4.89,22 4,21.1 4,20V10A2,2 0 0,1 6,8H15V6A3,3 0 0,0 12,3A3,3 0 0,0 9,6H7A5,5 0 0,1 12,1A5,5 0 0,1 17,6V8H18Z',
     ];
 
     if (!isset($paths[$name])) {
@@ -66,7 +76,10 @@ function lawnding_icon_svg(string $name): string {
     }
 
     $path = htmlspecialchars($paths[$name], ENT_QUOTES, 'UTF-8');
-    return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="' . $path . '" /></svg>';
+    // Decorative-by-default: every consumer wraps the icon in a button or link
+    // that already provides an accessible name. aria-hidden prevents screen
+    // readers from announcing the icon as a redundant element.
+    return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="' . $path . '" /></svg>';
 }
 
 // Shared modal wrapper to reduce repeated markup.
@@ -75,10 +88,20 @@ function lawnding_modal_open(string $id, string $title, array $options = []): vo
     $extraClass = $options['extra_class'] ?? '';
     $ariaHidden = $options['aria_hidden'] ?? ($isOpen ? 'false' : 'true');
     $class = trim('userModalOverlay' . ($isOpen ? ' isOpen' : '') . ($extraClass ? ' ' . $extraClass : ''));
+    // Pair the dialog with its title via aria-labelledby so screen readers
+    // announce the modal's purpose, not just "dialog".
+    $titleId = $id . '-title';
 
-    echo '<div class="' . htmlspecialchars($class) . '" id="' . htmlspecialchars($id) . '" role="dialog" aria-modal="true" aria-hidden="' . htmlspecialchars($ariaHidden) . '">';
+    echo '<div class="' . htmlspecialchars($class) . '" id="' . htmlspecialchars($id)
+        . '" role="dialog" aria-modal="true" aria-hidden="' . htmlspecialchars($ariaHidden)
+        . '" aria-labelledby="' . htmlspecialchars($titleId) . '">';
     echo '<div class="userModal glassConcave">';
-    echo '<h4>' . htmlspecialchars($title) . '</h4>';
+    // .userModalHandle is the drag grip wired up by config.js's bindModalDrag.
+    echo '<h4 class="userModalHandle" id="' . htmlspecialchars($titleId) . '">' . htmlspecialchars($title) . '</h4>';
+    // Project convention: every modal carries the corner-flush × dismiss.
+    // .userModalClose wires the click-to-close + Esc routing; .lpModalCloseX
+    // paints the corner-flush red treatment shared with public modals.
+    echo '<button class="userModalClose lpModalCloseX" type="button" aria-label="Close">×</button>';
 }
 
 // Close the shared modal wrapper.
@@ -132,46 +155,18 @@ $assetBase = '';
 if (function_exists('lawnding_config')) {
     $assetBase = (string) lawnding_config('base_url', '');
 }
+if ($assetBase === '') {
+    // Fallback only when the browser is actually visiting the /public path.
+    $scriptName = $_SERVER['SCRIPT_NAME'] ?? '';
+    if (is_string($scriptName) && str_starts_with($scriptName, '/public/')) {
+        $assetBase = '/public';
+    }
+}
 $assetBase = rtrim($assetBase, '/');
-
-// Normalize asset URLs for config values that may be relative to /res.
-$makeAssetUrl = function ($path) use ($assetBase) {
-    if (!is_string($path) || $path === '') {
-        return $path;
-    }
-    if (preg_match('#^https?://#i', $path)) {
-        return $path;
-    }
-    if (function_exists('lawnding_normalize_legacy_public_asset_path')) {
-        $path = lawnding_normalize_legacy_public_asset_path($path);
-    }
-    if (str_starts_with(ltrim($path, '/'), 'res/')) {
-        return function_exists('lawnding_instance_asset_url') ? lawnding_instance_asset_url($path) : $path;
-    }
-    if (str_starts_with($path, $assetBase . '/')) {
-        return $path;
-    }
-    if (str_starts_with($path, '/res/')) {
-        return $assetBase . $path;
-    }
-    if (str_starts_with($path, 'res/')) {
-        return $assetBase !== '' ? $assetBase . '/' . $path : '/' . $path;
-    }
-    return $path;
-};
-
-// Load changelog markdown from the project root (read-only pane).
-$Parsedown = new Parsedown();
-$rootDir = function_exists('lawnding_config')
-    ? lawnding_config('root_dir', dirname(__DIR__))
-    : dirname(__DIR__);
-$changelogPath = rtrim($rootDir, '/') . '/CHANGELOG.md';
-$changelogMarkdown = $readFile($changelogPath);
-$changelog = $Parsedown->text($changelogMarkdown);
 
 // Load link list configuration (JSON structure used by the editor).
 $linksJsonPath = $dataPath('links.json');
-$linksPayload = $readJson($linksJsonPath, []);
+$linksPayload = lawnding_read_json($linksJsonPath);
 $linksSettings = ['show_links' => true, 'auth_links' => false];
 $linksData = [];
 if (is_array($linksPayload) && array_key_exists('links', $linksPayload)) {
@@ -188,7 +183,7 @@ if (is_array($linksPayload) && array_key_exists('links', $linksPayload)) {
 
 // Load authorized links configuration (same structure as links.json).
 $authLinksJsonPath = $dataPath('authorizedLinks.json');
-$authLinksPayload = $readJson($authLinksJsonPath, []);
+$authLinksPayload = lawnding_read_json($authLinksJsonPath);
 $authLinksData = [];
 if (is_array($authLinksPayload) && array_key_exists('links', $authLinksPayload)) {
     $authLinksData = is_array($authLinksPayload['links']) ? $authLinksPayload['links'] : [];
@@ -196,9 +191,21 @@ if (is_array($authLinksPayload) && array_key_exists('links', $authLinksPayload))
     $authLinksData = $authLinksPayload;
 }
 $authLinksEnabled = !empty($linksSettings['auth_links']);
+// Pre-scan for legacy auth-link records missing the `content` key — the
+// JS reads data-needs-normalization at page load and prompts the admin
+// to save so the schema is normalized on disk. The render loop below
+// (around line 836) only sees individual link entries; this scan runs
+// once over the whole list before the attribute is emitted at the
+// container div (around line 682).
 $authLinksNeedsNormalization = false;
+foreach ($authLinksData as $link) {
+    if (is_array($link) && ($link['type'] ?? '') === 'link' && !array_key_exists('content', $link)) {
+        $authLinksNeedsNormalization = true;
+        break;
+    }
+}
 
-// Load Telegram bot configuration stored in admin/lp-tgBot.json.
+// Load Telegram bot configuration from the split runtime admin store.
 $tgBotPath = function_exists('lawnding_runtime_file_path')
     ? lawnding_runtime_file_path('tg_bot_path')
     : __DIR__ . '/lp-tgBot.json';
@@ -211,113 +218,30 @@ $tgBotDefaults = [
     'membership_cache_ttl_minutes' => 30,
     'unauthorized_message' => 'Unable to display member links.  Join the telegram group with the link above, or contact an admin for assistance.',
 ];
-$tgBotData = $tgBotDefaults;
-if (is_readable($tgBotPath)) {
-    $decoded = json_decode((string) file_get_contents($tgBotPath), true);
-    if (is_array($decoded)) {
-        $tgBotData = array_merge($tgBotDefaults, $decoded);
-    }
-}
-if (!function_exists('lawnding_admin_normalize_tg_group_entries')) {
-    function lawnding_admin_normalize_tg_group_entries($values): array {
-        if (!is_array($values)) {
-            return [];
-        }
-        $order = [];
-        $entriesById = [];
-        foreach ($values as $value) {
-            $groupId = '';
-            $content = 'SFW';
-            if (is_string($value) && trim($value) !== '') {
-                $groupId = trim($value);
-            } elseif (is_array($value)) {
-                $groupId = isset($value['id']) && is_string($value['id']) ? trim($value['id']) : '';
-                $rawContent = isset($value['content']) && is_string($value['content']) ? strtoupper(trim($value['content'])) : 'SFW';
-                $content = $rawContent === 'NSFW' ? 'NSFW' : 'SFW';
-            }
-            if ($groupId === '') {
-                continue;
-            }
-            if (!isset($entriesById[$groupId])) {
-                $order[] = $groupId;
-                $entriesById[$groupId] = ['id' => $groupId, 'content' => $content];
-                continue;
-            }
-            if ($content === 'NSFW') {
-                $entriesById[$groupId]['content'] = 'NSFW';
-            }
-        }
-        $entries = [];
-        foreach ($order as $groupId) {
-            if (isset($entriesById[$groupId])) {
-                $entries[] = $entriesById[$groupId];
-            }
-        }
-        return $entries;
-    }
-}
-if (!function_exists('lawnding_admin_normalize_tg_user_entries')) {
-    function lawnding_admin_normalize_tg_user_entries($values): array {
-        if (!is_array($values)) {
-            return [];
-        }
-        $order = [];
-        $entriesById = [];
-        foreach ($values as $value) {
-            $userId = '';
-            $content = 'SFW';
-            if (is_string($value) && trim($value) !== '') {
-                $userId = trim($value);
-            } elseif (is_array($value)) {
-                $userId = isset($value['id']) && is_scalar($value['id']) ? trim((string) $value['id']) : '';
-                $rawContent = isset($value['content']) && is_string($value['content']) ? strtoupper(trim($value['content'])) : 'SFW';
-                $content = $rawContent === 'NSFW' ? 'NSFW' : 'SFW';
-            }
-            if ($userId === '' || !preg_match('/^-?\d+$/', $userId)) {
-                continue;
-            }
-            if (!isset($entriesById[$userId])) {
-                $order[] = $userId;
-                $entriesById[$userId] = ['id' => $userId, 'content' => $content];
-                continue;
-            }
-            if ($content === 'NSFW') {
-                $entriesById[$userId]['content'] = 'NSFW';
-            }
-        }
-        $entries = [];
-        foreach ($order as $userId) {
-            if (isset($entriesById[$userId])) {
-                $entries[] = $entriesById[$userId];
-            }
-        }
-        return $entries;
-    }
-}
+$tgBotData = array_merge($tgBotDefaults, lawnding_read_json($tgBotPath));
+// Normalize group + whitelist/blacklist entries via the canonical helpers in
+// admin/lib/tg-auth.php (loaded near the top of this file). The helpers return
+// content levels in lowercase ('sfw'/'nsfw') per the documented schema; the
+// group rendering below already uppercases for display, and the whitelist/
+// blacklist textareas explicitly uppercase via strtoupper for user-visible
+// formatting consistent with the placeholder text.
 $tgBotGroupIds = [];
 if (!empty($tgBotData['group_ids']) && is_array($tgBotData['group_ids'])) {
-    $tgBotGroupIds = lawnding_admin_normalize_tg_group_entries($tgBotData['group_ids']);
+    $tgBotGroupIds = lawnding_tg_normalize_group_entries($tgBotData['group_ids']);
 }
-$tgBotGroupIdsText = implode("\n", array_map(function (array $entry): string {
-    return $entry['id'] . ' ' . $entry['content'];
-}, $tgBotGroupIds));
 $tgBotWhitelistUserIds = [];
 if (!empty($tgBotData['whitelist_user_ids']) && is_array($tgBotData['whitelist_user_ids'])) {
-    $tgBotWhitelistUserIds = lawnding_admin_normalize_tg_user_entries($tgBotData['whitelist_user_ids']);
+    $tgBotWhitelistUserIds = lawnding_tg_normalize_user_entries($tgBotData['whitelist_user_ids']);
 }
-$tgBotWhitelistUserIdsText = implode("\n", array_map(function (array $entry): string {
-    return $entry['id'] . ' ' . $entry['content'];
-}, $tgBotWhitelistUserIds));
+$tgBotWhitelistUserIdsText = implode("\n", array_map(fn(array $e): string => $e['id'] . ' ' . strtoupper($e['content']), $tgBotWhitelistUserIds));
 $tgBotBlacklistUserIds = [];
 if (!empty($tgBotData['blacklist_user_ids']) && is_array($tgBotData['blacklist_user_ids'])) {
-    $tgBotBlacklistUserIds = lawnding_admin_normalize_tg_user_entries($tgBotData['blacklist_user_ids']);
+    $tgBotBlacklistUserIds = lawnding_tg_normalize_user_entries($tgBotData['blacklist_user_ids']);
 }
-$tgBotBlacklistUserIdsText = implode("\n", array_map(function (array $entry): string {
-    return $entry['id'] . ' ' . $entry['content'];
-}, $tgBotBlacklistUserIds));
-$webhookBase = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+$tgBotBlacklistUserIdsText = implode("\n", array_map(fn(array $e): string => $e['id'] . ' ' . strtoupper($e['content']), $tgBotBlacklistUserIds));
+$webhookBase = lawnding_request_is_secure() ? 'https' : 'http';
 $webhookHost = $_SERVER['HTTP_HOST'] ?? 'your-domain.com';
-$webhookUrl = $webhookBase . '://' . $webhookHost . ($assetBase ?? '') . '/res/scr/tg-webhook.php';
+$webhookUrl = $webhookBase . '://' . $webhookHost . $assetBase . '/res/scr/plugin-endpoint.php?plugin=telegram&endpoint=webhook';
 
 // Load header configuration, with defaults when JSON is missing.
 $headerJsonPath = $dataPath('header.json');
@@ -331,7 +255,7 @@ $headerDefaults = [
         'duration' => 5
     ]
 ];
-$headerData = array_merge($headerDefaults, $readJson($headerJsonPath, []));
+$headerData = array_merge($headerDefaults, lawnding_read_json($headerJsonPath));
 if (empty($headerData['backgroundSettings']) || !is_array($headerData['backgroundSettings'])) {
     $headerData['backgroundSettings'] = $headerDefaults['backgroundSettings'];
 }
@@ -347,118 +271,56 @@ if ($backgroundDuration <= 0) {
 }
 // Build a display-ready version with asset URLs resolved.
 $headerDataDisplay = $headerData;
-$headerDataDisplay['logo'] = $makeAssetUrl($headerDataDisplay['logo'] ?? '');
+$headerDataDisplay['logo'] = lawnding_make_asset_url($headerDataDisplay['logo'] ?? '');
 if (!empty($headerDataDisplay['backgrounds']) && is_array($headerDataDisplay['backgrounds'])) {
-    $headerDataDisplay['backgrounds'] = array_map(function ($bg) use ($makeAssetUrl) {
+    $headerDataDisplay['backgrounds'] = array_map(function ($bg) {
         if (is_string($bg)) {
-            return $makeAssetUrl($bg);
+            return lawnding_make_asset_url($bg);
         }
         if (is_array($bg)) {
-            $bg['url'] = $makeAssetUrl($bg['url'] ?? '');
+            $bg['url'] = lawnding_make_asset_url($bg['url'] ?? '');
             return $bg;
         }
         return $bg;
     }, $headerDataDisplay['backgrounds']);
 }
-$faviconUrl = is_string($headerDataDisplay['logo'] ?? null) && $headerDataDisplay['logo'] !== ''
-    ? $headerDataDisplay['logo']
-    : $makeAssetUrl('res/img/logo.jpg');
-$faviconToken = defined('SITE_VERSION') ? (string) SITE_VERSION : '';
-$faviconPathRaw = is_string($headerData['logo'] ?? null) ? $headerData['logo'] : '';
-if ($faviconPathRaw !== '' && !preg_match('#^[a-z][a-z0-9+.-]*:#i', $faviconPathRaw) && !str_starts_with($faviconPathRaw, '//')) {
-    $faviconPath = function_exists('lawnding_normalize_legacy_public_asset_path')
-        ? (string) lawnding_normalize_legacy_public_asset_path($faviconPathRaw)
-        : $faviconPathRaw;
-    $faviconPath = ltrim($faviconPath, '/');
-    if (str_starts_with($faviconPath, 'res/')) {
-        $faviconFsPath = function_exists('lawnding_instance_asset_path')
-            ? lawnding_instance_asset_path($faviconPath)
-            : __DIR__ . '/../public/' . $faviconPath;
-        if (is_file($faviconFsPath)) {
-            $mtime = @filemtime($faviconFsPath);
-            if (is_int($mtime) && $mtime > 0) {
-                $faviconToken = (string) $mtime;
-            }
-        }
-    }
-}
-$faviconHref = $faviconUrl;
-if ($faviconToken !== '') {
-    $faviconHref .= (str_contains($faviconHref, '?') ? '&' : '?') . 'v=' . rawurlencode($faviconToken);
-}
-$legacyFallbackConsoleScript = function_exists('lawnding_render_legacy_fallback_console_script')
-    ? lawnding_render_legacy_fallback_console_script()
-    : '';
+$faviconRaw = is_string($headerData['logo'] ?? null) && $headerData['logo'] !== ''
+    ? $headerData['logo']
+    : 'res/img/logo.jpg';
+$faviconHref = lawnding_versioned_local_asset_url(
+    $faviconRaw,
+    defined('SITE_VERSION') ? (string) SITE_VERSION : ''
+);
 // Keep raw background data for editing and file operations.
 $backgrounds = [];
 if (!empty($headerData['backgrounds']) && is_array($headerData['backgrounds'])) {
     $backgrounds = $headerData['backgrounds'];
 }
 
-// Load pane instances for dynamic module rendering.
-$loadPanes = function (string $path): array {
-    if (!is_readable($path)) {
-        return [];
-    }
-    $decoded = json_decode(file_get_contents($path), true);
-    if (!is_array($decoded) || !isset($decoded['panes']) || !is_array($decoded['panes'])) {
-        return [];
-    }
-    return $decoded['panes'];
-};
 
-$sortPanes = function (array $panes): array {
-    $indexed = [];
-    foreach ($panes as $index => $pane) {
-        if (is_array($pane)) {
-            $pane['_index'] = $index;
-            $indexed[] = $pane;
-        }
-    }
-    usort($indexed, function ($a, $b) {
-        $orderA = isset($a['order']) ? (int) $a['order'] : PHP_INT_MAX;
-        $orderB = isset($b['order']) ? (int) $b['order'] : PHP_INT_MAX;
-        if ($orderA === $orderB) {
-            return ($a['_index'] ?? 0) <=> ($b['_index'] ?? 0);
-        }
-        return $orderA <=> $orderB;
-    });
-    foreach ($indexed as &$pane) {
-        unset($pane['_index']);
-    }
-    return $indexed;
-};
-
-$isSafeSvg = function (?string $svg): bool {
-    if (!is_string($svg) || $svg === '') {
-        return false;
-    }
-    if (stripos($svg, '<script') !== false) {
-        return false;
-    }
-    if (preg_match('/\\son[a-z]+\\s*=\\s*["\']?/i', $svg)) {
-        return false;
-    }
-    return true;
-};
-
-$renderPaneIcon = function (array $pane) use ($makeAssetUrl, $isSafeSvg): string {
+$renderPaneIcon = function (array $pane): string {
     $icon = $pane['icon'] ?? [];
-    if (!is_array($icon)) {
-        return '';
-    }
-    $type = $icon['type'] ?? '';
-    if ($type === 'svg') {
-        $svg = $icon['value'] ?? '';
-        return $isSafeSvg($svg) ? $svg : '';
-    }
-    if ($type === 'file') {
-        $value = $icon['value'] ?? '';
-        if (!is_string($value) || $value === '') {
-            return '';
+    if (is_array($icon)) {
+        $type = $icon['type'] ?? '';
+        if ($type === 'svg') {
+            $svg = $icon['value'] ?? '';
+            if (is_string($svg) && $svg !== '' && lawnding_is_safe_svg($svg)) {
+                return $svg;
+            }
+        } elseif ($type === 'file') {
+            $value = $icon['value'] ?? '';
+            if (is_string($value) && $value !== '') {
+                $src = lawnding_make_asset_url('res/img/panes/' . ltrim($value, '/'));
+                return '<img class="navLinkIconImage" src="' . htmlspecialchars($src, ENT_QUOTES, 'UTF-8') . '" alt="">';
+            }
         }
-        $src = $makeAssetUrl('res/img/panes/' . ltrim($value, '/'));
-        return '<img class="navLinkIconImage" src="' . htmlspecialchars($src, ENT_QUOTES, 'UTF-8') . '" alt="">';
+    }
+    $moduleId = $pane['module'] ?? '';
+    if (is_string($moduleId) && $moduleId !== '') {
+        $default = lawnding_module_default_icon($moduleId);
+        if ($default !== '' && lawnding_is_safe_svg($default)) {
+            return $default;
+        }
     }
     return '';
 };
@@ -468,12 +330,10 @@ $panesPath = $dataPath('panes.json');
 $panesSchemaValid = false;
 $panesSchemaVersion = null;
 $paneSchemaTarget = defined('PANE_SCHEMA_VERSION') ? PANE_SCHEMA_VERSION : 1;
-if (is_readable($panesPath)) {
-    $raw = json_decode(file_get_contents($panesPath), true);
-    if (is_array($raw) && isset($raw['schema_version']) && isset($raw['panes']) && is_array($raw['panes'])) {
-        $panesSchemaValid = true;
-        $panesSchemaVersion = (int) $raw['schema_version'];
-    }
+$raw = lawnding_read_json($panesPath);
+if (isset($raw['schema_version'], $raw['panes']) && is_array($raw['panes'])) {
+    $panesSchemaValid = true;
+    $panesSchemaVersion = (int) $raw['schema_version'];
 }
 $needsMigration = !$panesSchemaValid || $panesSchemaVersion !== $paneSchemaTarget;
 $migrationMode = 'missing';
@@ -486,7 +346,7 @@ if ($panesSchemaValid) {
         $migrationMode = 'ok';
     }
 }
-$panes = $sortPanes($loadPanes($panesPath));
+$panes = lawnding_sort_panes(lawnding_load_panes($panesPath));
 $paneIds = array_values(array_filter(array_map(function ($pane) {
     return is_array($pane) ? ($pane['id'] ?? '') : '';
 }, $panes), function ($value) {
@@ -494,20 +354,13 @@ $paneIds = array_values(array_filter(array_map(function ($pane) {
 }));
 
 // Load module manifests to populate the pane management UI (type picker + previews).
+$modulesDir = function_exists('lawnding_admin_path')
+    ? lawnding_admin_path('modules')
+    : __DIR__ . '/modules';
 $modulesCatalog = [];
-$moduleRoots = function_exists('lawnding_module_roots')
-    ? lawnding_module_roots()
-    : [__DIR__ . '/modules'];
-$seenModules = [];
-foreach ($moduleRoots as $modulesDir) {
-    if (!is_dir($modulesDir)) {
-        continue;
-    }
+if (is_dir($modulesDir)) {
     foreach (scandir($modulesDir) as $entry) {
         if ($entry === '.' || $entry === '..') {
-            continue;
-        }
-        if (isset($seenModules[$entry])) {
             continue;
         }
         $ignorePath = rtrim($modulesDir, '/\\') . '/' . $entry . '/IGNORE_ME.txt';
@@ -515,11 +368,8 @@ foreach ($moduleRoots as $modulesDir) {
             continue;
         }
         $manifestPath = rtrim($modulesDir, '/\\') . '/' . $entry . '/' . $entry . '.json';
-        if (!is_readable($manifestPath)) {
-            continue;
-        }
-        $manifest = json_decode(file_get_contents($manifestPath), true);
-        if (!is_array($manifest)) {
+        $manifest = lawnding_read_json($manifestPath);
+        if (empty($manifest)) {
             continue;
         }
         $id = $manifest['id'] ?? $entry;
@@ -538,18 +388,9 @@ foreach ($moduleRoots as $modulesDir) {
             'name' => (string) ($manifest['name'] ?? $id),
             'description' => (string) ($manifest['description'] ?? ''),
             'preview' => $previewUrl,
-            'origin' => function_exists('lawnding_module_origin') ? lawnding_module_origin($id) : 'core',
-            'override' => function_exists('lawnding_module_is_override') ? lawnding_module_is_override($id) : false,
         ];
-        $seenModules[$entry] = true;
     }
 }
-$moduleOverrides = array_values(array_filter(array_map(function ($module) {
-    if (!is_array($module) || empty($module['override']) || empty($module['id'])) {
-        return '';
-    }
-    return (string) $module['id'];
-}, $modulesCatalog)));
 // Serialize pane data needed by the pane management UI.
 $panesForJs = array_map(function ($pane) {
     if (!is_array($pane)) {
@@ -565,12 +406,7 @@ $panesForJs = array_map(function ($pane) {
 $panesForJs = array_values(array_filter($panesForJs));
 
 // Identify panes that reference missing module manifests.
-$availableModules = array_map(function ($module) {
-    return $module['id'] ?? '';
-}, $modulesCatalog);
-$availableModules = array_values(array_filter($availableModules, function ($value) {
-    return is_string($value) && $value !== '';
-}));
+$availableModules = array_map(fn ($module) => $module['id'], $modulesCatalog);
 $missingModules = [];
 $missingModulePanes = [];
 foreach ($panes as $pane) {
@@ -595,15 +431,15 @@ $missingModules = array_values(array_unique($missingModules));
 $missingModuleDetails = [];
 foreach ($missingModulePanes as $moduleId => $paneList) {
     $uniquePanes = array_values(array_unique($paneList));
-    if (!empty($uniquePanes)) {
-        $missingModuleDetails[] = $moduleId . ' (' . implode(', ', $uniquePanes) . ')';
-    } else {
-        $missingModuleDetails[] = $moduleId;
-    }
+    $missingModuleDetails[] = $moduleId . ' (' . implode(', ', $uniquePanes) . ')';
 }
 
 // Permission gates and admin UI state (set by upstream controller).
-$currentUserName = $_SESSION['auth_user'] ?? '';
+// $displayName/$authUser come from admin/index.php's resolver call;
+// fall back to $_SESSION for older include paths that haven't migrated.
+$currentUserName = isset($displayName) && $displayName !== ''
+    ? $displayName
+    : ($authUser ?? ($_SESSION['auth_user'] ?? ''));
 $canAddUsers = $canAddUsers ?? true;
 $canEditUsers = $canEditUsers ?? true;
 $canRemoveUsers = $canRemoveUsers ?? true;
@@ -611,28 +447,15 @@ $canEditSite = $canEditSite ?? true;
 $isFullAdmin = $isFullAdmin ?? false;
 $isMasterUser = $isMasterUser ?? false;
 $isReadOnlyUser = $isReadOnlyUser ?? false;
-$runtimeMigrationStatus = $runtimeMigrationStatus ?? ['pending' => [], 'conflicts' => [], 'cleanup' => [], 'needs_migration' => false, 'cleanup_pending' => false];
-$runtimeMigrationNeedsCopy = !empty($runtimeMigrationStatus['needs_migration']);
-$runtimeMigrationNeedsCleanup = !$runtimeMigrationNeedsCopy && !empty($runtimeMigrationStatus['cleanup_pending']);
-$runtimeMigrationErrors = $runtimeMigrationErrors ?? [];
-$runtimeMigrationSuccess = $runtimeMigrationSuccess ?? '';
-$runtimeMigrationConflictEntries = is_array($runtimeMigrationStatus['conflicts'] ?? null) ? $runtimeMigrationStatus['conflicts'] : [];
-$runtimeMigrationHasConflicts = $runtimeMigrationConflictEntries !== [];
-$runtimeMigrationPendingLabels = array_values(array_filter(array_map(
-    static fn(array $entry): string => (string) ($entry['label'] ?? ''),
-    is_array($runtimeMigrationStatus['pending'] ?? null) ? $runtimeMigrationStatus['pending'] : []
-)));
-$runtimeMigrationCleanupLabels = array_values(array_filter(array_map(
-    static fn(array $entry): string => (string) ($entry['label'] ?? ''),
-    is_array($runtimeMigrationStatus['cleanup'] ?? null) ? $runtimeMigrationStatus['cleanup'] : []
-)));
 // Collect server-side status messages to render at top of page.
 $adminNotices = [];
-if (!empty($runtimeMigrationErrors)) {
-    $adminNotices[] = ['type' => 'danger', 'text' => implode(' ', $runtimeMigrationErrors)];
-}
-if ($runtimeMigrationSuccess !== '') {
-    $adminNotices[] = ['type' => 'ok', 'text' => $runtimeMigrationSuccess];
+// Drain any one-shot session flash (e.g. revocation banner from the resolver)
+// into the notice list so it renders on the dashboard too.
+if (function_exists('lawnding_flash_consume')) {
+    $sessionFlash = lawnding_flash_consume();
+    if ($sessionFlash !== null) {
+        $adminNotices[] = $sessionFlash;
+    }
 }
 if (!empty($usersErrors)) {
     $adminNotices[] = ['type' => 'danger', 'text' => implode(' ', $usersErrors)];
@@ -646,15 +469,15 @@ if (!empty($usersWarnings)) {
 $headerDataJson = htmlspecialchars(json_encode($headerDataDisplay, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT), ENT_QUOTES, 'UTF-8');
 $appConfigPayload = [
     'basePath' => $assetBase,
-    'instanceAssetBasePath' => function_exists('lawnding_instance_asset_base_url') ? rtrim(lawnding_instance_asset_base_url(), '/') : '',
     'currentUser' => $currentUserName,
     'canEditSite' => $canEditSite,
     'isMasterUser' => $isMasterUser,
     'isReadOnlyUser' => $isReadOnlyUser,
     'csrfToken' => $_SESSION['csrf_token'] ?? '',
-    'paneIds' => array_values($paneIds),
+    'paneIds' => $paneIds,
     'panes' => $panesForJs,
     'modules' => $modulesCatalog,
+    'perPaneSettings' => lawnding_build_per_pane_settings_data($panes),
 ];
 $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT), ENT_QUOTES, 'UTF-8');
 ?>
@@ -664,84 +487,42 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+    <?php
+        $adminPageTitleSiteName = isset($headerDataDisplay['title']) && is_string($headerDataDisplay['title'])
+            ? trim($headerDataDisplay['title'])
+            : '';
+        $adminPageTitle = $adminPageTitleSiteName !== ''
+            ? 'Admin Panel — ' . $adminPageTitleSiteName
+            : 'Admin Panel';
+    ?>
+    <title><?php echo htmlspecialchars($adminPageTitle, ENT_QUOTES, 'UTF-8'); ?></title>
     <?php // Deprecated: site-version.js cache-busting is no longer loaded. ?>
-    
-    <link rel="icon" href="<?php echo htmlspecialchars($faviconHref, ENT_QUOTES, 'UTF-8'); ?>">
-    <link rel="stylesheet" href="<?php echo htmlspecialchars($assetBase . '/res/style.css', ENT_QUOTES, 'UTF-8'); ?>">
-    <link rel="stylesheet" href="<?php echo htmlspecialchars($assetBase . '/res/config.css', ENT_QUOTES, 'UTF-8'); ?>">
 
-    <script src="<?php echo htmlspecialchars($assetBase . '/res/scr/jquery-3.7.1.min.js', ENT_QUOTES, 'UTF-8'); ?>"></script>
-    <?php echo $legacyFallbackConsoleScript; ?>
+    <link rel="icon" href="<?php echo htmlspecialchars($faviconHref, ENT_QUOTES, 'UTF-8'); ?>">
+    <link rel="stylesheet" href="<?php echo htmlspecialchars(lawnding_versioned_local_asset_url('res/style.css'), ENT_QUOTES, 'UTF-8'); ?>">
+    <link rel="stylesheet" href="<?php echo htmlspecialchars(lawnding_versioned_local_asset_url('res/config.css'), ENT_QUOTES, 'UTF-8'); ?>">
+
+    <script src="<?php echo htmlspecialchars(lawnding_versioned_local_asset_url('res/scr/jquery-3.7.1.min.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
+    <?php if (function_exists('lawnding_run_hook')) { lawnding_run_hook('head_assets'); } ?>
 </head>
 <body data-header-json="<?php echo $headerDataJson; ?>" data-app-config-json="<?php echo $appConfigJson; ?>">
+    <!-- Keyboard skip target — reveals on focus, jumps past header + tools. -->
+    <a class="skipLink" href="#container">Skip to main content</a>
     <div class="hidden" id="tgBotTokenToggleClosed"><?php echo lawnding_icon_svg('eye_closed'); ?></div>
     <div class="hidden" id="tgBotTokenToggleOpen"><?php echo lawnding_icon_svg('eye_open'); ?></div>
+    <div class="hidden" id="tgBotGroupDeleteIcon"><?php echo lawnding_icon_svg('delete'); ?></div>
     <!-- Runtime notices and admin alerts. -->
     <div id="noJsWarning"><noscript>This site requires JavaScript to function properly. Please enable JavaScript in your browser.</noscript></div>
-    <div class="adminNotices" id="adminNotices">
+    <div class="adminNotices" id="adminNotices" aria-live="polite" aria-atomic="true">
         <?php foreach ($adminNotices as $notice): ?>
-            <div class="adminNotice adminNotice--<?php echo htmlspecialchars($notice['type']); ?>">
+            <div class="adminNotice adminNotice--<?php echo htmlspecialchars($notice['type']); ?>"<?php echo $notice['type'] === 'danger' ? ' role="alert"' : ''; ?>>
                 <span class="adminNoticeText"><?php echo htmlspecialchars($notice['text']); ?></span>
                 <button type="button" class="adminNoticeClose" aria-label="Dismiss notification">×</button>
             </div>
         <?php endforeach; ?>
-        <?php if ($runtimeMigrationNeedsCopy): ?>
-            <div class="adminNotice adminNotice--danger adminNotice--stacked" data-persist="true">
-                <div class="adminNoticeBody">
-                    <span class="adminNoticeText">Migration required. Legacy site data and/or runtime files still exist in the old locations and must be copied into this instance's current data layout before the refactor is complete.</span>
-                    <?php if ($runtimeMigrationPendingLabels !== []): ?>
-                        <span class="adminNoticeMeta">Still missing from the new location: <?php echo htmlspecialchars(implode(', ', $runtimeMigrationPendingLabels)); ?>.</span>
-                    <?php endif; ?>
-                    <?php if ($runtimeMigrationHasConflicts): ?>
-                        <span class="adminNoticeMeta">Conflicting same-name site files were found. Choose whether to keep the legacy or new copy for each one before migration runs.</span>
-                    <?php endif; ?>
-                    <span class="adminNoticeMeta">Run the migration, confirm the site still behaves correctly, then return here to finalize and remove the legacy copies.</span>
-                </div>
-                <?php if ($isFullAdmin): ?>
-                    <?php if ($runtimeMigrationHasConflicts): ?>
-                        <div class="adminNoticeActions">
-                            <button type="button" class="usersButton" id="runtimeMigrationReviewButton">Run Migration</button>
-                        </div>
-                    <?php else: ?>
-                        <form method="post" action="" class="adminNoticeActions">
-                            <input type="hidden" name="action" value="run_runtime_migration">
-                            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token'] ?? ''); ?>">
-                            <button type="submit" class="usersButton">Run Migration</button>
-                        </form>
-                    <?php endif; ?>
-                <?php else: ?>
-                    <div class="adminNoticeMeta">Full admin access is required to run this migration.</div>
-                <?php endif; ?>
-            </div>
-        <?php elseif ($runtimeMigrationNeedsCleanup): ?>
-            <div class="adminNotice adminNotice--danger adminNotice--stacked" data-persist="true">
-                <div class="adminNoticeBody">
-                    <span class="adminNoticeText">Migration copied the new site/runtime data, but legacy files are still present in the old locations.</span>
-                    <?php if ($runtimeMigrationCleanupLabels !== []): ?>
-                        <span class="adminNoticeMeta">Legacy files waiting for cleanup: <?php echo htmlspecialchars(implode(', ', $runtimeMigrationCleanupLabels)); ?>.</span>
-                    <?php endif; ?>
-                    <span class="adminNoticeMeta">Verify the public site and admin panel now behave correctly, then finalize migration to delete the legacy files.</span>
-                </div>
-                <?php if ($isFullAdmin): ?>
-                    <form method="post" action="" class="adminNoticeActions">
-                        <input type="hidden" name="action" value="finalize_runtime_migration">
-                        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token'] ?? ''); ?>">
-                        <button type="submit" class="usersButton usersDanger">Finalize Migration</button>
-                    </form>
-                <?php else: ?>
-                    <div class="adminNoticeMeta">Full admin access is required to finalize this migration.</div>
-                <?php endif; ?>
-            </div>
-        <?php endif; ?>
         <?php if (!empty($missingModules)): ?>
             <div class="adminNotice adminNotice--danger" data-persist="true">
                 <span class="adminNoticeText">Missing pane modules detected: <?php echo htmlspecialchars(implode(', ', $missingModuleDetails)); ?>.</span>
-                <button type="button" class="adminNoticeClose" aria-label="Dismiss notification">×</button>
-            </div>
-        <?php endif; ?>
-        <?php if (!empty($moduleOverrides)): ?>
-            <div class="adminNotice adminNotice--danger" data-persist="true">
-                <span class="adminNoticeText">Instance modules override core modules: <?php echo htmlspecialchars(implode(', ', $moduleOverrides)); ?>.</span>
                 <button type="button" class="adminNoticeClose" aria-label="Dismiss notification">×</button>
             </div>
         <?php endif; ?>
@@ -808,7 +589,7 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
         </div>
         <div class="headerActionStack">
             <div class="headerUserStack">
-                <div class="signedInAs"><?php echo htmlspecialchars($_SESSION['auth_user'] ?? ''); ?></div>
+                <div class="signedInAs"><?php echo htmlspecialchars($currentUserName); ?></div>
                 <form method="post" action="">
                     <input type="hidden" name="action" value="logout">
                     <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token'] ?? ''); ?>">
@@ -826,7 +607,7 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
         </div>
     </header>
     <!-- Main admin panes (links, users, backgrounds, content). -->
-    <div class="container" id="container">
+    <main class="container" id="container">
         <div class="pane glassConvex alwaysShow" id="links">
             <h3>LINKS</h3>
             <div class="linksConfig" id="linksConfig">
@@ -923,38 +704,76 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
                                 </div>
                                 <div class="authLinksFieldActions">
                                     <button class="usersButton usersWarning authLinksTestBotButton" type="button">Test bot</button>
+                                    <button class="usersButton usersWarning authLinksRegisterWebhookButton" type="button">Register webhook</button>
                                 </div>
                             </label>
-                            <label class="linksConfigField" title="One group ID per line. Append SFW or NSFW after the ID.">
+                            <label class="linksConfigField" title="Authenticates Telegram-to-site webhook deliveries. Generated server-side on first save with a bot token; click Register webhook (above) so Telegram starts sending the new header.">
+                                <span class="linksConfigLabelText">Webhook secret_token</span>
+                                <div class="authLinksTokenField">
+                                    <input class="linksConfigInput" id="tgBotWebhookSecret" type="password" value="<?php echo htmlspecialchars((string) ($tgBotData['webhook_secret_token'] ?? '')); ?>" readonly autocomplete="off">
+                                    <button class="iconButton authLinksTokenToggle" type="button" aria-label="Show secret_token" title="Show/hide secret_token" data-visible="false" data-target="#tgBotWebhookSecret" data-aria-show="Show secret_token" data-aria-hide="Hide secret_token">
+                                        <?php echo lawnding_icon_svg('eye_closed'); ?>
+                                    </button>
+                                </div>
+                            </label>
+                            <div class="linksConfigField tgBotGroupsField">
                                 <span class="linksConfigLabelText">
-                                    Group IDs
-                                    <span class="authLinksHelpIcon authLinksHelpInline" title="How to get the group ID: add the bot to the group(s) you want to check and enter `/lpGetGroup` in each group.  Copy the returned group ID and enter it in this text box, one ID per line.">
+                                    Groups
+                                    <span class="authLinksHelpIcon authLinksHelpInline" title="How to get the group ID: add the bot to the group(s) you want to check and enter `/lpGetGroup` in each group. Copy the returned ID into a Group ID input below, pick the content level, and tick any admin permissions you want that group's members to gain.">
                                         <?php echo lawnding_icon_svg('help'); ?>
                                     </span>
                                 </span>
-                                <textarea class="linksConfigInput" id="tgBotGroupIds" rows="4" placeholder="-1001234567890 SFW"><?php echo htmlspecialchars($tgBotGroupIdsText); ?></textarea>
+                                <div class="tgBotGroupList" id="tgBotGroupList">
+                                    <div class="tgBotGroupHeaderSuper">
+                                        <span></span>
+                                        <span></span>
+                                        <span class="tgBotGroupSuperLabel">Permissions</span>
+                                        <span></span>
+                                    </div>
+                                    <div class="tgBotGroupHeader">
+                                        <span class="tgBotGroupHeadCell tgBotGroupHeadId">Group ID</span>
+                                        <span class="tgBotGroupHeadCell tgBotGroupHeadContent">Content</span>
+                                        <span class="tgBotGroupHeadCell">Edit<br>site</span>
+                                        <span class="tgBotGroupHeadCell">Add<br>users</span>
+                                        <span class="tgBotGroupHeadCell">Edit<br>users</span>
+                                        <span class="tgBotGroupHeadCell">Rem<br>users</span>
+                                        <span class="tgBotGroupHeadCell" aria-hidden="true"></span>
+                                    </div>
+                                    <?php foreach ($tgBotGroupIds as $entry): ?>
+                                        <?php
+                                            $gId = $entry['id'];
+                                            $gContent = strtoupper($entry['content']) === 'NSFW' ? 'NSFW' : 'SFW';
+                                            $gPerms = $entry['permissions'];
+                                        ?>
+                                        <div class="tgBotGroupCard">
+                                            <input class="linksConfigInput tgBotGroupIdInput" type="text" value="<?php echo htmlspecialchars($gId); ?>" placeholder="-1001234567890" aria-label="Group ID">
+                                            <select class="linksConfigInput tgBotGroupContentSelect" aria-label="Content level">
+                                                <option value="SFW" <?php echo $gContent === 'SFW' ? 'selected' : ''; ?>>SFW</option>
+                                                <option value="NSFW" <?php echo $gContent === 'NSFW' ? 'selected' : ''; ?>>NSFW</option>
+                                            </select>
+                                            <label class="tgBotGroupPermCell" title="Edit site content (header, panes, links).">
+                                                <input type="checkbox" class="tgBotGroupPerm" value="edit_site" aria-label="Edit site" <?php echo in_array('edit_site', $gPerms, true) ? 'checked' : ''; ?>>
+                                            </label>
+                                            <label class="tgBotGroupPermCell" title="Create new user accounts.">
+                                                <input type="checkbox" class="tgBotGroupPerm" value="add_users" aria-label="Add users" <?php echo in_array('add_users', $gPerms, true) ? 'checked' : ''; ?>>
+                                            </label>
+                                            <label class="tgBotGroupPermCell" title="Edit existing user accounts.">
+                                                <input type="checkbox" class="tgBotGroupPerm" value="edit_users" aria-label="Edit users" <?php echo in_array('edit_users', $gPerms, true) ? 'checked' : ''; ?>>
+                                            </label>
+                                            <label class="tgBotGroupPermCell" title="Remove user accounts.">
+                                                <input type="checkbox" class="tgBotGroupPerm" value="remove_users" aria-label="Remove users" <?php echo in_array('remove_users', $gPerms, true) ? 'checked' : ''; ?>>
+                                            </label>
+                                            <button class="iconButton removeTgBotGroup" type="button" aria-label="Remove group" title="Remove group">
+                                                <?php echo lawnding_icon_svg('delete'); ?>
+                                            </button>
+                                        </div>
+                                    <?php endforeach; ?>
+                                </div>
                                 <div class="authLinksFieldActions">
+                                    <button class="usersButton addTgBotGroup" type="button">Add group</button>
                                     <button class="usersButton usersWarning authLinksValidateGroupsButton" type="button">Validate Group IDs</button>
                                 </div>
-                            </label>
-                            <label class="linksConfigField" title="One user ID per line. Append SFW or NSFW after the ID. Untagged entries default to SFW.">
-                                <span class="linksConfigLabelText">
-                                    Whitelist User IDs
-                                    <span class="authLinksHelpIcon authLinksHelpInline" title="To get the user ID, go into telegram settings > general, scroll to the bottom and enable &quot;Show Peer IDs in Profile&quot;.  Then view the user you wish to add, copy the peer ID and paste it here.  One user ID per line.">
-                                        <?php echo lawnding_icon_svg('help'); ?>
-                                    </span>
-                                </span>
-                                <textarea class="linksConfigInput" id="tgBotWhitelistUserIds" rows="4" placeholder="123456789 SFW"><?php echo htmlspecialchars($tgBotWhitelistUserIdsText); ?></textarea>
-                            </label>
-                            <label class="linksConfigField" title="One user ID per line. Append SFW or NSFW after the ID. Untagged entries default to SFW.">
-                                <span class="linksConfigLabelText">
-                                    Blacklist User IDs
-                                    <span class="authLinksHelpIcon authLinksHelpInline" title="To get the user ID, go into telegram settings > general, scroll to the bottom and enable &quot;Show Peer IDs in Profile&quot;.  Then view the user you wish to add, copy the peer ID and paste it here.  One user ID per line.">
-                                        <?php echo lawnding_icon_svg('help'); ?>
-                                    </span>
-                                </span>
-                                <textarea class="linksConfigInput" id="tgBotBlacklistUserIds" rows="4" placeholder="123456789 NSFW"><?php echo htmlspecialchars($tgBotBlacklistUserIdsText); ?></textarea>
-                            </label>
+                            </div>
                             <label class="linksConfigField" title="Membership cache TTL in minutes.">
                                 <span class="linksConfigLabelText">Membership cache TTL (minutes)</span>
                                 <input class="linksConfigInput" id="tgBotCacheTtl" type="text" inputmode="numeric" value="<?php echo htmlspecialchars((string) ($tgBotData['membership_cache_ttl_minutes'] ?? 30)); ?>">
@@ -963,17 +782,33 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
                                 <span class="linksConfigLabelText">Unauthorized message</span>
                                 <textarea class="linksConfigInput" id="tgBotUnauthorizedMessage" rows="4"><?php echo htmlspecialchars((string) ($tgBotData['unauthorized_message'] ?? $tgBotDefaults['unauthorized_message'])); ?></textarea>
                             </label>
+                            <label class="linksConfigField" title="One user ID per line. Append SFW or NSFW after the ID. Grants access regardless of group membership.">
+                                <span class="linksConfigLabelText">Whitelist User IDs</span>
+                                <textarea class="linksConfigInput" id="tgBotWhitelistUserIds" rows="4" placeholder="123456789 SFW"><?php echo htmlspecialchars($tgBotWhitelistUserIdsText); ?></textarea>
+                            </label>
+                            <label class="linksConfigField" title="One user ID per line. Append SFW or NSFW after the ID. Denies access regardless of group membership.">
+                                <span class="linksConfigLabelText">Blacklist User IDs</span>
+                                <textarea class="linksConfigInput" id="tgBotBlacklistUserIds" rows="4" placeholder="123456789 NSFW"><?php echo htmlspecialchars($tgBotBlacklistUserIdsText); ?></textarea>
+                            </label>
+                            <?php
+                                $webhookSnippetBody = ['url' => $webhookUrl];
+                                if (!empty($tgBotData['webhook_secret_token'])) {
+                                    $webhookSnippetBody['secret_token'] = '<YOUR_WEBHOOK_SECRET>';
+                                }
+                                $webhookSnippetBodyJson = json_encode($webhookSnippetBody, JSON_UNESCAPED_SLASHES);
+                            ?>
                             <div class="authLinksHelpBlock">
                                 <p><strong>Bot setup</strong></p>
                                 <ol>
                                     <li>Create a bot with BotFather and paste the token above.</li>
                                     <li>Set your login domain in BotFather with <code>/setdomain</code> (must match this website host).</li>
                                     <li>Add the bot to your group(s) and make it an admin.</li>
-                                    <li>Register the webhook from a terminal:</li>
+                                    <li>Save the form. A <code>secret_token</code> is generated and shown in the field above.</li>
+                                    <li>Click <strong>Register webhook</strong> (next to Test bot) to push the URL + secret to Telegram in one call. Or, if you prefer to do it manually, run this from a terminal (paste your bot token<?php echo !empty($tgBotData['webhook_secret_token']) ? ' and webhook secret_token' : ''; ?> in place of the placeholders):</li>
                                 </ol>
                                 <pre><code>curl -X POST "https://api.telegram.org/bot&lt;YOUR_BOT_TOKEN&gt;/setWebhook" \
   -H "Content-Type: application/json" \
-  -d '{"url":"<?php echo htmlspecialchars($webhookUrl); ?>"}'</code></pre>
+  -d '<?php echo htmlspecialchars($webhookSnippetBodyJson); ?>'</code></pre>
                                 <p>In each group, type <code>/lpGetGroup</code> and paste the returned ID into Group IDs as <code>ID SFW</code> or <code>ID NSFW</code>.</p>
                                 <p>Bot username can be entered with or without <code>@</code>; it is saved without the prefix.</p>
                             </div>
@@ -1003,9 +838,6 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
                                         : 'sfw';
                                     if ($contentLevel !== 'nsfw') {
                                         $contentLevel = 'sfw';
-                                    }
-                                    if (!array_key_exists('content', $link)) {
-                                        $authLinksNeedsNormalization = true;
                                     }
                                     $isNsfw = $contentLevel === 'nsfw';
                                 ?>
@@ -1059,15 +891,6 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
                     </div>
                 </div>
             </div>
-            <script>
-                (function() {
-                    var authLinksConfig = document.getElementById('authLinksConfig');
-                    if (!authLinksConfig) {
-                        return;
-                    }
-                    authLinksConfig.setAttribute('data-needs-normalization', <?php echo $authLinksNeedsNormalization ? "'true'" : "'false'"; ?>);
-                }());
-            </script>
         </div>
         <div class="pane glassConvex" id="users">
             <h3>USERS</h3>
@@ -1188,7 +1011,7 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
                                 $bgAuthor = $bg['author'] ?? '';
                                 $bgAuthorUrl = $bg['authorUrl'] ?? '';
                             }
-                            $bgDisplayUrl = $makeAssetUrl($bgUrl);
+                            $bgDisplayUrl = lawnding_make_asset_url($bgUrl);
                             $isEmptyBg = empty($bgUrl);
                         ?>
                         <div class="bgConfigRow" data-current-url="<?php echo htmlspecialchars($bgUrl); ?>" data-author-url="<?php echo htmlspecialchars($bgAuthorUrl); ?>">
@@ -1239,12 +1062,88 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
                 </div>
             </div>
         </div>
+        <?php // Diagnostics: tail recent runtime errors captured from the site. Gated on edit_site. ?>
+        <?php if (!empty($canEditSite)): ?>
+        <div class="pane glassConvex" id="diagnostics">
+            <h3>DIAGNOSTICS</h3>
+            <p class="paneHint">Recent runtime errors captured from the site. Useful when something on the public page or the admin flow misbehaves.</p>
+            <div class="diagnosticsToolbar">
+                <label class="diagnosticsToggle">
+                    <input type="checkbox" id="diagnosticsAutoRefresh">
+                    <span>Auto-refresh (5s)</span>
+                </label>
+                <button type="button" class="diagnosticsRefresh" id="diagnosticsRefresh">Refresh now</button>
+                <div class="diagnosticsSevFilters" role="group" aria-label="Filter by severity">
+                    <label class="diagnosticsSevFilter">
+                        <input type="checkbox" data-sev="error" checked>
+                        <span class="diagnosticsSevLabel diagnosticsSevLabel--error">Error</span>
+                    </label>
+                    <label class="diagnosticsSevFilter">
+                        <input type="checkbox" data-sev="warn" checked>
+                        <span class="diagnosticsSevLabel diagnosticsSevLabel--warn">Warn</span>
+                    </label>
+                    <label class="diagnosticsSevFilter">
+                        <input type="checkbox" data-sev="info" checked>
+                        <span class="diagnosticsSevLabel diagnosticsSevLabel--info">Info</span>
+                    </label>
+                    <label class="diagnosticsSevFilter">
+                        <input type="checkbox" data-sev="debug" checked>
+                        <span class="diagnosticsSevLabel diagnosticsSevLabel--debug">Debug</span>
+                    </label>
+                </div>
+                <span class="diagnosticsStatus" id="diagnosticsStatus" aria-live="polite"></span>
+            </div>
+            <div
+                id="diagnosticsViewer"
+                class="diagnosticsViewer"
+                data-tail-url="<?php echo htmlspecialchars(lawnding_asset_url('res/scr/errors-tail.php'), ENT_QUOTES, 'UTF-8'); ?>"
+            >
+                <p class="diagnosticsEmpty">No entries loaded yet.</p>
+            </div>
+        </div>
+        <?php endif; ?>
+        <?php // Site Config: site-wide module defaults. New panes inherit these; per-pane overrides live in the gear-icon modal on each gallery. Gated on edit_site for now; tighten to full_admin if these flags ever drive security-sensitive behavior. ?>
+        <?php if (!empty($canEditSite)): ?>
+        <div class="pane glassConvex" id="siteConfig">
+            <h3>SITE CONFIG</h3>
+            <p class="paneHint">Defaults that newly created panes inherit. Existing panes can opt out per-instance via the gear icon on each pane.</p>
+            <input type="hidden" name="siteConfig[__rendered]" value="1">
+            <?php
+                // Centralized SITE CONFIG dispatch. Iterates every key
+                // in lawnding_site_config_defaults() — that's both the
+                // _app slot (platform-wide settings like maxUploadSizeMB)
+                // AND each discoverable module with a site_config block,
+                // matching the source of truth the prior inline loop used.
+                //
+                // For each: prefer manifest-declared site_config.render
+                // (lazy-load helpers.php, dispatch by name — same shape as
+                // save_map.validator / on_rename callbacks); otherwise
+                // auto-render the standard manifest-driven fieldset via
+                // lawnding_render_site_config_fieldset(). The _app slot
+                // has no manifest so always falls through to the helper.
+                foreach (array_keys(lawnding_site_config_defaults()) as $moduleId) {
+                    $manifest = lawnding_module_manifest($moduleId);
+                    $callback = isset($manifest['site_config']['render']) && is_string($manifest['site_config']['render'])
+                        ? $manifest['site_config']['render']
+                        : '';
+                    if ($callback !== '') {
+                        lawnding_module_load_helpers($moduleId);
+                        if (function_exists($callback)) {
+                            $callback();
+                            continue;
+                        }
+                    }
+                    lawnding_render_site_config_fieldset($moduleId);
+                }
+            ?>
+        </div>
+        <?php endif; ?>
         <?php // Render each dynamic pane using its module admin template. ?>
         <?php foreach ($panes as $pane): ?>
             <?php
             $moduleId = isset($pane['module']) ? (string) $pane['module'] : '';
-            $modulePath = function_exists('lawnding_module_file')
-                ? lawnding_module_file($moduleId, 'admin.php')
+            $modulePath = function_exists('lawnding_admin_path')
+                ? lawnding_admin_path('modules/' . $moduleId . '/admin.php')
                 : __DIR__ . '/modules/' . $moduleId . '/admin.php';
             if ($moduleId !== '' && is_readable($modulePath)) {
                 include $modulePath;
@@ -1255,16 +1154,19 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
             <h3>SELECT A PANE</h3>
             <p>Select a pane from the navbar below.</p>
         </div>
-        <div class="pane glassConvex" id="changelog">
-            <?php echo $changelog; ?>
-        </div>
-    </div>
+    </main>
     <!-- Bottom navigation for pane switching. -->
     <nav>
         <div class="navBarWrap" id="navBarWrap">
             <ul class="navBar glassConcave" id="navBar">
             <li><a class="navLink" href="#" data-pane="users" aria-label="Users" title="User Management"><?php echo lawnding_icon_svg('users'); ?></a></li>
             <li><a class="navLink" href="#" data-pane="bg" aria-label="Backgrounds" title="Edit Random Background Images"><?php echo lawnding_icon_svg('backgrounds'); ?></a></li>
+            <?php if (!empty($canEditSite)): ?>
+            <li><a class="navLink" href="#" data-pane="diagnostics" aria-label="Diagnostics" title="Diagnostics — recent runtime errors"><?php echo lawnding_icon_svg('diagnostics'); ?></a></li>
+            <?php endif; ?>
+            <?php if (!empty($canEditSite)): ?>
+            <li><a class="navLink" href="#" data-pane="siteConfig" aria-label="Site Config" title="Site Config — defaults that new panes inherit"><?php echo lawnding_icon_svg('settings'); ?></a></li>
+            <?php endif; ?>
             <li class="navSeparator" aria-hidden="true"></li>
             <li><a class="navLink" href="#" data-pane="links" aria-label="Links" title="Links"><?php echo lawnding_icon_svg('links'); ?></a></li>
             <li class="authLinksNavItem<?php echo $authLinksEnabled ? '' : ' isHidden'; ?>"><a class="navLink<?php echo $authLinksEnabled ? '' : ' hidden'; ?>" href="#" data-pane="authLinks" aria-label="Authorized Links" title="Authorized Links"><?php echo lawnding_icon_svg('auth_links'); ?></a></li>
@@ -1293,8 +1195,6 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
                     <button class="paneManageButton" type="button" aria-label="Pane Management" title="Pane Management">Pane Management</button>
                 </li>
             <?php endif; ?>
-            <li class="navSeparator" aria-hidden="true"></li>
-            <li><a class="navLink" href="#" data-pane="changelog" aria-label="Changelog" title="Changelog"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><title>Changelog</title><path d="M13,9H18.5L13,3.5V9M6,2H14L20,8V20A2,2 0 0,1 18,22H6C4.89,22 4,21.1 4,20V4C4,2.89 4.89,2 6,2M6.12,15.5L9.86,19.24L11.28,17.83L8.95,15.5L11.28,13.17L9.86,11.76L6.12,15.5M17.28,15.5L13.54,11.76L12.12,13.17L14.45,15.5L12.12,17.83L13.54,19.24L17.28,15.5Z" /></svg></a></li>
             </ul>
             <div class="navBarFadeLayer" aria-hidden="true">
                 <div class="navBarFade navBarFadeLeft"></div>
@@ -1302,7 +1202,7 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
             </div>
         </div>
         <div class="footer">
-            LawndingPage <?php echo htmlspecialchars(SITE_VERSION, ENT_QUOTES, 'UTF-8'); ?>.
+            <?php echo lawnding_footer_platform_html(); ?><span class="footerSep"> · </span>Background image by <span class="authorPlain"></span><a class="authorLink hidden" href="" rel="noopener" target="_blank"><span class="authorName"></span></a>.
         </div>
     </nav>
     <!-- Modal overlays for user actions and confirmations. -->
@@ -1330,10 +1230,8 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
     <?php lawnding_modal_open('bgDeleteModal', 'Delete background image?'); ?>
         <p class="usersHint">This will remove the image from the list and delete the file from disk.</p>
         <div class="userModalActions">
+            <button class="usersButton usersDanger" id="bgDeleteConfirm" type="button" data-modal-confirm="true">Confirm</button>
             <button class="usersButton userModalClose" type="button">Cancel</button>
-            <button class="usersButton usersDanger iconButton" id="bgDeleteConfirm" type="button" aria-label="Delete background" title="Remove this background" data-modal-confirm="true">
-                <?php echo lawnding_icon_svg('delete'); ?>
-            </button>
         </div>
     <?php lawnding_modal_close(); ?>
 
@@ -1467,20 +1365,50 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
         </div>
     <?php lawnding_modal_close(); ?>
 
+    <?php // Shared per-pane Settings modal — opened by every pane's gear.
+          // "Use site defaults" disables the override fieldset and saves
+          // iconType=none so the pane inherits site defaults. JS hydrates
+          // from window.appConfig.perPaneSettings on open. ?>
+    <?php lawnding_modal_open('panePerPaneSettingsModal', 'Pane Settings'); ?>
+        <input type="hidden" id="panePerPaneSettingsActiveId" value="">
+
+        <label class="siteConfigToggle panePerPaneSettingsUseDefaults" hidden>
+            <input type="checkbox" id="panePerPaneSettingsUseDefaultsInput">
+            <span>Use site defaults</span>
+        </label>
+
+        <fieldset class="siteConfigGroup panePerPaneSettingsOverrides">
+            <legend>Per-pane overrides</legend>
+
+            <section class="panePerPaneSettingsIconSection">
+                <h5 class="panePerPaneSettingsSectionHeading">Icon: (click to change)</h5>
+                <div class="panePerPaneSettingsIconSummary">
+                    <button class="paneIconDisplay panePerPaneSettingsIconCurrent" type="button" id="panePerPaneSettingsIconChange" aria-label="Click to change icon" title="Click to change">
+                        <span class="paneIconPreview"></span>
+                    </button>
+                </div>
+                <div class="panePerPaneSettingsIconEditor" hidden>
+                    <div class="panePerPaneSettingsIconPicker" id="panePerPaneSettingsIconPicker" role="radiogroup" aria-label="Choose an icon"></div>
+                </div>
+            </section>
+
+            <section class="panePerPaneSettingsModuleSection" hidden>
+                <h5 class="panePerPaneSettingsSectionHeading">Module Settings</h5>
+                <div id="panePerPaneSettingsModuleControls"></div>
+            </section>
+        </fieldset>
+
+        <div class="paneManageActions">
+            <button class="usersButton" type="button" id="panePerPaneSettingsSave" data-modal-confirm="true">Save</button>
+            <button class="usersButton userModalClose" type="button">Cancel</button>
+        </div>
+    <?php lawnding_modal_close(); ?>
+
     <?php // Pane delete confirmation modal (warns about data deletion). ?>
     <?php lawnding_modal_open('paneDeleteConfirmModal', 'Remove Pane'); ?>
         <p class="usersHint" id="paneDeleteConfirmMessage">Are you sure you want to remove this pane? This will delete its data files.</p>
         <div class="userModalActions">
             <button class="usersButton usersDanger" type="button" id="paneDeleteConfirmYes" data-modal-confirm="true">Delete</button>
-            <button class="usersButton userModalClose" type="button">Cancel</button>
-        </div>
-    <?php lawnding_modal_close(); ?>
-
-    <?php // Event delete confirmation modal. ?>
-    <?php lawnding_modal_open('eventDeleteConfirmModal', 'Remove Event'); ?>
-        <p class="usersHint">Are you sure you want to remove this event?</p>
-        <div class="userModalActions">
-            <button class="usersButton usersDanger" type="button" id="eventDeleteConfirmYes" data-modal-confirm="true" autofocus>Remove</button>
             <button class="usersButton userModalClose" type="button">Cancel</button>
         </div>
     <?php lawnding_modal_close(); ?>
@@ -1498,45 +1426,6 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
             <button class="usersButton userModalClose" type="button">Cancel</button>
         </div>
     <?php lawnding_modal_close(); ?>
-
-    <?php if ($runtimeMigrationHasConflicts): ?>
-        <?php lawnding_modal_open('runtimeMigrationConflictModal', 'Resolve Migration Conflicts'); ?>
-            <p class="usersHint">These legacy files have the same names as files already present in the new data layout. Choose which copy should be kept for each file before migration continues.</p>
-            <form method="post" action="" id="runtimeMigrationConflictForm">
-                <input type="hidden" name="action" value="run_runtime_migration">
-                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token'] ?? ''); ?>">
-                <div class="runtimeMigrationConflictList">
-                    <?php foreach ($runtimeMigrationConflictEntries as $entry): ?>
-                        <?php
-                            $entryKey = (string) ($entry['key'] ?? '');
-                            $entryLabel = (string) ($entry['label'] ?? basename((string) ($entry['source'] ?? '')));
-                            $entrySource = (string) ($entry['source'] ?? '');
-                            $entryDestination = (string) ($entry['destination'] ?? '');
-                        ?>
-                        <div class="runtimeMigrationConflictItem">
-                            <div class="runtimeMigrationConflictTitle"><?php echo htmlspecialchars($entryLabel); ?></div>
-                            <div class="runtimeMigrationConflictColumns">
-                                <label class="runtimeMigrationConflictChoice">
-                                    <input type="radio" name="migration_conflict_choice[<?php echo htmlspecialchars($entryKey); ?>]" value="legacy" checked>
-                                    <span class="runtimeMigrationConflictChoiceTitle">Use legacy copy</span>
-                                    <span class="runtimeMigrationConflictChoicePath"><?php echo htmlspecialchars($entrySource); ?></span>
-                                </label>
-                                <label class="runtimeMigrationConflictChoice">
-                                    <input type="radio" name="migration_conflict_choice[<?php echo htmlspecialchars($entryKey); ?>]" value="new">
-                                    <span class="runtimeMigrationConflictChoiceTitle">Keep new copy</span>
-                                    <span class="runtimeMigrationConflictChoicePath"><?php echo htmlspecialchars($entryDestination); ?></span>
-                                </label>
-                            </div>
-                        </div>
-                    <?php endforeach; ?>
-                </div>
-                <div class="paneManageActions">
-                    <button class="usersButton" type="submit" data-modal-confirm="true">Run Migration</button>
-                    <button class="usersButton userModalClose" type="button">Cancel</button>
-                </div>
-            </form>
-        <?php lawnding_modal_close(); ?>
-    <?php endif; ?>
     <!-- Onboarding/tutorial overlay controlled by config.js. -->
     <div id="tutorialOverlay" class="hidden">
         <div id="mask-top" class="tutorialMask"></div>
@@ -1552,8 +1441,14 @@ $appConfigJson = htmlspecialchars(json_encode($appConfigPayload, JSON_HEX_TAG | 
             </div>
         </div>
     </div>
-    <script src="<?php echo htmlspecialchars($assetBase . '/res/scr/admin-data.js', ENT_QUOTES, 'UTF-8'); ?>"></script>
-    <script src="<?php echo htmlspecialchars($assetBase . '/res/scr/app.js', ENT_QUOTES, 'UTF-8'); ?>"></script>
-    <script src="<?php echo htmlspecialchars($assetBase . '/res/scr/config.js', ENT_QUOTES, 'UTF-8'); ?>"></script>
+    <script src="<?php echo htmlspecialchars(lawnding_versioned_local_asset_url('res/scr/admin-data.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
+    <?php lawnding_render_changelog_modal(); ?>
+    <script src="<?php echo htmlspecialchars(lawnding_versioned_local_asset_url('res/scr/shared-utils.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
+    <script src="<?php echo htmlspecialchars(lawnding_versioned_local_asset_url('res/scr/notice-core.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
+    <script src="<?php echo htmlspecialchars(lawnding_versioned_local_asset_url('res/scr/modal-core.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
+    <script src="<?php echo htmlspecialchars(lawnding_versioned_local_asset_url('res/scr/public-modals.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
+    <script src="<?php echo htmlspecialchars(lawnding_versioned_local_asset_url('res/scr/app.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
+    <script src="<?php echo htmlspecialchars(lawnding_versioned_local_asset_url('res/scr/config.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
+    <script src="<?php echo htmlspecialchars(lawnding_versioned_local_asset_url('res/scr/diagnostics.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
 </body>
 </html>

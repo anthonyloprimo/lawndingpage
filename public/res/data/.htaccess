@@ -1,0 +1,15 @@
+Options -Indexes
+RewriteEngine On
+
+# Block top-level files (panes.json, links.json, header.json, welcome.md, etc.)
+# Module subdirectories such as mediaGalleryContent-<paneId>/ pass through so
+# their image/video assets can render via <img src> and <video src>.
+RewriteRule ^[^/]+$ - [F,L]
+
+# Block dotfiles anywhere under /res/data (.htaccess, .DS_Store, ...).
+RewriteRule (^|/)\. - [F,L]
+
+# Defense-in-depth: block JSON/Markdown anywhere — even inside module
+# subdirectories — so a module storing config alongside its assets doesn't
+# leak it via direct URL.
+RewriteRule \.(json|md)$ - [F,L]

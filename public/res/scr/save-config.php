@@ -2,8 +2,12 @@
 // Handles saving config changes (links, header, backgrounds, markdown, and uploads).
 require_once __DIR__ . '/../../../lp-bootstrap.php';
 // Load versioned constants (schema version, site version) for consistency checks.
-require_once __DIR__ . '/../version.php';
+$versionPath = function_exists('lawnding_core_public_path')
+    ? lawnding_core_public_path('res/version.php')
+    : __DIR__ . '/../version.php';
+require_once $versionPath;
 require_once __DIR__ . '/markdown-gating.php';
+require_once lawnding_admin_path('lib/pane-icon.php');
 lawnding_init_session();
 
 // Unified JSON response helper.
@@ -14,54 +18,14 @@ function respond($payload, $code = 200) {
     exit;
 }
 
-// Convert ini size strings like "2M" into bytes for comparisons.
-function ini_size_to_bytes($value) {
-    $value = trim((string) $value);
-    if ($value === '') {
-        return 0;
-    }
-    $last = strtolower($value[strlen($value) - 1]);
-    $number = (float) $value;
-    switch ($last) {
-        case 'g':
-            $number *= 1024;
-            // no break
-        case 'm':
-            $number *= 1024;
-            // no break
-        case 'k':
-            $number *= 1024;
-            break;
-    }
-    return (int) $number;
-}
-
-// Read users.json into an array (empty on failure).
-function load_users($usersPath) {
-    if (!is_readable($usersPath)) {
-        return [];
-    }
-    $decoded = json_decode(file_get_contents($usersPath), true);
-    return is_array($decoded) ? $decoded : [];
-}
-
-// Find a user record by username.
-function find_user($users, $username) {
-    foreach ($users as $user) {
-        if (is_array($user) && ($user['username'] ?? '') === $username) {
-            return $user;
-        }
-    }
-    return null;
-}
-
 // Resolve filesystem paths for data, images, and config files.
 function resolve_paths() {
     $publicDir = function_exists('lawnding_config')
         ? lawnding_config('public_dir', dirname(__DIR__, 2))
         : dirname(__DIR__, 2);
-    $runtimeAdminDir = function_exists('lawnding_config')
-        ? lawnding_config('instance_runtime_admin_dir', dirname(__DIR__, 3) . '/admin')
+    // The admin dir holds module manifests for pane migration and management.
+    $adminDir = function_exists('lawnding_config')
+        ? lawnding_config('admin_dir', dirname(__DIR__, 3) . '/admin')
         : dirname(__DIR__, 3) . '/admin';
     $dataDir = function_exists('lawnding_config')
         ? lawnding_config('data_dir', $publicDir . '/res/data')
@@ -77,117 +41,14 @@ function resolve_paths() {
         'public_dir' => $publicDir,
         'data_dir' => $dataDir,
         'img_dir' => $imgDir,
-        'modules_dir' => function_exists('lawnding_module_roots') ? lawnding_module_roots() : [],
-        'admin_dir' => rtrim($runtimeAdminDir, '/\\'),
+        'modules_dir' => rtrim($adminDir, '/\\') . '/modules',
+        'admin_dir' => rtrim($adminDir, '/\\'),
         'pane_icon_dir' => $paneIconDir,
         'header_path' => $dataDir . '/header.json',
         'links_path' => $dataDir . '/links.json',
         'authorized_links_path' => $dataDir . '/authorizedLinks.json',
         'panes_path' => $dataDir . '/panes.json',
     ];
-}
-
-function media_gallery_dir(string $dataDir, string $paneId): string {
-    return rtrim($dataDir, '/\\') . '/mediaGalleryContent-' . $paneId;
-}
-
-function media_gallery_remove_dir(string $dir): void {
-    if (!is_dir($dir)) {
-        return;
-    }
-    $items = scandir($dir);
-    if (!is_array($items)) {
-        return;
-    }
-    foreach ($items as $item) {
-        if ($item === '.' || $item === '..') {
-            continue;
-        }
-        $path = $dir . '/' . $item;
-        if (is_dir($path)) {
-            media_gallery_remove_dir($path);
-        } else {
-            unlink($path);
-        }
-    }
-    rmdir($dir);
-}
-
-function media_gallery_apply_changes(array $data, array $changes): array {
-    $items = $data['items'] ?? [];
-    if (!is_array($items)) {
-        $items = [];
-    }
-    $updates = $changes['updates'] ?? [];
-    if (!is_array($updates) || empty($updates)) {
-        $data['items'] = $items;
-        return $data;
-    }
-    $indexById = [];
-    foreach ($items as $index => $item) {
-        if (is_array($item) && isset($item['id'])) {
-            $indexById[(string) $item['id']] = $index;
-        }
-    }
-    foreach ($updates as $update) {
-        if (!is_array($update)) {
-            continue;
-        }
-        $id = isset($update['id']) ? (string) $update['id'] : '';
-        if ($id === '' || !isset($indexById[$id])) {
-            continue;
-        }
-        $idx = $indexById[$id];
-        if (!is_array($items[$idx])) {
-            $items[$idx] = [];
-        }
-        if (array_key_exists('title', $update)) {
-            $items[$idx]['title'] = (string) $update['title'];
-        }
-        if (array_key_exists('order', $update)) {
-            $items[$idx]['order'] = (int) $update['order'];
-        }
-    }
-    usort($items, function ($a, $b) {
-        $orderA = is_array($a) && isset($a['order']) ? (int) $a['order'] : 0;
-        $orderB = is_array($b) && isset($b['order']) ? (int) $b['order'] : 0;
-        return $orderA <=> $orderB;
-    });
-    $order = 1;
-    foreach ($items as &$item) {
-        if (!is_array($item)) {
-            $item = [];
-        }
-        $item['order'] = $order;
-        $order += 1;
-    }
-    unset($item);
-    $data['items'] = $items;
-    return $data;
-}
-
-function media_gallery_update_paths(array $data, string $oldId, string $newId): array {
-    $items = $data['items'] ?? [];
-    if (!is_array($items)) {
-        $data['items'] = [];
-        return $data;
-    }
-    $oldSegment = 'mediaGalleryContent-' . $oldId . '/';
-    $newSegment = 'mediaGalleryContent-' . $newId . '/';
-    foreach ($items as &$item) {
-        if (!is_array($item)) {
-            $item = [];
-        }
-        if (!empty($item['file']) && is_string($item['file'])) {
-            $item['file'] = str_replace($oldSegment, $newSegment, $item['file']);
-        }
-        if (!empty($item['thumb']) && is_string($item['thumb'])) {
-            $item['thumb'] = str_replace($oldSegment, $newSegment, $item['thumb']);
-        }
-    }
-    unset($item);
-    $data['items'] = $items;
-    return $data;
 }
 
 // Load existing header data with defaults.
@@ -202,12 +63,7 @@ function load_header_data($headerPath) {
             'duration' => 5
         ]
     ];
-    if (is_readable($headerPath)) {
-        $decoded = json_decode(file_get_contents($headerPath), true);
-        if (is_array($decoded)) {
-            $headerData = array_merge($headerData, $decoded);
-        }
-    }
+    $headerData = array_merge($headerData, lawnding_read_json($headerPath));
     if (empty($headerData['backgroundSettings']) || !is_array($headerData['backgroundSettings'])) {
         $headerData['backgroundSettings'] = [
             'mode' => 'random_load',
@@ -232,20 +88,14 @@ function parse_json_payload($payload, $errorMessage) {
 // Persist a JSON file with a standard encoding strategy.
 function write_json_file($path, $data, $errorMessage) {
     $encoded = json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
-    if (function_exists('lawnding_ensure_parent_dir')) {
-        lawnding_ensure_parent_dir($path);
-    }
-    if ($encoded === false || file_put_contents($path, $encoded) === false) {
+    if ($encoded === false || file_put_contents($path, $encoded, LOCK_EX) === false) {
         respond(['error' => $errorMessage], 500);
     }
 }
 
 // Persist plain text content to disk.
 function write_text_file($path, $content, $errorMessage) {
-    if (function_exists('lawnding_ensure_parent_dir')) {
-        lawnding_ensure_parent_dir($path);
-    }
-    if (file_put_contents($path, $content) === false) {
+    if (file_put_contents($path, $content, LOCK_EX) === false) {
         respond(['error' => $errorMessage], 500);
     }
 }
@@ -260,78 +110,57 @@ function validate_markdown_gating_or_fail(string $markdown, string $context): vo
     respond(['error' => $message . $suffix], 400);
 }
 
-// Require a valid CSRF token for state-changing requests.
-function require_csrf_token() {
-    $sessionToken = $_SESSION['csrf_token'] ?? '';
-    $postedToken = $_POST['csrf_token'] ?? '';
-    if (!is_string($sessionToken) || $sessionToken === '' || !is_string($postedToken) || $postedToken === '') {
-        respond(['error' => 'Forbidden'], 403);
-    }
-    if (!hash_equals($sessionToken, $postedToken)) {
-        respond(['error' => 'Forbidden'], 403);
-    }
-}
-
 // Endpoint accepts POST only.
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     respond(['error' => 'Method not allowed'], 405);
 }
 
 // Fail fast when the overall POST payload exceeds the PHP limit.
-$postMaxBytes = ini_size_to_bytes(ini_get('post_max_size'));
+$postMaxBytes = lawnding_ini_size_to_bytes(ini_get('post_max_size'));
 $contentLength = isset($_SERVER['CONTENT_LENGTH']) ? (int) $_SERVER['CONTENT_LENGTH'] : 0;
 if ($postMaxBytes > 0 && $contentLength > $postMaxBytes) {
     error_log('save-config.php: payload too large (' . $contentLength . ' bytes, limit ' . $postMaxBytes . ' bytes).');
     respond(['error' => 'Payload too large. Please reduce image sizes and try again.'], 413);
 }
 
-// Ensure the user is authenticated before processing updates.
-if (empty($_SESSION['auth_user'])) {
-    respond(['error' => 'Unauthorized'], 401);
-}
+// Resolve admin identity and enforce edit_site + CSRF. See admin/auth.php.
+$adminAuthPath = function_exists('lawnding_admin_path')
+    ? lawnding_admin_path('auth.php')
+    : dirname(__DIR__, 3) . '/admin/auth.php';
+require_once $adminAuthPath;
 
-// Load users.json and resolve the current user's permissions.
-$allowedPermissions = ['full_admin', 'add_users', 'edit_users', 'remove_users', 'edit_site'];
-$usersPath = function_exists('lawnding_config')
-    ? (function_exists('lawnding_runtime_file_path')
-        ? lawnding_runtime_file_path('users_path')
-        : lawnding_config('users_path', dirname(__DIR__, 3) . '/admin/users.json'))
-    : dirname(__DIR__, 3) . '/admin/users.json';
-$users = load_users($usersPath);
-$authUser = $_SESSION['auth_user'];
-$authRecord = find_user($users, $authUser);
-if (!$authRecord) {
-    respond(['error' => 'Unauthorized'], 401);
-}
-if (!empty($authRecord['read_only']) && empty($authRecord['master'])) {
-    respond(['error' => 'Forbidden'], 403);
-}
+$identity = lawnding_require_admin_mutation(
+    null,
+    function ($msg, $code) { respond(['error' => $msg], $code); }
+);
 
-// Site edits require either full admin or edit_site permission.
-$permissions = $authRecord['permissions'] ?? [];
-if (!is_array($permissions)) {
-    $permissions = [];
-}
-$permissions = array_values(array_intersect($permissions, $allowedPermissions));
-$isFullAdmin = !empty($authRecord['master']) || in_array('full_admin', $permissions, true);
-$canEditSite = $isFullAdmin || in_array('edit_site', $permissions, true);
-if (!$canEditSite) {
-    respond(['error' => 'Forbidden'], 403);
-}
+// Compat locals — preserved so the rest of save-config's action handlers
+// continue to read from familiar names.
+$authUser = $identity['authUser'];
+$authRecord = $identity['authRecord'];
+$permissions = $identity['context']['currentPermissions'];
+$isFullAdmin = $identity['context']['isFullAdmin'];
+$canEditSite = $identity['context']['canEditSite'];
 
-require_csrf_token();
-
-// Validate file uploads (size and PHP error codes).
+// Validate file uploads (size and PHP error codes). Enforces the app-level
+// upload cap on every $_FILES entry — covers pane icon uploads, logo, and
+// any future upload field added to this endpoint without per-field code.
+$appUploadMaxBytes = lawnding_app_upload_max_bytes();
+$appUploadMaxLabel = lawnding_app_upload_max_label();
 foreach ($_FILES as $upload) {
     if (!is_array($upload)) {
         continue;
     }
     $error = $upload['error'] ?? UPLOAD_ERR_OK;
     if ($error === UPLOAD_ERR_INI_SIZE || $error === UPLOAD_ERR_FORM_SIZE) {
-        respond(['error' => 'Upload too large. Images must be under 2MB.'], 413);
+        $phpLimit = ini_get('upload_max_filesize');
+        respond(['error' => 'Upload too large. Your server\'s PHP limit is ' . $phpLimit . 'B — increase upload_max_filesize in php.ini.'], 413);
     }
     if ($error !== UPLOAD_ERR_OK) {
         respond(['error' => 'Upload failed. Please try again.'], 400);
+    }
+    if ((int) ($upload['size'] ?? 0) > $appUploadMaxBytes) {
+        respond(['error' => 'Upload too large. Files must be under ' . $appUploadMaxLabel . '.'], 413);
     }
 }
 
@@ -346,13 +175,13 @@ $panesPath = $paths['panes_path'];
 $modulesDir = $paths['modules_dir'];
 $tgBotPath = function_exists('lawnding_runtime_file_path')
     ? lawnding_runtime_file_path('tg_bot_path')
-    : ($paths['admin_dir'] . '/lp-tgBot.json');
+    : $paths['admin_dir'] . '/lp-tgBot.json';
 
 // Load existing header data with defaults.
 $headerData = load_header_data($headerPath);
 
 // Load pane configuration for save map and reserved IDs.
-$panes = load_panes_config($panesPath);
+$panes = lawnding_load_panes($panesPath);
 $paneIds = array_values(array_filter(array_map(function ($pane) {
     return is_array($pane) ? ($pane['id'] ?? '') : '';
 }, $panes), function ($value) {
@@ -373,33 +202,9 @@ if ($backgroundDurationRaw !== null) {
     $backgroundDuration = $durationValue > 0 ? $durationValue : 5;
 }
 
-// Normalize stored asset paths into res/... form for consistent matching.
-function normalize_asset_path($path) {
-    if (!is_string($path) || $path === '') {
-        return $path;
-    }
-    if (preg_match('#^https?://#i', $path)) {
-        return $path;
-    }
-    $trimmed = ltrim($path, '/');
-    $baseUrl = function_exists('lawnding_config')
-        ? trim((string) lawnding_config('base_url', ''), '/')
-        : '';
-    if ($baseUrl !== '' && str_starts_with($trimmed, $baseUrl . '/res/')) {
-        return substr($trimmed, strlen($baseUrl) + 1);
-    }
-    if (str_starts_with($trimmed, 'public/res/')) {
-        return substr($trimmed, strlen('public/'));
-    }
-    if (str_starts_with($trimmed, 'res/')) {
-        return $trimmed;
-    }
-    return $path;
-}
-
 // Resolve a local logo path under res/img; returns null for non-local or unsafe paths.
 function resolve_local_logo_path($assetPath, $imgDir) {
-    $normalized = normalize_asset_path($assetPath);
+    $normalized = lawnding_normalize_asset_path($assetPath);
     if (!is_string($normalized) || $normalized === '') {
         return null;
     }
@@ -414,7 +219,7 @@ function resolve_local_logo_path($assetPath, $imgDir) {
         return null;
     }
     $relative = substr($trimmed, strlen('res/img/'));
-    if (!is_string($relative) || $relative === '') {
+    if ($relative === '') {
         return null;
     }
     if (preg_match('#(^|/)\.\.(/|$)#', $relative)) {
@@ -425,8 +230,8 @@ function resolve_local_logo_path($assetPath, $imgDir) {
 
 // Remove the previously configured logo file when a new logo path replaces it.
 function remove_replaced_logo_file($previousLogo, $newLogo, $imgDir) {
-    $previousNormalized = normalize_asset_path($previousLogo);
-    $newNormalized = normalize_asset_path($newLogo);
+    $previousNormalized = lawnding_normalize_asset_path($previousLogo);
+    $newNormalized = lawnding_normalize_asset_path($newLogo);
     if (!is_string($previousNormalized) || $previousNormalized === '') {
         return;
     }
@@ -503,29 +308,13 @@ function is_reserved_link_id($value, array $extra = []) {
     return in_array($value, $reserved, true);
 }
 
-// Load panes.json and return pane list (empty on invalid/missing).
-function load_panes_config($path) {
-    if (!is_readable($path)) {
-        return [];
-    }
-    $decoded = json_decode(file_get_contents($path), true);
-    if (!is_array($decoded) || !isset($decoded['panes']) || !is_array($decoded['panes'])) {
-        return [];
-    }
-    return $decoded['panes'];
-}
 
 // Load a module manifest by ID from admin/modules/<id>/<id>.json.
 function load_module_manifest($modulesDir, $moduleId) {
     if (!is_string($moduleId) || $moduleId === '') {
         return null;
     }
-    if (function_exists('lawnding_module_manifest_path')) {
-        $manifestPath = lawnding_module_manifest_path($moduleId);
-    } else {
-        $modulesDir = is_array($modulesDir) ? reset($modulesDir) : $modulesDir;
-        $manifestPath = rtrim((string) $modulesDir, '/\\') . '/' . $moduleId . '/' . $moduleId . '.json';
-    }
+    $manifestPath = rtrim($modulesDir, '/\\') . '/' . $moduleId . '/' . $moduleId . '.json';
     if (!is_readable($manifestPath)) {
         return null;
     }
@@ -619,20 +408,6 @@ function build_migration_plan(array $paths, string $modulesDir): array {
     ];
 }
 
-// Reject SVG that contains scripts or inline event handlers.
-function is_safe_svg($svg) {
-    if (!is_string($svg) || $svg === '') {
-        return false;
-    }
-    if (stripos($svg, '<script') !== false) {
-        return false;
-    }
-    if (preg_match('/\\son[a-z]+\\s*=\\s*["\']?/i', $svg)) {
-        return false;
-    }
-    return true;
-}
-
 // Validate pane IDs (camelCase alphanumeric).
 function is_valid_pane_id($value) {
     if (!is_string($value) || $value === '') {
@@ -641,56 +416,14 @@ function is_valid_pane_id($value) {
     return preg_match('/^[a-z][a-z0-9]*(?:[A-Z][a-z0-9]*)*$/', $value) === 1;
 }
 
-// Save a pane icon file upload under res/img/panes with a stable filename.
-function save_pane_icon($fileArray, $paneId, $iconDir) {
-    if (!isset($fileArray['tmp_name']) || !is_uploaded_file($fileArray['tmp_name'])) {
-        return null;
-    }
-    $finfo = finfo_open(FILEINFO_MIME_TYPE);
-    $mime = finfo_file($finfo, $fileArray['tmp_name']);
-    finfo_close($finfo);
-    if (strpos((string) $mime, 'image/') !== 0) {
-        return null;
-    }
-    $ext = strtolower(pathinfo($fileArray['name'], PATHINFO_EXTENSION));
-    $ext = preg_replace('/[^a-z0-9]/i', '', $ext);
-    $base = preg_replace('/[^a-z0-9]/i', '', (string) $paneId);
-    if ($base === '') {
-        return null;
-    }
-    if ($ext === '') {
-        $ext = 'png';
-    }
-    if (!is_dir($iconDir)) {
-        mkdir($iconDir, 0755, true);
-    }
-    $filename = $base . '.' . $ext;
-    $targetPath = rtrim($iconDir, '/\\') . '/' . $filename;
-    if (!move_uploaded_file($fileArray['tmp_name'], $targetPath)) {
-        return null;
-    }
-    return $filename;
-}
-
 // Validate and save an uploaded image; returns relative path.
 function save_image($fileArray, $destName) {
     global $imgDir;
-    if (!isset($fileArray['tmp_name']) || !is_uploaded_file($fileArray['tmp_name'])) {
+    $result = lawnding_validate_and_save_image($fileArray, $imgDir, $destName, 256, 256, lawnding_image_mime_map());
+    if (!$result['ok']) {
         return null;
     }
-    $finfo = finfo_open(FILEINFO_MIME_TYPE);
-    $mime = finfo_file($finfo, $fileArray['tmp_name']);
-    finfo_close($finfo);
-    if (strpos($mime, 'image/') !== 0) {
-        return null;
-    }
-    $ext = strtolower(pathinfo($fileArray['name'], PATHINFO_EXTENSION));
-    $safeName = $destName ? $destName . ($ext ? '.' . $ext : '') : basename($fileArray['name']);
-    $targetPath = $imgDir . $safeName;
-    if (!move_uploaded_file($fileArray['tmp_name'], $targetPath)) {
-        return null;
-    }
-    return 'res/img/' . $safeName;
+    return 'res/img/' . $result['filename'];
 }
 
 // Gather POST data and JSON payloads.
@@ -703,6 +436,7 @@ $backgroundsJson = $_POST['backgrounds'] ?? null;
 $backgroundAuthorsJson = $_POST['backgroundAuthors'] ?? null;
 $panePayload = $_POST['pane'] ?? null;
 $panesPayload = $_POST['panes'] ?? null;
+$siteConfigPayload = $_POST['siteConfig'] ?? null;
 
 // Parse and validate JSON payloads.
 $linksData = parse_json_payload($linksJson, 'Invalid links payload');
@@ -749,24 +483,14 @@ function normalize_tg_bot_payload($payload): array {
     $defaults = [
         'bot_username' => '',
         'bot_token' => '',
+        'webhook_secret_token' => '',
         'group_ids' => [],
         'whitelist_user_ids' => [],
         'blacklist_user_ids' => [],
         'membership_cache_ttl_minutes' => 30,
-        'unauthorized_message' => 'Unable to display member links.  Join the telegram group with the link above, or contact an admin for assistance.',
+        'unauthorized_message' => 'Login failed: you must be a member of a configured Telegram group to access this site.',
     ];
-    if (!is_array($payload)) {
-        return $defaults;
-    }
-    $username = isset($payload['bot_username']) ? trim((string) $payload['bot_username']) : '';
-    $username = ltrim($username, '@');
-    $token = isset($payload['bot_token']) ? trim((string) $payload['bot_token']) : '';
-    $ttl = isset($payload['membership_cache_ttl_minutes']) ? (int) $payload['membership_cache_ttl_minutes'] : 30;
-    $ttl = $ttl > 0 ? $ttl : 30;
-    $message = isset($payload['unauthorized_message']) ? trim((string) $payload['unauthorized_message']) : '';
-    $message = $message !== '' ? $message : $defaults['unauthorized_message'];
     $normalizeUserIds = function ($values): array {
-        $userIds = [];
         $entriesById = [];
         $userOrder = [];
         if (!is_array($values)) {
@@ -794,16 +518,32 @@ function normalize_tg_bot_payload($payload): array {
                 $entriesById[$userId]['content'] = 'NSFW';
             }
         }
+        $userIds = [];
         foreach ($userOrder as $userId) {
             if (isset($entriesById[$userId])) {
                 $userIds[] = $entriesById[$userId];
             }
         }
-        usort($userIds, function ($a, $b) {
-            return strnatcmp((string) ($a['id'] ?? ''), (string) ($b['id'] ?? ''));
-        });
+        usort($userIds, fn($a, $b) => strnatcmp($a['id'], $b['id']));
         return $userIds;
     };
+    if (!is_array($payload)) {
+        return $defaults;
+    }
+    $username = isset($payload['bot_username']) ? trim((string) $payload['bot_username']) : '';
+    $username = ltrim($username, '@');
+    $token = isset($payload['bot_token']) ? trim((string) $payload['bot_token']) : '';
+    $ttl = isset($payload['membership_cache_ttl_minutes']) ? (int) $payload['membership_cache_ttl_minutes'] : 30;
+    $ttl = $ttl > 0 ? $ttl : 30;
+    $message = isset($payload['unauthorized_message']) ? trim((string) $payload['unauthorized_message']) : '';
+    $message = $message !== '' ? $message : $defaults['unauthorized_message'];
+    // Allowlist for per-group admin perms. Stays in sync with
+    // lawnding_tg_eligible_permissions() via tg-auth.php (loaded from the
+    // public side; this endpoint also runs after lp-bootstrap so it's available).
+    $eligiblePermissions = function_exists('lawnding_tg_eligible_permissions')
+        ? lawnding_tg_eligible_permissions()
+        : ['edit_site', 'add_users', 'edit_users', 'remove_users'];
+    $rejectedPermissions = [];
     $groupIds = [];
     $entriesById = [];
     $groupOrder = [];
@@ -811,37 +551,75 @@ function normalize_tg_bot_payload($payload): array {
         foreach ($payload['group_ids'] as $value) {
             $groupId = '';
             $content = 'SFW';
+            $permissions = [];
             if (is_string($value)) {
                 $groupId = trim($value);
             } elseif (is_array($value)) {
                 $groupId = isset($value['id']) ? trim((string) $value['id']) : '';
                 $rawContent = isset($value['content']) ? strtoupper(trim((string) $value['content'])) : 'SFW';
                 $content = $rawContent === 'NSFW' ? 'NSFW' : 'SFW';
+                if (isset($value['permissions']) && is_array($value['permissions'])) {
+                    foreach ($value['permissions'] as $perm) {
+                        if (!is_string($perm)) {
+                            continue;
+                        }
+                        $perm = trim($perm);
+                        if ($perm === '') {
+                            continue;
+                        }
+                        if (!in_array($perm, $eligiblePermissions, true)) {
+                            // Save side errors loudly (vs silent drop on load) so
+                            // admins know their input was rejected. full_admin
+                            // and the master flag are intentionally bcrypt-only.
+                            $rejectedPermissions[] = ['group' => $groupId, 'perm' => $perm];
+                            continue;
+                        }
+                        if (!in_array($perm, $permissions, true)) {
+                            $permissions[] = $perm;
+                        }
+                    }
+                }
             }
             if ($groupId === '') {
                 continue;
             }
             if (!isset($entriesById[$groupId])) {
                 $groupOrder[] = $groupId;
-                $entriesById[$groupId] = ['id' => $groupId, 'content' => $content];
+                $entriesById[$groupId] = ['id' => $groupId, 'content' => $content, 'permissions' => $permissions];
                 continue;
             }
             if ($content === 'NSFW') {
                 $entriesById[$groupId]['content'] = 'NSFW';
             }
+            foreach ($permissions as $perm) {
+                if (!in_array($perm, $entriesById[$groupId]['permissions'], true)) {
+                    $entriesById[$groupId]['permissions'][] = $perm;
+                }
+            }
         }
+    }
+    if (!empty($rejectedPermissions)) {
+        $details = array_map(function ($item) {
+            $group = $item['group'] !== '' ? $item['group'] : '(unset)';
+            return $item['perm'] . ' (group ' . $group . ')';
+        }, $rejectedPermissions);
+        respond([
+            'error' => 'Telegram bot config: the following permissions are not allowed: '
+                . implode(', ', $details)
+                . '. Eligible: ' . implode(', ', $eligiblePermissions) . '.',
+        ], 400);
     }
     foreach ($groupOrder as $groupId) {
         if (isset($entriesById[$groupId])) {
             $groupIds[] = $entriesById[$groupId];
         }
     }
-    usort($groupIds, function ($a, $b) {
-        return strnatcmp((string) ($a['id'] ?? ''), (string) ($b['id'] ?? ''));
-    });
+    usort($groupIds, fn($a, $b) => strnatcmp($a['id'], $b['id']));
+    $secretToken = isset($payload['webhook_secret_token']) ? trim((string) $payload['webhook_secret_token']) : '';
     return [
         'bot_username' => $username,
         'bot_token' => $token,
+        'webhook_secret_token' => $secretToken,
         'group_ids' => $groupIds,
         'whitelist_user_ids' => $normalizeUserIds($payload['whitelist_user_ids'] ?? []),
         'blacklist_user_ids' => $normalizeUserIds($payload['blacklist_user_ids'] ?? []),
@@ -914,17 +692,27 @@ if ($action === 'pane_management') {
         $iconType = isset($icon['type']) ? (string) $icon['type'] : 'none';
         $iconValue = isset($icon['value']) ? (string) $icon['value'] : '';
         if ($iconType === 'svg') {
-            if (is_string($iconValue) && $iconValue !== '') {
+            if ($iconValue !== '') {
                 $iconValue = preg_replace('/<title[^>]*>[\\s\\S]*?<\\/title>/i', '', $iconValue);
             }
-            if (!is_safe_svg($iconValue)) {
+            if (!lawnding_is_safe_svg($iconValue)) {
                 respond(['error' => 'Invalid SVG icon for pane ' . $name . '.'], 400);
             }
         } elseif ($iconType === 'file') {
             $iconValue = basename($iconValue);
         } else {
-            $iconType = 'none';
-            $iconValue = '';
+            // No icon picked by the admin. Fall back to the module's
+            // default_icon from its manifest so newly-created panes
+            // show up on the navbar with a sensible icon out of the
+            // box. Admin can overwrite later in the pane icon editor.
+            $defaultIcon = lawnding_module_default_icon($moduleId);
+            if ($defaultIcon !== '' && lawnding_is_safe_svg($defaultIcon)) {
+                $iconType = 'svg';
+                $iconValue = $defaultIcon;
+            } else {
+                $iconType = 'none';
+                $iconValue = '';
+            }
         }
 
         $dataFiles = [];
@@ -997,35 +785,30 @@ if ($action === 'pane_management') {
                     }
                 }
             }
-            if ($currentModule === 'mediaGallery') {
-                $oldDir = media_gallery_dir($paths['data_dir'], $prevId);
-                $newDir = media_gallery_dir($paths['data_dir'], $currentId);
-                if (is_dir($oldDir) && !is_dir($newDir)) {
-                    rename($oldDir, $newDir);
-                }
-                $jsonFile = '';
-                if (is_array($oldData)) {
-                    foreach ($oldData as $entry) {
-                        if (!is_array($entry)) {
-                            continue;
-                        }
-                        $type = isset($entry['type']) ? (string) $entry['type'] : '';
-                        $pattern = isset($entry['pattern']) ? (string) $entry['pattern'] : '';
-                        if ($type === 'json' && $pattern !== '') {
-                            $jsonFile = resolve_pane_filename($pattern, $currentId);
-                            break;
-                        }
-                    }
-                }
-                if ($jsonFile !== '') {
-                    $jsonPath = rtrim($paths['data_dir'], '/\\') . '/' . $jsonFile;
-                    if (is_readable($jsonPath)) {
-                        $decoded = json_decode((string) file_get_contents($jsonPath), true);
-                        if (is_array($decoded)) {
-                            $updated = media_gallery_update_paths($decoded, $prevId, $currentId);
-                            write_json_file($jsonPath, $updated, 'Failed to update media gallery paths for ' . $currentId . '.');
-                        }
-                    }
+            // Generic per-pane content-dir rename for any module that
+            // declares pane_content_dir in its manifest.
+            $oldContentDir = lawnding_module_pane_content_dir($currentModule, $prevId);
+            $newContentDir = lawnding_module_pane_content_dir($currentModule, $currentId);
+            if ($oldContentDir !== '' && $newContentDir !== '' && is_dir($oldContentDir) && !is_dir($newContentDir)) {
+                rename($oldContentDir, $newContentDir);
+            }
+            // Module-declared on_rename callback: for modules that store
+            // their pane id inside their data files (e.g. mediaGallery's
+            // items.json carries asset paths under mediaGalleryContent-
+            // <paneId>/), this callback rewrites those references after
+            // the dir-rename above.
+            $renameCallback = lawnding_module_on_rename_callback($currentModule);
+            if ($renameCallback !== '') {
+                lawnding_module_load_helpers($currentModule);
+                if (function_exists($renameCallback)) {
+                    // $oldManifest === $newManifest here since this branch
+                    // is gated on $prevModule === $currentModule. If the
+                    // contract ever expands to fire on_rename across module
+                    // changes, revisit which manifest the callback expects.
+                    $renameCallback($prevId, $currentId, [
+                        'data_dir' => $paths['data_dir'],
+                        'manifest' => $oldManifest,
+                    ]);
                 }
             }
         }
@@ -1052,9 +835,32 @@ if ($action === 'pane_management') {
                     }
                 }
             }
-            if ($prevModule === 'mediaGallery') {
-                $oldDir = media_gallery_dir($paths['data_dir'], $prevId);
-                media_gallery_remove_dir($oldDir);
+            // Generic content-dir cleanup for the previous module if it
+            // declared pane_content_dir.
+            $oldContentDir = lawnding_module_pane_content_dir($prevModule, $prevId);
+            if ($oldContentDir !== '') {
+                lawnding_remove_directory($oldContentDir);
+            }
+        }
+
+        // Modules that declare pane_content_dir get their per-pane dir
+        // created eagerly on pane creation so subsequent write_json_file()
+        // calls (initializing data_files below) don't fail with ENOENT.
+        $contentDir = lawnding_module_pane_content_dir($currentModule, $currentId);
+        if ($contentDir !== '' && !is_dir($contentDir)) {
+            mkdir($contentDir, 0775, true);
+        }
+        // Modules that declare per_pane_settings get a sidecar settings.json
+        // pre-seeded with the canonical default (useSiteDefaults: true).
+        // The resolver behavior is unchanged (absent file == useSiteDefaults
+        // true), but having the file present makes it obvious the pane is
+        // wired up and saves consistently across admin sessions.
+        if (!empty(lawnding_module_per_pane_settings($currentModule))) {
+            $settingsPath = lawnding_module_settings_path($currentModule, $currentId);
+            if ($settingsPath !== '' && !is_readable($settingsPath)) {
+                if (!lawnding_save_pane_settings($settingsPath, ['useSiteDefaults' => true])) {
+                    respond(['error' => 'Failed to initialize pane settings for ' . $currentId . '.'], 500);
+                }
             }
         }
 
@@ -1077,18 +883,20 @@ if ($action === 'pane_management') {
                 $path = rtrim($paths['data_dir'], '/\\') . '/' . $file;
                 if (!is_readable($path)) {
                     if ($type === 'json') {
-                        $payload = $currentModule === 'mediaGallery' ? ['items' => []] : new stdClass();
+                        // Manifest may declare an `initial` payload per
+                        // data_files entry; fall back to an empty object
+                        // when none is declared. Note: json_decode('{}',
+                        // true) === [], so an empty {} initial in the
+                        // manifest re-encodes as []. Modules needing
+                        // exact {} preservation should declare a non-
+                        // empty initial.
+                        $initial = lawnding_module_data_file_initial($currentModule, $pattern);
+                        $payload = is_array($initial) ? $initial : new stdClass();
                         write_json_file($path, $payload, 'Failed to initialize pane data for ' . $currentId . '.');
                     } else {
                         write_text_file($path, '', 'Failed to initialize pane data for ' . $currentId . '.');
                     }
                 }
-            }
-        }
-        if ($currentModule === 'mediaGallery') {
-            $mediaDir = media_gallery_dir($paths['data_dir'], $currentId);
-            if (!is_dir($mediaDir)) {
-                mkdir($mediaDir, 0775, true);
             }
         }
     }
@@ -1118,9 +926,12 @@ if ($action === 'pane_management') {
                 }
             }
         }
-        if ($removedModule === 'mediaGallery' && is_string($removedId) && $removedId !== '') {
-            $mediaDir = media_gallery_dir($paths['data_dir'], $removedId);
-            media_gallery_remove_dir($mediaDir);
+        // Generic content-dir cleanup for any module with pane_content_dir.
+        if (is_string($removedId) && $removedId !== '') {
+            $contentDir = lawnding_module_pane_content_dir($removedModule, (string) $removedId);
+            if ($contentDir !== '') {
+                lawnding_remove_directory($contentDir);
+            }
         }
     }
 
@@ -1129,12 +940,12 @@ if ($action === 'pane_management') {
     foreach ($newPanes as &$pane) {
         $paneId = $pane['id'];
         $icon = $pane['icon'];
-        $iconType = $icon['type'] ?? 'none';
+        $iconType = $icon['type'];
         $iconValue = $icon['value'] ?? '';
         if ($iconType === 'file') {
             $fileKey = 'paneIconFile_' . $paneId;
             if (isset($_FILES[$fileKey])) {
-                $saved = save_pane_icon($_FILES[$fileKey], $paneId, $paneIconDir);
+                $saved = lawnding_save_pane_icon_upload($_FILES[$fileKey], $paneId, $paneIconDir);
                 if ($saved) {
                     $iconValue = $saved;
                 }
@@ -1281,11 +1092,22 @@ if (is_array($backgroundsData)) {
                 ];
             }
         } elseif ($existingUrl) {
-            $newBackgrounds[] = [
-                'url' => normalize_asset_path($existingUrl),
-                'author' => $author,
-                'authorUrl' => $authorUrl,
-            ];
+            $normalizedUrl = lawnding_normalize_asset_path($existingUrl);
+            $entry = ['url' => $normalizedUrl, 'author' => $author, 'authorUrl' => $authorUrl];
+            // Preserve size data stored on upload by looking up the existing record.
+            $existing = $headerData['backgrounds'] ?? [];
+            foreach ($existing as $existingBg) {
+                if (is_array($existingBg) && ($existingBg['url'] ?? '') === $normalizedUrl) {
+                    if (isset($existingBg['original_size'])) {
+                        $entry['original_size'] = (int) $existingBg['original_size'];
+                    }
+                    if (isset($existingBg['saved_size'])) {
+                        $entry['saved_size'] = (int) $existingBg['saved_size'];
+                    }
+                    break;
+                }
+            }
+            $newBackgrounds[] = $entry;
         }
     }
 }
@@ -1299,7 +1121,7 @@ if (is_array($backgroundAuthors)) {
             continue;
         }
         $index = isset($entry['index']) ? (int) $entry['index'] : null;
-        $url = normalize_asset_path($entry['url'] ?? '');
+        $url = lawnding_normalize_asset_path($entry['url'] ?? '');
         $author = $entry['author'] ?? '';
         $authorUrl = $entry['authorUrl'] ?? '';
         $authorUrl = is_string($authorUrl) ? trim($authorUrl) : '';
@@ -1469,7 +1291,16 @@ if (is_array($panePayload)) {
             }
             $targetPath = rtrim($paths['data_dir'], '/\\') . '/' . $filename;
             $value = $panePayload[$paneId][$key];
-            if ($moduleId === 'mediaGallery' && $key === 'mediaChanges') {
+            // Manifest-declared save_map validator: when an entry carries
+            // a `validator` callback name, the module owns the merge
+            // logic. Core validates the JSON envelope, loads the existing
+            // file with the manifest's `initial` as fallback, then hands
+            // the merge to the callback. Used today for mediaGallery's
+            // mediaChanges payload (pure-add updates merge into existing
+            // items.json), reusable by any future module needing custom
+            // diff/merge semantics.
+            $validator = isset($entry['validator']) ? (string) $entry['validator'] : '';
+            if ($validator !== '') {
                 $value = (string) $value;
                 if (trim($value) === '') {
                     continue;
@@ -1478,14 +1309,19 @@ if (is_array($panePayload)) {
                 if (!is_array($decoded)) {
                     respond(['error' => 'Invalid JSON for pane ' . $paneId . '.'], 400);
                 }
-                $existing = ['items' => []];
+                lawnding_module_load_helpers($moduleId);
+                if (!function_exists($validator)) {
+                    respond(['error' => 'Internal error: missing validator ' . $validator . ' for pane ' . $paneId . '.'], 500);
+                }
+                $initial = lawnding_module_data_file_initial($moduleId, $pattern);
+                $existing = is_array($initial) ? $initial : [];
                 if (is_readable($targetPath)) {
                     $currentDecoded = json_decode((string) file_get_contents($targetPath), true);
                     if (is_array($currentDecoded)) {
                         $existing = $currentDecoded;
                     }
                 }
-                $updated = media_gallery_apply_changes($existing, $decoded);
+                $updated = $validator($existing, $decoded);
                 write_json_file($targetPath, $updated, 'Failed to write pane data for ' . $paneId . '.');
                 continue;
             }
@@ -1503,28 +1339,6 @@ if (is_array($panePayload)) {
                         'openMode' => $openMode,
                         'iconMode' => $iconMode,
                     ];
-                }
-                if ($moduleId === 'eventList' && $key === 'events') {
-                    $decoded['showPast'] = !empty($decoded['showPast']);
-                    $decoded['showCalendar'] = !empty($decoded['showCalendar']);
-                    $decoded['calendarDefault'] = !array_key_exists('calendarDefault', $decoded) || !empty($decoded['calendarDefault']);
-                    $events = $decoded['events'] ?? [];
-                    if (!is_array($events)) {
-                        respond(['error' => 'Invalid events payload for pane ' . $paneId . '.'], 400);
-                    }
-                    foreach ($events as $eventIndex => $event) {
-                        if (!is_array($event)) {
-                            continue;
-                        }
-                        $description = $event['description'] ?? '';
-                        if (!is_string($description) || $description === '') {
-                            continue;
-                        }
-                        $eventLabel = isset($event['id']) && is_string($event['id']) && $event['id'] !== ''
-                            ? $event['id']
-                            : ('event #' . ((int) $eventIndex + 1));
-                        validate_markdown_gating_or_fail($description, 'pane ' . $paneId . ', ' . $eventLabel);
-                    }
                 }
                 write_json_file($targetPath, $decoded, 'Failed to write pane data for ' . $paneId . '.');
             } else {
@@ -1573,7 +1387,7 @@ if ($backgroundMode !== null || $backgroundDuration !== null) {
 }
 
 if ($headerChanged) {
-    $headerData['logo'] = normalize_asset_path($headerData['logo'] ?? '');
+    $headerData['logo'] = lawnding_normalize_asset_path($headerData['logo'] ?? '');
     write_json_file($headerPath, $headerData, 'Failed to write header data');
 }
 if (is_array($linksOut)) {
@@ -1592,8 +1406,65 @@ if (is_array($authLinksOut)) {
 
 if (is_array($tgBotData)) {
     $normalized = normalize_tg_bot_payload($tgBotData);
+    // Lazy-generate webhook_secret_token: preserve existing, generate on
+    // first save with a bot_token, clear when bot_token cleared. Flash
+    // warns admin to re-register — Telegram deliveries reject otherwise.
+    $existingTgBot = is_readable($tgBotPath) ? lawnding_read_json($tgBotPath) : [];
+    $existingSecret = is_string($existingTgBot['webhook_secret_token'] ?? null)
+        ? trim($existingTgBot['webhook_secret_token']) : '';
+    $secretFreshlyGenerated = false;
+    if ($normalized['bot_token'] !== '') {
+        if ($existingSecret !== '' && $normalized['webhook_secret_token'] === '') {
+            $normalized['webhook_secret_token'] = $existingSecret;
+        } elseif ($normalized['webhook_secret_token'] === '') {
+            $normalized['webhook_secret_token'] = bin2hex(random_bytes(32));
+            $secretFreshlyGenerated = true;
+        }
+    } else {
+        $normalized['webhook_secret_token'] = '';
+    }
     write_json_file($tgBotPath, $normalized, 'Failed to write Telegram bot data');
+    if ($secretFreshlyGenerated && function_exists('lawnding_flash_set')) {
+        lawnding_flash_set('warning', 'Webhook secret_token generated. Re-register the webhook (curl snippet in AUTH LINKS) so Telegram delivers the new header — until then, incoming updates are silently rejected.');
+    }
+}
+
+// Site Config: walk the canonical defaults and mirror each key's checkbox
+// state from the POSTed siteConfigPayload. Unsubmitted checkboxes mean
+// false (HTML form semantics); unrecognized keys in the payload are
+// dropped (defense against tampering or stale clients posting old keys).
+// Gated on edit_site for now (matches the form's render gate); tighten to
+// full_admin if these flags ever drive security-sensitive behavior. The
+// hidden __rendered marker ensures the block fires even when the admin
+// unchecks all boxes (otherwise $_POST['siteConfig'] would be absent and
+// the save would no-op, leaving stale values on disk).
+if (is_array($siteConfigPayload) && !empty($siteConfigPayload['__rendered']) && !empty($canEditSite)) {
+    $defaults = lawnding_site_config_defaults();
+    $merged = $defaults;
+    foreach ($defaults as $module => $flags) {
+        $submitted = is_array($siteConfigPayload[$module] ?? null) ? $siteConfigPayload[$module] : [];
+        foreach ($flags as $key => $defaultValue) {
+            // Type-dispatch parsing: bools take HTML form's checkbox semantics
+            // (unsubmitted == false). Ints take the posted numeric, falling
+            // back to the default if missing or non-numeric. Min 1 floor on
+            // ints so a 0 doesn't accidentally disable the feature.
+            if (is_bool($defaultValue)) {
+                $merged[$module][$key] = !empty($submitted[$key]);
+            } elseif (is_int($defaultValue)) {
+                $raw = $submitted[$key] ?? null;
+                $value = (is_numeric($raw)) ? (int) $raw : $defaultValue;
+                $merged[$module][$key] = max(1, $value);
+            }
+        }
+    }
+    if (!lawnding_save_site_config($merged)) {
+        respond(['error' => 'Failed to write site config'], 500);
+    }
 }
 
 // All operations succeeded.
-respond(['status' => 'ok']);
+$saveResponse = ['status' => 'ok'];
+if (!extension_loaded('gd')) {
+    $saveResponse['gd_unavailable'] = true;
+}
+respond($saveResponse);

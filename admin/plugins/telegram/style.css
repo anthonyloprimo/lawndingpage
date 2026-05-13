@@ -1,0 +1,107 @@
+/* Telegram header auth area: chip + logout icon, positioned top-right of <header>. */
+.header { position: relative; }
+
+.tgHeaderAuth {
+    position: absolute;
+    top: 12px;
+    right: 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 8px;
+    z-index: 10;
+}
+
+.tgHeaderAuthRow {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.tgHeaderChip {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 12px 4px 4px;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(6px);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: #fff;
+    max-width: 240px;
+}
+
+.tgHeaderAvatar {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.tgHeaderName {
+    font-size: 13px;
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.tgHeaderLogout {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(6px);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: #fff;
+    text-decoration: none;
+    transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.tgHeaderLogout:hover,
+.tgHeaderLogout:focus-visible {
+    background: rgba(255, 80, 80, 0.4);
+    border-color: rgba(255, 120, 120, 0.6);
+}
+
+.tgHeaderLogout svg {
+    width: 18px;
+    height: 18px;
+    fill: currentColor;
+}
+
+.tgHeaderAdmin {
+    display: inline-flex;
+    align-items: center;
+    padding: 6px 14px;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(6px);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: #fff;
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 500;
+    transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.tgHeaderAdmin:hover,
+.tgHeaderAdmin:focus-visible {
+    background: rgba(80, 160, 255, 0.4);
+    border-color: rgba(120, 180, 255, 0.6);
+}
+
+/* Mobile: hide the name to save space. */
+@media (max-width: 600px) {
+    .tgHeaderName {
+        display: none;
+    }
+    .tgHeaderChip {
+        padding: 4px;
+    }
+}

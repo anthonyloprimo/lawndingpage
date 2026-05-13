@@ -34,7 +34,7 @@ if ($paneId === '' || $jsonFile === '') {
 
 $jsonPath = function_exists('lawnding_data_path')
     ? lawnding_data_path($jsonFile)
-    : __DIR__ . '/../../data/public/res/data/' . $jsonFile;
+    : __DIR__ . '/../../public/res/data/' . $jsonFile;
 
 $raw = is_readable($jsonPath) ? file_get_contents($jsonPath) : '';
 $decoded = $raw !== '' ? json_decode($raw, true) : null;
@@ -59,8 +59,11 @@ foreach ($items as $item) {
     }
     $file = isset($item['file']) ? (string) $item['file'] : '';
     $thumb = isset($item['thumb']) ? (string) $item['thumb'] : '';
-    $item['file'] = function_exists('lawnding_instance_asset_url') ? lawnding_instance_asset_url($file) : $file;
-    $item['thumb'] = function_exists('lawnding_instance_asset_url') ? lawnding_instance_asset_url($thumb) : $thumb;
+    // Versioned URLs append ?v=<filemtime> when the file is local under
+    // public/res/ -- so freshly regenerated thumbs render the new bytes
+    // on next page load instead of a stale cached copy.
+    $item['file'] = function_exists('lawnding_versioned_local_asset_url') ? lawnding_versioned_local_asset_url($file) : $file;
+    $item['thumb'] = function_exists('lawnding_versioned_local_asset_url') ? lawnding_versioned_local_asset_url($thumb) : $thumb;
     $itemsForJson[] = $item;
 }
 
@@ -81,13 +84,13 @@ if ($itemsJson === false) {
                 $itemFile = isset($item['file']) ? (string) $item['file'] : '';
                 $itemThumb = isset($item['thumb']) ? (string) $item['thumb'] : '';
                 $itemTitle = isset($item['title']) ? (string) $item['title'] : '';
-                $itemFileUrl = function_exists('lawnding_instance_asset_url') ? lawnding_instance_asset_url($itemFile) : $itemFile;
+                $itemFileUrl = function_exists('lawnding_versioned_local_asset_url') ? lawnding_versioned_local_asset_url($itemFile) : $itemFile;
                 $thumbPath = $itemThumb !== '' ? $itemThumb : ($itemType === 'image' ? $itemFile : '');
-                $thumbUrl = $thumbPath !== '' && function_exists('lawnding_instance_asset_url') ? lawnding_instance_asset_url($thumbPath) : $thumbPath;
+                $thumbUrl = $thumbPath !== '' && function_exists('lawnding_versioned_local_asset_url') ? lawnding_versioned_local_asset_url($thumbPath) : $thumbPath;
             ?>
             <a class="mediaGalleryPublicItem<?php echo $itemType === 'video' ? ' isVideo' : ''; ?>" href="<?php echo htmlspecialchars($itemFileUrl); ?>" data-media-id="<?php echo htmlspecialchars($itemId); ?>" data-media-type="<?php echo htmlspecialchars($itemType); ?>" data-media-file="<?php echo htmlspecialchars($itemFileUrl); ?>" data-media-thumb="<?php echo htmlspecialchars($itemThumb); ?>" data-media-title="<?php echo htmlspecialchars($itemTitle); ?>">
                 <?php if ($thumbUrl !== ''): ?>
-                    <img class="mediaGalleryPublicThumb" src="<?php echo htmlspecialchars($thumbUrl); ?>" alt="">
+                    <img class="mediaGalleryPublicThumb" src="<?php echo htmlspecialchars($thumbUrl); ?>" alt="<?php echo htmlspecialchars($itemTitle); ?>" loading="lazy" decoding="async">
                 <?php endif; ?>
                 <span class="mediaGalleryPublicLabel" aria-hidden="true"></span>
             </a>
@@ -98,15 +101,15 @@ if ($itemsJson === false) {
 
     <div class="mediaGalleryLightbox" id="mediaGalleryLightbox-<?php echo htmlspecialchars($paneId); ?>" aria-hidden="true">
         <div class="mediaGalleryLightboxBackdrop" data-lightbox-close></div>
-        <div class="mediaGalleryLightboxContent" role="dialog" aria-modal="true" aria-label="Media viewer">
+        <div class="mediaGalleryLightboxContent" role="dialog" aria-modal="true" aria-label="Media viewer" aria-describedby="mediaGalleryLightboxCaption-<?php echo htmlspecialchars($paneId); ?>">
             <button class="mediaGalleryLightboxClose" type="button" aria-label="Close">×</button>
             <button class="mediaGalleryLightboxNav mediaGalleryLightboxPrev" type="button" aria-label="Previous">‹</button>
             <button class="mediaGalleryLightboxNav mediaGalleryLightboxNext" type="button" aria-label="Next">›</button>
             <div class="mediaGalleryLightboxMedia">
-                <img class="mediaGalleryLightboxImage" alt="">
+                <img class="mediaGalleryLightboxImage" alt="" decoding="async">
                 <video class="mediaGalleryLightboxVideo" controls playsinline></video>
             </div>
-            <div class="mediaGalleryLightboxCaption"></div>
+            <div class="mediaGalleryLightboxCaption" id="mediaGalleryLightboxCaption-<?php echo htmlspecialchars($paneId); ?>"></div>
         </div>
     </div>
 </div>

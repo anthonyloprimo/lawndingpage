@@ -6,16 +6,30 @@ if (!isset($pane) || !is_array($pane)) {
     return;
 }
 
-// Inject public styles once per request.
-static $eventListPublicStylesInjected = false;
-if (!$eventListPublicStylesInjected) {
-    $eventListPublicStylesInjected = true;
+// Inject public styles/scripts once per request.
+static $eventListPublicAssetsInjected = false;
+if (!$eventListPublicAssetsInjected) {
+    $eventListPublicAssetsInjected = true;
     $styleUrl = function_exists('lawnding_asset_url')
         ? lawnding_asset_url('res/scr/module-style.php?module=eventList')
         : '/res/scr/module-style.php?module=eventList';
     echo '<link rel="stylesheet" href="'
         . htmlspecialchars($styleUrl, ENT_QUOTES, 'UTF-8')
         . '">';
+
+    $coreScriptUrl = function_exists('lawnding_asset_url')
+        ? lawnding_asset_url('res/scr/module-script.php?module=eventList&file=eventlist-core.js')
+        : '/res/scr/module-script.php?module=eventList&file=eventlist-core.js';
+    echo '<script src="'
+        . htmlspecialchars($coreScriptUrl, ENT_QUOTES, 'UTF-8')
+        . '" defer></script>';
+
+    $scriptUrl = function_exists('lawnding_asset_url')
+        ? lawnding_asset_url('res/scr/module-script.php?module=eventList&file=public.js')
+        : '/res/scr/module-script.php?module=eventList&file=public.js';
+    echo '<script src="'
+        . htmlspecialchars($scriptUrl, ENT_QUOTES, 'UTF-8')
+        . '" defer></script>';
 }
 
 // Pane metadata used for IDs and data file resolution.
@@ -29,32 +43,42 @@ if ($paneId === '' || $jsonFile === '') {
 
 $jsonPath = function_exists('lawnding_data_path')
     ? lawnding_data_path($jsonFile)
-    : __DIR__ . '/../../data/public/res/data/' . $jsonFile;
+    : __DIR__ . '/../../public/res/data/' . $jsonFile;
 
 $raw = is_readable($jsonPath) ? file_get_contents($jsonPath) : '';
 $decoded = $raw !== '' ? json_decode($raw, true) : null;
 if (!is_array($decoded)) {
     $decoded = [];
 }
-$showPast = !empty($decoded['showPast']);
-$showCalendar = !empty($decoded['showCalendar']);
-$calendarDefault = !array_key_exists('calendarDefault', $decoded) || !empty($decoded['calendarDefault']);
 $events = $decoded['events'] ?? [];
 if (!is_array($events)) {
     $events = [];
 }
 
+require_once __DIR__ . '/helpers.php';
+$categories = event_list_load_categories();
+
+// View-state flags live in the per-pane settings sidecar (v1.16.0+);
+// resolver falls back to lp-siteConfig defaults when no override.
+$settingsPath = function_exists('lawnding_module_settings_path')
+    ? lawnding_module_settings_path('eventList', $paneId)
+    : '';
+$paneSettings = $settingsPath !== '' ? lawnding_load_pane_settings($settingsPath) : [];
+$showCalendar    = lawnding_resolve_pane_setting($paneSettings, 'eventList', 'showCalendar');
+$calendarDefault = lawnding_resolve_pane_setting($paneSettings, 'eventList', 'calendarDefault');
+$showPast        = lawnding_resolve_pane_setting($paneSettings, 'eventList', 'showPast');
+
 // Add parsed HTML descriptions for markdown-safe rendering.
 if (!empty($events)) {
     if (!class_exists('Parsedown')) {
         $parsedownPath = function_exists('lawnding_public_path')
-            ? lawnding_core_public_path('res/scr/Parsedown.php')
+            ? lawnding_public_path('res/scr/Parsedown.php')
             : __DIR__ . '/../../public/res/scr/Parsedown.php';
         require_once $parsedownPath;
     }
     if (!function_exists('lawnding_markdown_gate_apply')) {
         $gatingPath = function_exists('lawnding_public_path')
-            ? lawnding_core_public_path('res/scr/markdown-gating.php')
+            ? lawnding_public_path('res/scr/markdown-gating.php')
             : __DIR__ . '/../../../public/res/scr/markdown-gating.php';
         require_once $gatingPath;
     }
@@ -85,19 +109,27 @@ $eventsJson = json_encode([
     'showCalendar' => $showCalendar,
     'calendarDefault' => $calendarDefault,
     'events' => $events,
+    'categories' => $categories,
 ], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
 ?>
 <div class="pane glassConvex<?php echo $showCalendar ? ' eventListCalendarEnabled' : ''; ?>" id="<?php echo htmlspecialchars($paneId); ?>" data-pane-type="eventList">
     <div class="eventListPublic" data-pane-id="<?php echo htmlspecialchars($paneId); ?>">
+        <?php
+            // Tab/tabpanel ids must be unique per pane on the page.
+            $eventTabIdCalendar  = 'eventTab-calendar-' . $paneId;
+            $eventTabIdEvents    = 'eventTab-events-' . $paneId;
+            $eventPanelIdCalendar = 'eventPanel-calendar-' . $paneId;
+            $eventPanelIdEvents   = 'eventPanel-events-' . $paneId;
+        ?>
         <?php if ($showCalendar): ?>
             <div class="eventViewTabs" role="tablist" aria-label="Event views">
-                <button class="eventViewTab" type="button" data-event-view="calendar" role="tab" aria-selected="false">CALENDAR</button>
-                <button class="eventViewTab" type="button" data-event-view="events" role="tab" aria-selected="false">EVENTS</button>
+                <button class="eventViewTab" type="button" id="<?php echo htmlspecialchars($eventTabIdCalendar); ?>" data-event-view="calendar" role="tab" aria-selected="false" aria-controls="<?php echo htmlspecialchars($eventPanelIdCalendar); ?>">CALENDAR</button>
+                <button class="eventViewTab" type="button" id="<?php echo htmlspecialchars($eventTabIdEvents); ?>" data-event-view="events" role="tab" aria-selected="false" aria-controls="<?php echo htmlspecialchars($eventPanelIdEvents); ?>">EVENTS</button>
             </div>
         <?php endif; ?>
         <div class="eventViewShell<?php echo $showCalendar ? ' hasCalendarTabs' : ''; ?>">
             <?php if ($showCalendar): ?>
-                <div class="eventCalendarView" data-event-view-panel="calendar" role="tabpanel">
+                <div class="eventCalendarView" id="<?php echo htmlspecialchars($eventPanelIdCalendar); ?>" data-event-view-panel="calendar" role="tabpanel" aria-labelledby="<?php echo htmlspecialchars($eventTabIdCalendar); ?>" tabindex="0">
                     <table class="eventCalendarTable" aria-label="Event calendar">
                         <thead>
                             <tr class="eventCalendarNavRow">
@@ -126,7 +158,7 @@ $eventsJson = json_encode([
                     </table>
                 </div>
             <?php endif; ?>
-            <div class="eventEventsView" data-event-view-panel="events" role="tabpanel">
+            <div class="eventEventsView" <?php if ($showCalendar): ?>id="<?php echo htmlspecialchars($eventPanelIdEvents); ?>" aria-labelledby="<?php echo htmlspecialchars($eventTabIdEvents); ?>" tabindex="0" <?php endif; ?>data-event-view-panel="events" role="tabpanel">
                 <div class="eventSection">
                     <h3>HAPPENING NOW</h3>
                     <div class="eventSectionBody eventHappening"></div>
@@ -147,16 +179,17 @@ $eventsJson = json_encode([
     <script type="application/json" class="eventListData"><?php echo $eventsJson; ?></script>
 </div>
 
-<div class="eventModalOverlay hidden" id="eventModalOverlay">
-    <div class="eventModal" role="dialog" aria-modal="true" aria-labelledby="eventModalTitle">
-        <div class="eventModalHeader">
-            <div class="eventModalTitle" id="eventModalTitle"></div>
-            <button class="eventModalClose" type="button" id="eventModalClose">Close</button>
-        </div>
+<div class="eventModalOverlay" id="eventModalOverlay" hidden>
+    <div class="userModal glassConcave eventModal" role="dialog" aria-modal="true" aria-labelledby="eventModalTitle">
+        <h4 id="eventModalTitle"></h4>
+        <button class="userModalClose lpModalCloseX" type="button" id="eventModalClose" aria-label="Close">×</button>
         <div class="eventModalMeta" id="eventModalMeta"></div>
         <div class="eventModalMeta" id="eventModalAddress"></div>
+        <div class="eventModalMeta eventModalHost" id="eventModalHost" hidden></div>
+        <div class="eventModalBadges" id="eventModalBadges" hidden></div>
         <div class="eventModalDescription" id="eventModalDescription"></div>
         <div class="eventModalActions">
+            <a class="eventModalSourceLink hidden" id="eventModalSourceLink" target="_blank" rel="noopener noreferrer">Visit Site ↗</a>
             <div class="eventCalendarMenu hidden" id="eventModalCalendarMenu">
                 <button
                     class="eventCalendarButton eventCalendarToggle"
@@ -173,20 +206,16 @@ $eventsJson = json_encode([
                     <button class="eventCalendarOption" type="button" data-calendar-provider="google" role="menuitem">Add to Google Calendar</button>
                     <button class="eventCalendarOption" type="button" data-calendar-provider="outlook" role="menuitem">Add to Outlook Calendar</button>
                     <button class="eventCalendarOption" type="button" data-calendar-provider="m365" role="menuitem">Add to Microsoft 365 Calendar</button>
-                    <button class="eventCalendarOption" type="button" data-calendar-provider="yahoo" role="menuitem">Add to Yahoo! Calendar</button>
-                    <button class="eventCalendarOption" type="button" data-calendar-provider="aol" role="menuitem">Add to AOL Calendar</button>
                 </div>
             </div>
         </div>
     </div>
 </div>
 
-<div class="eventModalOverlay hidden" id="eventCalendarDayModalOverlay">
-    <div class="eventModal eventCalendarDayModal" role="dialog" aria-modal="true" aria-labelledby="eventCalendarDayModalTitle">
-        <div class="eventModalHeader">
-            <div class="eventModalTitle" id="eventCalendarDayModalTitle"></div>
-            <button class="eventModalClose" type="button" id="eventCalendarDayModalClose">Close</button>
-        </div>
+<div class="eventModalOverlay" id="eventCalendarDayModalOverlay" hidden>
+    <div class="userModal glassConcave eventModal eventCalendarDayModal" role="dialog" aria-modal="true" aria-labelledby="eventCalendarDayModalTitle">
+        <h4 id="eventCalendarDayModalTitle"></h4>
+        <button class="userModalClose lpModalCloseX" type="button" id="eventCalendarDayModalClose" aria-label="Close">×</button>
         <div class="eventCalendarDayModalBody" id="eventCalendarDayModalBody"></div>
     </div>
 </div>

@@ -513,7 +513,9 @@ nav {
                 align-items: center;
                 background: #FFFFFF11;
                 border-radius: 999px;
-                border: 1px solid #FFFFFF33;
+                border: 1px solid #FFFFFF55;
+                border-left-color: #FFFFFF22;
+                border-right-color: #FFFFFF22;
                 font-weight: 600;
                 padding: 4px 6px 3px;
                 gap: 2px;
@@ -551,12 +553,16 @@ nav {
                 text-overflow: ellipsis;
             }
             .navBar li a.navActive {
-                border-color: #FFFFFFAA;
+                border-color: #FFFFFF77;
+                border-left-color: #FFFFFF33;
+                border-right-color: #FFFFFF33;
                 background: #FFFFFF22;
             }
                 .navBar li a:hover {
                     background-color: #77777733;
-                    border: 1px solid #FFFFFFBB;
+                    border: 1px solid #FFFFFFDD;
+                    border-left-color: #FFFFFF88;
+                    border-right-color: #FFFFFF88;
                 }
             .navBar li a:active {
                 background-color: #00000055;
